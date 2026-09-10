@@ -18,49 +18,106 @@
 <style>
   :root{
     --bg:#F3F5EE;
-    --paper:#FBFBF7;
-    --ink:#1F2B22;
-    --ink-soft:#5B6459;
-    --rule:#D8D9CD;
-    --forest:#2F5233;
-    --forest-dark:#20391F;
+    --paper:#FFFFFF;
+    --ink:#17221A;
+    --ink-soft:#667066;
+    --rule:#E1E5DD;
+    --forest:#285D35;
+    --forest-dark:#183D22;
     --gold:#B8933B;
-    --slate:#445E75;
-    --rust:#8B5E3C;
+    --slate:#536A7D;
     --danger:#8C3B2E;
+    --shadow:0 8px 28px rgba(20,35,24,.12);
   }
+
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0;min-height:100%;background:var(--bg);}
   body{
-    background:var(--bg);
     color:var(--ink);
     font-family:'Inter',system-ui,sans-serif;
     font-variant-numeric:tabular-nums;
     -webkit-font-smoothing:antialiased;
-    padding-bottom:48px;
+    padding:0;
   }
+
+  button,input,select{font:inherit;}
+  button{cursor:pointer;}
+
   .wrap{max-width:480px;margin:0 auto;padding:0 20px;}
-  header.top{padding:28px 20px 18px;max-width:480px;margin:0 auto;}
-  h1{font-family:'Fraunces',serif;font-weight:600;font-size:28px;line-height:1.15;margin:0 0 2px;color:var(--forest-dark);}
+  header.top{
+    padding:28px 20px 18px;
+    max-width:480px;
+    margin:0 auto;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:28px;
+    line-height:1.15;
+    margin:0 0 2px;
+    color:var(--forest-dark);
+  }
   .subtitle{font-size:13px;color:var(--ink-soft);margin:0;}
   .rule{border:none;border-top:1px solid var(--rule);margin:18px 0;}
-  h2{font-family:'Fraunces',serif;font-weight:500;font-size:16px;margin:0 0 12px;color:var(--forest-dark);}
-  button{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;border:none;border-radius:9px;padding:12px 18px;cursor:pointer;background:var(--forest);color:#fff;width:100%;}
-  button:active{background:var(--forest-dark);}
+  h2{
+    font-family:'Fraunces',serif;
+    font-weight:500;
+    font-size:17px;
+    margin:0 0 12px;
+    color:var(--forest-dark);
+  }
+
+  button{
+    border:none;
+    border-radius:11px;
+    padding:12px 18px;
+    cursor:pointer;
+    background:var(--forest);
+    color:#fff;
+    font-weight:700;
+    font-size:14px;
+    transition:transform .12s ease,background .15s ease,box-shadow .15s ease;
+  }
+  button:active{transform:scale(.98);}
   button.secondary{background:transparent;color:var(--forest-dark);border:1px solid var(--rule);}
-  select,input[type=text]{font-family:'Inter',sans-serif;font-size:14px;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);width:100%;}
-  #importView .dropzone{border:1.5px dashed var(--rule);border-radius:12px;padding:36px 20px;text-align:center;color:var(--ink-soft);font-size:14px;}
-  #importView .dropzone.drag{border-color:var(--forest);color:var(--forest-dark);}
+
+  select,input[type=text]{
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:11px 12px;
+    border:1px solid var(--rule);
+    border-radius:10px;
+    background:var(--paper);
+    color:var(--ink);
+    width:100%;
+    outline:none;
+  }
+  input:focus,select:focus{
+    border-color:#8BA58D;
+    box-shadow:0 0 0 3px rgba(40,93,53,.09);
+  }
+
+  #importView .dropzone{
+    border:1.5px dashed #B9C3B8;
+    border-radius:16px;
+    padding:42px 20px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:14px;
+    background:rgba(255,255,255,.55);
+  }
+  #importView .dropzone.drag{border-color:var(--forest);color:var(--forest-dark);background:#F8FBF7;}
   #fileInput{display:none;}
   .formats{font-size:12px;color:var(--ink-soft);margin-top:10px;text-align:center;}
   .howto{margin-top:22px;font-size:13px;color:var(--ink-soft);line-height:1.55;}
-  .howto b{color:var(--ink);}
+
   .map-row{margin-bottom:14px;}
   .map-row label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
   .preview{overflow-x:auto;border:1px solid var(--rule);border-radius:8px;margin-top:16px;}
   table{border-collapse:collapse;width:100%;font-size:12.5px;}
   .preview th,.preview td{padding:7px 9px;white-space:nowrap;border-bottom:1px solid var(--rule);text-align:left;}
   .preview th{color:var(--ink-soft);font-weight:600;background:var(--paper);}
+
   .stats{display:flex;justify-content:space-between;padding:6px 0 4px;}
   .stat{text-align:left;}
   .stat .num{font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:var(--forest-dark);display:block;line-height:1;}
@@ -71,6 +128,7 @@
   .bar-top .figs{color:var(--ink-soft);font-size:12px;}
   .bar-track{height:7px;background:var(--rule);border-radius:4px;overflow:hidden;}
   .bar-fill{height:100%;border-radius:4px;}
+
   .toolbar{display:flex;gap:8px;margin-bottom:14px;}
   .toolbar input{flex:1;}
   .toolbar select{width:auto;flex-shrink:0;}
@@ -82,19 +140,210 @@
   .empty{color:var(--ink-soft);font-size:13px;padding:10px 0;}
   .interv-row{padding:9px 0;border-bottom:1px solid var(--rule);font-size:13px;}
   .interv-row .d{color:var(--ink-soft);font-size:11.5px;}
-  footer{max-width:480px;margin:0 auto;padding:0 20px;font-size:11.5px;color:var(--ink-soft);text-align:center;}
+  footer{max-width:480px;margin:0 auto;padding:0 20px 28px;font-size:11.5px;color:var(--ink-soft);text-align:center;}
   .badge{display:inline-block;font-size:11px;color:var(--ink-soft);margin-top:2px;}
   .hidden{display:none !important;}
   .err{background:#F7EDEA;border:1px solid #E3C3B7;color:var(--danger);font-size:13px;padding:12px 14px;border-radius:8px;margin-top:14px;}
   .tabs{display:flex;gap:6px;margin:18px 0 16px;}
-  .tab-btn{flex:1;padding:9px;border-radius:8px;border:1px solid var(--rule);background:var(--paper);color:var(--ink-soft);font-weight:600;font-size:13px;}
+  .tab-btn{
+    flex:1;padding:10px;border-radius:10px;border:1px solid var(--rule);
+    background:var(--paper);color:var(--ink-soft);font-weight:700;font-size:13px;
+  }
   .tab-btn.active{background:var(--forest);color:#fff;border-color:var(--forest);}
-  #mapContainer{height:360px;border-radius:10px;overflow:hidden;border:1px solid var(--rule);background:#e9ebe3;}
-  .map-note{font-size:12px;color:var(--ink-soft);margin-top:10px;line-height:1.55;}
+  .map-note{font-size:12px;color:var(--ink-soft);margin-top:9px;line-height:1.45;}
   .leaflet-popup-content{font-family:'Inter',sans-serif;font-size:12.5px;}
   .leaflet-popup-content b{font-family:'Fraunces',serif;font-size:14px;}
   .map-status{font-size:12.5px;color:var(--ink-soft);padding:8px 0;}
   .detected{font-size:12px;color:var(--forest-dark);background:#E7EDE3;border:1px solid #CFDBC6;border-radius:7px;padding:8px 11px;margin-bottom:16px;}
+
+  /* Recherche carte */
+  .map-search{
+    position:absolute;
+    z-index:1000;
+    top:14px;
+    left:14px;
+    right:14px;
+    display:flex;
+    gap:7px;
+    max-width:620px;
+    margin:auto;
+  }
+  .map-search input{
+    height:46px;
+    padding-left:43px;
+    border:0;
+    box-shadow:var(--shadow);
+    background:rgba(255,255,255,.96);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+  }
+  .map-search:before{
+    content:"⌕";
+    position:absolute;
+    z-index:2;
+    left:15px;
+    top:9px;
+    font-size:23px;
+    line-height:28px;
+    color:#667066;
+    pointer-events:none;
+  }
+  .map-search-btn{
+    width:auto;
+    min-width:94px;
+    height:46px;
+    padding:0 14px;
+    border-radius:11px;
+    box-shadow:var(--shadow);
+  }
+  .map-search-results{
+    position:absolute;
+    z-index:1001;
+    top:68px;
+    left:14px;
+    right:14px;
+    max-width:620px;
+    margin:auto;
+    border:0;
+    border-radius:14px;
+    background:rgba(255,255,255,.97);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    backdrop-filter:blur(12px);
+  }
+  .map-search-result{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    padding:11px 13px;
+    border-bottom:1px solid var(--rule);
+    font-size:12.5px;
+    cursor:pointer;
+  }
+  .map-search-result:last-child{border-bottom:none;}
+  .map-search-result:active{background:#EEF1E9;}
+  .map-search-result .meta{color:var(--ink-soft);font-size:11px;margin-top:2px;}
+  .map-search-result .surface{font-weight:700;color:var(--forest-dark);white-space:nowrap;}
+
+  /* Carte plein écran */
+  #dashView.map-mode{
+    position:fixed;
+    inset:0;
+    z-index:20;
+    max-width:none;
+    width:100%;
+    height:100dvh;
+    padding:0;
+    margin:0;
+    background:#E9EBE3;
+    overflow:hidden;
+  }
+  #dashView.map-mode #detectedBadge,
+  #dashView.map-mode > .stats,
+  #dashView.map-mode > .badge,
+  #dashView.map-mode > .tabs,
+  #dashView.map-mode > hr,
+  #dashView.map-mode > #tabAssolement,
+  #dashView.map-mode > #newImport{
+    display:none !important;
+  }
+  #dashView.map-mode #tabCarte{
+    display:block !important;
+    position:relative;
+    width:100%;
+    height:100dvh;
+    padding:0;
+  }
+  #dashView.map-mode #tabCarte > h2,
+  #dashView.map-mode #mapNote{
+    display:none;
+  }
+  #mapContainer{
+    position:relative;
+    width:100%;
+    height:100dvh;
+    min-height:100dvh;
+    border:0;
+    border-radius:0;
+    background:#e9ebe3;
+  }
+  #dashView.map-mode #mapContainer{height:100dvh;}
+
+  /* Barre d'actions flottante */
+  #dashView.map-mode .map-back-btn{display:block;}
+
+  .map-actions{
+    position:absolute;
+    z-index:1000;
+    right:14px;
+    bottom:24px;
+    margin:0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .map-gps-btn{
+    width:48px;
+    height:48px;
+    padding:0;
+    border-radius:50%;
+    background:rgba(255,255,255,.96);
+    color:var(--ink);
+    border:0;
+    box-shadow:var(--shadow);
+    font-size:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .map-gps-btn:before{
+    content:"⌖";
+    font-size:24px;
+    color:#1976F3;
+    line-height:1;
+  }
+  .map-gps-btn.active:before{color:var(--forest);}
+  .gps-marker{
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:#1976F3;
+    border:3px solid #fff;
+    box-shadow:0 0 0 2px rgba(25,118,243,.35),0 1px 5px rgba(0,0,0,.35);
+  }
+
+  /* Petit bouton retour lorsque la carte occupe tout l'écran */
+  .map-back-btn{display:none;
+    position:absolute;
+    z-index:1001;
+    left:14px;
+    bottom:24px;
+    width:auto;
+    padding:12px 16px;
+    border-radius:12px;
+    background:rgba(255,255,255,.96);
+    box-shadow:var(--shadow);
+    color:var(--forest-dark);
+    font-weight:700;
+    font-size:13px;
+  }
+
+  @media (min-width:700px){
+    .map-search{left:24px;right:24px;top:20px;}
+    .map-search-results{left:24px;right:24px;top:76px;}
+    .map-actions{right:24px;bottom:28px;}
+    .map-back-btn{display:none;left:24px;bottom:28px;}
+  }
+
+  @media (max-width:420px){
+    .map-search-btn{min-width:82px;padding:0 11px;}
+    .map-search{left:10px;right:10px;top:10px;}
+    .map-search-results{left:10px;right:10px;top:64px;}
+    .map-actions{right:12px;bottom:18px;}
+    .map-back-btn{display:none;left:12px;bottom:18px;}
+  }
+
 </style>
 </head>
 <body>
@@ -178,6 +427,15 @@
 
     <div id="tabCarte" class="hidden">
       <h2>Localisation des parcelles</h2>
+      <div class="map-search">
+        <input type="text" id="mapSearch" placeholder="Rechercher une parcelle sur la carte…" autocomplete="off">
+        <button type="button" class="map-search-btn" id="mapSearchBtn">Rechercher</button>
+      </div>
+      <div id="mapSearchResults" class="map-search-results hidden"></div>
+      <button type="button" class="map-back-btn" id="mapBackBtn">‹ Parcelles</button>
+      <div class="map-actions">
+        <button type="button" class="map-gps-btn" id="locateBtn" aria-label="Afficher ma position">● Ma position</button>
+      </div>
       <div id="mapContainer"></div>
       <div class="map-note" id="mapNote"></div>
     </div>
@@ -224,6 +482,10 @@
   let geoCache = {};           // insee -> {lat, lon} | null  (commune fallback geocoding)
   let cultureColorMap = {};
   let map = null;
+  let gpsMarker = null;
+  let gpsAccuracyCircle = null;
+  let gpsWatchId = null;
+  let selectedParcelLayer = null;
 
   const $ = (id) => document.getElementById(id);
   const importView = $("importView"), mappingView = $("mappingView"), dashView = $("dashView");
@@ -858,6 +1120,17 @@
   }
   $("search").addEventListener("input", renderParcelleList);
   $("sortSel").addEventListener("change", renderParcelleList);
+  $("mapSearch").addEventListener("input", renderMapSearchResults);
+  $("mapSearch").addEventListener("keydown", e=>{
+    if(e.key==="Enter"){e.preventDefault();$("mapSearchBtn").click();}
+  });
+  $("mapSearchBtn").addEventListener("click",()=>{
+    renderMapSearchResults();
+    const first=$("mapSearchResults").querySelector(".map-search-result");
+    if(first) first.click();
+  });
+  $("locateBtn").addEventListener("click", locateUser);
+  $("mapBackBtn").addEventListener("click", ()=>switchTab("assolement"));
 
   // ---------- Tabs ----------
 
@@ -866,10 +1139,25 @@
     $("tabCarteBtn").classList.toggle("active", which==="carte");
     $("tabAssolement").classList.toggle("hidden", which!=="assolement");
     $("tabCarte").classList.toggle("hidden", which!=="carte");
-    if(which==="carte"){ setTimeout(renderMap, 30); }
+
+    const fullMap = which === "carte";
+    dashView.classList.toggle("map-mode", fullMap);
+
+    if(fullMap){
+      setTimeout(()=>{
+        renderMap();
+        if(map) map.invalidateSize();
+      },80);
+    }
   }
   $("tabAssolementBtn").addEventListener("click", ()=>switchTab("assolement"));
   $("tabCarteBtn").addEventListener("click", ()=>switchTab("carte"));
+  dashView.addEventListener("click", e=>{
+    if(dashView.classList.contains("map-mode") &&
+       e.target === dashView){
+      switchTab("assolement");
+    }
+  });
 
   // ---------- Map ----------
 
@@ -892,6 +1180,142 @@
     }catch(e){ /* offline or lookup failed */ }
     geoCache[key] = null;
     return null;
+  }
+
+  function parcelMatchesQuery(p, q){
+    const nq = normalizeHeader(q);
+    return nq && (
+      normalizeHeader(p.parcelle).includes(nq) ||
+      normalizeHeader(p.culture).includes(nq) ||
+      normalizeHeader(p.ilot).includes(nq) ||
+      normalizeHeader(p.commune).includes(nq) ||
+      normalizeHeader(p.guid).includes(nq)
+    );
+  }
+
+  function getParcelLayer(p){
+    if(!map || !p || !p.guid) return null;
+    let found = null;
+    map.eachLayer(l=>{
+      if(l instanceof L.Polygon && l._parcelGuid === p.guid) found = l;
+    });
+    return found;
+  }
+
+  function highlightParcel(p){
+    if(selectedParcelLayer){
+      selectedParcelLayer.setStyle({weight:1.5,color:"#FFFFFF"});
+      selectedParcelLayer = null;
+    }
+    const layer = getParcelLayer(p);
+    if(layer){
+      layer.setStyle({weight:4,color:"#1976F3"});
+      selectedParcelLayer = layer;
+      layer.openPopup();
+      map.fitBounds(layer.getBounds(), {padding:[45,45],maxZoom:19});
+      return;
+    }
+    const key = p.insee || p.commune;
+    if(key) geocodeCommune(p.insee,p.commune).then(coords=>{
+      if(coords) map.setView([coords.lat,coords.lon],16);
+    });
+  }
+
+  function renderMapSearchResults(){
+    const q = $("mapSearch").value.trim();
+    const box = $("mapSearchResults");
+    if(!q){
+      box.innerHTML = "";
+      box.classList.add("hidden");
+      return;
+    }
+    const matches = dataset.parcelles.filter(p=>parcelMatchesQuery(p,q)).slice(0,12);
+    if(!matches.length){
+      box.innerHTML = '<div class="empty" style="padding:10px 11px;">Aucune parcelle trouvée.</div>';
+      box.classList.remove("hidden");
+      return;
+    }
+    box.innerHTML = matches.map((p,i)=>{
+      const meta = escapeHtml(p.culture||"culture non renseignée")
+        +(p.ilot?" · îlot "+escapeHtml(p.ilot):"")
+        +(p.commune?" · "+escapeHtml(p.commune):"");
+      const surf = p.surface!=null ? p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha" : "–";
+      return '<div class="map-search-result" data-i="'+i+'"><div><b>'
+        +escapeHtml(p.parcelle||"(sans nom)")+'</b><div class="meta">'+meta
+        +'</div></div><div class="surface">'+surf+'</div></div>';
+    }).join("");
+    matches.forEach((p,i)=>{
+      box.querySelector('[data-i="'+i+'"]').addEventListener("click",()=>{
+        highlightParcel(p);
+        $("mapSearch").value=p.parcelle||"";
+        box.classList.add("hidden");
+      });
+    });
+    box.classList.remove("hidden");
+  }
+
+  function handleGpsError(err){
+    $("locateBtn").classList.remove("active");
+    $("locateBtn").textContent="● Ma position";
+    const msg = {
+      1:"Autorisation de localisation refusée. Autorise la position dans les réglages du navigateur.",
+      2:"Position GPS indisponible pour le moment.",
+      3:"La recherche GPS a expiré. Réessaie."
+    };
+    $("mapNote").textContent=msg[err && err.code]||"Impossible d'obtenir la position GPS.";
+  }
+
+  function updateGpsPosition(pos,center){
+    const lat=pos.coords.latitude, lon=pos.coords.longitude;
+    const accuracy=Math.max(pos.coords.accuracy||20,5);
+    const icon=L.divIcon({
+      className:"",
+      html:'<div class="gps-marker"></div>',
+      iconSize:[18,18],
+      iconAnchor:[9,9]
+    });
+    if(!gpsMarker){
+      gpsMarker=L.marker([lat,lon],{icon,zIndexOffset:1000}).addTo(map);
+      gpsMarker.bindPopup("<b>Ma position</b><br>Position GPS en temps réel");
+    }else{
+      gpsMarker.setLatLng([lat,lon]);
+    }
+    if(!gpsAccuracyCircle){
+      gpsAccuracyCircle=L.circle([lat,lon],{
+        radius:accuracy,color:"#1976F3",weight:1.5,
+        fillColor:"#1976F3",fillOpacity:0.08
+      }).addTo(map);
+    }else{
+      gpsAccuracyCircle.setLatLng([lat,lon]);
+      gpsAccuracyCircle.setRadius(accuracy);
+    }
+    if(center) map.setView([lat,lon],Math.max(map.getZoom(),16));
+    $("locateBtn").classList.add("active");
+    $("locateBtn").textContent="● GPS actif";
+    $("mapNote").textContent="Position GPS en temps réel · précision ±"+Math.round(accuracy)+" m.";
+  }
+
+  function locateUser(){
+    if(!navigator.geolocation){
+      $("mapNote").textContent="La géolocalisation n'est pas disponible sur cet appareil.";
+      return;
+    }
+    $("locateBtn").classList.add("active");
+    $("locateBtn").textContent="● Localisation…";
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        updateGpsPosition(pos,true);
+        if(gpsWatchId===null){
+          gpsWatchId=navigator.geolocation.watchPosition(
+            p=>updateGpsPosition(p,false),
+            handleGpsError,
+            {enableHighAccuracy:true,maximumAge:3000,timeout:15000}
+          );
+        }
+      },
+      handleGpsError,
+      {enableHighAccuracy:true,maximumAge:0,timeout:15000}
+    );
   }
 
   async function renderMap(){
@@ -920,6 +1344,7 @@
     withGeom.forEach(({p,g})=>{
       const color = cultureColorMap[p.culture || "Non renseigné"] || "#2F5233";
       const poly = L.polygon(g.rings, {color:"#FFFFFF", weight:1.5, fillColor:color, fillOpacity:0.6}).addTo(map);
+      poly._parcelGuid = p.guid;
       poly.bindPopup("<b>"+escapeHtml(p.parcelle||g.nom||"")+"</b><br>"+escapeHtml(p.culture||"")+"<br>"+(p.surface!=null?p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha":""));
       g.rings.forEach(ring=> ring.forEach(pt=> allBounds.push(pt)));
       preciseSurface += (p.surface||0);
@@ -960,6 +1385,11 @@
 
     map.fitBounds(L.latLngBounds(allBounds), {padding:[30,30]});
     setTimeout(()=> map.invalidateSize(), 60);
+
+    if(gpsMarker){
+      gpsMarker.addTo(map);
+      if(gpsAccuracyCircle) gpsAccuracyCircle.addTo(map);
+    }
 
     if(withoutGeom.length===0){
       $("mapNote").textContent = "Toutes les parcelles sont affichées avec leur contour exact, d'après l'export cartographique Geofolia.";
