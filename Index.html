@@ -632,6 +632,54 @@ button{
 }
 
 </style>
+
+<style>
+/* ===== FINAL MAP POSITIONING ===== */
+#dashView.map-mode .map-search-wrap{
+  top:calc(env(safe-area-inset-top, 0px) + 150px) !important;
+  left:12px !important;
+  right:12px !important;
+  width:auto !important;
+  z-index:1200 !important;
+}
+#dashView.map-mode #mapSearch{
+  width:100% !important;
+  box-sizing:border-box !important;
+  min-height:52px !important;
+  border-radius:17px !important;
+  font-size:17px !important;
+}
+
+#dashView.map-mode .leaflet-control-zoom{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  top:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 22px) !important;
+  margin:0 !important;
+  z-index:1150 !important;
+}
+
+#dashView.map-mode .leaflet-control-zoom a{
+  width:52px !important;
+  height:52px !important;
+  line-height:52px !important;
+  font-size:27px !important;
+}
+
+#dashView.map-mode #locateBtn{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  top:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 142px) !important;
+  width:52px !important;
+  height:52px !important;
+  min-height:52px !important;
+  z-index:1200 !important;
+}
+</style>
+
 </head>
 <body>
 
@@ -1731,6 +1779,51 @@ button{
     setTimeout(polishMapControls, 1000);
   });
   window.addEventListener('resize', polishMapControls);
+})();
+</script>
+
+
+<script>
+(function(){
+  function enforceFinalMapLayout(){
+    const root = document.getElementById('dashView');
+    if(!root || !root.classList.contains('map-mode')) return;
+
+    const searchWrap = document.querySelector('#dashView.map-mode .map-search-wrap');
+    if(searchWrap){
+      searchWrap.style.top = 'calc(env(safe-area-inset-top, 0px) + 150px)';
+      searchWrap.style.left = '12px';
+      searchWrap.style.right = '12px';
+      searchWrap.style.width = 'auto';
+      searchWrap.style.zIndex = '1200';
+    }
+
+    const zoom = document.querySelector('#dashView.map-mode .leaflet-control-zoom');
+    if(zoom){
+      zoom.style.position = 'fixed';
+      zoom.style.right = '14px';
+      zoom.style.left = 'auto';
+      zoom.style.top = 'auto';
+      zoom.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 22px)';
+      zoom.style.margin = '0';
+      zoom.style.zIndex = '1150';
+    }
+
+    const locate = document.getElementById('locateBtn');
+    if(locate){
+      locate.style.position = 'fixed';
+      locate.style.right = '14px';
+      locate.style.left = 'auto';
+      locate.style.top = 'auto';
+      locate.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 142px)';
+      locate.style.zIndex = '1200';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    [200,500,1000,1800].forEach(ms => setTimeout(enforceFinalMapLayout, ms));
+  });
+  window.addEventListener('resize', enforceFinalMapLayout);
 })();
 </script>
 
