@@ -680,6 +680,134 @@ button{
 }
 </style>
 
+
+<style>
+/* =========================================================
+   CORRECTION FINALE — positions exactes demandées
+   ========================================================= */
+
+/* La classe réelle du conteneur de recherche est .map-search
+   (et non .map-search-wrap). */
+#dashView.map-mode .map-search{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top, 0px) + 150px) !important;
+  left:12px !important;
+  right:12px !important;
+  width:auto !important;
+  max-width:none !important;
+  margin:0 !important;
+  display:flex !important;
+  gap:8px !important;
+  z-index:2000 !important;
+}
+
+/* Champ de recherche : grand, accessible et sous les boutons du haut */
+#dashView.map-mode .map-search input{
+  flex:1 1 auto !important;
+  width:auto !important;
+  min-width:0 !important;
+  height:54px !important;
+  min-height:54px !important;
+  box-sizing:border-box !important;
+  border-radius:18px !important;
+  font-size:16px !important;
+  padding-left:46px !important;
+  padding-right:14px !important;
+  background:rgba(255,255,255,.97) !important;
+  box-shadow:0 8px 24px rgba(15,23,42,.18) !important;
+  border:1px solid rgba(15,23,42,.08) !important;
+}
+
+/* Bouton Rechercher à droite de la barre */
+#dashView.map-mode .map-search-btn{
+  flex:0 0 auto !important;
+  height:54px !important;
+  min-height:54px !important;
+  min-width:112px !important;
+  padding:0 16px !important;
+  border-radius:17px !important;
+  box-shadow:0 8px 24px rgba(15,23,42,.18) !important;
+}
+
+/* Résultats juste sous la nouvelle barre */
+#dashView.map-mode #mapSearchResults{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top, 0px) + 212px) !important;
+  left:12px !important;
+  right:12px !important;
+  width:auto !important;
+  max-width:none !important;
+  margin:0 !important;
+  z-index:1999 !important;
+}
+
+/* Zoom : bloc vertical en bas à droite */
+#dashView.map-mode .leaflet-control-zoom{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  top:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 20px) !important;
+  margin:0 !important;
+  z-index:2100 !important;
+  border:0 !important;
+  border-radius:18px !important;
+  overflow:hidden !important;
+  box-shadow:0 8px 24px rgba(15,23,42,.20) !important;
+}
+
+/* Boutons + / - suffisamment grands pour le tactile */
+#dashView.map-mode .leaflet-control-zoom a{
+  display:block !important;
+  width:54px !important;
+  height:54px !important;
+  line-height:54px !important;
+  margin:0 !important;
+  font-size:28px !important;
+  font-weight:500 !important;
+  background:rgba(255,255,255,.97) !important;
+  color:#172033 !important;
+  border:0 !important;
+}
+
+#dashView.map-mode .leaflet-control-zoom a + a{
+  border-top:1px solid rgba(15,23,42,.10) !important;
+}
+
+/* GPS juste au-dessus du zoom */
+#dashView.map-mode .map-actions{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  top:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 148px) !important;
+  margin:0 !important;
+  z-index:2100 !important;
+}
+
+#dashView.map-mode #locateBtn{
+  position:relative !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:54px !important;
+  height:54px !important;
+  min-height:54px !important;
+  border-radius:50% !important;
+}
+
+/* Sur petit écran, la barre garde exactement cette hiérarchie */
+@media (max-width:600px){
+  #dashView.map-mode .map-search{
+    top:calc(env(safe-area-inset-top, 0px) + 145px) !important;
+  }
+
+  #dashView.map-mode .map-search-btn{
+    min-width:104px !important;
+    padding:0 12px !important;
+  }
+}
+</style>
+
 </head>
 <body>
 
@@ -1824,6 +1952,53 @@ button{
     [200,500,1000,1800].forEach(ms => setTimeout(enforceFinalMapLayout, ms));
   });
   window.addEventListener('resize', enforceFinalMapLayout);
+})();
+</script>
+
+
+<script>
+/* Re-applique les positions après chaque rendu Leaflet / changement de taille. */
+(function(){
+  function fixMapUI(){
+    const root = document.getElementById('dashView');
+    if(!root || !root.classList.contains('map-mode')) return;
+
+    const search = root.querySelector('.map-search');
+    if(search){
+      search.style.position = 'fixed';
+      search.style.top = 'calc(env(safe-area-inset-top, 0px) + 150px)';
+      search.style.left = '12px';
+      search.style.right = '12px';
+      search.style.width = 'auto';
+      search.style.zIndex = '2000';
+    }
+
+    const zoom = root.querySelector('.leaflet-control-zoom');
+    if(zoom){
+      zoom.style.position = 'fixed';
+      zoom.style.right = '14px';
+      zoom.style.left = 'auto';
+      zoom.style.top = 'auto';
+      zoom.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 20px)';
+      zoom.style.zIndex = '2100';
+      zoom.style.margin = '0';
+    }
+
+    const actions = root.querySelector('.map-actions');
+    if(actions){
+      actions.style.position = 'fixed';
+      actions.style.right = '14px';
+      actions.style.left = 'auto';
+      actions.style.top = 'auto';
+      actions.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 148px)';
+      actions.style.zIndex = '2100';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    [100,300,700,1200,2000].forEach(t => setTimeout(fixMapUI,t));
+  });
+  window.addEventListener('resize', fixMapUI);
 })();
 </script>
 
