@@ -134,14 +134,20 @@
   .bar-track{height:7px;background:var(--rule);border-radius:4px;overflow:hidden;}
   .bar-fill{height:100%;border-radius:4px;}
 
-  .toolbar{display:flex;gap:8px;margin-bottom:14px;}
+  .toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .toolbar input[type=text]{flex:1;min-width:140px;}
   .toolbar input{flex:1;}
   .toolbar select{width:auto;flex-shrink:0;}
   .plist{border-top:1px solid var(--rule);}
-  .prow{padding:11px 0;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:10px;font-size:13.5px;}
+  .prow{padding:11px 0;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:10px;font-size:13.5px;cursor:pointer;}
+  .prow:active{background:#F5F8FF;}
   .prow .pname{font-weight:600;}
   .prow .pmeta{color:var(--ink-soft);font-size:12px;margin-top:2px;}
   .prow .psurf{font-weight:600;white-space:nowrap;color:var(--forest-dark);}
+  .ptodo{color:#D9A400;margin-right:5px;}
+  .pnoteicon,.pphotoicon{color:var(--ink-soft);font-size:12px;margin-left:6px;}
+  .todo-filter-btn{white-space:nowrap;}
+  .todo-filter-btn.active{background:var(--forest);color:#fff;border-color:var(--forest);}
   .empty{color:var(--ink-soft);font-size:13px;padding:10px 0;}
   .interv-row{padding:9px 0;border-bottom:1px solid var(--rule);font-size:13px;}
   .interv-row .d{color:var(--ink-soft);font-size:11.5px;}
@@ -636,6 +642,54 @@ button{
   }
 }
 
+/* ===== Fiche parcelle (panneau coulissant) ===== */
+.parcel-sheet{position:fixed;inset:0;z-index:2000;}
+.parcel-sheet-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.45);}
+.parcel-sheet-panel{
+  position:absolute;left:0;right:0;bottom:0;
+  background:var(--paper);
+  border-radius:20px 20px 0 0;
+  max-height:85vh;
+  overflow-y:auto;
+  padding:10px 18px calc(env(safe-area-inset-bottom,0px) + 20px) 18px;
+  box-shadow:0 -10px 30px rgba(15,23,42,.2);
+  animation:sheetSlideUp .2s ease;
+}
+@keyframes sheetSlideUp{
+  from{transform:translateY(30px);opacity:.4;}
+  to{transform:translateY(0);opacity:1;}
+}
+.parcel-sheet-handle{width:38px;height:4px;background:var(--rule);border-radius:3px;margin:6px auto 12px;}
+.parcel-sheet-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.parcel-sheet-title{font-family:'Fraunces',serif;font-size:19px;font-weight:600;color:var(--ink);}
+.parcel-sheet-sub{color:var(--ink-soft);font-size:12.5px;margin-top:2px;}
+.parcel-sheet-close{background:none;border:none;color:var(--ink-soft);font-size:16px;padding:4px 8px;font-weight:400;}
+.parcel-sheet-todo{display:flex;align-items:center;gap:8px;margin:16px 0;font-size:14px;font-weight:600;color:var(--ink);}
+.parcel-sheet-todo input{width:18px;height:18px;}
+.parcel-sheet-actions{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.parcel-sheet-actions button{flex:1;min-width:140px;}
+.parcel-sheet-label{font-size:12.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+#psNote{width:100%;box-sizing:border-box;font-family:'Inter',sans-serif;font-size:14px;padding:10px 12px;border-radius:11px;border:1px solid var(--rule);resize:vertical;margin-bottom:16px;}
+#psNote:focus-visible{outline:2.5px solid var(--forest);outline-offset:1px;}
+.parcel-photos{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+.parcel-photo{position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;background:var(--rule);}
+.parcel-photo img{width:100%;height:100%;object-fit:cover;display:block;}
+.parcel-photo .pdel{position:absolute;top:3px;right:3px;background:rgba(15,23,42,.65);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;line-height:1;cursor:pointer;}
+
+.weather-card{
+  display:flex;align-items:center;gap:12px;
+  background:linear-gradient(135deg,#EAF1FF,#F5F8FF);
+  border:1px solid #DCE7FB;
+  border-radius:14px;
+  padding:12px 14px;
+  margin-bottom:14px;
+}
+.weather-card .wicon{font-size:28px;line-height:1;flex:none;}
+.weather-card .wtemp{font-size:20px;font-weight:700;color:var(--ink);}
+.weather-card .wdesc{font-size:12.5px;color:var(--ink-soft);}
+.weather-card .wdetails{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+.popup-open-sheet{margin-top:6px;background:var(--forest);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;}
+
 </style>
 
 <style>
@@ -856,6 +910,7 @@ button{
       <div class="stat"><span class="num" id="statCultures">–</span><span class="lbl">cultures</span></div>
     </div>
     <div class="badge" id="lastUpdate"></div>
+    <div class="weather-card hidden" id="weatherCard" aria-live="polite"></div>
 
     <div class="tabs" role="tablist">
       <button type="button" class="tab-btn active" id="tabAssolementBtn" role="tab" aria-selected="true">Assolement</button>
@@ -876,6 +931,9 @@ button{
           <option value="nom">Nom</option>
           <option value="culture">Culture</option>
         </select>
+        <button type="button" class="secondary todo-filter-btn active" id="todoFilter" aria-pressed="true">★ Aujourd'hui</button>
+        <button type="button" class="secondary" id="todoReset" title="Décocher toutes les parcelles marquées à faire">Réinitialiser</button>
+        <button type="button" class="secondary" id="groupItinerary" title="Itinéraire pour toutes les parcelles à faire aujourd'hui">🧭 Itinéraire du jour</button>
       </div>
       <div class="plist" id="parcelleList"></div>
 
@@ -916,6 +974,39 @@ button{
   Ajoute cette page à ton écran d'accueil (icône Partager → « Sur l'écran d'accueil ») pour l'ouvrir comme une appli. Les données restent sur l'appareil ; réimporte un export quand Geofolia a été mis à jour.
 </footer>
 
+<div id="parcelSheet" class="parcel-sheet hidden">
+  <div class="parcel-sheet-backdrop" id="parcelSheetBackdrop"></div>
+  <div class="parcel-sheet-panel" role="dialog" aria-modal="true" aria-labelledby="psTitle">
+    <div class="parcel-sheet-handle"></div>
+    <div class="parcel-sheet-header">
+      <div>
+        <div class="parcel-sheet-title" id="psTitle"></div>
+        <div class="parcel-sheet-sub" id="psSub"></div>
+      </div>
+      <button type="button" class="parcel-sheet-close" id="psClose" aria-label="Fermer la fiche parcelle">✕</button>
+    </div>
+
+    <label class="parcel-sheet-todo">
+      <input type="checkbox" id="psTodo">
+      <span>★ À faire aujourd'hui</span>
+    </label>
+
+    <div class="parcel-sheet-actions">
+      <button type="button" class="secondary" id="psItinerary">📍 Itinéraire</button>
+      <button type="button" class="secondary" id="psShowMap">🗺️ Voir sur la carte</button>
+      <button type="button" class="secondary" id="psShare">📤 Partager</button>
+    </div>
+
+    <label class="parcel-sheet-label" for="psNote">Notes</label>
+    <textarea id="psNote" rows="3" placeholder="Observations, tâches, remarques…" aria-label="Notes sur cette parcelle"></textarea>
+
+    <div class="parcel-sheet-label">Photos</div>
+    <div class="parcel-photos" id="psPhotos"></div>
+    <button type="button" class="secondary" id="psAddPhoto">+ Ajouter une photo</button>
+    <input type="file" id="psPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
+  </div>
+</div>
+
 <script>
 (function(){
   "use strict";
@@ -923,6 +1014,7 @@ button{
   const STORAGE_KEY = "geofolia-data-v2";
   const GEOM_KEY = "geofolia-geometries-v1";
   const GEO_CACHE_KEY = "commune-geo-cache-v1";
+  const PARCEL_META_KEY = "parcel-meta-v1";
   const SS_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
   const REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
   const CHART_COLORS = ["#2F5233","#B8933B","#445E75","#8B5E3C","#6B7A5E","#7A5A78","#4A7A6E"];
@@ -946,6 +1038,7 @@ button{
   let dataset = null;          // {source, parcelles:[], interventions:[], importedAt, fileName}
   let geometries = {};         // guid -> {rings:[[[lat,lon],...],...], nom, culture, surface, ilot, commune, insee}
   let geoCache = {};           // insee -> {lat, lon} | null  (commune fallback geocoding)
+  let parcelMeta = {};         // clé parcelle -> {todo:bool, note:string, photoIds:[]}
   let cultureColorMap = {};
   let map = null;
   let gpsMarker = null;
@@ -1504,6 +1597,74 @@ button{
     }catch(e){}
   }
 
+  // Clé stable par parcelle : le GUID Geofolia si dispo, sinon un repli nom+îlot+commune
+  function metaKeyFor(p){
+    if(!p) return "";
+    return p.guid || ((p.parcelle||"")+"|"+(p.ilot||"")+"|"+(p.commune||""));
+  }
+  function getParcelMeta(p){
+    const k = metaKeyFor(p);
+    if(!k) return {todo:false, note:"", photoIds:[]};
+    if(!parcelMeta[k]) parcelMeta[k] = {todo:false, note:"", photoIds:[]};
+    return parcelMeta[k];
+  }
+  async function saveParcelMeta(){
+    try{
+      const value = JSON.stringify(parcelMeta);
+      try{ localStorage.setItem(PARCEL_META_KEY, value); }catch(e){}
+      if(window.storage) await window.storage.set(PARCEL_META_KEY, value, false);
+    }catch(e){}
+  }
+  async function loadParcelMeta(){
+    try{
+      try{ const value = localStorage.getItem(PARCEL_META_KEY); if(value){ parcelMeta=JSON.parse(value); return; } }catch(e){}
+      if(window.storage){ const res=await window.storage.get(PARCEL_META_KEY,false); if(res&&res.value) parcelMeta=JSON.parse(res.value); }
+    }catch(e){}
+  }
+
+  // ---------- Photos (IndexedDB : stockage binaire, bien plus grand que localStorage) ----------
+  let photoDbPromise = null;
+  function openPhotoDb(){
+    if(photoDbPromise) return photoDbPromise;
+    photoDbPromise = new Promise((resolve, reject)=>{
+      if(!window.indexedDB){ reject(new Error("indexedDB indisponible")); return; }
+      const req = indexedDB.open("parcelles-photos-db", 1);
+      req.onupgradeneeded = ()=>{ req.result.createObjectStore("photos", {keyPath:"id"}); };
+      req.onsuccess = ()=> resolve(req.result);
+      req.onerror = ()=> reject(req.error);
+    });
+    return photoDbPromise;
+  }
+  async function savePhotoBlob(id, blob){
+    const db = await openPhotoDb();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction("photos","readwrite");
+      tx.objectStore("photos").put({id, blob, ts:Date.now()});
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = ()=> reject(tx.error);
+    });
+  }
+  async function getPhotoBlob(id){
+    const db = await openPhotoDb();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction("photos","readonly");
+      const rq = tx.objectStore("photos").get(id);
+      rq.onsuccess = ()=> resolve(rq.result ? rq.result.blob : null);
+      rq.onerror = ()=> reject(rq.error);
+    });
+  }
+  async function deletePhotoBlob(id){
+    try{
+      const db = await openPhotoDb();
+      await new Promise((resolve, reject)=>{
+        const tx = db.transaction("photos","readwrite");
+        tx.objectStore("photos").delete(id);
+        tx.oncomplete = ()=> resolve();
+        tx.onerror = ()=> reject(tx.error);
+      });
+    }catch(e){}
+  }
+
   // ---------- Dashboard ----------
 
   function computeCultureColors(parcelles){
@@ -1570,8 +1731,10 @@ button{
   function renderParcelleList(){
     const q = normalizeHeader($("search").value);
     const sortMode = $("sortSel").value;
+    const todoOnly = $("todoFilter").classList.contains("active");
     let list = dataset.parcelles;
     if(q){ list = list.filter(p => normalizeHeader(p.parcelle).includes(q) || normalizeHeader(p.culture).includes(q)); }
+    if(todoOnly){ list = list.filter(p => getParcelMeta(p).todo); }
     list = list.slice().sort((a,b)=>{
       if(sortMode==="surface_desc") return (b.surface||0)-(a.surface||0);
       if(sortMode==="surface_asc") return (a.surface||0)-(b.surface||0);
@@ -1580,13 +1743,55 @@ button{
       return 0;
     });
     let html = "";
-    list.forEach(p=>{
-      html += '<div class="prow"><div><div class="pname">'+escapeHtml(p.parcelle||"(sans nom)")+'</div>'
+    list.forEach((p,i)=>{
+      const meta = getParcelMeta(p);
+      const star = meta.todo ? '<span class="ptodo" title="À faire aujourd\'hui">★</span>' : "";
+      const noteIcon = meta.note ? '<span class="pnoteicon" title="Note enregistrée">✎</span>' : "";
+      const photoIcon = (meta.photoIds && meta.photoIds.length) ? '<span class="pphotoicon" title="'+meta.photoIds.length+' photo(s)">📷</span>' : "";
+      html += '<div class="prow" data-i="'+i+'"><div><div class="pname">'+star+escapeHtml(p.parcelle||"(sans nom)")+noteIcon+photoIcon+'</div>'
         + '<div class="pmeta">'+escapeHtml(p.culture||"culture non renseignée")+(p.ilot ? " · îlot "+escapeHtml(p.ilot) : "")+(p.commune ? " · "+escapeHtml(p.commune) : "")+'</div></div>'
         + '<div class="psurf">'+(p.surface!=null ? p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha" : "–")+'</div></div>';
     });
-    $("parcelleList").innerHTML = html || '<div class="empty">Aucune parcelle ne correspond.</div>';
+    $("parcelleList").innerHTML = html || ('<div class="empty">'+(todoOnly ? "Aucune parcelle marquée à faire aujourd'hui. Touche « ★ Aujourd'hui » pour voir toutes tes parcelles et en marquer." : "Aucune parcelle ne correspond.")+'</div>');
+    $("parcelleList").querySelectorAll(".prow").forEach(row=>{
+      row.addEventListener("click", ()=> openParcelSheet(list[parseInt(row.dataset.i,10)]));
+    });
   }
+  $("todoFilter").addEventListener("click", ()=>{
+    const active = $("todoFilter").classList.toggle("active");
+    $("todoFilter").setAttribute("aria-pressed", active);
+    renderParcelleList();
+  });
+  $("todoReset").addEventListener("click", async ()=>{
+    const flagged = Object.values(parcelMeta).filter(m=>m.todo);
+    if(!flagged.length){ alert("Aucune parcelle n'est actuellement marquée à faire."); return; }
+    if(!confirm("Décocher les "+flagged.length+" parcelle(s) marquée(s) à faire aujourd'hui ?")) return;
+    flagged.forEach(m=> m.todo = false);
+    await saveParcelMeta();
+    renderParcelleList();
+  });
+  $("groupItinerary").addEventListener("click", async ()=>{
+    if(!dataset || !dataset.parcelles) return;
+    const todos = dataset.parcelles.filter(p => getParcelMeta(p).todo);
+    if(!todos.length){ alert("Aucune parcelle n'est marquée à faire aujourd'hui."); return; }
+    const btn = $("groupItinerary");
+    const label = btn.textContent;
+    btn.textContent = "Recherche…";
+    const coordsList = [];
+    for(const p of todos){
+      const c = await resolveParcelCoords(p);
+      if(c) coordsList.push(c);
+    }
+    btn.textContent = label;
+    if(!coordsList.length){ alert("Impossible de localiser les parcelles marquées à faire aujourd'hui."); return; }
+    // Apple Plans ne gère de façon fiable qu'une seule destination : pour un itinéraire
+    // à plusieurs étapes, on passe par Google Maps (waypoints officiellement supportés).
+    const destination = coordsList[coordsList.length-1];
+    const waypoints = coordsList.slice(0,-1).map(c=> c.lat+","+c.lon).join("|");
+    let url = "https://www.google.com/maps/dir/?api=1&destination="+destination.lat+","+destination.lon+"&travelmode=driving";
+    if(waypoints) url += "&waypoints="+encodeURIComponent(waypoints);
+    window.open(url, "_blank");
+  });
   $("search").addEventListener("input", renderParcelleList);
   $("sortSel").addEventListener("change", renderParcelleList);
   $("mapSearch").addEventListener("input", renderMapSearchResults);
@@ -1675,6 +1880,27 @@ button{
       if(l instanceof L.Polygon && l._parcelGuid === p.guid) found = l;
     });
     return found;
+  }
+
+  // Coordonnées approximatives d'une parcelle : centre du polygone si géométrie précise,
+  // sinon position de la commune (déjà en cache) — version synchrone, sans requête réseau.
+  function getParcelCoords(p){
+    if(p && p.guid && geometries[p.guid] && geometries[p.guid].rings && geometries[p.guid].rings.length){
+      try{
+        const c = L.polygon(geometries[p.guid].rings).getBounds().getCenter();
+        if(c) return {lat:c.lat, lon:c.lng};
+      }catch(e){}
+    }
+    const key = p && (p.insee || p.commune);
+    if(key && geoCache[key]) return geoCache[key];
+    return null;
+  }
+  // Même chose, mais tente une géolocalisation réseau de la commune si rien n'est en cache.
+  async function resolveParcelCoords(p){
+    const direct = getParcelCoords(p);
+    if(direct) return direct;
+    if(p && (p.insee || p.commune)) return await geocodeCommune(p.insee, p.commune);
+    return null;
   }
 
   function highlightParcel(p){
@@ -1820,7 +2046,12 @@ button{
       const color = cultureColorMap[p.culture || "Non renseigné"] || "#2F5233";
       const poly = L.polygon(g.rings, {color:"#FFFFFF", weight:1.5, fillColor:color, fillOpacity:0.6}).addTo(map);
       poly._parcelGuid = p.guid;
-      poly.bindPopup("<b>"+escapeHtml(p.parcelle||g.nom||"")+"</b><br>"+escapeHtml(p.culture||"")+"<br>"+(p.surface!=null?p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha":""));
+      poly.bindPopup("<b>"+escapeHtml(p.parcelle||g.nom||"")+"</b><br>"+escapeHtml(p.culture||"")+"<br>"+(p.surface!=null?p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha":"")+'<br><button type="button" class="popup-open-sheet">📋 Voir la fiche</button>');
+      poly.on("popupopen", (e)=>{
+        const el = e.popup.getElement();
+        const btn = el && el.querySelector(".popup-open-sheet");
+        if(btn) btn.addEventListener("click", ()=> { map.closePopup(); openParcelSheet(p); });
+      });
       g.rings.forEach(ring=> ring.forEach(pt=> allBounds.push(pt)));
       preciseSurface += (p.surface||0);
     });
@@ -1886,16 +2117,265 @@ button{
 
   $("newImport").addEventListener("click", ()=>{ dashView.classList.add("hidden"); importView.classList.remove("hidden"); });
 
+  // ---------- Fiche parcelle ----------
+  let currentParcel = null;
+  let currentPhotoUrls = [];
+
+  function revokeCurrentPhotoUrls(){
+    currentPhotoUrls.forEach(u=> URL.revokeObjectURL(u));
+    currentPhotoUrls = [];
+  }
+
+  async function renderParcelSheetPhotos(){
+    const meta = getParcelMeta(currentParcel);
+    revokeCurrentPhotoUrls();
+    const box = $("psPhotos");
+    box.innerHTML = "";
+    for(const id of (meta.photoIds||[])){
+      let blob = null;
+      try{ blob = await getPhotoBlob(id); }catch(e){}
+      if(!blob) continue;
+      const url = URL.createObjectURL(blob);
+      currentPhotoUrls.push(url);
+      const div = document.createElement("div");
+      div.className = "parcel-photo";
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = "Photo de la parcelle";
+      img.addEventListener("click", ()=> window.open(url, "_blank"));
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "pdel";
+      del.setAttribute("aria-label","Supprimer cette photo");
+      del.textContent = "✕";
+      del.addEventListener("click", async (e)=>{
+        e.stopPropagation();
+        if(!confirm("Supprimer cette photo ?")) return;
+        await deletePhotoBlob(id);
+        meta.photoIds = (meta.photoIds||[]).filter(x=>x!==id);
+        await saveParcelMeta();
+        renderParcelSheetPhotos();
+        renderParcelleList();
+      });
+      div.appendChild(img);
+      div.appendChild(del);
+      box.appendChild(div);
+    }
+  }
+
+  function openParcelSheet(p){
+    currentParcel = p;
+    const meta = getParcelMeta(p);
+    $("psTitle").textContent = p.parcelle || "(sans nom)";
+    $("psSub").textContent = (p.culture || "culture non renseignée")
+      + (p.ilot ? " · îlot "+p.ilot : "")
+      + (p.commune ? " · "+p.commune : "")
+      + (p.surface!=null ? " · "+p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha" : "");
+    $("psTodo").checked = !!meta.todo;
+    $("psNote").value = meta.note || "";
+    renderParcelSheetPhotos();
+    $("parcelSheet").classList.remove("hidden");
+  }
+  function closeParcelSheet(){
+    $("parcelSheet").classList.add("hidden");
+    revokeCurrentPhotoUrls();
+    currentParcel = null;
+  }
+  $("psClose").addEventListener("click", closeParcelSheet);
+  $("parcelSheetBackdrop").addEventListener("click", closeParcelSheet);
+
+  $("psTodo").addEventListener("change", async ()=>{
+    if(!currentParcel) return;
+    getParcelMeta(currentParcel).todo = $("psTodo").checked;
+    await saveParcelMeta();
+    renderParcelleList();
+  });
+
+  let noteSaveTimer = null;
+  $("psNote").addEventListener("input", ()=>{
+    if(!currentParcel) return;
+    getParcelMeta(currentParcel).note = $("psNote").value;
+    clearTimeout(noteSaveTimer);
+    noteSaveTimer = setTimeout(async ()=>{
+      await saveParcelMeta();
+      renderParcelleList();
+    }, 500);
+  });
+
+  $("psAddPhoto").addEventListener("click", ()=> $("psPhotoInput").click());
+  function compressImage(file, maxDim, quality){
+    maxDim = maxDim || 1600; quality = quality || 0.82;
+    return new Promise((resolve)=>{
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        const img = new Image();
+        img.onload = ()=>{
+          let width = img.width, height = img.height;
+          if(width > maxDim || height > maxDim){
+            if(width > height){ height = Math.round(height * maxDim / width); width = maxDim; }
+            else { width = Math.round(width * maxDim / height); height = maxDim; }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          canvas.toBlob(blob => resolve(blob || file), "image/jpeg", quality);
+        };
+        img.onerror = ()=> resolve(file);
+        img.src = reader.result;
+      };
+      reader.onerror = ()=> resolve(file);
+      reader.readAsDataURL(file);
+    });
+  }
+  $("psPhotoInput").addEventListener("change", async (e)=>{
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if(!files.length || !currentParcel) return;
+    const meta = getParcelMeta(currentParcel);
+    for(const file of files){
+      const id = "p"+Date.now()+"-"+Math.random().toString(36).slice(2,9);
+      try{
+        const compact = await compressImage(file);
+        await savePhotoBlob(id, compact);
+        meta.photoIds = meta.photoIds || [];
+        meta.photoIds.push(id);
+      }catch(e){
+        alert("Impossible d'enregistrer cette photo sur cet appareil.");
+      }
+    }
+    await saveParcelMeta();
+    renderParcelSheetPhotos();
+    renderParcelleList();
+  });
+
+  $("psItinerary").addEventListener("click", async ()=>{
+    if(!currentParcel) return;
+    const btn = $("psItinerary");
+    const label = btn.textContent;
+    btn.textContent = "Recherche…";
+    const coords = await resolveParcelCoords(currentParcel);
+    btn.textContent = label;
+    if(!coords){
+      alert("Position inconnue pour cette parcelle (pas de géométrie ni de commune identifiable).");
+      return;
+    }
+    window.open("https://maps.apple.com/?daddr="+coords.lat+","+coords.lon+"&dirflg=d", "_blank");
+  });
+
+  $("psShowMap").addEventListener("click", ()=>{
+    if(!currentParcel) return;
+    const p = currentParcel;
+    closeParcelSheet();
+    switchTab("carte");
+    setTimeout(()=> highlightParcel(p), 260);
+  });
+
+  $("psShare").addEventListener("click", async ()=>{
+    if(!currentParcel) return;
+    const p = currentParcel;
+    const meta = getParcelMeta(p);
+    if(!navigator.share){
+      alert("Le partage n'est pas disponible sur ce navigateur.");
+      return;
+    }
+    const lines = [
+      "Parcelle "+(p.parcelle||"(sans nom)"),
+      (p.culture||"culture non renseignée")+(p.ilot?" · îlot "+p.ilot:"")+(p.commune?" · "+p.commune:""),
+      (p.surface!=null ? p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha" : "")
+    ];
+    if(meta.note) lines.push("", "Notes : "+meta.note);
+    const shareData = { title:"Parcelle "+(p.parcelle||""), text: lines.filter(Boolean).join("\n") };
+    const btn = $("psShare");
+    const label = btn.textContent;
+    if(meta.photoIds && meta.photoIds.length){
+      btn.textContent = "Préparation…";
+      const files = [];
+      for(const id of meta.photoIds.slice(0,5)){
+        try{
+          const blob = await getPhotoBlob(id);
+          if(blob) files.push(new File([blob], "parcelle.jpg", {type:"image/jpeg"}));
+        }catch(e){}
+      }
+      btn.textContent = label;
+      if(files.length && navigator.canShare && navigator.canShare({files})){
+        shareData.files = files;
+      }
+    }
+    try{ await navigator.share(shareData); }
+    catch(e){ /* partage annulé par l'utilisateur : rien à faire */ }
+  });
+
+  // ---------- Météo ----------
+  const WMO_LABELS = {
+    0:["☀️","Ciel dégagé"], 1:["🌤️","Plutôt dégagé"], 2:["⛅","Partiellement nuageux"], 3:["☁️","Couvert"],
+    45:["🌫️","Brouillard"], 48:["🌫️","Brouillard givrant"],
+    51:["🌦️","Bruine légère"], 53:["🌦️","Bruine"], 55:["🌦️","Bruine forte"],
+    61:["🌧️","Pluie légère"], 63:["🌧️","Pluie"], 65:["🌧️","Pluie forte"],
+    66:["🌧️","Pluie verglaçante"], 67:["🌧️","Pluie verglaçante forte"],
+    71:["🌨️","Neige légère"], 73:["🌨️","Neige"], 75:["🌨️","Neige forte"],
+    80:["🌦️","Averses légères"], 81:["🌦️","Averses"], 82:["⛈️","Averses fortes"],
+    95:["⛈️","Orage"], 96:["⛈️","Orage avec grêle"], 99:["⛈️","Orage violent"]
+  };
+  function oneTimePosition(){
+    return new Promise((resolve)=>{
+      if(!navigator.geolocation){ resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({lat:pos.coords.latitude, lon:pos.coords.longitude}),
+        () => resolve(null),
+        {enableHighAccuracy:false, timeout:6000, maximumAge:600000}
+      );
+    });
+  }
+  async function getWeatherLocation(){
+    const gps = await oneTimePosition();
+    if(gps) return gps;
+    if(dataset && dataset.parcelles){
+      for(const p of dataset.parcelles){
+        const c = getParcelCoords(p);
+        if(c) return c;
+      }
+    }
+    return null;
+  }
+  async function loadWeather(){
+    try{
+      const loc = await getWeatherLocation();
+      if(!loc) return;
+      const url = "https://api.open-meteo.com/v1/forecast?latitude="+loc.lat+"&longitude="+loc.lon
+        + "&current=temperature_2m,weather_code,wind_speed_10m"
+        + "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+        + "&timezone=auto&forecast_days=1";
+      const res = await fetch(url);
+      if(!res.ok) return;
+      const data = await res.json();
+      if(!data || !data.current) return;
+      const code = data.current.weather_code;
+      const [icon, label] = WMO_LABELS[code] || ["🌡️","Météo"];
+      const temp = Math.round(data.current.temperature_2m);
+      const tmax = data.daily && data.daily.temperature_2m_max ? Math.round(data.daily.temperature_2m_max[0]) : null;
+      const tmin = data.daily && data.daily.temperature_2m_min ? Math.round(data.daily.temperature_2m_min[0]) : null;
+      const rain = data.daily && data.daily.precipitation_probability_max ? data.daily.precipitation_probability_max[0] : null;
+      const wind = Math.round(data.current.wind_speed_10m);
+      $("weatherCard").innerHTML =
+        '<div class="wicon">'+icon+'</div>'
+        + '<div><div class="wtemp">'+temp+'°C</div>'
+        + '<div class="wdesc">'+escapeHtml(label)+(tmax!=null?" · "+tmin+"° / "+tmax+"°":"")+'</div>'
+        + '<div class="wdetails">'+(rain!=null?"Pluie "+rain+"%":"")+(rain!=null&&wind?" · ":"")+(wind?"Vent "+wind+" km/h":"")+'</div></div>';
+      $("weatherCard").classList.remove("hidden");
+    }catch(e){ /* pas de météo dispo, on n'affiche rien */ }
+  }
+
   // ---------- Sauvegarde / restauration ----------
 
   function exportBackupData(){
     const payload = {
       app: "parcelles-sougey",
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       dataset: dataset || null,
       geometries: geometries || null,
-      geoCache: geoCache || null
+      geoCache: geoCache || null,
+      parcelMeta: parcelMeta || null
     };
     const blob = new Blob([JSON.stringify(payload)], {type:"application/json"});
     const url = URL.createObjectURL(blob);
@@ -1927,9 +2407,11 @@ button{
       dataset = payload.dataset || null;
       geometries = payload.geometries || {};
       geoCache = payload.geoCache || {};
+      parcelMeta = payload.parcelMeta || {};
       await saveDataset();
       await saveGeometries();
       await saveGeoCache();
+      await saveParcelMeta();
       importView.classList.add("hidden");
       dashView.classList.remove("hidden");
       if(dataset && dataset.parcelles && dataset.parcelles.length){ renderDashboard(false); }
@@ -1940,11 +2422,19 @@ button{
 
   // ---------- Boot ----------
 
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", ()=>{
+      navigator.serviceWorker.register("sw.js").catch(()=>{ /* hors-ligne indisponible, l'appli fonctionne quand même en ligne */ });
+    });
+  }
+
   (async function boot(){
     await loadGeoCache();
     await loadGeometries();
+    await loadParcelMeta();
     const found = await loadDataset();
     if(found && dataset && dataset.parcelles && dataset.parcelles.length){ renderDashboard(false); }
+    loadWeather();
   })();
 
 })();
