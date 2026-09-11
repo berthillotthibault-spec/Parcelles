@@ -1,0 +1,2006 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Parcelles — Le Sougey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+<style>
+  :root{
+    --bg:#F3F5EE;
+    --paper:#FFFFFF;
+    --ink:#17221A;
+    --ink-soft:#667066;
+    --rule:#E1E5DD;
+    --forest:#285D35;
+    --forest-dark:#183D22;
+    --gold:#B8933B;
+    --slate:#536A7D;
+    --danger:#8C3B2E;
+    --shadow:0 8px 28px rgba(20,35,24,.12);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100%;background:var(--bg);}
+  body{
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    font-variant-numeric:tabular-nums;
+    -webkit-font-smoothing:antialiased;
+    padding:0;
+  }
+
+  button,input,select{font:inherit;}
+  button{cursor:pointer;}
+
+  .wrap{max-width:480px;margin:0 auto;padding:0 20px;}
+  header.top{
+    padding:28px 20px 18px;
+    max-width:480px;
+    margin:0 auto;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:28px;
+    line-height:1.15;
+    margin:0 0 2px;
+    color:var(--forest-dark);
+  }
+  .subtitle{font-size:13px;color:var(--ink-soft);margin:0;}
+  .rule{border:none;border-top:1px solid var(--rule);margin:18px 0;}
+  h2{
+    font-family:'Fraunces',serif;
+    font-weight:500;
+    font-size:17px;
+    margin:0 0 12px;
+    color:var(--forest-dark);
+  }
+
+  button{
+    border:none;
+    border-radius:11px;
+    padding:12px 18px;
+    cursor:pointer;
+    background:var(--forest);
+    color:#fff;
+    font-weight:700;
+    font-size:14px;
+    transition:transform .12s ease,background .15s ease,box-shadow .15s ease;
+  }
+  button:active{transform:scale(.98);}
+  button.secondary{background:transparent;color:var(--forest-dark);border:1px solid var(--rule);}
+
+  select,input[type=text]{
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:11px 12px;
+    border:1px solid var(--rule);
+    border-radius:10px;
+    background:var(--paper);
+    color:var(--ink);
+    width:100%;
+    outline:none;
+  }
+  input:focus,select:focus{
+    border-color:#8BA58D;
+    box-shadow:0 0 0 3px rgba(40,93,53,.09);
+  }
+
+  #importView .dropzone{
+    border:1.5px dashed #B9C3B8;
+    border-radius:16px;
+    padding:42px 20px;
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:14px;
+    background:rgba(255,255,255,.55);
+  }
+  #importView .dropzone.drag{border-color:var(--forest);color:var(--forest-dark);background:#F8FBF7;}
+  #fileInput{display:none;}
+  .formats{font-size:12px;color:var(--ink-soft);margin-top:10px;text-align:center;}
+  .howto{margin-top:22px;font-size:13px;color:var(--ink-soft);line-height:1.55;}
+
+  .map-row{margin-bottom:14px;}
+  .map-row label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;}
+  .preview{overflow-x:auto;border:1px solid var(--rule);border-radius:8px;margin-top:16px;}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;}
+  .preview th,.preview td{padding:7px 9px;white-space:nowrap;border-bottom:1px solid var(--rule);text-align:left;}
+  .preview th{color:var(--ink-soft);font-weight:600;background:var(--paper);}
+
+  .stats{display:flex;justify-content:space-between;padding:6px 0 4px;}
+  .stat{text-align:left;}
+  .stat .num{font-family:'Fraunces',serif;font-size:26px;font-weight:600;color:var(--forest-dark);display:block;line-height:1;}
+  .stat .lbl{font-size:11.5px;color:var(--ink-soft);margin-top:5px;display:block;}
+  .bar-row{margin-bottom:11px;}
+  .bar-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;}
+  .bar-top .culture{font-weight:600;}
+  .bar-top .figs{color:var(--ink-soft);font-size:12px;}
+  .bar-track{height:7px;background:var(--rule);border-radius:4px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:4px;}
+
+  .toolbar{display:flex;gap:8px;margin-bottom:14px;}
+  .toolbar input{flex:1;}
+  .toolbar select{width:auto;flex-shrink:0;}
+  .plist{border-top:1px solid var(--rule);}
+  .prow{padding:11px 0;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:10px;font-size:13.5px;}
+  .prow .pname{font-weight:600;}
+  .prow .pmeta{color:var(--ink-soft);font-size:12px;margin-top:2px;}
+  .prow .psurf{font-weight:600;white-space:nowrap;color:var(--forest-dark);}
+  .empty{color:var(--ink-soft);font-size:13px;padding:10px 0;}
+  .interv-row{padding:9px 0;border-bottom:1px solid var(--rule);font-size:13px;}
+  .interv-row .d{color:var(--ink-soft);font-size:11.5px;}
+  footer{max-width:480px;margin:0 auto;padding:0 20px 28px;font-size:11.5px;color:var(--ink-soft);text-align:center;}
+  .badge{display:inline-block;font-size:11px;color:var(--ink-soft);margin-top:2px;}
+  .hidden{display:none !important;}
+  .err{background:#F7EDEA;border:1px solid #E3C3B7;color:var(--danger);font-size:13px;padding:12px 14px;border-radius:8px;margin-top:14px;}
+  .tabs{display:flex;gap:6px;margin:18px 0 16px;}
+  .tab-btn{
+    flex:1;padding:10px;border-radius:10px;border:1px solid var(--rule);
+    background:var(--paper);color:var(--ink-soft);font-weight:700;font-size:13px;
+  }
+  .tab-btn.active{background:var(--forest);color:#fff;border-color:var(--forest);}
+  .map-note{font-size:12px;color:var(--ink-soft);margin-top:9px;line-height:1.45;}
+  .leaflet-popup-content{font-family:'Inter',sans-serif;font-size:12.5px;}
+  .leaflet-popup-content b{font-family:'Fraunces',serif;font-size:14px;}
+  .map-status{font-size:12.5px;color:var(--ink-soft);padding:8px 0;}
+  .detected{font-size:12px;color:var(--forest-dark);background:#E7EDE3;border:1px solid #CFDBC6;border-radius:7px;padding:8px 11px;margin-bottom:16px;}
+
+  /* Recherche carte */
+  .map-search{
+    position:absolute;
+    z-index:1000;
+    top:14px;
+    left:14px;
+    right:14px;
+    display:flex;
+    gap:7px;
+    max-width:620px;
+    margin:auto;
+  }
+  .map-search input{
+    height:46px;
+    padding-left:43px;
+    border:0;
+    box-shadow:var(--shadow);
+    background:rgba(255,255,255,.96);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+  }
+  .map-search:before{
+    content:"⌕";
+    position:absolute;
+    z-index:2;
+    left:15px;
+    top:9px;
+    font-size:23px;
+    line-height:28px;
+    color:#667066;
+    pointer-events:none;
+  }
+  .map-search-btn{
+    width:auto;
+    min-width:94px;
+    height:46px;
+    padding:0 14px;
+    border-radius:11px;
+    box-shadow:var(--shadow);
+  }
+  .map-search-results{
+    position:absolute;
+    z-index:1001;
+    top:68px;
+    left:14px;
+    right:14px;
+    max-width:620px;
+    margin:auto;
+    border:0;
+    border-radius:14px;
+    background:rgba(255,255,255,.97);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    backdrop-filter:blur(12px);
+  }
+  .map-search-result{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    padding:11px 13px;
+    border-bottom:1px solid var(--rule);
+    font-size:12.5px;
+    cursor:pointer;
+  }
+  .map-search-result:last-child{border-bottom:none;}
+  .map-search-result:active{background:#EEF1E9;}
+  .map-search-result .meta{color:var(--ink-soft);font-size:11px;margin-top:2px;}
+  .map-search-result .surface{font-weight:700;color:var(--forest-dark);white-space:nowrap;}
+
+  /* Carte plein écran */
+  #dashView.map-mode{
+    position:fixed;
+    inset:0;
+    z-index:20;
+    max-width:none;
+    width:100%;
+    height:100dvh;
+    padding:0;
+    margin:0;
+    background:#E9EBE3;
+    overflow:hidden;
+  }
+  #dashView.map-mode #detectedBadge,
+  #dashView.map-mode > .stats,
+  #dashView.map-mode > .badge,
+  #dashView.map-mode > .tabs,
+  #dashView.map-mode > hr,
+  #dashView.map-mode > #tabAssolement,
+  #dashView.map-mode > #newImport{
+    display:none !important;
+  }
+  #dashView.map-mode #tabCarte{
+    display:block !important;
+    position:relative;
+    width:100%;
+    height:100dvh;
+    padding:0;
+  }
+  #dashView.map-mode #tabCarte > h2,
+  #dashView.map-mode #mapNote{
+    display:none;
+  }
+  #mapContainer{
+    position:relative;
+    width:100%;
+    height:100dvh;
+    min-height:100dvh;
+    border:0;
+    border-radius:0;
+    background:#e9ebe3;
+  }
+  #dashView.map-mode #mapContainer{height:100dvh;}
+
+  /* Barre d'actions flottante */
+  #dashView.map-mode .map-back-btn{display:block;}
+
+  .map-actions{
+    position:absolute;
+    z-index:1000;
+    right:14px;
+    bottom:24px;
+    margin:0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .map-gps-btn{
+    width:48px;
+    height:48px;
+    padding:0;
+    border-radius:50%;
+    background:rgba(255,255,255,.96);
+    color:var(--ink);
+    border:0;
+    box-shadow:var(--shadow);
+    font-size:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .map-gps-btn:before{
+    content:"⌖";
+    font-size:24px;
+    color:#1976F3;
+    line-height:1;
+  }
+  .map-gps-btn.active:before{color:var(--forest);}
+  .gps-marker{
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:#1976F3;
+    border:3px solid #fff;
+    box-shadow:0 0 0 2px rgba(25,118,243,.35),0 1px 5px rgba(0,0,0,.35);
+  }
+
+  /* Petit bouton retour lorsque la carte occupe tout l'écran */
+  .map-back-btn{display:none;
+    position:absolute;
+    z-index:1001;
+    left:14px;
+    bottom:24px;
+    width:auto;
+    padding:12px 16px;
+    border-radius:12px;
+    background:rgba(255,255,255,.96);
+    box-shadow:var(--shadow);
+    color:var(--forest-dark);
+    font-weight:700;
+    font-size:13px;
+  }
+
+  @media (min-width:700px){
+    .map-search{left:24px;right:24px;top:20px;}
+    .map-search-results{left:24px;right:24px;top:76px;}
+    .map-actions{right:24px;bottom:28px;}
+    .map-back-btn{display:none;left:24px;bottom:28px;}
+  }
+
+  @media (max-width:420px){
+    .map-search-btn{min-width:82px;padding:0 11px;}
+    .map-search{left:10px;right:10px;top:10px;}
+    .map-search-results{left:10px;right:10px;top:64px;}
+    .map-actions{right:12px;bottom:18px;}
+    .map-back-btn{display:none;left:12px;bottom:18px;}
+  }
+
+
+/* ===== Global UI polish ===== */
+:root{
+  --app-bg:#f5f7fb;
+  --app-card:#ffffff;
+  --app-text:#172033;
+  --app-muted:#6b7280;
+  --app-border:rgba(15,23,42,.08);
+  --app-primary:#2563eb;
+  --app-primary-dark:#1d4ed8;
+  --app-shadow:0 10px 30px rgba(15,23,42,.08);
+  --app-radius:18px;
+}
+
+html,body{
+  background:var(--app-bg);
+  color:var(--app-text);
+}
+
+body{
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+button,input,select{
+  font:inherit;
+}
+
+button{
+  -webkit-tap-highlight-color:transparent;
+}
+
+#app{
+  min-height:100dvh;
+}
+
+/* Import / landing area */
+#importView{
+  background:
+    radial-gradient(circle at 50% 0%, rgba(37,99,235,.10), transparent 36%),
+    var(--app-bg);
+}
+
+#importView .card,
+#importView .panel,
+#importView .import-card{
+  border:1px solid var(--app-border);
+  border-radius:24px;
+  box-shadow:var(--app-shadow);
+}
+
+#importView h1,
+#importView h2{
+  letter-spacing:-.03em;
+}
+
+#importView input[type="file"]{
+  border:1.5px dashed rgba(37,99,235,.28);
+  border-radius:16px;
+  padding:14px;
+  background:#f8faff;
+}
+
+#importView button{
+  min-height:46px;
+  border-radius:14px;
+  font-weight:700;
+}
+
+/* Dashboard */
+#dashView{
+  background:
+    radial-gradient(circle at 100% 0%, rgba(37,99,235,.07), transparent 28%),
+    var(--app-bg);
+}
+
+#dashView:not(.map-mode){
+  padding-bottom:32px;
+}
+
+#dashView:not(.map-mode) .card,
+#dashView:not(.map-mode) .panel,
+#dashView:not(.map-mode) .stat,
+#dashView:not(.map-mode) .summary,
+#dashView:not(.map-mode) .table-wrap{
+  border-color:var(--app-border);
+  box-shadow:0 6px 22px rgba(15,23,42,.055);
+}
+
+#dashView:not(.map-mode) h1,
+#dashView:not(.map-mode) h2,
+#dashView:not(.map-mode) h3{
+  letter-spacing:-.025em;
+}
+
+#dashView:not(.map-mode) input[type="text"],
+#dashView:not(.map-mode) input[type="search"],
+#dashView:not(.map-mode) select{
+  min-height:46px;
+  border-radius:14px;
+  border:1px solid rgba(15,23,42,.10);
+  background:#fff;
+  box-shadow:0 2px 8px rgba(15,23,42,.035);
+  padding-left:14px;
+  padding-right:14px;
+}
+
+#dashView:not(.map-mode) input:focus,
+#dashView:not(.map-mode) select:focus{
+  outline:none;
+  border-color:rgba(37,99,235,.55);
+  box-shadow:0 0 0 4px rgba(37,99,235,.10);
+}
+
+#dashView:not(.map-mode) .btn,
+#dashView:not(.map-mode) button{
+  border-radius:13px;
+  font-weight:700;
+  transition:transform .15s ease,box-shadow .15s ease,background .15s ease;
+}
+
+#dashView:not(.map-mode) button:active{
+  transform:scale(.98);
+}
+
+/* Tabs */
+#dashView:not(.map-mode) .tabs{
+  gap:8px;
+  padding:5px;
+  background:rgba(15,23,42,.055);
+  border-radius:15px;
+}
+
+#dashView:not(.map-mode) .tabs button{
+  border-radius:11px;
+  min-height:42px;
+}
+
+/* Parcel table/list */
+#dashView:not(.map-mode) .parcel-row,
+#dashView:not(.map-mode) tr{
+  transition:background .15s ease;
+}
+
+#dashView:not(.map-mode) .parcel-row:hover,
+#dashView:not(.map-mode) tbody tr:hover{
+  background:rgba(37,99,235,.035);
+}
+
+/* Better mobile spacing */
+@media (max-width:700px){
+  #dashView:not(.map-mode){
+    padding-left:14px !important;
+    padding-right:14px !important;
+  }
+  #dashView:not(.map-mode) .card,
+  #dashView:not(.map-mode) .panel{
+    border-radius:18px;
+  }
+}
+
+/* ===== Full-screen map controls ===== */
+#dashView.map-mode #tabCarte{
+  position:relative;
+  width:100%;
+  height:100dvh;
+  min-height:100dvh;
+}
+
+#dashView.map-mode #mapContainer{
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100dvh !important;
+  min-height:100dvh !important;
+  border:0 !important;
+  border-radius:0 !important;
+  z-index:1;
+}
+
+/* Search sits below the safe top area, not against the top edge */
+#dashView.map-mode .map-search-wrap{
+  top:calc(env(safe-area-inset-top, 0px) + 78px) !important;
+  z-index:1200 !important;
+  pointer-events:auto !important;
+}
+
+#dashView.map-mode #mapSearch{
+  min-height:50px;
+  border-radius:16px;
+  padding-left:46px;
+  padding-right:48px;
+  background:rgba(255,255,255,.97);
+  box-shadow:0 8px 24px rgba(15,23,42,.18);
+  border:1px solid rgba(15,23,42,.08);
+  -webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(12px);
+}
+
+#dashView.map-mode #mapSearch:focus{
+  outline:none;
+  border-color:rgba(37,99,235,.45);
+  box-shadow:0 0 0 4px rgba(37,99,235,.13),0 10px 28px rgba(15,23,42,.16);
+}
+
+#dashView.map-mode #mapSearchResults{
+  margin-top:8px;
+  max-height:42dvh;
+  overflow:auto;
+  border-radius:16px;
+  box-shadow:0 12px 30px rgba(15,23,42,.18);
+}
+
+/* Leaflet zoom: bottom-right */
+#dashView.map-mode .leaflet-control-zoom{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
+  top:auto !important;
+  margin:0 !important;
+  z-index:1100 !important;
+  border:0 !important;
+  box-shadow:0 8px 22px rgba(15,23,42,.18) !important;
+  border-radius:14px !important;
+  overflow:hidden;
+}
+
+#dashView.map-mode .leaflet-control-zoom a{
+  width:46px !important;
+  height:46px !important;
+  line-height:46px !important;
+  font-size:25px !important;
+  background:rgba(255,255,255,.96) !important;
+  color:#172033 !important;
+  border:0 !important;
+}
+
+#dashView.map-mode .leaflet-control-zoom a + a{
+  border-top:1px solid rgba(15,23,42,.08) !important;
+}
+
+/* GPS button above zoom control */
+#dashView.map-mode #locateBtn{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 132px) !important;
+  z-index:1200 !important;
+  width:50px !important;
+  height:50px !important;
+  min-height:50px !important;
+  border-radius:16px !important;
+  box-shadow:0 8px 22px rgba(15,23,42,.18) !important;
+}
+
+/* Back button remains clearly separated */
+#dashView.map-mode .map-back-btn{
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 18px) !important;
+  left:14px !important;
+  z-index:1200 !important;
+  border-radius:14px !important;
+  min-height:46px;
+  box-shadow:0 8px 22px rgba(15,23,42,.16);
+}
+
+/* Keep controls above Leaflet panes */
+#dashView.map-mode .map-search-wrap,
+#dashView.map-mode #locateBtn,
+#dashView.map-mode .map-back-btn{
+  touch-action:manipulation;
+}
+
+/* iPhone-sized screens */
+@media (max-width:700px){
+  #dashView.map-mode .map-search-wrap{
+    left:12px !important;
+    right:12px !important;
+    width:auto !important;
+  }
+
+  #dashView.map-mode #mapSearch{
+    width:100% !important;
+    box-sizing:border-box;
+  }
+}
+
+</style>
+
+<style>
+/* ===== FINAL MAP POSITIONING ===== */
+#dashView.map-mode .map-search-wrap{
+  top:calc(env(safe-area-inset-top, 0px) + 150px) !important;
+  left:12px !important;
+  right:12px !important;
+  width:auto !important;
+  z-index:1200 !important;
+}
+#dashView.map-mode #mapSearch{
+  width:100% !important;
+  box-sizing:border-box !important;
+  min-height:52px !important;
+  border-radius:17px !important;
+  font-size:17px !important;
+}
+
+#dashView.map-mode .leaflet-control-zoom{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  top:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 22px) !important;
+  margin:0 !important;
+  z-index:1150 !important;
+}
+
+#dashView.map-mode .leaflet-control-zoom a{
+  width:52px !important;
+  height:52px !important;
+  line-height:52px !important;
+  font-size:27px !important;
+}
+
+#dashView.map-mode #locateBtn{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  top:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 142px) !important;
+  width:52px !important;
+  height:52px !important;
+  min-height:52px !important;
+  z-index:1200 !important;
+}
+</style>
+
+
+<style>
+/* =========================================================
+   CORRECTION FINALE — positions exactes demandées
+   ========================================================= */
+
+/* La classe réelle du conteneur de recherche est .map-search
+   (et non .map-search-wrap). */
+#dashView.map-mode .map-search{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top, 0px) + 150px) !important;
+  left:12px !important;
+  right:12px !important;
+  width:auto !important;
+  max-width:none !important;
+  margin:0 !important;
+  display:flex !important;
+  gap:8px !important;
+  z-index:2000 !important;
+}
+
+/* Champ de recherche : grand, accessible et sous les boutons du haut */
+#dashView.map-mode .map-search input{
+  flex:1 1 auto !important;
+  width:auto !important;
+  min-width:0 !important;
+  height:54px !important;
+  min-height:54px !important;
+  box-sizing:border-box !important;
+  border-radius:18px !important;
+  font-size:16px !important;
+  padding-left:46px !important;
+  padding-right:14px !important;
+  background:rgba(255,255,255,.97) !important;
+  box-shadow:0 8px 24px rgba(15,23,42,.18) !important;
+  border:1px solid rgba(15,23,42,.08) !important;
+}
+
+/* Bouton Rechercher à droite de la barre */
+#dashView.map-mode .map-search-btn{
+  flex:0 0 auto !important;
+  height:54px !important;
+  min-height:54px !important;
+  min-width:112px !important;
+  padding:0 16px !important;
+  border-radius:17px !important;
+  box-shadow:0 8px 24px rgba(15,23,42,.18) !important;
+}
+
+/* Résultats juste sous la nouvelle barre */
+#dashView.map-mode #mapSearchResults{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top, 0px) + 212px) !important;
+  left:12px !important;
+  right:12px !important;
+  width:auto !important;
+  max-width:none !important;
+  margin:0 !important;
+  z-index:1999 !important;
+}
+
+/* Zoom : bloc vertical en bas à droite */
+#dashView.map-mode .leaflet-control-zoom{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  top:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 20px) !important;
+  margin:0 !important;
+  z-index:2100 !important;
+  border:0 !important;
+  border-radius:18px !important;
+  overflow:hidden !important;
+  box-shadow:0 8px 24px rgba(15,23,42,.20) !important;
+}
+
+/* Boutons + / - suffisamment grands pour le tactile */
+#dashView.map-mode .leaflet-control-zoom a{
+  display:block !important;
+  width:54px !important;
+  height:54px !important;
+  line-height:54px !important;
+  margin:0 !important;
+  font-size:28px !important;
+  font-weight:500 !important;
+  background:rgba(255,255,255,.97) !important;
+  color:#172033 !important;
+  border:0 !important;
+}
+
+#dashView.map-mode .leaflet-control-zoom a + a{
+  border-top:1px solid rgba(15,23,42,.10) !important;
+}
+
+/* GPS juste au-dessus du zoom */
+#dashView.map-mode .map-actions{
+  position:fixed !important;
+  right:14px !important;
+  left:auto !important;
+  top:auto !important;
+  bottom:calc(env(safe-area-inset-bottom, 0px) + 148px) !important;
+  margin:0 !important;
+  z-index:2100 !important;
+}
+
+#dashView.map-mode #locateBtn{
+  position:relative !important;
+  right:auto !important;
+  bottom:auto !important;
+  width:54px !important;
+  height:54px !important;
+  min-height:54px !important;
+  border-radius:50% !important;
+}
+
+/* Sur petit écran, la barre garde exactement cette hiérarchie */
+@media (max-width:600px){
+  #dashView.map-mode .map-search{
+    top:calc(env(safe-area-inset-top, 0px) + 145px) !important;
+  }
+
+  #dashView.map-mode .map-search-btn{
+    min-width:104px !important;
+    padding:0 12px !important;
+  }
+}
+</style>
+
+</head>
+<body>
+
+<header class="top">
+  <h1>Parcelles &amp; assolement</h1>
+  <p class="subtitle">EARL du Sougey — suivi à partir des exports Geofolia</p>
+</header>
+
+<div class="wrap">
+
+  <!-- IMPORT VIEW -->
+  <section id="importView">
+    <div class="dropzone" id="dropzone">
+      Dépose ici un ou plusieurs fichiers<br>ou touche pour les choisir
+    </div>
+    <input type="file" id="fileInput" multiple>
+    <div class="formats">Excel « Parcelles et interventions », export cartographique SHP (.shp + .dbf, + .shx/.prj), CSV ou XML — sélectionnables ensemble ou séparément</div>
+    <div class="howto">
+      <b>Pour la carte précise :</b> sélectionne les 4 fichiers de l'export SHP en même temps (.shp, .shx, .dbf, .prj) — un ZIP fonctionne aussi. Tu peux les ajouter en même temps que l'Excel, ou plus tard pour compléter une appli déjà importée.<br><br>
+      <b>Si les fichiers .shp/.dbf n'apparaissent pas</b> dans le sélecteur sur iPhone : c'est iOS qui filtre les extensions qu'il ne reconnaît pas. Dans l'app Fichiers, sélectionne les 4 fichiers → bouton Partager → « Compresser » pour en faire un .zip, puis importe ce .zip ici — ça fonctionne à tous les coups.<br><br>
+      Rien n'est envoyé ailleurs : tout reste sur ton iPhone.
+    </div>
+    <div id="importErr"></div>
+    <div id="importStatus" class="map-status"></div>
+  </section>
+
+  <!-- MAPPING VIEW (fallback for non-Geofolia tabular files) -->
+  <section id="mappingView" class="hidden">
+    <h2>Vérifie la correspondance des colonnes</h2>
+    <div class="map-row"><label>Nom de parcelle</label><select id="map_parcelle"></select></div>
+    <div class="map-row"><label>Îlot (facultatif)</label><select id="map_ilot"></select></div>
+    <div class="map-row"><label>Culture</label><select id="map_culture"></select></div>
+    <div class="map-row"><label>Surface (ha)</label><select id="map_surface"></select></div>
+    <div class="map-row"><label>Commune (facultatif)</label><select id="map_commune"></select></div>
+    <div class="map-row"><label>Date d'intervention (facultatif)</label><select id="map_date"></select></div>
+    <div class="map-row"><label>Type d'intervention (facultatif)</label><select id="map_intervention"></select></div>
+    <button id="validateMapping">Valider et afficher le tableau de bord</button>
+    <button class="secondary" style="margin-top:8px;" id="cancelMapping">Annuler</button>
+    <div class="preview" id="previewTable"></div>
+  </section>
+
+  <!-- DASHBOARD VIEW -->
+  <section id="dashView" class="hidden">
+    <div id="detectedBadge" class="detected hidden">Export Geofolia reconnu automatiquement ✓</div>
+    <div class="stats">
+      <div class="stat"><span class="num" id="statSurface">–</span><span class="lbl">ha au total</span></div>
+      <div class="stat"><span class="num" id="statParcelles">–</span><span class="lbl">parcelles</span></div>
+      <div class="stat"><span class="num" id="statCultures">–</span><span class="lbl">cultures</span></div>
+    </div>
+    <div class="badge" id="lastUpdate"></div>
+
+    <div class="tabs">
+      <button type="button" class="tab-btn active" id="tabAssolementBtn">Assolement</button>
+      <button type="button" class="tab-btn hidden" id="tabCarteBtn">Carte</button>
+    </div>
+
+    <div id="tabAssolement">
+      <h2>Répartition par culture</h2>
+      <div id="cultureBars"></div>
+
+      <hr class="rule">
+      <h2>Parcelles</h2>
+      <div class="toolbar">
+        <input type="text" id="search" placeholder="Rechercher une parcelle ou culture…">
+        <select id="sortSel">
+          <option value="surface_desc">Surface ↓</option>
+          <option value="surface_asc">Surface ↑</option>
+          <option value="nom">Nom</option>
+          <option value="culture">Culture</option>
+        </select>
+      </div>
+      <div class="plist" id="parcelleList"></div>
+
+      <div id="intervSection" class="hidden">
+        <hr class="rule">
+        <h2>Dernières interventions</h2>
+        <div id="intervList"></div>
+      </div>
+    </div>
+
+    <div id="tabCarte" class="hidden">
+      <h2>Localisation des parcelles</h2>
+      <div class="map-search">
+        <input type="text" id="mapSearch" placeholder="Rechercher une parcelle sur la carte…" autocomplete="off">
+        <button type="button" class="map-search-btn" id="mapSearchBtn">Rechercher</button>
+      </div>
+      <div id="mapSearchResults" class="map-search-results hidden"></div>
+      <button type="button" class="map-back-btn" id="mapBackBtn">‹ Parcelles</button>
+      <div class="map-actions">
+        <button type="button" class="map-gps-btn" id="locateBtn" aria-label="Afficher ma position">● Ma position</button>
+      </div>
+      <div id="mapContainer"></div>
+      <div class="map-note" id="mapNote"></div>
+    </div>
+
+    <hr class="rule">
+    <button class="secondary" id="newImport">Importer / ajouter un export</button>
+  </section>
+
+</div>
+
+<footer>
+  Ajoute cette page à ton écran d'accueil (icône Partager → « Sur l'écran d'accueil ») pour l'ouvrir comme une appli. Les données restent sur l'appareil ; réimporte un export quand Geofolia a été mis à jour.
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  const STORAGE_KEY = "geofolia-data-v2";
+  const GEOM_KEY = "geofolia-geometries-v1";
+  const GEO_CACHE_KEY = "commune-geo-cache-v1";
+  const SS_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+  const REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
+  const CHART_COLORS = ["#2F5233","#B8933B","#445E75","#8B5E3C","#6B7A5E","#7A5A78","#4A7A6E"];
+
+  proj4.defs("EPSG:2154","+proj=lcc +lat_1=44 +lat_2=49 +lat_0=46.5 +lon_0=3 +x_0=700000 +y_0=6600000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+
+  const KEYWORDS = {
+    parcelle: ["nomdelaparcelle","nomparcelle","libelleparcelle","parcelle","numparcelle","numeroparcelle","nom","identifiant","ident"],
+    ilot: ["numerodilot","numilot","numeroilot","codeilot","ilot"],
+    culture: ["culture","libelleculture","codeculture","assolement","cultureprincipale","cip","cultureprevue"],
+    surface: ["surfaceha","surfacemesuree","surfha","surfacegraphique","surface","superficie","surf","sa"],
+    commune: ["commune","ville"],
+    date: ["datedebut","dateintervention","daterealisation","date"],
+    intervention: ["operation","typeintervention","natureintervention","intervention","travail"]
+  };
+
+  let rawRows = [];
+  let headers = [];
+  let pendingFileName = "";
+  let mappingPending = false;
+  let dataset = null;          // {source, parcelles:[], interventions:[], importedAt, fileName}
+  let geometries = {};         // guid -> {rings:[[[lat,lon],...],...], nom, culture, surface, ilot, commune, insee}
+  let geoCache = {};           // insee -> {lat, lon} | null  (commune fallback geocoding)
+  let cultureColorMap = {};
+  let map = null;
+  let gpsMarker = null;
+  let gpsAccuracyCircle = null;
+  let gpsWatchId = null;
+  let selectedParcelLayer = null;
+
+  const $ = (id) => document.getElementById(id);
+  const importView = $("importView"), mappingView = $("mappingView"), dashView = $("dashView");
+
+  function normalizeHeader(s){
+    return (s||"").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
+  }
+  function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function showError(el, msg){ el.innerHTML = '<div class="err">'+msg+'</div>'; }
+  function setStatus(msg){ $("importStatus").textContent = msg || ""; }
+  function stripBOM(s){ return s.charCodeAt(0) === 0xFEFF ? s.slice(1) : s; }
+
+  function parseNumber(v){
+    if(v===undefined||v===null||v==="") return null;
+    if(typeof v === "number") return v;
+    let s = String(v).trim().replace(/\s/g,"");
+    if(s.includes(",") && s.includes(".")){ s = s.replace(/\./g,"").replace(",","."); }
+    else if(s.includes(",")){ s = s.replace(",","."); }
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+  }
+
+  function excelDateToStr(v){
+    if(v===undefined||v===null||v==="") return "";
+    const n = Number(v);
+    if(!isNaN(n) && n > 20000 && n < 80000){
+      const epoch = Date.UTC(1899,11,30);
+      const d = new Date(epoch + n*86400000);
+      const yyyy = d.getUTCFullYear(), mm = String(d.getUTCMonth()+1).padStart(2,"0"), dd = String(d.getUTCDate()).padStart(2,"0");
+      return yyyy+"-"+mm+"-"+dd;
+    }
+    return String(v).trim();
+  }
+  function displayDate(iso){
+    if(!iso) return "";
+    const d = new Date(iso+"T00:00:00");
+    if(isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("fr-FR");
+  }
+
+  // ---------- Geofolia dedicated XLSX parser (handles the non-standard cell refs Geofolia emits) ----------
+
+  function parseSheetRowsXML(xmlText){
+    const doc = new DOMParser().parseFromString(stripBOM(xmlText), "text/xml");
+    const rowEls = doc.getElementsByTagNameNS(SS_NS, "row");
+    const rows = [];
+    for(const rowEl of rowEls){
+      const cellEls = rowEl.getElementsByTagNameNS(SS_NS, "c");
+      const vals = [];
+      for(const c of cellEls){
+        const vEl = c.getElementsByTagNameNS(SS_NS, "v")[0];
+        vals.push(vEl ? vEl.textContent : "");
+      }
+      rows.push(vals);
+    }
+    return rows;
+  }
+  function rowsToObjects(rows){
+    if(!rows.length) return [];
+    const hdrs = rows[0];
+    return rows.slice(1).map(r=>{
+      const obj = {};
+      hdrs.forEach((h,i)=> obj[h] = r[i] !== undefined ? r[i] : "");
+      return obj;
+    });
+  }
+
+  async function getSheetPathMap(zip){
+    const wbFile = zip.file("xl/workbook.xml");
+    const relsFile = zip.file("xl/_rels/workbook.xml.rels");
+    if(!wbFile || !relsFile) return {};
+    const wbXml = stripBOM(await wbFile.async("string"));
+    const relsXml = stripBOM(await relsFile.async("string"));
+    const wbDoc = new DOMParser().parseFromString(wbXml, "text/xml");
+    const relsDoc = new DOMParser().parseFromString(relsXml, "text/xml");
+    const relMap = {};
+    for(const rel of relsDoc.getElementsByTagNameNS(REL_NS, "Relationship")){
+      relMap[rel.getAttribute("Id")] = rel.getAttribute("Target");
+    }
+    const nameToPath = {};
+    for(const sh of wbDoc.getElementsByTagNameNS(SS_NS, "sheet")){
+      const name = sh.getAttribute("name");
+      const rid = sh.getAttribute("r:id");
+      let target = relMap[rid];
+      if(!target) continue;
+      target = target.startsWith("/") ? target.slice(1) : ("xl/"+target);
+      nameToPath[name] = target;
+    }
+    return nameToPath;
+  }
+
+  async function tryParseGeofoliaWorkbook(arrayBuffer){
+    if(typeof JSZip === "undefined") return null;
+    let zip;
+    try{ zip = await JSZip.loadAsync(arrayBuffer); } catch(e){ return null; }
+    const pathMap = await getSheetPathMap(zip);
+    if(!Object.keys(pathMap).length) return null;
+    const findSheet = async (wanted) => {
+      for(const name in pathMap){
+        if(normalizeHeader(name) === normalizeHeader(wanted)){
+          const f = zip.file(pathMap[name]);
+          if(f){ const xml = await f.async("string"); return rowsToObjects(parseSheetRowsXML(xml)); }
+        }
+      }
+      return null;
+    };
+    const parcelleRows = await findSheet("Parcelle");
+    const interventionRows = await findSheet("Intervention");
+    if(!parcelleRows || !parcelleRows.length) return null;
+    const sample = parcelleRows[0];
+    if(!("Nom de la parcelle" in sample) || !("Surface (ha)" in sample)) return null;
+    return {parcelleRows, interventionRows};
+  }
+
+  function buildDatasetFromGeofolia(parcelleRows, interventionRows, fileName){
+    const seen = new Set();
+    const parcelles = [];
+    parcelleRows.forEach(r=>{
+      const guid = r["GUID de la Parcelle"] || "";
+      const key = guid || ((r["Nom de la parcelle"]||"")+"|"+(r["Numéro d'îlot"]||"")+"|"+(r["Culture"]||""));
+      if(seen.has(key)) return;
+      seen.add(key);
+      const parcelle = (r["Nom de la parcelle"]||"").trim();
+      const culture = (r["Culture"]||r["Culture PAC"]||"").trim();
+      if(!parcelle && !culture) return;
+      parcelles.push({
+        guid: guid, parcelle: parcelle,
+        ilot: (r["Numéro d'îlot"]||"").trim(),
+        commune: (r["Commune"]||"").trim(),
+        insee: (r["N° INSEE Commune"]||"").trim(),
+        culture: culture,
+        surface: parseNumber(r["Surface (ha)"]),
+        dateImplantation: excelDateToStr(r["Date d'implantation"]),
+        dateRecolte: excelDateToStr(r["Date de récolte"])
+      });
+    });
+    const interventions = (interventionRows||[]).map(r=>({
+      parcelle: (r["Nom de la parcelle"]||"").trim(),
+      guidParcelle: r["GUID de la parcelle"] || "",
+      date: excelDateToStr(r["Date début"]),
+      operation: (r["Opération"]||"").trim(),
+      culture: (r["Culture"]||"").trim()
+    })).filter(iv=> iv.date || iv.operation);
+    return {source:"geofolia", parcelles, interventions, importedAt:new Date().toISOString(), fileName};
+  }
+
+  // ---------- Shapefile (.shp + .dbf) parser — draws real parcel boundaries ----------
+
+  function parseSHPBuffer(arrayBuffer){
+    const dv = new DataView(arrayBuffer);
+    let offset = 100;
+    const records = [];
+    while(offset < dv.byteLength - 8){
+      offset += 4;
+      const contentLenWords = dv.getInt32(offset, false); offset += 4;
+      const contentLenBytes = contentLenWords*2;
+      const recStart = offset;
+      const shapeType = dv.getInt32(offset, true); offset += 4;
+      let parts = [], points = [];
+      if(shapeType===5 || shapeType===15 || shapeType===25){
+        offset += 32;
+        const numParts = dv.getInt32(offset, true); offset += 4;
+        const numPoints = dv.getInt32(offset, true); offset += 4;
+        for(let i=0;i<numParts;i++){ parts.push(dv.getInt32(offset,true)); offset+=4; }
+        for(let i=0;i<numPoints;i++){
+          const x = dv.getFloat64(offset,true); offset+=8;
+          const y = dv.getFloat64(offset,true); offset+=8;
+          points.push([x,y]);
+        }
+      }
+      records.push({shapeType, parts, points});
+      offset = recStart + contentLenBytes;
+    }
+    return records;
+  }
+
+  function parseDBFBuffer(arrayBuffer){
+    const dv = new DataView(arrayBuffer);
+    const numRecords = dv.getInt32(4, true);
+    const headerLen = dv.getInt16(8, true);
+    const recordLen = dv.getInt16(10, true);
+    const fields = [];
+    let offset = 32;
+    while(dv.getUint8(offset) !== 0x0D){
+      let name = "";
+      for(let i=0;i<11;i++){ const c = dv.getUint8(offset+i); if(c!==0) name += String.fromCharCode(c); }
+      const type = String.fromCharCode(dv.getUint8(offset+11));
+      const len = dv.getUint8(offset+16);
+      fields.push({name, type, len});
+      offset += 32;
+    }
+    offset = headerLen;
+    const decoder = new TextDecoder("windows-1252");
+    const bytes = new Uint8Array(arrayBuffer);
+    const records = [];
+    for(let r=0;r<numRecords;r++){
+      const recBytes = bytes.slice(offset+1, offset+recordLen);
+      let fo = 0;
+      const obj = {};
+      for(const f of fields){
+        const raw = recBytes.slice(fo, fo+f.len);
+        let val = decoder.decode(raw).replace(/\0/g,"").trim();
+        if(f.type==="N" || f.type==="F"){ val = val===""? null : parseFloat(val); }
+        obj[f.name] = val;
+        fo += f.len;
+      }
+      records.push(obj);
+      offset += recordLen;
+    }
+    return {fields, records};
+  }
+
+  function buildGeometryIndex(shapes, dbfRecords){
+    const idx = {};
+    const n = Math.min(shapes.length, dbfRecords.length);
+    for(let i=0;i<n;i++){
+      const sh = shapes[i], d = dbfRecords[i];
+      const guid = d.GUID_PARC || "";
+      if(!guid || !sh.points.length) continue;
+      const parts = sh.parts.length ? sh.parts : [0];
+      const rings = [];
+      for(let p=0;p<parts.length;p++){
+        const start = parts[p];
+        const end = (p+1<parts.length) ? parts[p+1] : sh.points.length;
+        const ring = [];
+        for(let k=start;k<end;k++){
+          const [x,y] = sh.points[k];
+          const [lon,lat] = proj4("EPSG:2154","WGS84",[x,y]);
+          ring.push([lat,lon]);
+        }
+        rings.push(ring);
+      }
+      idx[guid] = {
+        rings,
+        nom: (d.NOM_PARCEL||"").trim(),
+        culture: (d.CP_CULTU||"").trim(),
+        surface: d.SURFACE!=null ? Number(d.SURFACE) : null,
+        ilot: d.NUM_ILOT!=null ? String(d.NUM_ILOT) : "",
+        commune: (d.LIB_COMMUN||"").trim(),
+        insee: (d.CODE_INSEE||"").trim()
+      };
+    }
+    return idx;
+  }
+
+  function buildDatasetFromShapefile(dbfRecords, fileName){
+    const parcelles = dbfRecords.map(d=>({
+      guid: d.GUID_PARC || "",
+      parcelle: (d.NOM_PARCEL||"").trim(),
+      ilot: d.NUM_ILOT!=null ? String(d.NUM_ILOT) : "",
+      commune: (d.LIB_COMMUN||"").trim(),
+      insee: (d.CODE_INSEE||"").trim(),
+      culture: (d.CP_CULTU||"").trim(),
+      surface: d.SURFACE!=null ? Number(d.SURFACE) : null,
+      dateImplantation:"", dateRecolte:""
+    })).filter(p=>p.parcelle||p.culture);
+    return {source:"shapefile", parcelles, interventions:[], importedAt:new Date().toISOString(), fileName};
+  }
+
+  // ---------- Generic fallback (CSV / XML / unrecognised XLSX) ----------
+
+  function guessColumn(field){
+    const kws = KEYWORDS[field];
+    let best = "", bestScore = 0;
+    headers.forEach(h=>{
+      const nh = normalizeHeader(h);
+      kws.forEach(k=>{
+        if(nh === k && k.length > bestScore){ best = h; bestScore = k.length + 100; }
+        else if(nh.includes(k) && k.length > bestScore){ best = h; bestScore = k.length; }
+      });
+    });
+    return best;
+  }
+
+  function startMapping(rows, fileName){
+    rawRows = rows;
+    headers = Object.keys(rows[0]);
+    pendingFileName = fileName;
+    ["parcelle","ilot","culture","surface","commune","date","intervention"].forEach(field=>{
+      const sel = $("map_"+field);
+      if(!sel) return;
+      sel.innerHTML = "";
+      const noneOpt = document.createElement("option");
+      noneOpt.value=""; noneOpt.textContent="— Aucune correspondance —";
+      sel.appendChild(noneOpt);
+      headers.forEach(h=>{
+        const opt = document.createElement("option");
+        opt.value = h; opt.textContent = h;
+        sel.appendChild(opt);
+      });
+      const guess = guessColumn(field);
+      if(guess) sel.value = guess;
+    });
+    renderPreview();
+    importView.classList.add("hidden");
+    dashView.classList.add("hidden");
+    mappingView.classList.remove("hidden");
+  }
+
+  function renderPreview(){
+    const sample = rawRows.slice(0,4);
+    let html = "<table><thead><tr>";
+    headers.forEach(h=> html += "<th>"+escapeHtml(h)+"</th>");
+    html += "</tr></thead><tbody>";
+    sample.forEach(r=>{
+      html += "<tr>";
+      headers.forEach(h=> html += "<td>"+escapeHtml(String(r[h]??""))+"</td>");
+      html += "</tr>";
+    });
+    html += "</tbody></table>";
+    $("previewTable").innerHTML = html;
+  }
+
+  $("validateMapping").addEventListener("click", ()=>{
+    const mapping = {
+      parcelle: $("map_parcelle").value, ilot: $("map_ilot").value, culture: $("map_culture").value,
+      surface: $("map_surface").value, commune: $("map_commune").value,
+      date: $("map_date").value, intervention: $("map_intervention").value
+    };
+    if(!mapping.parcelle || !mapping.culture || !mapping.surface){
+      alert("Merci d'indiquer au minimum : nom de parcelle, culture et surface.");
+      return;
+    }
+    const seen = new Set();
+    const parcelles = [];
+    rawRows.forEach(r=>{
+      const parcelle = String(r[mapping.parcelle] ?? "").trim();
+      const ilot = mapping.ilot ? String(r[mapping.ilot] ?? "").trim() : "";
+      const culture = String(r[mapping.culture] ?? "").trim();
+      const key = parcelle+"|"+ilot+"|"+culture;
+      if(seen.has(key)) return;
+      seen.add(key);
+      parcelles.push({
+        guid:"", parcelle, ilot,
+        commune: mapping.commune ? String(r[mapping.commune] ?? "").trim() : "",
+        insee:"", culture,
+        surface: parseNumber(r[mapping.surface]),
+        dateImplantation:"", dateRecolte:""
+      });
+    });
+    const interventions = mapping.date ? rawRows.map(r=>({
+      parcelle: String(r[mapping.parcelle] ?? "").trim(), guidParcelle:"",
+      date: String(r[mapping.date] ?? "").trim(),
+      operation: mapping.intervention ? String(r[mapping.intervention] ?? "").trim() : "",
+      culture: String(r[mapping.culture] ?? "").trim()
+    })).filter(iv=>iv.date) : [];
+
+    dataset = {source:"generic", parcelles, interventions, importedAt:new Date().toISOString(), fileName: pendingFileName};
+    mappingPending = false;
+    saveDataset();
+    renderDashboard(false);
+  });
+
+  $("cancelMapping").addEventListener("click", ()=>{
+    mappingPending = false;
+    mappingView.classList.add("hidden");
+    if(dataset){ dashView.classList.remove("hidden"); } else { importView.classList.remove("hidden"); }
+  });
+
+  function parseCSV(text, fileName){
+    const res = Papa.parse(text, {header:true, skipEmptyLines:true, dynamicTyping:false});
+    if(!res.data || !res.data.length){ showError($("importErr"), "Aucune ligne trouvée dans ce CSV."); mappingPending=false; return; }
+    startMapping(res.data, fileName);
+  }
+
+  function parseXLSXGeneric(buffer, fileName){
+    try{
+      const wb = XLSX.read(buffer, {type:"array"});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:""});
+      if(!rows.length){ showError($("importErr"), "Aucune ligne trouvée dans ce fichier."); mappingPending=false; return; }
+      startMapping(rows, fileName);
+    }catch(err){
+      showError($("importErr"), "Ce fichier Excel n'a pas pu être lu automatiquement.");
+      mappingPending = false;
+    }
+  }
+
+  function parseXML(text, fileName){
+    try{
+      const doc = new DOMParser().parseFromString(text, "text/xml");
+      if(doc.getElementsByTagName("parsererror").length){ showError($("importErr"), "Ce fichier XML n'a pas pu être lu."); mappingPending=false; return; }
+      const all = doc.getElementsByTagName("*");
+      const freq = {};
+      for(const el of all){ freq[el.tagName] = (freq[el.tagName]||0) + 1; }
+      let bestTag = null, bestCount = 1;
+      for(const t in freq){ if(freq[t] > bestCount){ bestCount = freq[t]; bestTag = t; } }
+      if(!bestTag){ showError($("importErr"), "Aucun élément répété trouvé dans ce XML."); mappingPending=false; return; }
+      const nodes = doc.getElementsByTagName(bestTag);
+      const rows = [];
+      for(const node of nodes){
+        const obj = {};
+        for(const attr of node.attributes){ obj[attr.name] = attr.value; }
+        for(const child of node.children){ if(child.children.length === 0){ obj[child.tagName] = child.textContent.trim(); } }
+        if(Object.keys(obj).length) rows.push(obj);
+      }
+      if(!rows.length){ showError($("importErr"), "Aucune donnée exploitable trouvée dans ce XML."); mappingPending=false; return; }
+      startMapping(rows, fileName);
+    }catch(err){
+      showError($("importErr"), "Erreur de lecture du fichier XML.");
+      mappingPending = false;
+    }
+  }
+
+  // ---------- Multi-file import orchestration ----------
+
+  function makePseudoFile(name, arrayBuf){
+    return {
+      name,
+      arrayBuffer: async () => arrayBuf,
+      text: async () => new TextDecoder("utf-8").decode(arrayBuf)
+    };
+  }
+
+  async function handleFiles(fileList){
+    $("importErr").innerHTML = "";
+    setStatus("Lecture des fichiers…");
+    let files = Array.from(fileList);
+
+    const expanded = [];
+    for(const f of files){
+      if(f.name.toLowerCase().endsWith(".zip")){
+        try{
+          const buf = await f.arrayBuffer();
+          const zip = await JSZip.loadAsync(buf);
+          for(const relPath in zip.files){
+            const entry = zip.files[relPath];
+            if(entry.dir) continue;
+            const ab = await entry.async("arraybuffer");
+            expanded.push(makePseudoFile(relPath.split("/").pop(), ab));
+          }
+        }catch(e){ /* skip unreadable zip */ }
+      } else {
+        expanded.push(f);
+      }
+    }
+    files = expanded;
+
+    let shpFile=null, dbfFile=null, tabularFile=null, tabularExt=null;
+    files.forEach(f=>{
+      const name = f.name.toLowerCase();
+      if(name.endsWith(".shp")) shpFile=f;
+      else if(name.endsWith(".dbf")) dbfFile=f;
+      else if(name.endsWith(".xlsx") || name.endsWith(".xls")){ tabularFile=f; tabularExt="xlsx"; }
+      else if(name.endsWith(".csv")){ tabularFile=f; tabularExt="csv"; }
+      else if(name.endsWith(".xml")){ tabularFile=f; tabularExt="xml"; }
+    });
+
+    let tabularWasGeofolia = false;
+
+    if(tabularFile){
+      try{
+        if(tabularExt==="xlsx"){
+          const buf = await tabularFile.arrayBuffer();
+          const geo = await tryParseGeofoliaWorkbook(buf.slice(0));
+          if(geo){
+            dataset = buildDatasetFromGeofolia(geo.parcelleRows, geo.interventionRows, tabularFile.name);
+            await saveDataset();
+            tabularWasGeofolia = true;
+          } else {
+            mappingPending = true;
+            parseXLSXGeneric(buf, tabularFile.name);
+          }
+        } else if(tabularExt==="csv"){
+          mappingPending = true;
+          parseCSV(await tabularFile.text(), tabularFile.name);
+        } else if(tabularExt==="xml"){
+          mappingPending = true;
+          parseXML(await tabularFile.text(), tabularFile.name);
+        }
+      }catch(e){ showError($("importErr"), "Erreur de lecture du fichier de données."); }
+    }
+
+    if(shpFile && dbfFile){
+      try{
+        const shpBuf = await shpFile.arrayBuffer();
+        const dbfBuf = await dbfFile.arrayBuffer();
+        const shapes = parseSHPBuffer(shpBuf);
+        const dbf = parseDBFBuffer(dbfBuf);
+        const idx = buildGeometryIndex(shapes, dbf.records);
+        Object.assign(geometries, idx);
+        await saveGeometries();
+        if(!dataset && !mappingPending){
+          dataset = buildDatasetFromShapefile(dbf.records, shpFile.name);
+          await saveDataset();
+        }
+      }catch(e){ showError($("importErr"), "Ce fichier shapefile n'a pas pu être lu."); }
+    } else if(shpFile || dbfFile){
+      showError($("importErr"), "Il manque un fichier du jeu shapefile : sélectionne au minimum le .shp et le .dbf ensemble (idéalement avec .shx et .prj).");
+    }
+
+    setStatus("");
+    if(mappingPending) return;
+    if(dataset){ renderDashboard(tabularWasGeofolia); }
+    else if(!shpFile && !dbfFile && !tabularFile){
+      showError($("importErr"), "Aucun fichier reconnu (Excel Geofolia, CSV, XML, ou SHP + DBF).");
+    }
+  }
+
+  // ---------- Persistence ----------
+
+  // Stockage compatible Safari/iPhone : localStorage en priorité,
+  // avec compatibilité conservée pour l'environnement window.storage.
+  async function saveDataset(){
+    try{
+      if(dataset){
+        const value = JSON.stringify(dataset);
+        try{ localStorage.setItem(STORAGE_KEY, value); }catch(e){}
+        if(window.storage) await window.storage.set(STORAGE_KEY, value, false);
+      }
+    }catch(e){}
+  }
+  async function loadDataset(){
+    try{
+      try{ const value = localStorage.getItem(STORAGE_KEY); if(value){ dataset=JSON.parse(value); return true; } }catch(e){}
+      if(window.storage){
+        const res = await window.storage.get(STORAGE_KEY, false);
+        if(res && res.value){ dataset = JSON.parse(res.value); return true; }
+      }
+    }catch(e){}
+    return false;
+  }
+  async function saveGeometries(){
+    try{
+      const value=JSON.stringify(geometries);
+      try{ localStorage.setItem(GEOM_KEY,value); }catch(e){}
+      if(window.storage) await window.storage.set(GEOM_KEY,value,false);
+    }catch(e){}
+  }
+  async function loadGeometries(){
+    try{
+      try{ const value=localStorage.getItem(GEOM_KEY); if(value){ geometries=JSON.parse(value); return; } }catch(e){}
+      if(window.storage){ const res=await window.storage.get(GEOM_KEY,false); if(res&&res.value) geometries=JSON.parse(res.value); }
+    }catch(e){}
+  }
+  async function saveGeoCache(){
+    try{
+      const value=JSON.stringify(geoCache);
+      try{ localStorage.setItem(GEO_CACHE_KEY,value); }catch(e){}
+      if(window.storage) await window.storage.set(GEO_CACHE_KEY,value,false);
+    }catch(e){}
+  }
+  async function loadGeoCache(){
+    try{
+      try{ const value=localStorage.getItem(GEO_CACHE_KEY); if(value){ geoCache=JSON.parse(value); return; } }catch(e){}
+      if(window.storage){ const res=await window.storage.get(GEO_CACHE_KEY,false); if(res&&res.value) geoCache=JSON.parse(res.value); }
+    }catch(e){}
+  }
+
+  // ---------- Dashboard ----------
+
+  function computeCultureColors(parcelles){
+    const byCulture = {};
+    parcelles.forEach(p=>{ const c=p.culture||"Non renseigné"; byCulture[c]=(byCulture[c]||0)+(p.surface||0); });
+    const sorted = Object.entries(byCulture).sort((a,b)=>b[1]-a[1]).map(([c])=>c);
+    const m = {};
+    sorted.forEach((c,i)=> m[c] = CHART_COLORS[i % CHART_COLORS.length]);
+    return m;
+  }
+
+  function renderDashboard(justDetected){
+    importView.classList.add("hidden");
+    mappingView.classList.add("hidden");
+    dashView.classList.remove("hidden");
+    $("detectedBadge").classList.toggle("hidden", !(justDetected && dataset.source==="geofolia"));
+
+    const parcelles = dataset.parcelles;
+    const totalSurface = parcelles.reduce((s,p)=> s + (p.surface||0), 0);
+    const cultureSet = new Set(parcelles.map(p=>p.culture).filter(Boolean));
+    cultureColorMap = computeCultureColors(parcelles);
+
+    $("statSurface").textContent = totalSurface ? totalSurface.toLocaleString("fr-FR",{maximumFractionDigits:1}) : "–";
+    $("statParcelles").textContent = parcelles.length;
+    $("statCultures").textContent = cultureSet.size;
+
+    const d = new Date(dataset.importedAt);
+    $("lastUpdate").textContent = "Import du " + d.toLocaleDateString("fr-FR") + " à " + d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}) + (dataset.fileName ? " · "+dataset.fileName : "");
+
+    const byCulture = {};
+    parcelles.forEach(p=>{ const c = p.culture || "Non renseigné"; byCulture[c] = (byCulture[c]||0) + (p.surface||0); });
+    const cultureArr = Object.entries(byCulture).sort((a,b)=>b[1]-a[1]);
+    let barsHtml = "";
+    cultureArr.forEach(([culture, surf])=>{
+      const pct = totalSurface ? (surf/totalSurface*100) : 0;
+      const color = cultureColorMap[culture];
+      barsHtml += '<div class="bar-row"><div class="bar-top"><span class="culture">'+escapeHtml(culture)+'</span>'
+        + '<span class="figs">'+surf.toLocaleString("fr-FR",{maximumFractionDigits:1})+' ha · '+pct.toFixed(0)+'%</span></div>'
+        + '<div class="bar-track"><div class="bar-fill" style="width:'+pct.toFixed(1)+'%;background:'+color+';"></div></div></div>';
+    });
+    $("cultureBars").innerHTML = barsHtml || '<div class="empty">Aucune culture renseignée.</div>';
+
+    renderParcelleList();
+
+    const interventions = dataset.interventions || [];
+    if(interventions.length){
+      $("intervSection").classList.remove("hidden");
+      const sorted = interventions.slice().sort((a,b)=> (b.date||"").localeCompare(a.date||"")).slice(0,15);
+      let html = "";
+      sorted.forEach(r=>{
+        html += '<div class="interv-row"><div class="d">'+escapeHtml(displayDate(r.date))+'</div>'
+          + escapeHtml(r.parcelle||"") + (r.operation ? " — "+escapeHtml(r.operation) : "") + '</div>';
+      });
+      $("intervList").innerHTML = html || '<div class="empty">Aucune intervention datée.</div>';
+    } else {
+      $("intervSection").classList.add("hidden");
+    }
+
+    const hasMapData = parcelles.some(p=>p.insee || p.commune || (p.guid && geometries[p.guid]));
+    $("tabCarteBtn").classList.toggle("hidden", !hasMapData);
+    if(!hasMapData){ switchTab("assolement"); }
+  }
+
+  function renderParcelleList(){
+    const q = normalizeHeader($("search").value);
+    const sortMode = $("sortSel").value;
+    let list = dataset.parcelles;
+    if(q){ list = list.filter(p => normalizeHeader(p.parcelle).includes(q) || normalizeHeader(p.culture).includes(q)); }
+    list = list.slice().sort((a,b)=>{
+      if(sortMode==="surface_desc") return (b.surface||0)-(a.surface||0);
+      if(sortMode==="surface_asc") return (a.surface||0)-(b.surface||0);
+      if(sortMode==="nom") return (a.parcelle||"").localeCompare(b.parcelle||"");
+      if(sortMode==="culture") return (a.culture||"").localeCompare(b.culture||"");
+      return 0;
+    });
+    let html = "";
+    list.forEach(p=>{
+      html += '<div class="prow"><div><div class="pname">'+escapeHtml(p.parcelle||"(sans nom)")+'</div>'
+        + '<div class="pmeta">'+escapeHtml(p.culture||"culture non renseignée")+(p.ilot ? " · îlot "+escapeHtml(p.ilot) : "")+(p.commune ? " · "+escapeHtml(p.commune) : "")+'</div></div>'
+        + '<div class="psurf">'+(p.surface!=null ? p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha" : "–")+'</div></div>';
+    });
+    $("parcelleList").innerHTML = html || '<div class="empty">Aucune parcelle ne correspond.</div>';
+  }
+  $("search").addEventListener("input", renderParcelleList);
+  $("sortSel").addEventListener("change", renderParcelleList);
+  $("mapSearch").addEventListener("input", renderMapSearchResults);
+  $("mapSearch").addEventListener("keydown", e=>{
+    if(e.key==="Enter"){e.preventDefault();$("mapSearchBtn").click();}
+  });
+  $("mapSearchBtn").addEventListener("click",()=>{
+    renderMapSearchResults();
+    const first=$("mapSearchResults").querySelector(".map-search-result");
+    if(first) first.click();
+  });
+  $("locateBtn").addEventListener("click", locateUser);
+  $("mapBackBtn").addEventListener("click", ()=>switchTab("assolement"));
+
+  // ---------- Tabs ----------
+
+  function switchTab(which){
+    $("tabAssolementBtn").classList.toggle("active", which==="assolement");
+    $("tabCarteBtn").classList.toggle("active", which==="carte");
+    $("tabAssolement").classList.toggle("hidden", which!=="assolement");
+    $("tabCarte").classList.toggle("hidden", which!=="carte");
+
+    const fullMap = which === "carte";
+    dashView.classList.toggle("map-mode", fullMap);
+
+    if(fullMap){
+      setTimeout(()=>{
+        renderMap();
+        if(map) map.invalidateSize();
+      },80);
+    }
+  }
+  $("tabAssolementBtn").addEventListener("click", ()=>switchTab("assolement"));
+  $("tabCarteBtn").addEventListener("click", ()=>switchTab("carte"));
+  dashView.addEventListener("click", e=>{
+    if(dashView.classList.contains("map-mode") &&
+       e.target === dashView){
+      switchTab("assolement");
+    }
+  });
+
+  // ---------- Map ----------
+
+  async function geocodeCommune(insee, communeName){
+    const key = insee || communeName;
+    if(!key) return null;
+    if(key in geoCache) return geoCache[key];
+    try{
+      if(insee){
+        const res = await fetch("https://geo.api.gouv.fr/communes/"+encodeURIComponent(insee)+"?fields=centre&format=json");
+        if(res.ok){
+          const data = await res.json();
+          if(data && data.centre && data.centre.coordinates){
+            const coords = {lat:data.centre.coordinates[1], lon:data.centre.coordinates[0]};
+            geoCache[key] = coords;
+            return coords;
+          }
+        }
+      }
+    }catch(e){ /* offline or lookup failed */ }
+    geoCache[key] = null;
+    return null;
+  }
+
+  function parcelMatchesQuery(p, q){
+    const nq = normalizeHeader(q);
+    return nq && (
+      normalizeHeader(p.parcelle).includes(nq) ||
+      normalizeHeader(p.culture).includes(nq) ||
+      normalizeHeader(p.ilot).includes(nq) ||
+      normalizeHeader(p.commune).includes(nq) ||
+      normalizeHeader(p.guid).includes(nq)
+    );
+  }
+
+  function getParcelLayer(p){
+    if(!map || !p || !p.guid) return null;
+    let found = null;
+    map.eachLayer(l=>{
+      if(l instanceof L.Polygon && l._parcelGuid === p.guid) found = l;
+    });
+    return found;
+  }
+
+  function highlightParcel(p){
+    if(selectedParcelLayer){
+      selectedParcelLayer.setStyle({weight:1.5,color:"#FFFFFF"});
+      selectedParcelLayer = null;
+    }
+    const layer = getParcelLayer(p);
+    if(layer){
+      layer.setStyle({weight:4,color:"#1976F3"});
+      selectedParcelLayer = layer;
+      layer.openPopup();
+      map.fitBounds(layer.getBounds(), {padding:[45,45],maxZoom:19});
+      return;
+    }
+    const key = p.insee || p.commune;
+    if(key) geocodeCommune(p.insee,p.commune).then(coords=>{
+      if(coords) map.setView([coords.lat,coords.lon],16);
+    });
+  }
+
+  function renderMapSearchResults(){
+    const q = $("mapSearch").value.trim();
+    const box = $("mapSearchResults");
+    if(!q){
+      box.innerHTML = "";
+      box.classList.add("hidden");
+      return;
+    }
+    const matches = dataset.parcelles.filter(p=>parcelMatchesQuery(p,q)).slice(0,12);
+    if(!matches.length){
+      box.innerHTML = '<div class="empty" style="padding:10px 11px;">Aucune parcelle trouvée.</div>';
+      box.classList.remove("hidden");
+      return;
+    }
+    box.innerHTML = matches.map((p,i)=>{
+      const meta = escapeHtml(p.culture||"culture non renseignée")
+        +(p.ilot?" · îlot "+escapeHtml(p.ilot):"")
+        +(p.commune?" · "+escapeHtml(p.commune):"");
+      const surf = p.surface!=null ? p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha" : "–";
+      return '<div class="map-search-result" data-i="'+i+'"><div><b>'
+        +escapeHtml(p.parcelle||"(sans nom)")+'</b><div class="meta">'+meta
+        +'</div></div><div class="surface">'+surf+'</div></div>';
+    }).join("");
+    matches.forEach((p,i)=>{
+      box.querySelector('[data-i="'+i+'"]').addEventListener("click",()=>{
+        highlightParcel(p);
+        $("mapSearch").value=p.parcelle||"";
+        box.classList.add("hidden");
+      });
+    });
+    box.classList.remove("hidden");
+  }
+
+  function handleGpsError(err){
+    $("locateBtn").classList.remove("active");
+    $("locateBtn").textContent="● Ma position";
+    const msg = {
+      1:"Autorisation de localisation refusée. Autorise la position dans les réglages du navigateur.",
+      2:"Position GPS indisponible pour le moment.",
+      3:"La recherche GPS a expiré. Réessaie."
+    };
+    $("mapNote").textContent=msg[err && err.code]||"Impossible d'obtenir la position GPS.";
+  }
+
+  function updateGpsPosition(pos,center){
+    const lat=pos.coords.latitude, lon=pos.coords.longitude;
+    const accuracy=Math.max(pos.coords.accuracy||20,5);
+    const icon=L.divIcon({
+      className:"",
+      html:'<div class="gps-marker"></div>',
+      iconSize:[18,18],
+      iconAnchor:[9,9]
+    });
+    if(!gpsMarker){
+      gpsMarker=L.marker([lat,lon],{icon,zIndexOffset:1000}).addTo(map);
+      gpsMarker.bindPopup("<b>Ma position</b><br>Position GPS en temps réel");
+    }else{
+      gpsMarker.setLatLng([lat,lon]);
+    }
+    if(!gpsAccuracyCircle){
+      gpsAccuracyCircle=L.circle([lat,lon],{
+        radius:accuracy,color:"#1976F3",weight:1.5,
+        fillColor:"#1976F3",fillOpacity:0.08
+      }).addTo(map);
+    }else{
+      gpsAccuracyCircle.setLatLng([lat,lon]);
+      gpsAccuracyCircle.setRadius(accuracy);
+    }
+    if(center) map.setView([lat,lon],Math.max(map.getZoom(),16));
+    $("locateBtn").classList.add("active");
+    $("locateBtn").textContent="● GPS actif";
+    $("mapNote").textContent="Position GPS en temps réel · précision ±"+Math.round(accuracy)+" m.";
+  }
+
+  function locateUser(){
+    if(!navigator.geolocation){
+      $("mapNote").textContent="La géolocalisation n'est pas disponible sur cet appareil.";
+      return;
+    }
+    $("locateBtn").classList.add("active");
+    $("locateBtn").textContent="● Localisation…";
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        updateGpsPosition(pos,true);
+        if(gpsWatchId===null){
+          gpsWatchId=navigator.geolocation.watchPosition(
+            p=>updateGpsPosition(p,false),
+            handleGpsError,
+            {enableHighAccuracy:true,maximumAge:3000,timeout:15000}
+          );
+        }
+      },
+      handleGpsError,
+      {enableHighAccuracy:true,maximumAge:0,timeout:15000}
+    );
+  }
+
+  async function renderMap(){
+    const container = $("mapContainer");
+    if(!dataset) return;
+
+    if(!map){
+      container.innerHTML = "";
+      map = L.map(container, {scrollWheelZoom:false});
+      L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}", {
+        attribution: 'Orthophotos &copy; IGN/G&eacute;oportail',
+        maxNativeZoom: 19, maxZoom: 20, minZoom: 2
+      }).addTo(map);
+    } else {
+      map.eachLayer(l=>{ if(l instanceof L.CircleMarker || l instanceof L.Polygon) map.removeLayer(l); });
+    }
+
+    const withGeom = [], withoutGeom = [];
+    dataset.parcelles.forEach(p=>{
+      const g = p.guid && geometries[p.guid];
+      if(g && g.rings && g.rings.length){ withGeom.push({p,g}); } else { withoutGeom.push(p); }
+    });
+
+    const allBounds = [];
+    let preciseSurface = 0;
+    withGeom.forEach(({p,g})=>{
+      const color = cultureColorMap[p.culture || "Non renseigné"] || "#2F5233";
+      const poly = L.polygon(g.rings, {color:"#FFFFFF", weight:1.5, fillColor:color, fillOpacity:0.6}).addTo(map);
+      poly._parcelGuid = p.guid;
+      poly.bindPopup("<b>"+escapeHtml(p.parcelle||g.nom||"")+"</b><br>"+escapeHtml(p.culture||"")+"<br>"+(p.surface!=null?p.surface.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha":""));
+      g.rings.forEach(ring=> ring.forEach(pt=> allBounds.push(pt)));
+      preciseSurface += (p.surface||0);
+    });
+
+    const byCommune = {};
+    withoutGeom.forEach(p=>{
+      const key = p.insee || p.commune;
+      if(!key) return;
+      if(!byCommune[key]) byCommune[key] = {insee:p.insee, commune:p.commune, surface:0, count:0, cultures:{}};
+      byCommune[key].surface += (p.surface||0);
+      byCommune[key].count += 1;
+      const c = p.culture || "Non renseigné";
+      byCommune[key].cultures[c] = (byCommune[key].cultures[c]||0) + (p.surface||0);
+    });
+    const communes = Object.values(byCommune);
+
+    if(communes.length){
+      $("mapNote").textContent = "Localisation des communes en cours…";
+      const maxSurf = Math.max(...communes.map(c=>c.surface), 1);
+      for(const c of communes){
+        const coords = await geocodeCommune(c.insee, c.commune);
+        if(!coords) continue;
+        const radius = 8 + (c.surface/maxSurf)*16;
+        const marker = L.circleMarker([coords.lat, coords.lon], {radius, color:"#B8933B", weight:2, dashArray:"4,4", fillColor:"#2F5233", fillOpacity:0.45}).addTo(map);
+        const topCultures = Object.entries(c.cultures).sort((a,b)=>b[1]-a[1]).slice(0,3)
+          .map(([cu,s])=> escapeHtml(cu)+" ("+s.toLocaleString("fr-FR",{maximumFractionDigits:1})+" ha)").join("<br>");
+        marker.bindPopup("<b>"+escapeHtml(c.commune||c.insee)+"</b> (position approximative)<br>"+c.count+" parcelle(s) · "+c.surface.toLocaleString("fr-FR",{maximumFractionDigits:1})+" ha<br><br>"+topCultures);
+        allBounds.push([coords.lat, coords.lon]);
+      }
+      saveGeoCache();
+    }
+
+    if(!allBounds.length){
+      $("mapNote").textContent = "Aucune donnée de localisation disponible pour le moment.";
+      return;
+    }
+
+    map.fitBounds(L.latLngBounds(allBounds), {padding:[30,30]});
+    setTimeout(()=> map.invalidateSize(), 60);
+
+    if(gpsMarker){
+      gpsMarker.addTo(map);
+      if(gpsAccuracyCircle) gpsAccuracyCircle.addTo(map);
+    }
+
+    if(withoutGeom.length===0){
+      $("mapNote").textContent = "Toutes les parcelles sont affichées avec leur contour exact, d'après l'export cartographique Geofolia.";
+    } else if(withGeom.length===0){
+      $("mapNote").textContent = "Repères par commune (positions approximatives, en pointillés) — pas encore d'export cartographique importé. Importe le SHP du parcellaire pour un tracé précis.";
+    } else {
+      $("mapNote").textContent = withGeom.length+" parcelle(s) affichée(s) avec leur contour exact ("+preciseSurface.toLocaleString("fr-FR",{maximumFractionDigits:1})+" ha). Les autres (pointillés dorés) sont en position approximative par commune — importe leur export cartographique pour compléter.";
+    }
+  }
+
+  // ---------- Import wiring ----------
+
+  const dropzone = $("dropzone");
+  dropzone.addEventListener("click", ()=> { const input=$("fileInput"); input.value=""; input.click(); });
+  $("fileInput").addEventListener("change", e=>{ if(e.target.files && e.target.files.length) handleFiles(e.target.files); });
+  ["dragenter","dragover"].forEach(evt=> dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.add("drag"); }));
+  ["dragleave","drop"].forEach(evt=> dropzone.addEventListener(evt, e=>{ e.preventDefault(); dropzone.classList.remove("drag"); }));
+  dropzone.addEventListener("drop", e=>{ if(e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+
+  $("newImport").addEventListener("click", ()=>{ dashView.classList.add("hidden"); importView.classList.remove("hidden"); });
+
+  // ---------- Boot ----------
+
+  (async function boot(){
+    await loadGeoCache();
+    await loadGeometries();
+    const found = await loadDataset();
+    if(found && dataset && dataset.parcelles && dataset.parcelles.length){ renderDashboard(false); }
+  })();
+
+})();
+</script>
+
+<script>
+/* Final UI polish: force Leaflet zoom control to bottom-right in map mode. */
+(function(){
+  function polishMapControls(){
+    var map = document.getElementById('mapContainer');
+    if(!map) return;
+    var zoom = map.querySelector('.leaflet-control-zoom');
+    if(zoom){
+      zoom.style.position = 'fixed';
+      zoom.style.right = '14px';
+      zoom.style.left = 'auto';
+      zoom.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 18px)';
+      zoom.style.top = 'auto';
+      zoom.style.margin = '0';
+    }
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(polishMapControls, 300);
+    setTimeout(polishMapControls, 1000);
+  });
+  window.addEventListener('resize', polishMapControls);
+})();
+</script>
+
+
+<script>
+(function(){
+  function enforceFinalMapLayout(){
+    const root = document.getElementById('dashView');
+    if(!root || !root.classList.contains('map-mode')) return;
+
+    const searchWrap = document.querySelector('#dashView.map-mode .map-search-wrap');
+    if(searchWrap){
+      searchWrap.style.top = 'calc(env(safe-area-inset-top, 0px) + 150px)';
+      searchWrap.style.left = '12px';
+      searchWrap.style.right = '12px';
+      searchWrap.style.width = 'auto';
+      searchWrap.style.zIndex = '1200';
+    }
+
+    const zoom = document.querySelector('#dashView.map-mode .leaflet-control-zoom');
+    if(zoom){
+      zoom.style.position = 'fixed';
+      zoom.style.right = '14px';
+      zoom.style.left = 'auto';
+      zoom.style.top = 'auto';
+      zoom.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 22px)';
+      zoom.style.margin = '0';
+      zoom.style.zIndex = '1150';
+    }
+
+    const locate = document.getElementById('locateBtn');
+    if(locate){
+      locate.style.position = 'fixed';
+      locate.style.right = '14px';
+      locate.style.left = 'auto';
+      locate.style.top = 'auto';
+      locate.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 142px)';
+      locate.style.zIndex = '1200';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    [200,500,1000,1800].forEach(ms => setTimeout(enforceFinalMapLayout, ms));
+  });
+  window.addEventListener('resize', enforceFinalMapLayout);
+})();
+</script>
+
+
+<script>
+/* Re-applique les positions après chaque rendu Leaflet / changement de taille. */
+(function(){
+  function fixMapUI(){
+    const root = document.getElementById('dashView');
+    if(!root || !root.classList.contains('map-mode')) return;
+
+    const search = root.querySelector('.map-search');
+    if(search){
+      search.style.position = 'fixed';
+      search.style.top = 'calc(env(safe-area-inset-top, 0px) + 150px)';
+      search.style.left = '12px';
+      search.style.right = '12px';
+      search.style.width = 'auto';
+      search.style.zIndex = '2000';
+    }
+
+    const zoom = root.querySelector('.leaflet-control-zoom');
+    if(zoom){
+      zoom.style.position = 'fixed';
+      zoom.style.right = '14px';
+      zoom.style.left = 'auto';
+      zoom.style.top = 'auto';
+      zoom.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 20px)';
+      zoom.style.zIndex = '2100';
+      zoom.style.margin = '0';
+    }
+
+    const actions = root.querySelector('.map-actions');
+    if(actions){
+      actions.style.position = 'fixed';
+      actions.style.right = '14px';
+      actions.style.left = 'auto';
+      actions.style.top = 'auto';
+      actions.style.bottom = 'calc(env(safe-area-inset-bottom, 0px) + 148px)';
+      actions.style.zIndex = '2100';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    [100,300,700,1200,2000].forEach(t => setTimeout(fixMapUI,t));
+  });
+  window.addEventListener('resize', fixMapUI);
+})();
+</script>
+
+</body>
+</html>
