@@ -1358,11 +1358,11 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
     </div>
   </section>
 
-  <button type="button" id="chatbotBtn" class="chatbot-btn" aria-label="Ouvrir l'assistant">💬</button>
+  <button type="button" id="chatbotBtn" class="chatbot-btn" aria-label="Ouvrir l’assistant">💬</button>
   <div id="chatbotPanel" class="chatbot-panel hidden">
     <div class="chatbot-header">
       <span>💬 Assistant parcelles</span>
-      <button type="button" id="chatbotClose" aria-label="Fermer l'assistant">✕</button>
+      <button type="button" id="chatbotClose" aria-label="Fermer l’assistant">✕</button>
     </div>
     <div id="chatbotMessages" class="chatbot-messages"></div>
     <div class="chatbot-input-row">
@@ -3981,7 +3981,8 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
     getWeatherLocation,
     renderDashboard,
     closeParcelSheet,
-    openParcelSheet
+    openParcelSheet,
+    handleChatIntent
   };
 
   // ---------- Boot ----------
@@ -4124,10 +4125,12 @@ body.v2-map-open header.top{display:none}
     const appTitle=document.createElement('div'); appTitle.className='v2-app-title';
     appTitle.innerHTML='<div><h2>Parcelles</h2><p>EARL du Sougey · suivi des parcelles</p></div><span class="v2-sync-dot" title="Application prête"></span>';
     home.appendChild(appTitle);
+    /* Météo volontairement placée tout en haut de l'accueil : elle ne dépend
+       plus de la longueur des KPI, de l'assolement ou du scroll. */
+    if(weather) home.appendChild(weather);
     home.appendChild(stats);
     if(detected) home.appendChild(detected);
     if(last) home.appendChild(last);
-    if(weather) home.appendChild(weather);
 
     const quick=document.createElement('div'); quick.className='v2-card';
     quick.innerHTML='<h3>Accès rapides</h3><div class="v2-quick">'+
@@ -4174,6 +4177,21 @@ body.v2-map-open header.top{display:none}
     /* Advanced tools grouped under Plus. */
     const plusTitle=document.createElement('div'); plusTitle.className='v2-app-title'; plusTitle.innerHTML='<div><h2>Plus</h2><p>Données, synchronisation et réglages</p></div>';
     plus.appendChild(plusTitle);
+
+    /* Assistant IA distant — GitHub Pages → Cloudflare Worker → Gemini.
+       La clé Gemini reste côté Cloudflare et n'est jamais stockée dans cette application. */
+    const aiGroup=document.createElement('div'); aiGroup.className='v2-setting-group v2-ai-local-group';
+    const aiTitle=document.createElement('div'); aiTitle.className='v2-setting-title'; aiTitle.textContent='Assistant IA'; aiGroup.appendChild(aiTitle);
+    const aiBox=document.createElement('div'); aiBox.className='v2-ai-settings';
+    aiBox.innerHTML=
+      '<div class=\"v2-ai-intro\"><strong>🤖 IA agricole avec Gemini</strong><span>L’application fonctionne directement depuis l’iPhone. Aucun PC et aucun Tailscale nécessaires. La clé Gemini reste protégée sur le serveur.</span></div>'+
+      '<label>Adresse du Worker<input id=\"aiEndpoint\" type=\"url\" inputmode=\"url\" autocomplete=\"off\" placeholder=\"https://parcelles-ai.ton-compte.workers.dev\"></label>'+
+      '<div class=\"v2-ai-actions\"><button type=\"button\" id=\"aiTestBtn\">Tester l’IA</button></div>'+
+      '<div id=\"aiStatus\" class=\"v2-ai-status\">Non configuré — renseigne l’adresse de ton Worker Cloudflare.</div>'+
+      '<details class=\"v2-ai-help\"><summary>Configuration</summary><div><p>1. Crée un Worker Cloudflare avec le fichier <code>parcelles-ai-worker.js</code> fourni avec l’application.</p><p>2. Ajoute ta clé Gemini dans Cloudflare sous le secret <code>GEMINI_API_KEY</code>.</p><p>3. Copie l’URL du Worker ici. La clé Gemini ne doit jamais être ajoutée au fichier HTML ou à GitHub.</p></div></details>';
+    aiGroup.appendChild(aiBox);
+    plus.appendChild(aiGroup);
+
     function settingGroup(title, nodes){
       const g=document.createElement('div'); g.className='v2-setting-group';
       const t=document.createElement('div'); t.className='v2-setting-title'; t.textContent=title; g.appendChild(t);
@@ -5345,6 +5363,249 @@ body.v2-point-types-open .map-filter-panel{top:calc(env(safe-area-inset-top,0px)
 
     // Ferme les panneaux flottants lors d'un changement d'onglet.
     qa('.v2-nav-btn').forEach(b=>b.addEventListener('click',()=>{if(filterPanel)filterPanel.hidden=true;}));
+  });
+})();
+</script>
+
+
+<style id="parcelles-ultimate-fix-v9">
+/* =============================================================
+   V9 — hiérarchie carte définitive + météo visible + IA locale
+   Ce bloc arrive en dernier pour neutraliser les anciennes couches CSS.
+   ============================================================= */
+
+/* ---------- Carte : recherche vraiment compacte ---------- */
+#dashView.map-mode .map-search{
+  top:calc(env(safe-area-inset-top,0px) + 7px) !important;
+  left:10px !important; right:10px !important;
+  height:34px !important; min-height:34px !important;
+  gap:5px !important; z-index:9100 !important;
+}
+#dashView.map-mode .map-search input{
+  height:34px !important; min-height:34px !important;
+  flex:1 1 auto !important; width:auto !important;
+  padding:0 8px 0 31px !important;
+  border-radius:9px !important;
+  /* 16px évite le zoom automatique d'iOS, tout en gardant une barre très basse. */
+  font-size:16px !important; line-height:34px !important;
+}
+#dashView.map-mode .map-search:before{left:10px !important;top:3px !important;font-size:17px !important}
+#dashView.map-mode .map-search-btn{
+  flex:0 0 66px !important; width:66px !important; min-width:66px !important;
+  height:34px !important; min-height:34px !important;
+  padding:0 3px !important; border-radius:9px !important;
+  font-size:10px !important; line-height:34px !important;
+}
+
+/* ---------- Ligne 2 : PAC + Ajouter ---------- */
+#dashView.map-mode #rpgPanelBtn,
+#dashView.map-mode #addPointBtn{
+  top:calc(env(safe-area-inset-top,0px) + 47px) !important;
+  height:32px !important; min-height:32px !important;
+  padding:0 8px !important; border-radius:10px !important;
+  font-size:10.5px !important; line-height:32px !important;
+  z-index:9050 !important; max-width:40vw !important;
+}
+#dashView.map-mode #rpgPanelBtn{left:10px !important;right:auto !important}
+#dashView.map-mode #addPointBtn{right:10px !important;left:auto !important}
+
+/* ---------- Menu Ajouter un point : vertical sous son bouton ---------- */
+#dashView.map-mode #pointTypeRow{
+  top:calc(env(safe-area-inset-top,0px) + 84px) !important;
+  right:10px !important; left:auto !important;
+  width:162px !important; max-width:45vw !important;
+  display:flex !important; flex-direction:column !important;
+  align-items:stretch !important; gap:3px !important;
+  padding:0 !important; z-index:9040 !important;
+}
+#dashView.map-mode #pointTypeRow.hidden{display:none !important}
+#dashView.map-mode #pointTypeRow .point-type-chip{
+  width:100% !important; box-sizing:border-box !important;
+  height:28px !important; min-height:28px !important;
+  padding:2px 7px !important; border-radius:8px !important;
+  font-size:10.5px !important; line-height:24px !important;
+  justify-content:flex-start !important; white-space:nowrap !important;
+}
+
+/* ---------- Filtres : sa propre ligne, jamais au même emplacement ---------- */
+.map-filter-btn{
+  left:auto !important; right:10px !important;
+  top:calc(env(safe-area-inset-top,0px) + 84px) !important;
+  height:28px !important; min-height:28px !important;
+  padding:0 8px !important; border-radius:8px !important;
+  font-size:10px !important; line-height:28px !important;
+  z-index:9030 !important;
+}
+/* Quand Ajouter est ouvert, Filtres passe sous TOUTES les propositions. */
+body.v2-point-types-open .map-filter-btn{
+  top:calc(env(safe-area-inset-top,0px) + 204px) !important;
+}
+.map-filter-panel{
+  left:auto !important; right:10px !important;
+  top:calc(env(safe-area-inset-top,0px) + 116px) !important;
+  width:220px !important; max-width:calc(100vw - 20px) !important;
+  padding:7px !important; border-radius:10px !important; z-index:9020 !important;
+}
+body.v2-point-types-open .map-filter-panel{
+  top:calc(env(safe-area-inset-top,0px) + 244px) !important;
+}
+/* Les deux menus ne sont jamais simultanément ouverts. */
+body.v2-point-types-open #mapFilterPanel{display:none !important}
+body.v2-rpg-open #pointTypeRow,body.v2-rpg-open #mapFilterBtn{display:none !important}
+
+/* ---------- PAC ---------- */
+#dashView.map-mode #rpgPanel{
+  top:calc(env(safe-area-inset-top,0px) + 84px) !important;
+  left:10px !important; right:auto !important;
+  width:228px !important; max-width:calc(100vw - 20px) !important;
+  padding:8px !important; border-radius:10px !important; z-index:9020 !important;
+}
+
+/* ---------- Météo accueil : visible immédiatement ---------- */
+#v2Home .weather-card{
+  order:-1 !important;
+  display:flex !important; min-height:50px !important;
+  margin:4px 0 10px !important; padding:8px 10px !important;
+  border-radius:14px !important; cursor:pointer !important;
+  position:relative !important; z-index:2 !important;
+}
+#v2Home .weather-card.hidden{display:flex !important}
+#v2Home .weather-card .wicon{font-size:23px !important}
+#v2Home .weather-card .wtemp{font-size:17px !important}
+#v2Home .weather-card .wdesc{font-size:11px !important}
+#v2Home .weather-card .wdetails{font-size:10px !important}
+#v2Home .weather-card:after{content:'›';font-size:22px !important;line-height:1;right:12px !important;top:50% !important;bottom:auto !important;transform:translateY(-50%) !important}
+
+/* ---------- IA locale ---------- */
+#v2Plus .v2-ai-settings{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+#v2Plus .v2-ai-intro{display:flex;flex-direction:column;gap:3px;padding:4px 2px 2px;font-size:11px;color:var(--ui-muted);line-height:1.35}
+#v2Plus .v2-ai-intro strong{font-size:13px;color:var(--ui-green-dark)}
+#v2Plus .v2-ai-settings label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;font-weight:800;color:var(--ui-muted)}
+#v2Plus .v2-ai-settings input{width:100%;box-sizing:border-box;min-height:38px;height:38px;padding:7px 9px;border:1px solid var(--ui-border);border-radius:9px;font-size:16px;background:#fff;color:var(--ink)}
+#v2Plus .v2-ai-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#v2Plus .v2-ai-actions button{min-height:34px!important;height:34px!important;padding:5px 7px!important;font-size:10.5px!important}
+#v2Plus .v2-ai-status{font-size:10.5px;line-height:1.35;padding:7px 9px;border-radius:9px;background:#f4f7f4;color:#667269}
+#v2Plus .v2-ai-status.ok{background:#e9f5ec;color:#176239}
+#v2Plus .v2-ai-status.error{background:#fff0ef;color:#a33a32}
+#v2Plus .v2-ai-models{font-size:10.5px;background:#f7f8f7;border-radius:9px;padding:7px 9px;line-height:1.5}
+#v2Plus .v2-ai-models button{display:block!important;width:100%!important;text-align:left!important;min-height:28px!important;height:28px!important;padding:3px 6px!important;font-size:10.5px!important}
+#v2Plus .v2-ai-help{font-size:10.5px;color:var(--ui-muted);line-height:1.45}
+#v2Plus .v2-ai-help summary{cursor:pointer;font-weight:800;color:var(--ui-green-dark);padding:4px 0}
+#v2Plus .v2-ai-help p{margin:6px 0}
+#v2Plus .v2-ai-help code{font-size:9.5px;background:#eef2ee;border-radius:4px;padding:1px 3px}
+
+@media(max-width:390px){
+  #dashView.map-mode #mapSearchBtn{flex-basis:62px!important;width:62px!important;min-width:62px!important}
+  #dashView.map-mode #rpgPanelBtn,#dashView.map-mode #addPointBtn{font-size:10px!important;padding:0 6px!important}
+  #dashView.map-mode #pointTypeRow{width:154px!important}
+}
+</style>
+
+
+<script id="parcelles-ultimate-fix-v9-script">
+(function(){
+  'use strict';
+  const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+  function ready(fn){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fn,{once:true});else fn();}
+
+  ready(function(){
+    /* ---------- Carte : états exclusifs réellement pilotés en JS ---------- */
+    const pointRow=$('#pointTypeRow'), addPoint=$('#addPointBtn'), filterBtn=$('#mapFilterBtn'), filterPanel=$('#mapFilterPanel'), rpg=$('#rpgPanel'), rpgBtn=$('#rpgPanelBtn');
+    function pointOpen(){return !!(pointRow && !pointRow.classList.contains('hidden'));}
+    function rpgOpen(){return !!(rpg && !rpg.classList.contains('hidden'));}
+    function syncMapMenus(){
+      const po=pointOpen(), ro=rpgOpen();
+      document.body.classList.toggle('v2-point-types-open',po);
+      document.body.classList.toggle('v2-rpg-open',ro);
+      if(po){ if(filterPanel) filterPanel.hidden=true; }
+      if(ro){ if(filterPanel) filterPanel.hidden=true; }
+    }
+    if(pointRow)new MutationObserver(syncMapMenus).observe(pointRow,{attributes:true,attributeFilter:['class']});
+    if(rpg)new MutationObserver(syncMapMenus).observe(rpg,{attributes:true,attributeFilter:['class']});
+    addPoint?.addEventListener('click',()=>setTimeout(syncMapMenus,0),true);
+    rpgBtn?.addEventListener('click',()=>setTimeout(syncMapMenus,0),true);
+    filterBtn?.addEventListener('click',()=>setTimeout(syncMapMenus,0),true);
+    syncMapMenus();
+
+    /* ---------- IA distante : Cloudflare Worker + Gemini ---------- */
+    const endpoint=$('#aiEndpoint'), test=$('#aiTestBtn'), status=$('#aiStatus');
+    const STORE_ENDPOINT='parcelles_gemini_worker_endpoint_v1';
+    const DEFAULT_ENDPOINT='';
+    if(endpoint){
+      endpoint.value=localStorage.getItem(STORE_ENDPOINT)||DEFAULT_ENDPOINT;
+      endpoint.addEventListener('change',()=>localStorage.setItem(STORE_ENDPOINT,endpoint.value.trim().replace(/\/$/,'')));
+    }
+    function workerUrl(){return (endpoint?.value||'').trim().replace(/\/$/,'');}
+    function setStatus(text,kind){if(!status)return;status.textContent=text;status.classList.remove('ok','error');if(kind)status.classList.add(kind);}
+
+    /* Rend le contexte agricole utile sans envoyer les données inutiles. */
+    function aiContext(){
+      const data=window.parcellesDataset||{};const ps=Array.isArray(data.parcelles)?data.parcelles:[];
+      const rows=ps.slice(0,150).map(p=>({nom:p.parcelle||p.nom||'',surface:p.surface??null,culture:p.culture||'',commune:p.commune||'',ilot:p.ilot||''}));
+      const total=rows.reduce((a,p)=>a+(Number(p.surface)||0),0);
+      return {application:'Parcelles — Le Sougey',date:new Date().toISOString().slice(0,10),nombre_parcelles:ps.length,surface_totale:total,parcelles:rows};
+    }
+    async function callWorker(message){
+      const url=workerUrl();
+      if(!url)throw new Error('worker_missing');
+      localStorage.setItem(STORE_ENDPOINT,url);
+      const ctrl=new AbortController();const timer=setTimeout(()=>ctrl.abort(),30000);
+      try{
+        const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message,context:aiContext()}),signal:ctrl.signal});
+        let data=null;try{data=await res.json()}catch{}
+        if(!res.ok)throw new Error(data?.error||('HTTP '+res.status));
+        const answer=String(data?.reply||'').trim();if(!answer)throw new Error('réponse vide');
+        return answer;
+      }finally{clearTimeout(timer)}
+    }
+    async function testConnection(){
+      const url=workerUrl();
+      if(!url){setStatus('Renseigne d’abord l’adresse du Worker Cloudflare.','error');return false;}
+      setStatus('Test de connexion…');
+      try{
+        const answer=await callWorker('Réponds uniquement : OK');
+        setStatus(answer.toUpperCase().includes('OK')?'IA connectée · Gemini opérationnel.':'IA connectée · réponse reçue.','ok');
+        return true;
+      }catch(e){
+        setStatus('Connexion impossible · vérifie l’URL du Worker et sa configuration Gemini.','error');
+        return false;
+      }
+    }
+    test?.addEventListener('click',testConnection);
+    window.__PARCELLES_ASK_REMOTE_AI__=callWorker;
+    window.__PARCELLES_TEST_REMOTE_AI__=testConnection;
+
+    /* Les commandes de modification restent locales ; les questions et analyses
+       complexes passent à Gemini via le Worker. */
+    const send=$('#chatbotSend'), input=$('#chatbotInput'), messages=$('#chatbotMessages');
+    if(send && input && messages){
+      let busy=false;
+      send.addEventListener('click',async function(e){
+        if(busy)return;
+        const text=input.value.trim();if(!text)return;
+        const configured=!!workerUrl();
+        if(!configured)return;
+        e.stopImmediatePropagation();e.preventDefault();busy=true;
+        const add=(role,t)=>{const d=document.createElement('div');d.className='chatbot-msg '+role;d.textContent=t;messages.appendChild(d);messages.scrollTop=messages.scrollHeight;};
+        add('user',text);input.value='';
+        const actionLike=/\b(change|modifier|mets?|mettez|définis|definis|ajoute|ajouter|supprime|supprimer|crée|creer|enregistre|marque|passe|passer)\b.*\b(culture|rendement|prix|intervention|note|parcelle|à faire|a faire)\b/i.test(text);
+        if(actionLike && window.__PARCELLES_API__?.handleChatIntent){
+          try{const answer=await window.__PARCELLES_API__.handleChatIntent(text);add('bot',answer);setStatus('Commande traitée par l’application.','ok');}
+          catch(err){add('bot','La commande n’a pas pu être exécutée.');setStatus('Erreur de commande.','error');}
+          finally{busy=false;}
+          return;
+        }
+        const wait=document.createElement('div');wait.className='chatbot-msg bot';wait.textContent='Gemini réfléchit…';messages.appendChild(wait);messages.scrollTop=messages.scrollHeight;
+        try{const answer=await callWorker(text);wait.textContent=answer;setStatus('Gemini opérationnel.','ok');}
+        catch(err){wait.remove();add('bot','Je n’arrive pas à joindre l’assistant IA. Vérifie l’adresse du Worker dans Plus.');setStatus('IA non joignable.','error');}
+        finally{busy=false;}
+      },true);
+      input.addEventListener('keydown',function(e){
+        if(e.key!=='Enter'||e.shiftKey||busy)return;
+        if(!workerUrl())return;
+        e.preventDefault();send.click();
+      },true);
+    }
   });
 })();
 </script>
