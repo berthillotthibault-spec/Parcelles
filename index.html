@@ -925,6 +925,294 @@ button{
 }
 </style>
 
+
+<style id="parcelles-v2-final-fixes">
+/* =========================================================
+   V2 — CORRECTIONS D'ERGONOMIE / SUPERPOSITIONS
+   On conserve la refonte visuelle précédente.
+   ========================================================= */
+
+/* Navigation basse : elle reste disponible même sur la carte. */
+.v2-bottom-nav{
+  display:block !important;
+  position:fixed !important;
+  left:0 !important;right:0 !important;bottom:0 !important;
+  z-index:99999 !important;
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px)) !important;
+}
+body.v2-map-open .v2-bottom-nav{display:block !important;}
+body.v2-map-open header.top{display:none !important;}
+
+/* Réserve exactement la place de la barre basse : plus de bande blanche inutile. */
+body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
+
+/* Chatbot : toujours au-dessus de la barre, jamais sous les contrôles +/-. */
+.chatbot-btn{
+  position:fixed !important;
+  right:16px !important;
+  bottom:calc(88px + env(safe-area-inset-bottom,0px)) !important;
+  width:54px !important;height:54px !important;
+  z-index:99997 !important;
+}
+.chatbot-panel{
+  right:14px !important;
+  bottom:calc(150px + env(safe-area-inset-bottom,0px)) !important;
+  z-index:99998 !important;
+}
+#dashView.map-mode .chatbot-btn{display:flex !important;}
+#dashView.map-mode .chatbot-panel{display:flex !important;}
+
+/* La carte occupe l'écran jusqu'à la barre basse. */
+#dashView.map-mode,
+#dashView.map-mode #tabCarte,
+#dashView.map-mode #mapContainer{
+  height:100dvh !important;
+  min-height:100dvh !important;
+}
+#dashView.map-mode #mapContainer{
+  position:absolute !important;
+  inset:0 !important;
+  z-index:1 !important;
+}
+
+/* --- Contrôles supérieurs : deux boutons séparés --- */
+#dashView.map-mode .rpg-toggle-btn{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 66px) !important;
+  height:50px !important;
+  min-height:50px !important;
+  padding:0 16px !important;
+  border-radius:18px !important;
+  z-index:3000 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  white-space:nowrap !important;
+  box-sizing:border-box !important;
+}
+#dashView.map-mode #rpgPanelBtn{left:14px !important;right:auto !important;}
+#dashView.map-mode #addPointBtn{left:auto !important;right:14px !important;}
+
+/* Recherche : une vraie barre qui ne déborde plus de l'écran. */
+#dashView.map-mode .map-search{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 130px) !important;
+  left:14px !important;right:14px !important;
+  width:auto !important;max-width:none !important;
+  margin:0 !important;
+  display:flex !important;
+  gap:8px !important;
+  z-index:2900 !important;
+}
+#dashView.map-mode .map-search input{
+  flex:1 1 0 !important;
+  width:0 !important;
+  min-width:0 !important;
+  height:52px !important;min-height:52px !important;
+  box-sizing:border-box !important;
+  border-radius:17px !important;
+  font-size:16px !important;
+}
+#dashView.map-mode .map-search-btn{
+  flex:0 0 108px !important;
+  width:108px !important;min-width:108px !important;
+  height:52px !important;min-height:52px !important;
+  padding:0 10px !important;
+  border-radius:17px !important;
+  box-sizing:border-box !important;
+}
+#dashView.map-mode #mapSearchResults{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 190px) !important;
+  left:14px !important;right:14px !important;
+  bottom:auto !important;
+  width:auto !important;max-width:none !important;
+  z-index:3100 !important;
+}
+
+/* --- Sélecteur de type de point : sous le bouton, texte toujours lisible --- */
+#dashView.map-mode #pointTypeRow{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 122px) !important;
+  right:14px !important;left:auto !important;
+  width:auto !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  gap:7px !important;
+  z-index:3200 !important;
+}
+#dashView.map-mode #pointTypeRow.hidden{display:none !important;}
+#dashView.map-mode .point-type-chip{
+  color:#172019 !important;
+  background:#fff !important;
+  border:1px solid #d9e0da !important;
+  min-height:42px !important;
+  padding:8px 14px !important;
+  border-radius:15px !important;
+  font-size:13px !important;
+  font-weight:600 !important;
+  text-align:left !important;
+  box-shadow:0 5px 16px rgba(15,23,42,.16) !important;
+  opacity:1 !important;
+}
+#dashView.map-mode .point-type-chip.active{
+  color:#155236 !important;
+  background:#e8f1eb !important;
+  border-color:#1f6b45 !important;
+}
+
+/* --- Panneau PAC : sous le bouton gauche, sans recouvrir la recherche --- */
+#dashView.map-mode #rpgPanel{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 122px) !important;
+  left:14px !important;right:14px !important;
+  max-width:none !important;
+  width:auto !important;
+  z-index:3200 !important;
+  box-sizing:border-box !important;
+}
+#dashView.map-mode #rpgPanel.hidden{display:none !important;}
+
+/* Quand les choix de points sont ouverts, on descend la recherche pour éviter tout recouvrement. */
+body.v2-point-types-open #dashView.map-mode .map-search{
+  top:calc(env(safe-area-inset-top,0px) + 350px) !important;
+}
+body.v2-point-types-open #dashView.map-mode #mapSearchResults{
+  top:calc(env(safe-area-inset-top,0px) + 410px) !important;
+}
+
+/* Sur la carte, le chatbot passe à gauche pour ne jamais toucher le GPS ou +/-. */
+#dashView.map-mode .chatbot-btn{
+  left:16px !important;right:auto !important;
+  bottom:calc(88px + env(safe-area-inset-bottom,0px)) !important;
+}
+#dashView.map-mode .chatbot-panel{
+  left:14px !important;right:auto !important;
+  bottom:calc(150px + env(safe-area-inset-bottom,0px)) !important;
+}
+
+/* Contrôles de carte en bas à droite : au-dessus de la barre basse. */
+#dashView.map-mode .leaflet-control-zoom{
+  position:fixed !important;
+  right:14px !important;left:auto !important;top:auto !important;
+  bottom:calc(88px + env(safe-area-inset-bottom,0px)) !important;
+  margin:0 !important;
+  z-index:4000 !important;
+  border:0 !important;
+  border-radius:14px !important;
+  overflow:hidden !important;
+}
+#dashView.map-mode .leaflet-control-zoom a{
+  width:48px !important;height:48px !important;
+  line-height:48px !important;
+  background:rgba(255,255,255,.97) !important;
+  color:#172019 !important;
+}
+#dashView.map-mode #locateBtn{
+  position:fixed !important;
+  right:14px !important;left:auto !important;top:auto !important;
+  bottom:calc(208px + env(safe-area-inset-bottom,0px)) !important;
+  width:52px !important;height:52px !important;min-height:52px !important;
+  z-index:4100 !important;
+}
+
+/* Le bouton « Parcelles » intégré à la carte devient inutile avec la barre basse. */
+#dashView.map-mode .map-back-btn{display:none !important;}
+
+/* Évite qu'un ancien élément du shell réapparaisse au-dessus de la carte. */
+#dashView.map-mode > .v2-section,
+#dashView.map-mode > .tabs,
+#dashView.map-mode > .stats,
+#dashView.map-mode > .detected,
+#dashView.map-mode > .badge,
+#dashView.map-mode > hr,
+#dashView.map-mode > #newImport,
+#dashView.map-mode > #tabAssolement{display:none !important;}
+
+/* Fiche parcelle : la navigation ferme automatiquement la fiche. */
+.parcel-sheet{z-index:9000 !important;}
+
+@media(max-width:420px){
+  #dashView.map-mode .map-search-btn{flex-basis:96px !important;width:96px !important;min-width:96px !important;font-size:14px !important;}
+  #dashView.map-mode .map-search{left:10px !important;right:10px !important;}
+  #dashView.map-mode #rpgPanelBtn,#dashView.map-mode #addPointBtn{top:calc(env(safe-area-inset-top,0px) + 62px) !important;}
+}
+</style>
+
+<script id="parcelles-v2-final-fixes-script">
+(function(){
+  "use strict";
+  function init(){
+    const nav=document.querySelector('.v2-bottom-nav');
+    const sheet=document.getElementById('parcelSheet');
+    const pointRow=document.getElementById('pointTypeRow');
+    const addPoint=document.getElementById('addPointBtn');
+    const rpgPanel=document.getElementById('rpgPanel');
+    const rpgBtn=document.getElementById('rpgPanelBtn');
+    const dash=document.getElementById('dashView');
+
+    /* Toute navigation ferme une fiche parcelle ouverte. */
+    if(nav && !nav.dataset.sheetFix){
+      nav.dataset.sheetFix='1';
+      nav.addEventListener('click', function(e){
+        const btn=e.target.closest('.v2-nav-btn');
+        if(!btn) return;
+        if(sheet && !sheet.classList.contains('hidden')){
+          const close=document.getElementById('psClose');
+          if(close) close.click();
+          else sheet.classList.add('hidden');
+        }
+      }, true);
+    }
+
+    /* Synchronise l'état visuel du sélecteur de points avec le CSS. */
+    function syncPointMode(){
+      const open=pointRow && !pointRow.classList.contains('hidden');
+      document.body.classList.toggle('v2-point-types-open',!!open);
+    }
+    if(pointRow){
+      new MutationObserver(syncPointMode).observe(pointRow,{attributes:true,attributeFilter:['class']});
+      syncPointMode();
+    }
+
+    /* Fermer un panneau PAC ou les choix de points lorsqu'on passe à une autre fonction. */
+    if(nav && !nav.dataset.mapFix){
+      nav.dataset.mapFix='1';
+      nav.addEventListener('click',function(e){
+        const btn=e.target.closest('.v2-nav-btn');
+        if(!btn) return;
+        const key=btn.dataset.v2Nav;
+        if(key!=='carte'){
+          document.body.classList.remove('v2-point-types-open');
+          if(pointRow) pointRow.classList.add('hidden');
+          if(rpgPanel) rpgPanel.classList.add('hidden');
+          if(addPoint) addPoint.classList.remove('active');
+          if(rpgBtn) rpgBtn.classList.remove('active');
+        }
+      },true);
+    }
+
+    /* Si l'utilisateur utilise le bouton retour historique, on ferme aussi la fiche. */
+    document.getElementById('mapBackBtn')?.addEventListener('click',function(){
+      document.body.classList.remove('v2-point-types-open');
+      if(pointRow) pointRow.classList.add('hidden');
+    },true);
+
+    /* Empêche le vieux shell de créer une hauteur blanche sous la carte. */
+    if(dash){
+      const observer=new MutationObserver(function(){
+        if(dash.classList.contains('map-mode')){
+          document.body.classList.add('v2-map-open');
+        }
+      });
+      observer.observe(dash,{attributes:true,attributeFilter:['class']});
+    }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+})();
+</script>
+
 </head>
 <body>
 
@@ -1845,12 +2133,10 @@ button{
     return parcelMeta[k];
   }
   async function saveParcelMeta(){
-    /* Local save is the source of truth for UI responsiveness. Remote persistence is fire-and-forget. */
-    let value = "";
     try{
-      value = JSON.stringify(parcelMeta);
+      const value = JSON.stringify(parcelMeta);
       try{ localStorage.setItem(PARCEL_META_KEY, value); }catch(e){}
-      if(window.storage){ Promise.resolve(window.storage.set(PARCEL_META_KEY, value, false)).catch(()=>{}); }
+      if(window.storage) await window.storage.set(PARCEL_META_KEY, value, false);
     }catch(e){}
     scheduleSyncPush();
   }
@@ -2947,7 +3233,6 @@ button{
       await saveParcelMeta();
       renderIntervLog();
       renderEcoPanel();
-      if(dataset) renderDashboard(false);
     }));
   }
   $("psIntervType").addEventListener("change", updateIntervQteVisibility);
@@ -2977,7 +3262,6 @@ button{
     $("psIntervNote").value = "";
     renderIntervLog();
     renderEcoPanel();
-    if(dataset) renderDashboard(false);
   });
   updateIntervQteVisibility();
   function collectManualInterventions(){
@@ -4083,51 +4367,6 @@ body.v2-map-open header.top{display:none}
 
     /* When the existing map back button is used, restore navigation state. */
     document.getElementById('mapBackBtn')?.addEventListener('click',()=>{document.body.classList.remove('v2-map-open');setActiveNav('parcelles')});
-  });
-})();
-</script>
-
-<!-- V2 stability patch: keep the previous visual redesign, fix layout layering and instant intervention refresh. -->
-<style id="parcelles-v2-stability">
-/* The legacy map lives inside #tabAssolement. Its ancestor must be reopened in map mode. */
-#dashView.map-mode > .v2-section{display:none!important}
-#dashView.map-mode > #v2Home,
-#dashView.map-mode > #v2Parcelles,
-#dashView.map-mode > #v2Interventions,
-#dashView.map-mode > #v2Plus{display:none!important}
-#dashView.map-mode > #v2Home + #v2Parcelles + #v2Interventions + #v2Plus + #tabAssolement{display:block!important}
-#dashView.map-mode #tabAssolement.v2-hide{display:block!important;position:fixed!important;inset:0!important;z-index:20!important;margin:0!important;padding:0!important;background:transparent!important}
-#dashView.map-mode #tabAssolement.v2-hide > *:not(#tabCarte){display:none!important}
-#dashView.map-mode #tabCarte{display:block!important;position:fixed!important;inset:0!important;width:100%!important;height:100dvh!important;padding:0!important;margin:0!important;z-index:21!important}
-#dashView.map-mode #mapContainer{width:100%!important;height:100dvh!important;min-height:100dvh!important}
-body.v2-map-open{overflow:hidden!important}
-/* Never let old content paint above a V2 screen. */
-#dashView:not(.map-mode) > #tabAssolement.v2-hide,
-#dashView:not(.map-mode) > #tabCarte.v2-hide{display:none!important}
-/* iPhone: avoid horizontal overflow and keep every V2 control usable. */
-html,body{max-width:100%;overflow-x:hidden}
-.v2-section{min-width:0}
-.v2-card,.v2-setting-group,#v2Parcelles .toolbar,#v2Interventions #intervList{box-sizing:border-box;max-width:100%}
-.v2-quick button{min-width:0}
-</style>
-<script id="parcelles-v2-stability-js">
-(function(){
-  function ready(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn,{once:true}); else fn(); }
-  ready(function(){
-    const dash=document.getElementById('dashView');
-    const nav=document.querySelector('.v2-bottom-nav');
-    if(!dash) return;
-    function sync(){
-      const mapOpen=dash.classList.contains('map-mode');
-      document.body.classList.toggle('v2-map-open',mapOpen);
-      if(nav) nav.style.display=dash.classList.contains('hidden')?'none':'';
-      if(!mapOpen){
-        const active=document.querySelector('.v2-section.active');
-        if(!active) document.getElementById('v2Home')?.classList.add('active');
-      }
-    }
-    sync();
-    new MutationObserver(sync).observe(dash,{attributes:true,attributeFilter:['class']});
   });
 })();
 </script>
