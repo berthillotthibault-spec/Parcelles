@@ -1256,7 +1256,7 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
       <div class="stat"><span class="num" id="statCultures">–</span><span class="lbl">cultures</span></div>
     </div>
     <div class="badge" id="lastUpdate"></div>
-    <div class="weather-card hidden" id="weatherCard" aria-live="polite"></div>
+    <div class="weather-card" id="weatherCard" aria-live="polite"><div class="wicon">🌤️</div><div><div class="wtemp">Météo</div><div class="wdesc">Appuyer pour afficher les prévisions</div><div class="wdetails">Aujourd’hui · 7 jours · 14 jours</div></div></div>
 
     <div class="tabs" role="tablist">
       <button type="button" class="tab-btn active" id="tabAssolementBtn" role="tab" aria-selected="true">Assolement</button>
@@ -1548,6 +1548,7 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
   let pendingFileName = "";
   let mappingPending = false;
   let dataset = null;          // {source, parcelles:[], interventions:[], importedAt, fileName}
+  try{ Object.defineProperty(window,"parcellesDataset",{configurable:true,get:()=>dataset}); }catch(e){}
   let geometries = {};         // guid -> {rings:[[[lat,lon],...],...], nom, culture, surface, ilot, commune, insee}
   let geoCache = {};           // insee -> {lat, lon} | null  (commune fallback geocoding)
   let parcelMeta = {};         // clé parcelle -> {todo:bool, note:string, photoIds:[]}
@@ -2401,6 +2402,8 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
     let list = dataset.parcelles;
     if(q){ list = list.filter(p => normalizeHeader(p.parcelle).includes(q) || normalizeHeader(p.culture).includes(q)); }
     if(todoOnly){ list = list.filter(p => getParcelMeta(p).todo); }
+    const cultureFilter = window.__PARCELLES_CULTURE_FILTER__ || "";
+    if(cultureFilter){ list = list.filter(p => (p.culture || "Non renseigné") === cultureFilter); }
     list = list.slice().sort((a,b)=>{
       if(sortMode==="surface_desc") return (b.surface||0)-(a.surface||0);
       if(sortMode==="surface_asc") return (a.surface||0)-(b.surface||0);
@@ -2991,6 +2994,9 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
     const allBounds = [];
     let preciseSurface = 0;
     withGeom.forEach(({p,g})=>{
+      const activeMapCulture = window.__PARCELLES_MAP_CULTURE_FILTER__ || "";
+      if(activeMapCulture && (p.culture || "Non renseigné") !== activeMapCulture) return;
+      if(window.__PARCELLES_MAP_TODO_ONLY__ && !getParcelMeta(p).todo) return;
       const color = cultureColorMap[p.culture || "Non renseigné"] || "#2F5233";
       const isTodo = getParcelMeta(p).todo;
       const poly = L.polygon(g.rings, {color: isTodo ? "#FFB300" : "#FFFFFF", weight: isTodo ? 3.5 : 1.5, fillColor:color, fillOpacity:0.6}).addTo(map);
@@ -4631,7 +4637,7 @@ body.v2-map-open header.top{display:none !important}
       const sec=document.getElementById(cfg.id); if(!sec || sec.querySelector('.v2-section-menu-btn')) return;
       const title=sec.querySelector('.v2-app-title'); if(!title) return;
       const wrap=document.createElement('div'); wrap.className='v2-section-menu-wrap';
-      const btn=document.createElement('button'); btn.type='button'; btn.className='v2-section-menu-btn'; btn.textContent='☰ Onglets';
+      const btn=document.createElement('button'); btn.type='button'; btn.className='v2-section-menu-btn'; btn.textContent='☰';
       const menu=document.createElement('div'); menu.className='v2-section-menu'; menu.hidden=true;
       cfg.items.forEach(([key,label])=>{
         const b=document.createElement('button'); b.type='button'; b.dataset.subtab=key; b.textContent=label;
@@ -4716,6 +4722,7 @@ body.v2-map-open header.top{display:none !important}
       }catch(e){content.innerHTML='<div class="weather-empty">Impossible de charger les prévisions pour le moment. Réessaie dans quelques instants.</div>'}
     }
     function openWeather(){
+      window.__PARCELLES_OPEN_WEATHER__=openWeather;
       if(!sheet)return; sheet.hidden=false; sheet.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden';
       if(!weatherLoaded) loadDetailedWeather(); else renderWeather(document.querySelector('.weather-tabs button.active')?.dataset.weatherView||'hourly');
     }
@@ -4879,3 +4886,328 @@ body.v2-map-open .chatbot-btn{
   .v2-nav-btn{font-size:10px !important}
 }
 </style>
+
+<style id="parcelles-final-ux-v6">
+/* =========================================================
+   FINAL UX V6
+   Compact controls + fixed map hierarchy + filters + weather
+   ========================================================= */
+
+/* ---------- Global compact sizing ---------- */
+.v2-card{padding:14px !important;margin:9px 0 !important;border-radius:16px !important}
+.v2-section-title{margin:7px 0 9px !important}
+.v2-section-title h3{font-size:18px !important}
+.v2-section-title button,
+.v2-section-menu-btn{
+  min-height:34px !important;height:34px !important;
+  padding:5px 9px !important;border-radius:9px !important;
+  font-size:11px !important;
+}
+.v2-section-menu-btn{
+  width:36px !important;min-width:36px !important;
+  padding:0 !important;font-size:18px !important;
+  display:flex !important;align-items:center !important;justify-content:center !important;
+}
+.v2-section-menu{width:min(220px,calc(100vw - 28px)) !important}
+.v2-section-menu button{min-height:36px !important;padding:8px 9px !important;font-size:12px !important}
+
+.v2-quick{gap:8px !important}
+.v2-quick button{min-height:52px !important;padding:9px 10px !important;border-radius:13px !important}
+.v2-quick button strong{font-size:13px !important}
+.v2-quick button span{font-size:10px !important}
+
+/* ---------- Home: no useless "Accès rapides" ---------- */
+.v2-section .v2-quick-card{display:none !important}
+
+/* ---------- Weather launcher ---------- */
+.weather-card{
+  min-height:52px !important;
+  padding:9px 12px !important;
+  margin:8px 0 !important;
+  border-radius:14px !important;
+  gap:9px !important;
+}
+.weather-card .wicon{font-size:24px !important}
+.weather-card .wtemp{font-size:17px !important}
+.weather-card .wdesc{font-size:11.5px !important}
+.weather-card .wdetails{font-size:10px !important}
+.weather-card:after{right:11px !important;bottom:8px !important;font-size:9px !important}
+
+/* ---------- Bottom nav ---------- */
+.v2-bottom-nav{
+  padding:4px 7px calc(4px + env(safe-area-inset-bottom,0px)) !important;
+}
+.v2-nav-btn{
+  min-height:46px !important;height:46px !important;
+  padding:3px 2px !important;border-radius:11px !important;
+  font-size:10px !important;
+}
+.v2-nav-btn .ico{font-size:17px !important;line-height:17px !important}
+
+/* ---------- Map: one stable hierarchy ---------- */
+#dashView.map-mode .map-search{
+  top:calc(env(safe-area-inset-top,0px) + 10px) !important;
+  left:12px !important;right:12px !important;
+  height:44px !important;min-height:44px !important;
+  z-index:7000 !important;
+}
+#dashView.map-mode .map-search input{
+  height:44px !important;min-height:44px !important;
+  border-radius:13px !important;font-size:15px !important;
+  padding-left:40px !important;
+}
+#dashView.map-mode .map-search-btn{
+  height:44px !important;min-height:44px !important;
+  flex:0 0 92px !important;width:92px !important;min-width:92px !important;
+  border-radius:13px !important;font-size:12px !important;
+  padding:0 7px !important;
+}
+#dashView.map-mode #rpgPanelBtn,
+#dashView.map-mode #addPointBtn{
+  top:calc(env(safe-area-inset-top,0px) + 62px) !important;
+  height:36px !important;min-height:36px !important;
+  padding:0 10px !important;border-radius:14px !important;
+  font-size:12px !important;z-index:6900 !important;
+  max-width:42vw !important;
+}
+#dashView.map-mode #rpgPanelBtn{left:12px !important;right:auto !important}
+#dashView.map-mode #addPointBtn{right:12px !important;left:auto !important}
+
+/* Point choices: under Add Point, without moving search */
+#dashView.map-mode #pointTypeRow{
+  top:calc(env(safe-area-inset-top,0px) + 104px) !important;
+  right:12px !important;left:auto !important;
+  width:180px !important;max-width:48vw !important;
+  gap:5px !important;z-index:6800 !important;
+}
+#dashView.map-mode #pointTypeRow .point-type-chip{
+  min-height:34px !important;height:34px !important;
+  padding:5px 9px !important;border-radius:10px !important;
+  font-size:12px !important;color:#172019 !important;background:#fff !important;
+}
+#dashView.map-mode #pointTypeRow .point-type-chip *{color:#172019 !important}
+
+/* Search results remain below the search, not below point choices */
+#dashView.map-mode #mapSearchResults{
+  top:calc(env(safe-area-inset-top,0px) + 60px) !important;
+  left:12px !important;right:12px !important;
+  z-index:6750 !important;
+}
+
+/* Map filters */
+.map-filter-btn{
+  position:fixed !important;
+  left:12px !important;
+  top:calc(env(safe-area-inset-top,0px) + 106px) !important;
+  height:34px !important;min-height:34px !important;
+  padding:0 11px !important;border-radius:14px !important;
+  border:1px solid rgba(20,50,35,.12) !important;
+  background:rgba(255,255,255,.96) !important;color:#172019 !important;
+  box-shadow:0 5px 15px rgba(15,23,42,.14) !important;
+  z-index:6650 !important;font-size:11px !important;font-weight:800 !important;
+}
+.map-filter-panel{
+  position:fixed !important;
+  left:12px !important;top:calc(env(safe-area-inset-top,0px) + 148px) !important;
+  width:min(270px,calc(100vw - 24px)) !important;
+  max-height:55dvh !important;overflow:auto !important;
+  background:rgba(255,255,255,.98) !important;
+  border:1px solid #e2e8e3 !important;border-radius:14px !important;
+  padding:10px !important;box-shadow:0 12px 30px rgba(15,23,42,.2) !important;
+  z-index:6700 !important;
+}
+.map-filter-panel[hidden]{display:none !important}
+.filter-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0;font-size:12px}
+.filter-row select{flex:1;min-height:34px;border:1px solid #dce4de;border-radius:9px;padding:5px 7px;background:#fff;font-size:12px}
+.filter-row label{display:flex;align-items:center;gap:7px;font-size:12px}
+.filter-actions{display:flex;gap:6px;margin-top:9px}
+.filter-actions button{flex:1;min-height:34px;border:0;border-radius:9px;font-size:11px;font-weight:800}
+.filter-apply{background:#1f6b45;color:#fff}.filter-reset{background:#edf2ee;color:#172019}
+
+/* Bottom controls: compact and always above nav */
+#dashView.map-mode .leaflet-control-zoom{
+  right:12px !important;
+  bottom:calc(56px + env(safe-area-inset-bottom,0px) + 10px) !important;
+  border-radius:12px !important;
+  z-index:8000 !important;
+}
+#dashView.map-mode .leaflet-control-zoom a{
+  width:42px !important;height:42px !important;line-height:42px !important;
+  font-size:21px !important;
+}
+#dashView.map-mode .map-actions{
+  right:12px !important;
+  bottom:calc(56px + env(safe-area-inset-bottom,0px) + 108px) !important;
+  z-index:8000 !important;
+}
+#dashView.map-mode #locateBtn{
+  width:44px !important;height:44px !important;min-height:44px !important;
+}
+#dashView.map-mode .chatbot-btn,
+body.v2-map-open .chatbot-btn{
+  left:14px !important;right:auto !important;
+  bottom:calc(56px + env(safe-area-inset-bottom,0px) + 10px) !important;
+  width:48px !important;height:48px !important;min-height:48px !important;
+  z-index:8500 !important;
+}
+
+/* ---------- Parcel screen filters ---------- */
+.v2-parcel-filter-btn{
+  min-height:34px !important;height:34px !important;
+  padding:0 10px !important;border-radius:9px !important;
+  border:1px solid var(--ui-border) !important;background:#fff !important;
+  color:var(--ui-green-dark) !important;font-size:11px !important;font-weight:800 !important;
+}
+.v2-parcel-filter-panel{
+  margin:0 0 9px !important;padding:9px !important;
+  border:1px solid var(--ui-border) !important;border-radius:12px !important;
+  background:#fff !important;box-shadow:var(--ui-shadow) !important;
+}
+.v2-parcel-filter-panel[hidden]{display:none !important}
+
+/* General form buttons compact, but keep inputs comfortable */
+.v2-section button:not(.v2-nav-btn):not(.v2-section-menu-btn):not(.map-filter-btn),
+.v2-card button{
+  min-height:38px;
+  padding:7px 10px;
+  border-radius:10px;
+}
+@media(max-width:600px){
+  .v2-card{padding:12px !important}
+  .v2-section-title h3{font-size:17px !important}
+  #dashView.map-mode .map-search{top:calc(env(safe-area-inset-top,0px) + 8px) !important}
+  #dashView.map-mode #rpgPanelBtn,
+  #dashView.map-mode #addPointBtn{top:calc(env(safe-area-inset-top,0px) + 58px) !important}
+  #dashView.map-mode #pointTypeRow{top:calc(env(safe-area-inset-top,0px) + 100px) !important}
+}
+</style>
+
+<script id="parcelles-final-ux-v6-script">
+(function(){
+  'use strict';
+
+  function ready(fn){
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn,{once:true});
+    else fn();
+  }
+
+  ready(function(){
+    /* Remove Accès rapides regardless of how the V2 generated it. */
+    document.querySelectorAll('.v2-card').forEach(card=>{
+      const h=card.querySelector('h3');
+      if(h && /accès rapides/i.test(h.textContent||'')) card.remove();
+    });
+
+    /* All section menu buttons: icon only. */
+    document.querySelectorAll('.v2-section-menu-btn').forEach(b=>b.textContent='☰');
+
+    /* ---------- Map filter ---------- */
+    if(!document.getElementById('mapFilterBtn')){
+      const btn=document.createElement('button');
+      btn.id='mapFilterBtn'; btn.type='button'; btn.className='map-filter-btn';
+      btn.textContent='⚙︎ Filtres';
+      btn.hidden=true;
+      document.body.appendChild(btn);
+
+      const panel=document.createElement('div');
+      panel.id='mapFilterPanel'; panel.className='map-filter-panel'; panel.hidden=true;
+      panel.innerHTML=
+        '<div style="font-weight:800;font-size:13px;margin-bottom:7px">Filtres carte</div>'+
+        '<div class="filter-row"><label for="mapCultureFilter">Culture</label><select id="mapCultureFilter"><option value="">Toutes</option></select></div>'+
+        '<div class="filter-row"><label><input type="checkbox" id="mapTodoFilter"> À faire uniquement</label></div>'+
+        '<div class="filter-actions"><button type="button" class="filter-reset" id="mapFilterReset">Réinitialiser</button><button type="button" class="filter-apply" id="mapFilterApply">Appliquer</button></div>';
+      document.body.appendChild(panel);
+
+      const populate=()=>{
+        const sel=document.getElementById('mapCultureFilter'); if(!sel || !window.parcellesDataset) return;
+        const vals=[...new Set((window.parcellesDataset?.parcelles||[]).map(p=>p.culture||'Non renseigné'))].sort((a,b)=>a.localeCompare(b));
+        const current=window.__PARCELLES_MAP_CULTURE_FILTER__||'';
+        sel.innerHTML='<option value="">Toutes</option>'+vals.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+String(v).replace(/[&<>]/g,'')+'</option>').join('');
+        sel.value=current;
+      };
+      btn.addEventListener('click',e=>{e.stopPropagation(); populate(); panel.hidden=!panel.hidden});
+      document.getElementById('mapFilterReset').addEventListener('click',async()=>{
+        window.__PARCELLES_MAP_CULTURE_FILTER__=''; window.__PARCELLES_MAP_TODO_ONLY__=false;
+        document.getElementById('mapTodoFilter').checked=false; populate();
+        if(typeof renderMap==='function') await renderMap();
+      });
+      document.getElementById('mapFilterApply').addEventListener('click',async()=>{
+        window.__PARCELLES_MAP_CULTURE_FILTER__=document.getElementById('mapCultureFilter').value||'';
+        window.__PARCELLES_MAP_TODO_ONLY__=document.getElementById('mapTodoFilter').checked;
+        panel.hidden=true;
+        if(typeof renderMap==='function') await renderMap();
+      });
+
+      const sync=()=>{
+        const mapOpen=document.body.classList.contains('v2-map-open');
+        btn.hidden=!mapOpen;
+        if(!mapOpen) panel.hidden=true;
+      };
+      new MutationObserver(sync).observe(document.body,{attributes:true,attributeFilter:['class']});
+      sync();
+    }
+
+    /* ---------- Parcel filters ---------- */
+    const parcelSec=document.getElementById('v2Parcelles');
+    if(parcelSec && !parcelSec.querySelector('.v2-parcel-filter-btn')){
+      const title=parcelSec.querySelector('.v2-section-title');
+      if(title){
+        const menu=title.querySelector('.v2-section-menu-wrap');
+        const fb=document.createElement('button');
+        fb.type='button';fb.className='v2-parcel-filter-btn';fb.textContent='⚙︎ Filtres';
+        if(menu) title.insertBefore(fb,menu); else title.appendChild(fb);
+
+        const panel=document.createElement('div');panel.className='v2-parcel-filter-panel';panel.hidden=true;
+        panel.innerHTML='<div class="filter-row"><label for="parcelCultureFilter">Culture</label><select id="parcelCultureFilter"><option value="">Toutes</option></select></div>'+
+          '<div class="filter-row"><label><input type="checkbox" id="parcelTodoFilter"> À faire uniquement</label></div>'+
+          '<div class="filter-actions"><button type="button" class="filter-reset" id="parcelFilterReset">Réinitialiser</button><button type="button" class="filter-apply" id="parcelFilterApply">Appliquer</button></div>';
+        title.insertAdjacentElement('afterend',panel);
+
+        const populate=()=>{
+          const sel=document.getElementById('parcelCultureFilter'); if(!sel || !window.parcellesDataset) return;
+          const vals=[...new Set((window.parcellesDataset?.parcelles||[]).map(p=>p.culture||'Non renseigné'))].sort((a,b)=>a.localeCompare(b));
+          sel.innerHTML='<option value="">Toutes</option>'+vals.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+String(v).replace(/[&<>]/g,'')+'</option>').join('');
+          sel.value=window.__PARCELLES_CULTURE_FILTER__||'';
+        };
+        fb.addEventListener('click',()=>{populate();panel.hidden=!panel.hidden});
+        document.getElementById('parcelFilterReset').addEventListener('click',()=>{
+          window.__PARCELLES_CULTURE_FILTER__='';
+          document.getElementById('parcelTodoFilter').checked=false;
+          if(document.getElementById('todoFilter')?.classList.contains('active')) document.getElementById('todoFilter').click();
+          if(typeof renderParcelleList==='function') renderParcelleList();
+          panel.hidden=true;
+        });
+        document.getElementById('parcelFilterApply').addEventListener('click',()=>{
+          window.__PARCELLES_CULTURE_FILTER__=document.getElementById('parcelCultureFilter').value||'';
+          const wantTodo=document.getElementById('parcelTodoFilter').checked;
+          const active=document.getElementById('todoFilter')?.classList.contains('active');
+          if(document.getElementById('todoFilter') && wantTodo!==active) document.getElementById('todoFilter').click();
+          else if(typeof renderParcelleList==='function') renderParcelleList();
+          panel.hidden=true;
+        });
+      }
+    }
+
+    /* Keep the map filter above the bottom nav and close popovers on nav changes. */
+    document.querySelectorAll('.v2-nav-btn').forEach(b=>b.addEventListener('click',()=>{
+      const p=document.getElementById('mapFilterPanel'); if(p)p.hidden=true;
+      const pp=document.querySelector('.v2-parcel-filter-panel'); if(pp)pp.hidden=true;
+    }));
+
+    /* Weather: if the compact card is clicked, open the existing detailed sheet.
+       Also make the weather sub-tab always available. */
+    const weather=document.getElementById('weatherCard');
+    if(weather && !weather.dataset.v6){
+      weather.dataset.v6='1';
+      weather.addEventListener('click',()=>{
+        const fn=window.__PARCELLES_OPEN_WEATHER__;
+        if(typeof fn==='function') fn();
+        else document.getElementById('weatherSheet')?.removeAttribute('hidden');
+      },{capture:false});
+    }
+
+    /* Prevent the chatbot from causing viewport zoom/focus side effects. */
+    document.querySelectorAll('.chatbot-btn').forEach(btn=>btn.style.touchAction='manipulation');
+  });
+})();
+</script>
