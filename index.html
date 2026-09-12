@@ -4372,3 +4372,325 @@ body.v2-map-open header.top{display:none}
 </script>
 </body>
 </html>
+
+<style id="v2-real-final-fix">
+/* ==========================================================
+   V2 REAL FINAL FIX
+   This block is intentionally LAST so no previous V2 CSS can
+   override it. The previous attempt had rules loaded before
+   the V2 UI stylesheet and therefore lost in the cascade.
+   ========================================================== */
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important}
+
+/* Bottom navigation is ALWAYS visible when the dashboard is visible. */
+.v2-bottom-nav{
+  display:block !important;
+  position:fixed !important;
+  left:0 !important;right:0 !important;bottom:0 !important;
+  width:100% !important;
+  height:auto !important;
+  z-index:100000 !important;
+  box-sizing:border-box !important;
+  padding:7px 10px calc(7px + env(safe-area-inset-bottom,0px)) !important;
+  background:rgba(255,255,255,.97) !important;
+  backdrop-filter:blur(18px) !important;
+  -webkit-backdrop-filter:blur(18px) !important;
+}
+.v2-bottom-nav .v2-nav-inner{width:100% !important;max-width:680px !important}
+
+/* Full map: the map itself fills the screen, with the bottom nav over it. */
+body.v2-map-open header.top{display:none !important}
+body.v2-map-open{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important}
+#dashView.map-mode{
+  position:fixed !important;
+  inset:0 !important;
+  width:100% !important;
+  max-width:none !important;
+  height:100dvh !important;
+  min-height:100dvh !important;
+  margin:0 !important;
+  padding:0 !important;
+  z-index:100 !important;
+  overflow:hidden !important;
+  background:#dfe7df !important;
+}
+#dashView.map-mode #tabCarte{
+  display:block !important;
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  margin:0 !important;
+  padding:0 !important;
+  z-index:1 !important;
+  overflow:hidden !important;
+}
+#dashView.map-mode #mapContainer{
+  position:absolute !important;
+  inset:0 0 calc(78px + env(safe-area-inset-bottom,0px)) 0 !important;
+  width:100% !important;
+  height:auto !important;
+  min-height:0 !important;
+  z-index:1 !important;
+}
+#dashView.map-mode #tabCarte>h2{display:none !important}
+#dashView.map-mode #tabAssolement,
+#dashView.map-mode .tabs,
+#dashView.map-mode>.stats,
+#dashView.map-mode>.detected,
+#dashView.map-mode>.badge,
+#dashView.map-mode>hr,
+#dashView.map-mode>#newImport{display:none !important}
+
+/* Do NOT use the old map back button anymore. */
+#dashView.map-mode .map-back-btn{display:none !important}
+
+/* All map controls live in one clean z-index layer. */
+#dashView.map-mode .rpg-toggle-btn{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 62px) !important;
+  height:50px !important;
+  min-height:50px !important;
+  width:auto !important;
+  max-width:46vw !important;
+  padding:0 15px !important;
+  margin:0 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  box-sizing:border-box !important;
+  border-radius:25px !important;
+  z-index:10020 !important;
+  white-space:nowrap !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  box-shadow:0 5px 18px rgba(0,0,0,.18) !important;
+}
+#dashView.map-mode #rpgPanelBtn{left:14px !important;right:auto !important}
+#dashView.map-mode #addPointBtn{right:14px !important;left:auto !important}
+
+#dashView.map-mode .map-search{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 126px) !important;
+  left:14px !important;right:14px !important;
+  width:auto !important;max-width:none !important;
+  margin:0 !important;padding:0 !important;
+  display:flex !important;
+  gap:8px !important;
+  z-index:10010 !important;
+  box-sizing:border-box !important;
+}
+#dashView.map-mode .map-search input{
+  flex:1 1 auto !important;width:0 !important;min-width:0 !important;
+  height:52px !important;min-height:52px !important;
+  box-sizing:border-box !important;
+  font-size:16px !important;border-radius:17px !important;
+  background:#fff !important;color:#172019 !important;
+}
+#dashView.map-mode .map-search-btn{
+  flex:0 0 104px !important;width:104px !important;min-width:104px !important;
+  height:52px !important;min-height:52px !important;
+  padding:0 8px !important;border-radius:17px !important;
+  box-sizing:border-box !important;z-index:10011 !important;
+}
+#dashView.map-mode #mapSearchResults{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 184px) !important;
+  left:14px !important;right:14px !important;
+  width:auto !important;max-width:none !important;
+  margin:0 !important;z-index:10030 !important;
+}
+
+/* Point choices: readable and positioned under the right button. */
+#dashView.map-mode #pointTypeRow{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 118px) !important;
+  right:14px !important;left:auto !important;
+  width:auto !important;max-width:62vw !important;
+  display:flex !important;flex-direction:column !important;
+  align-items:stretch !important;gap:7px !important;
+  z-index:10040 !important;
+}
+#dashView.map-mode #pointTypeRow.hidden{display:none !important}
+#dashView.map-mode #pointTypeRow .point-type-chip{
+  color:#172019 !important;background:#fff !important;
+  border:1px solid #d7dfd9 !important;
+  min-height:44px !important;padding:8px 13px !important;
+  border-radius:14px !important;font-size:14px !important;
+  font-weight:650 !important;text-align:left !important;
+  opacity:1 !important;visibility:visible !important;
+  box-shadow:0 5px 18px rgba(0,0,0,.16) !important;
+}
+#dashView.map-mode #pointTypeRow .point-type-chip.active{color:#155236 !important;background:#e8f1eb !important}
+
+/* PAC panel: under the left button. */
+#dashView.map-mode #rpgPanel{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 118px) !important;
+  left:14px !important;right:14px !important;
+  width:auto !important;max-width:none !important;
+  box-sizing:border-box !important;z-index:10040 !important;
+  background:rgba(255,255,255,.98) !important;
+  color:#172019 !important;
+  border-radius:18px !important;
+  box-shadow:0 8px 28px rgba(0,0,0,.20) !important;
+}
+#dashView.map-mode #rpgPanel.hidden{display:none !important}
+
+/* When a dropdown is open, move the search below it instead of underneath it. */
+body.v2-point-types-open #dashView.map-mode .map-search,
+body.v2-rpg-open #dashView.map-mode .map-search{
+  top:calc(env(safe-area-inset-top,0px) + 355px) !important;
+}
+body.v2-point-types-open #dashView.map-mode #mapSearchResults,
+body.v2-rpg-open #dashView.map-mode #mapSearchResults{
+  top:calc(env(safe-area-inset-top,0px) + 413px) !important;
+}
+
+/* Leaflet controls: bottom-right, above the navigation bar. */
+#dashView.map-mode .leaflet-control-zoom{
+  position:fixed !important;
+  right:14px !important;left:auto !important;top:auto !important;
+  bottom:calc(88px + env(safe-area-inset-bottom,0px)) !important;
+  margin:0 !important;z-index:10050 !important;
+  border:0 !important;border-radius:14px !important;overflow:hidden !important;
+  box-shadow:0 5px 18px rgba(0,0,0,.22) !important;
+}
+#dashView.map-mode .leaflet-control-zoom a{
+  display:block !important;width:48px !important;height:48px !important;
+  line-height:48px !important;font-size:25px !important;
+  background:#fff !important;color:#172019 !important;border:0 !important;
+}
+#dashView.map-mode .leaflet-control-zoom a+a{border-top:1px solid #e1e6e2 !important}
+#dashView.map-mode .map-actions{
+  position:fixed !important;right:14px !important;left:auto !important;
+  top:auto !important;bottom:calc(200px + env(safe-area-inset-bottom,0px)) !important;
+  margin:0 !important;z-index:10055 !important;
+}
+#dashView.map-mode #locateBtn{
+  width:52px !important;height:52px !important;min-height:52px !important;
+  border-radius:50% !important;box-sizing:border-box !important;
+}
+
+/* Chatbot: bottom-left, between map and nav, never behind anything. */
+.chatbot-btn{
+  position:fixed !important;
+  left:16px !important;right:auto !important;
+  bottom:calc(88px + env(safe-area-inset-bottom,0px)) !important;
+  width:54px !important;height:54px !important;min-height:54px !important;
+  z-index:10070 !important;
+}
+.chatbot-panel{
+  position:fixed !important;
+  left:14px !important;right:14px !important;
+  bottom:calc(150px + env(safe-area-inset-bottom,0px)) !important;
+  max-width:420px !important;margin:0 auto !important;
+  z-index:10071 !important;
+}
+#dashView.map-mode .chatbot-btn,#dashView.map-mode .chatbot-panel{display:flex !important}
+
+/* On non-map screens the chatbot stays above the bottom nav. */
+body:not(.v2-map-open) .chatbot-btn{bottom:calc(88px + env(safe-area-inset-bottom,0px)) !important}
+body:not(.v2-map-open) .chatbot-panel{bottom:calc(150px + env(safe-area-inset-bottom,0px)) !important}
+
+/* Parcel sheet always wins over navigation/map. */
+#parcelSheet{z-index:200000 !important}
+
+@media(max-width:420px){
+  #dashView.map-mode .rpg-toggle-btn{top:calc(env(safe-area-inset-top,0px) + 60px) !important;font-size:14px !important;padding:0 12px !important}
+  #dashView.map-mode .map-search{left:10px !important;right:10px !important}
+  #dashView.map-mode .map-search-btn{flex-basis:96px !important;width:96px !important;min-width:96px !important;font-size:14px !important}
+  #dashView.map-mode #pointTypeRow{right:10px !important;max-width:70vw !important}
+  #dashView.map-mode #rpgPanel{left:10px !important;right:10px !important}
+}
+</style>
+
+<script id="v2-real-final-fix-script">
+(function(){
+  "use strict";
+  function init(){
+    const nav=document.querySelector('.v2-bottom-nav');
+    const dash=document.getElementById('dashView');
+    const sheet=document.getElementById('parcelSheet');
+    const pointRow=document.getElementById('pointTypeRow');
+    const rpgPanel=document.getElementById('rpgPanel');
+    const addPoint=document.getElementById('addPointBtn');
+    const rpgBtn=document.getElementById('rpgPanelBtn');
+    if(!dash) return;
+
+    function closeSheet(){
+      if(!sheet || sheet.classList.contains('hidden')) return;
+      const close=document.getElementById('psClose');
+      if(close) close.click(); else sheet.classList.add('hidden');
+    }
+    function resetMapMenus(){
+      document.body.classList.remove('v2-point-types-open','v2-rpg-open');
+      if(pointRow) pointRow.classList.add('hidden');
+      if(rpgPanel) rpgPanel.classList.add('hidden');
+      if(addPoint) addPoint.classList.remove('active');
+      if(rpgBtn) rpgBtn.classList.remove('active');
+    }
+    function syncMenus(){
+      const pOpen=!!(pointRow && !pointRow.classList.contains('hidden'));
+      const rOpen=!!(rpgPanel && !rpgPanel.classList.contains('hidden'));
+      document.body.classList.toggle('v2-point-types-open',pOpen);
+      document.body.classList.toggle('v2-rpg-open',rOpen);
+    }
+
+    /* The old V2 script hides the nav on the map. Undo that state every time. */
+    function syncMapState(){
+      const mapMode=dash.classList.contains('map-mode');
+      document.body.classList.toggle('v2-map-open',mapMode);
+      if(nav) nav.style.display=dash.classList.contains('hidden')?'none':'block';
+      if(mapMode && nav) nav.style.display='block';
+      if(!mapMode) resetMapMenus();
+    }
+
+    /* Navigation: close parcel sheet BEFORE switching screen. */
+    if(nav){
+      nav.addEventListener('click',function(e){
+        const b=e.target.closest('.v2-nav-btn');
+        if(!b) return;
+        closeSheet();
+        resetMapMenus();
+      },true);
+    }
+
+    /* Quick actions should behave exactly like bottom navigation. */
+    const quick=document.querySelector('.v2-quick');
+    if(quick){
+      quick.addEventListener('click',function(e){
+        const b=e.target.closest('[data-v2-nav]');
+        if(b){ closeSheet(); resetMapMenus(); }
+      },true);
+    }
+
+    if(pointRow) new MutationObserver(syncMenus).observe(pointRow,{attributes:true,attributeFilter:['class']});
+    if(rpgPanel) new MutationObserver(syncMenus).observe(rpgPanel,{attributes:true,attributeFilter:['class']});
+    new MutationObserver(syncMapState).observe(dash,{attributes:true,attributeFilter:['class']});
+
+    /* The RPG button and point button are mutually exclusive. */
+    if(addPoint) addPoint.addEventListener('click',function(){
+      setTimeout(function(){
+        if(pointRow && !pointRow.classList.contains('hidden')){
+          if(rpgPanel) rpgPanel.classList.add('hidden');
+        }
+        syncMenus();
+      },0);
+    },true);
+    if(rpgBtn) rpgBtn.addEventListener('click',function(){
+      setTimeout(function(){
+        if(rpgPanel && !rpgPanel.classList.contains('hidden')){
+          if(pointRow) pointRow.classList.add('hidden');
+        }
+        syncMenus();
+      },0);
+    },true);
+
+    syncMapState();
+    syncMenus();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+})();
+</script>
