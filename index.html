@@ -3858,5 +3858,229 @@ button{
 })();
 </script>
 
+
+<style id="parcelles-v2-design">
+:root{
+  --ui-bg:#f4f7f3; --ui-card:#fff; --ui-text:#172019; --ui-muted:#69736b;
+  --ui-green:#1f6b45; --ui-green-dark:#155236; --ui-green-soft:#e8f1eb;
+  --ui-gold:#c49a3a; --ui-border:#e2e8e3; --ui-shadow:0 8px 26px rgba(24,48,34,.08);
+  --ui-radius:18px;
+}
+html,body{background:var(--ui-bg)!important;color:var(--ui-text)!important}
+body{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
+header.top{background:linear-gradient(180deg,#f7faf7 0%,rgba(247,250,247,.88) 100%);padding:24px 20px 14px;border-bottom:1px solid rgba(31,107,69,.06)}
+header.top h1{font-family:Inter,system-ui,sans-serif;font-size:27px;font-weight:800;letter-spacing:-.04em;color:var(--ui-text)}
+header.top .subtitle{font-size:13px;margin-top:5px}
+.wrap{max-width:680px;padding:0 16px}
+#dashView{max-width:680px;margin:0 auto;padding-top:4px!important;background:transparent!important}
+#dashView:not(.map-mode){min-height:calc(100dvh - 100px)}
+#dashView:not(.map-mode) .v2-section{display:none}
+#dashView:not(.map-mode) .v2-section.active{display:block}
+.v2-app-title{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 2px 14px}
+.v2-app-title h2{font-family:Inter,system-ui,sans-serif;font-size:25px;font-weight:800;letter-spacing:-.04em;margin:0;color:var(--ui-text)}
+.v2-app-title p{margin:3px 0 0;color:var(--ui-muted);font-size:13px}
+.v2-sync-dot{width:10px;height:10px;border-radius:50%;background:#38a169;box-shadow:0 0 0 5px #e6f4eb;flex:none}
+#dashView:not(.map-mode) .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:2px 0 10px;padding:0}
+#dashView:not(.map-mode) .stat{background:var(--ui-card);border:1px solid var(--ui-border);border-radius:var(--ui-radius);padding:16px 13px;box-shadow:var(--ui-shadow)}
+#dashView:not(.map-mode) .stat .num{font-family:Inter,system-ui,sans-serif;font-size:25px;font-weight:800;color:var(--ui-text)}
+#dashView:not(.map-mode) .stat .lbl{font-size:11px;margin-top:6px;color:var(--ui-muted)}
+.v2-card{background:var(--ui-card);border:1px solid var(--ui-border);border-radius:var(--ui-radius);padding:18px;box-shadow:var(--ui-shadow);margin:12px 0}
+.v2-card h3{margin:0 0 13px;font-size:17px;letter-spacing:-.02em}
+.v2-quick{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.v2-quick button{background:#fff!important;color:var(--ui-text)!important;border:1px solid var(--ui-border)!important;min-height:64px;border-radius:16px!important;text-align:left;padding:12px 14px!important;box-shadow:none!important}
+.v2-quick button strong{display:block;font-size:14px}.v2-quick button span{display:block;color:var(--ui-muted);font-size:11px;margin-top:3px;font-weight:500}
+.v2-quick button.primary{background:var(--ui-green)!important;color:#fff!important;border-color:var(--ui-green)!important}
+.v2-quick button.primary span{color:rgba(255,255,255,.78)}
+.v2-empty{padding:16px;border-radius:14px;background:#f7f9f7;color:var(--ui-muted);font-size:13px}
+.v2-section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0 12px}
+.v2-section-title h3{margin:0;font-size:19px;letter-spacing:-.03em}
+.v2-section-title button{padding:9px 12px!important;border-radius:12px!important}
+#dashView:not(.map-mode) .toolbar{background:var(--ui-card);border:1px solid var(--ui-border);padding:10px;border-radius:16px;box-shadow:var(--ui-shadow);gap:8px}
+#dashView:not(.map-mode) .toolbar input[type=text]{min-width:100%;order:1}
+#dashView:not(.map-mode) .toolbar select{min-height:42px;order:2;flex:1}
+#dashView:not(.map-mode) .toolbar button{min-height:42px;order:3;flex:1}
+#dashView:not(.map-mode) .plist{border:0;margin-top:10px}
+#dashView:not(.map-mode) .prow{background:#fff;border:1px solid var(--ui-border);border-radius:15px;margin-bottom:8px;padding:14px;box-shadow:0 4px 14px rgba(24,48,34,.05);align-items:center}
+#dashView:not(.map-mode) .prow .pname{font-size:14px}.prow .pmeta{line-height:1.35}.prow .psurf{font-size:13px}
+#dashView:not(.map-mode) .rule{border-top-color:transparent;margin:12px 0}
+#dashView:not(.map-mode) .badge{display:block;margin:0 2px 8px}
+.v2-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:var(--ui-green-soft);color:var(--ui-green-dark);font-size:11px;font-weight:700}
+.v2-bottom-nav{position:fixed;z-index:99990;left:0;right:0;bottom:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid rgba(20,40,28,.08);display:none;box-shadow:0 -6px 24px rgba(20,40,28,.07)}
+.v2-bottom-nav .v2-nav-inner{max-width:680px;margin:auto;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.v2-nav-btn{border:0!important;background:transparent!important;color:#718078!important;min-height:54px!important;padding:7px 4px!important;border-radius:14px!important;box-shadow:none!important;font-size:10px!important;font-weight:700!important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.v2-nav-btn .ico{font-size:21px;line-height:20px}.v2-nav-btn.active{color:var(--ui-green)!important;background:#edf5ef!important}
+.v2-nav-btn:active{transform:scale(.97)}
+#dashView.v2-home .v2-app-title:after{content:"Tableau de bord";font-size:11px;color:var(--ui-muted);display:block}
+/* sections */
+#v2Home .v2-assolement{margin-top:12px}
+#v2Home #cultureBars{margin-top:2px}
+#v2Home #cultureBars .bar-row{margin-bottom:13px}
+#v2Home #cultureBars .bar-track{height:9px;background:#edf1ed}
+#v2Home #cultureBars .bar-top{font-size:13px}
+#v2Parcelles .v2-client-block{margin-top:22px}
+#v2Interventions #intervSection{display:block!important}
+#v2Interventions #intervList{background:#fff;border:1px solid var(--ui-border);border-radius:16px;padding:4px 14px;box-shadow:var(--ui-shadow)}
+#v2Interventions .interv-row{padding:13px 0}
+#v2Plus .v2-setting-group{background:#fff;border:1px solid var(--ui-border);border-radius:16px;overflow:hidden;margin:10px 0;box-shadow:var(--ui-shadow)}
+#v2Plus .v2-setting-title{padding:13px 15px 8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--ui-muted)}
+#v2Plus .v2-setting-group>div:not(.v2-setting-title),#v2Plus .v2-setting-group>button{margin:0;border-radius:0!important}
+#v2Plus .backup-actions{padding:0 12px 12px}
+#v2Plus #syncStatus{padding:0 15px 10px}
+#v2Plus .ps-subhead{padding:12px 15px!important;margin:0!important}
+.v2-hide{display:none!important}
+#dashView.map-mode #tabCarte.v2-hide{display:block!important}
+@media(min-width:701px){.v2-bottom-nav{display:grid}.v2-bottom-nav .v2-nav-inner{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:700px){.v2-bottom-nav{display:block}.wrap{padding:0 14px}body{padding-bottom:calc(80px + env(safe-area-inset-bottom))}}
+/* Fullscreen map keeps its own UI and hides app nav */
+body.v2-map-open .v2-bottom-nav{display:none!important}
+body.v2-map-open header.top{display:none}
+/* Import screen polish */
+#importView{background:transparent!important}
+#importView .dropzone{background:#fff;border:1.5px dashed #b7c8bc;border-radius:20px;padding:48px 20px;box-shadow:var(--ui-shadow)}
+#importView .formats{line-height:1.5}
+#importView .howto{background:#fff;border:1px solid var(--ui-border);border-radius:16px;padding:15px;box-shadow:0 4px 16px rgba(24,48,34,.05)}
+/* Parcel sheet polish */
+#parcelSheet .parcel-sheet-panel{border-radius:24px 24px 0 0!important}
+#parcelSheet .parcel-sheet-header{padding-top:4px}
+#parcelSheet input,#parcelSheet select,#parcelSheet textarea{border-radius:12px!important;min-height:44px}
+#parcelSheet .parcel-sheet-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#parcelSheet .parcel-sheet-actions button{min-height:46px}
+</style>
+
+<script id="parcelles-v2-ui">
+(function(){
+  "use strict";
+  function ready(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn); else fn(); }
+  ready(function(){
+    const dash=document.getElementById('dashView');
+    if(!dash) return;
+    const tabAsso=document.getElementById('tabAssolement');
+    const tabCarte=document.getElementById('tabCarte');
+    const stats=document.querySelector('#dashView > .stats');
+    const detected=document.getElementById('detectedBadge');
+    const last=document.getElementById('lastUpdate');
+    const weather=document.getElementById('weatherCard');
+    const tabs=document.querySelector('#dashView > .tabs');
+    if(!tabAsso || !stats) return;
+
+    /* Build semantic sections while preserving all existing element IDs/events. */
+    const home=document.createElement('section'); home.id='v2Home'; home.className='v2-section active';
+    const parcels=document.createElement('section'); parcels.id='v2Parcelles'; parcels.className='v2-section';
+    const interventions=document.createElement('section'); interventions.id='v2Interventions'; interventions.className='v2-section';
+    const plus=document.createElement('section'); plus.id='v2Plus'; plus.className='v2-section';
+    const appTitle=document.createElement('div'); appTitle.className='v2-app-title';
+    appTitle.innerHTML='<div><h2>Parcelles</h2><p>EARL du Sougey · suivi des parcelles</p></div><span class="v2-sync-dot" title="Application prête"></span>';
+    home.appendChild(appTitle);
+    home.appendChild(stats);
+    if(detected) home.appendChild(detected);
+    if(last) home.appendChild(last);
+    if(weather) home.appendChild(weather);
+
+    const quick=document.createElement('div'); quick.className='v2-card';
+    quick.innerHTML='<h3>Accès rapides</h3><div class="v2-quick">'+
+      '<button class="primary" data-v2-nav="carte"><strong>🗺️ Ouvrir la carte</strong><span>Voir les parcelles</span></button>'+
+      '<button data-v2-nav="parcelles"><strong>🌾 Mes parcelles</strong><span>Rechercher et filtrer</span></button>'+
+      '<button data-v2-nav="interventions"><strong>🚜 Interventions</strong><span>Travaux et historique</span></button>'+
+      '<button data-v2-nav="plus"><strong>📥 Import / données</strong><span>Geofolia et sauvegardes</span></button>'+
+      '</div>';
+    home.appendChild(quick);
+
+    const assoCard=document.createElement('div'); assoCard.className='v2-card v2-assolement';
+    const assoTitle=document.createElement('div'); assoTitle.className='v2-section-title'; assoTitle.innerHTML='<h3>Assolement</h3><span class="v2-pill">🌱 2026</span>';
+    assoCard.appendChild(assoTitle); assoCard.appendChild(document.getElementById('cultureBars'));
+    home.appendChild(assoCard);
+
+    /* Move parcel controls/list out of the old tab into a clean section. */
+    const oldChildren=Array.from(tabAsso.children);
+    const parcelHeader=oldChildren.find(x=>x.querySelector && x.querySelector('#addOwnParcelBtn'));
+    const toolbar=document.getElementById('search')?.closest('.toolbar');
+    const plist=document.getElementById('parcelleList');
+    if(parcelHeader){ parcelHeader.classList.add('v2-section-title'); parcels.appendChild(parcelHeader); }
+    if(toolbar) parcels.appendChild(toolbar);
+    if(plist) parcels.appendChild(plist);
+
+    const manualHeader=document.getElementById('addManualParcelBtn')?.parentElement;
+    const manualList=document.getElementById('manualParcelleList');
+    const manualNote=manualList?.previousElementSibling;
+    const clientBlock=document.createElement('div'); clientBlock.className='v2-client-block';
+    if(manualHeader) clientBlock.appendChild(manualHeader);
+    if(manualNote && manualNote.classList.contains('map-note')) clientBlock.appendChild(manualNote);
+    if(manualList) clientBlock.appendChild(manualList);
+    parcels.appendChild(clientBlock);
+
+    /* Interventions section gets its own screen. */
+    const interv=document.getElementById('intervSection');
+    if(interv){
+      const title=document.createElement('div'); title.className='v2-section-title';
+      title.innerHTML='<h3>🚜 Interventions</h3><span class="v2-pill">Historique</span>';
+      interventions.appendChild(title); interventions.appendChild(interv);
+    } else {
+      interventions.innerHTML='<div class="v2-card"><h3>🚜 Interventions</h3><div class="v2-empty">Aucune intervention enregistrée.</div></div>';
+    }
+
+    /* Advanced tools grouped under Plus. */
+    const plusTitle=document.createElement('div'); plusTitle.className='v2-app-title'; plusTitle.innerHTML='<div><h2>Plus</h2><p>Données, synchronisation et réglages</p></div>';
+    plus.appendChild(plusTitle);
+    function settingGroup(title, nodes){
+      const g=document.createElement('div'); g.className='v2-setting-group';
+      const t=document.createElement('div'); t.className='v2-setting-title'; t.textContent=title; g.appendChild(t);
+      nodes.forEach(n=>{if(n) g.appendChild(n)}); return g;
+    }
+    const syncSub=document.querySelector('#syncStatus')?.previousElementSibling;
+    const syncStatus=document.getElementById('syncStatus');
+    const syncActions=document.querySelector('#syncCopyId')?.parentElement;
+    plus.appendChild(settingGroup('Synchronisation',[syncSub,syncStatus,syncActions]));
+    plus.appendChild(settingGroup('Données',[document.getElementById('newImport'),document.querySelector('#exportBackup')?.parentElement]));
+
+    /* Insert our sections before the legacy tab containers, then hide legacy shell. */
+    dash.insertBefore(home, dash.firstChild);
+    dash.insertBefore(parcels, home.nextSibling);
+    dash.insertBefore(interventions, parcels.nextSibling);
+    dash.insertBefore(plus, interventions.nextSibling);
+    tabAsso.classList.add('v2-hide');
+    if(tabs) tabs.classList.add('v2-hide');
+    if(tabCarte) tabCarte.classList.add('v2-hide');
+
+    const nav=document.createElement('nav'); nav.className='v2-bottom-nav'; nav.setAttribute('aria-label','Navigation principale');
+    nav.innerHTML='<div class="v2-nav-inner">'+
+      '<button class="v2-nav-btn active" data-v2-nav="home"><span class="ico">⌂</span>Accueil</button>'+
+      '<button class="v2-nav-btn" data-v2-nav="carte"><span class="ico">⌖</span>Carte</button>'+
+      '<button class="v2-nav-btn" data-v2-nav="parcelles"><span class="ico">🌾</span>Parcelles</button>'+
+      '<button class="v2-nav-btn" data-v2-nav="interventions"><span class="ico">🚜</span>Travaux</button>'+
+      '<button class="v2-nav-btn" data-v2-nav="plus"><span class="ico">•••</span>Plus</button>'+
+      '</div>';
+    document.body.appendChild(nav);
+
+    function setActiveNav(key){
+      nav.querySelectorAll('.v2-nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.v2Nav===key));
+      [home,parcels,interventions,plus].forEach(s=>s.classList.remove('active'));
+      const target={home,parcelles:parcels,interventions,plus}[key]; if(target) target.classList.add('active');
+    }
+    function go(key){
+      if(!dash || dash.classList.contains('hidden')) return;
+      if(key==='carte'){
+        document.body.classList.add('v2-map-open');
+        if(document.getElementById('tabCarteBtn')) document.getElementById('tabCarteBtn').click();
+        setActiveNav('carte');
+      } else {
+        document.body.classList.remove('v2-map-open');
+        if(dash.classList.contains('map-mode') && document.getElementById('mapBackBtn')) document.getElementById('mapBackBtn').click();
+        setActiveNav(key);
+      }
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+    nav.addEventListener('click',e=>{const b=e.target.closest('[data-v2-nav]'); if(b) go(b.dataset.v2Nav)});
+    quick.addEventListener('click',e=>{const b=e.target.closest('[data-v2-nav]'); if(b) go(b.dataset.v2Nav)});
+
+    /* Ensure new nav appears only once real data/dashboard is visible. */
+    const syncNavVisibility=()=>{nav.style.display=dash.classList.contains('hidden')?'none':'';};
+    syncNavVisibility();
+    if(window.MutationObserver){new MutationObserver(syncNavVisibility).observe(dash,{attributes:true,attributeFilter:['class']});}
+
+    /* When the existing map back button is used, restore navigation state. */
+    document.getElementById('mapBackBtn')?.addEventListener('click',()=>{document.body.classList.remove('v2-map-open');setActiveNav('parcelles')});
+  });
+})();
+</script>
 </body>
 </html>
