@@ -19,6 +19,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --bg:#F3F5EE;
@@ -671,8 +674,26 @@ button{
 .parcel-sheet-label{font-size:12.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
 .parcel-sheet-field{margin-bottom:10px;flex:1;}
 .parcel-sheet-field label{display:block;font-size:11.5px;color:var(--ink-soft);margin-bottom:3px;}
-.parcel-sheet-field input{width:100%;box-sizing:border-box;font-family:'Inter',sans-serif;font-size:14px;padding:9px 11px;border-radius:9px;border:1px solid var(--rule);}
-.parcel-sheet-field input:focus-visible{outline:2.5px solid var(--forest);outline-offset:1px;}
+.parcel-sheet-field input,.parcel-sheet-field select,.parcel-sheet-field textarea{width:100%;box-sizing:border-box;font-family:'Inter',sans-serif;font-size:14px;padding:9px 11px;border-radius:9px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);}
+.parcel-sheet-field input:focus-visible,.parcel-sheet-field select:focus-visible{outline:2.5px solid var(--forest);outline-offset:1px;}
+.ps-subhead{font-weight:700;font-size:13.5px;margin:18px 0 8px;display:flex;align-items:center;justify-content:space-between;}
+.ps-src-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;vertical-align:middle;}
+.ps-src-badge.own{background:#E4EEE2;color:var(--forest-dark);}
+.ps-src-badge.manual{background:#F1E7D2;color:var(--gold);}
+.patre-row{border:1px solid var(--rule);border-radius:10px;padding:10px;margin-bottom:8px;}
+.patre-animal{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+.patre-animal input{flex:1;box-sizing:border-box;font-size:13px;padding:7px 9px;border-radius:8px;border:1px solid var(--rule);}
+.patre-animal input[type="date"]{flex:0 0 128px;}
+.patre-del{background:var(--danger);color:#fff;border:none;border-radius:7px;width:28px;height:28px;flex:none;cursor:pointer;font-size:13px;}
+.patre-total{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+.interv-form-row{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.interv-form-row select,.interv-form-row input{font-size:13.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--rule);box-sizing:border-box;}
+.interv-log-row{padding:8px 0;border-bottom:1px solid var(--rule);font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:flex-start;}
+.interv-log-row .d{color:var(--ink-soft);font-size:11.5px;}
+.interv-log-del{background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:13px;flex:none;}
+.point-type-row{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;}
+.point-type-chip{border:1.5px solid var(--rule);background:var(--paper);border-radius:20px;padding:6px 11px;font-size:12.5px;cursor:pointer;font-family:'Inter',sans-serif;}
+.point-type-chip.active{border-color:var(--forest);background:#E4EEE2;color:var(--forest-dark);font-weight:700;}
 .parcel-sheet-field-row{display:flex;gap:10px;}
 #psNote{width:100%;box-sizing:border-box;font-family:'Inter',sans-serif;font-size:14px;padding:10px 12px;border-radius:11px;border:1px solid var(--rule);resize:vertical;margin-bottom:16px;}
 #psNote:focus-visible{outline:2.5px solid var(--forest);outline-offset:1px;}
@@ -942,7 +963,10 @@ button{
       <div id="cultureBars"></div>
 
       <hr class="rule">
-      <h2>Parcelles</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;">Parcelles</h2>
+        <button type="button" class="secondary" id="addOwnParcelBtn">➕ Nouvelle parcelle</button>
+      </div>
       <div class="toolbar">
         <input type="text" id="search" placeholder="Rechercher une parcelle ou culture…" aria-label="Rechercher une parcelle ou culture">
         <select id="sortSel">
@@ -989,6 +1013,12 @@ button{
       </div>
       <button type="button" class="rpg-toggle-btn" id="rpgPanelBtn" aria-label="Parcelles PAC alentours">🌾 PAC alentours</button>
       <button type="button" class="rpg-toggle-btn" id="addPointBtn" style="left:auto;right:12px;" aria-pressed="false">📍 Ajouter un point</button>
+      <div id="pointTypeRow" class="point-type-row hidden">
+        <button type="button" class="point-type-chip active" data-type="todo">📍 À faire</button>
+        <button type="button" class="point-type-chip" data-type="entree">🚪 Entrée de champ</button>
+        <button type="button" class="point-type-chip" data-type="humide">💧 Zone humide</button>
+        <button type="button" class="point-type-chip" data-type="autre">❓ Autre</button>
+      </div>
       <div id="rpgPanel" class="rpg-panel hidden">
         <div class="parcel-sheet-label">Parcelles PAC alentours (référence)</div>
         <div style="display:flex;gap:8px;align-items:center;margin:8px 0;">
@@ -1005,6 +1035,13 @@ button{
       </div>
       <div id="mapContainer"></div>
       <div class="map-note" id="mapNote" aria-live="polite"></div>
+    </div>
+
+    <hr class="rule">
+    <div class="ps-subhead" style="margin-top:0;">🔄 Synchronisation entre appareils</div>
+    <div class="map-note" id="syncStatus">Synchronisation non configurée.</div>
+    <div class="backup-actions" style="display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;">
+      <button class="secondary" id="syncCopyId">Copier mon identifiant d'appareil</button>
     </div>
 
     <hr class="rule">
@@ -1027,7 +1064,7 @@ button{
   <div class="parcel-sheet-panel" role="dialog" aria-modal="true" aria-label="Fiche parcelle">
     <div class="parcel-sheet-handle"></div>
     <div class="parcel-sheet-header">
-      <div class="parcel-sheet-label" style="margin:0;">Informations</div>
+      <div class="parcel-sheet-label" style="margin:0;">Informations<span id="psSrcBadge" class="ps-src-badge hidden"></span></div>
       <button type="button" class="parcel-sheet-close" id="psClose" aria-label="Fermer la fiche parcelle">✕</button>
     </div>
 
@@ -1038,7 +1075,8 @@ button{
     <div class="parcel-sheet-field-row">
       <div class="parcel-sheet-field">
         <label for="psCulture">Culture</label>
-        <input type="text" id="psCulture" placeholder="Culture">
+        <select id="psCulture"></select>
+        <input type="text" id="psCultureAutre" placeholder="Précise la culture" style="margin-top:6px;" class="hidden">
       </div>
       <div class="parcel-sheet-field">
         <label for="psSurface">Surface (ha)</label>
@@ -1079,6 +1117,57 @@ button{
     <div class="parcel-photos" id="psPhotos"></div>
     <button type="button" class="secondary" id="psAddPhoto">+ Ajouter une photo</button>
     <input type="file" id="psPhotoInput" accept="image/*" capture="environment" multiple style="display:none">
+
+    <hr class="rule">
+    <div class="ps-subhead">🐄 Bétail au pré</div>
+    <div class="patre-row">
+      <div class="parcel-sheet-field" style="margin-bottom:8px;">
+        <label for="psPatreDate">Date de mise au pré</label>
+        <input type="date" id="psPatreDate">
+      </div>
+      <div id="psPatreAnimaux"></div>
+      <button type="button" class="secondary" id="psPatreAddAnimal" style="margin-top:2px;">+ Ajouter une bête (n° + gestation)</button>
+      <div class="parcel-sheet-field" style="margin:10px 0 0;">
+        <label for="psPatreSansId">Bêtes supplémentaires sans n° renseigné</label>
+        <input type="number" min="0" step="1" id="psPatreSansId" placeholder="0">
+      </div>
+      <div class="patre-total" id="psPatreTotal"></div>
+    </div>
+
+    <hr class="rule">
+    <div class="ps-subhead">🚜 Interventions</div>
+    <div class="interv-form-row">
+      <select id="psIntervType" style="flex:1 1 160px;">
+        <option value="Déchaumage">Déchaumage</option>
+        <option value="Labour">Labour</option>
+        <option value="Semis">Semis</option>
+        <option value="Fertilisation minérale">Fertilisation minérale</option>
+        <option value="Épandage organique">Épandage organique</option>
+        <option value="Traitement phytosanitaire">Traitement phytosanitaire</option>
+        <option value="Fauche">Fauche</option>
+        <option value="Récolte / moisson">Récolte / moisson</option>
+        <option value="Roulage">Roulage</option>
+        <option value="Hersage">Hersage</option>
+        <option value="Irrigation">Irrigation</option>
+        <option value="Autre">Autre</option>
+      </select>
+      <input type="date" id="psIntervDate" style="flex:1 1 130px;">
+    </div>
+    <div class="interv-form-row" id="psIntervQteRow">
+      <input type="number" step="0.01" min="0" id="psIntervQte" placeholder="Quantité" style="flex:1;">
+      <select id="psIntervUnite" style="flex:1;">
+        <option value="kg/ha">kg/ha</option>
+        <option value="t/ha">t/ha</option>
+        <option value="L/ha">L/ha</option>
+        <option value="u/ha">u/ha (unités)</option>
+        <option value="mm">mm</option>
+      </select>
+    </div>
+    <div class="parcel-sheet-field">
+      <input type="text" id="psIntervNote" placeholder="Remarque (facultatif)">
+    </div>
+    <button type="button" class="secondary" id="psIntervAdd">+ Ajouter l'intervention</button>
+    <div id="psIntervLog" style="margin-top:8px;"></div>
   </div>
 </div>
 
@@ -1092,6 +1181,7 @@ button{
   const PARCEL_META_KEY = "parcel-meta-v1";
   const CUSTOM_POINTS_KEY = "custom-points-v1";
   const MANUAL_PARCELLES_KEY = "manual-parcelles-v1";
+  const CROPS = ["Blé tendre","Blé dur","Orge","Triticale","Avoine","Maïs grain","Maïs ensilage","Colza","Tournesol","Soja","Pois","Féverole","Luzerne","Betterave","Pomme de terre","Prairie temporaire","Prairie permanente","Prairie naturelle","Jachère"];
   const SS_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
   const REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
   const CHART_COLORS = ["#2F5233","#B8933B","#445E75","#8B5E3C","#6B7A5E","#7A5A78","#4A7A6E"];
@@ -1639,6 +1729,7 @@ button{
         if(window.storage) await window.storage.set(STORAGE_KEY, value, false);
       }
     }catch(e){}
+    scheduleSyncPush();
   }
   async function loadDataset(){
     try{
@@ -1656,6 +1747,7 @@ button{
       try{ localStorage.setItem(GEOM_KEY,value); }catch(e){}
       if(window.storage) await window.storage.set(GEOM_KEY,value,false);
     }catch(e){}
+    scheduleSyncPush();
   }
   async function loadGeometries(){
     try{
@@ -1694,6 +1786,7 @@ button{
       try{ localStorage.setItem(PARCEL_META_KEY, value); }catch(e){}
       if(window.storage) await window.storage.set(PARCEL_META_KEY, value, false);
     }catch(e){}
+    scheduleSyncPush();
   }
   async function loadParcelMeta(){
     try{
@@ -1708,6 +1801,7 @@ button{
       try{ localStorage.setItem(CUSTOM_POINTS_KEY, value); }catch(e){}
       if(window.storage) await window.storage.set(CUSTOM_POINTS_KEY, value, false);
     }catch(e){}
+    scheduleSyncPush();
   }
   async function loadCustomPoints(){
     try{
@@ -1723,6 +1817,7 @@ button{
       try{ localStorage.setItem(MANUAL_PARCELLES_KEY, value); }catch(e){}
       if(window.storage) await window.storage.set(MANUAL_PARCELLES_KEY, value, false);
     }catch(e){}
+    scheduleSyncPush();
   }
   async function loadManualParcelles(){
     try{
@@ -1934,14 +2029,15 @@ button{
 
     renderParcelleList();
 
-    const interventions = dataset.interventions || [];
+    const interventions = (dataset.interventions || []).concat(collectManualInterventions());
     if(interventions.length){
       $("intervSection").classList.remove("hidden");
       const sorted = interventions.slice().sort((a,b)=> (b.date||"").localeCompare(a.date||"")).slice(0,15);
       let html = "";
       sorted.forEach(r=>{
+        const qte = (r.manual && r.quantite!=null && r.quantite!=="") ? " · "+r.quantite+" "+(r.unite||"") : "";
         html += '<div class="interv-row"><div class="d">'+escapeHtml(displayDate(r.date))+'</div>'
-          + escapeHtml(r.parcelle||"") + (r.operation ? " — "+escapeHtml(r.operation) : "") + '</div>';
+          + escapeHtml(r.parcelle||"") + (r.operation ? " — "+escapeHtml(r.operation) : "") + qte + (r.manual ? ' <span style="color:var(--ink-soft);font-size:11px;">(saisie manuelle)</span>' : "") + '</div>';
       });
       $("intervList").innerHTML = html || '<div class="empty">Aucune intervention datée.</div>';
     } else {
@@ -2011,6 +2107,21 @@ button{
     renderManualParcelles();
     openParcelSheet(p);
   });
+  async function addOwnParcelToDataset(p){
+    if(!dataset){
+      dataset = {source:"manuel", parcelles:[], interventions:[], importedAt:new Date().toISOString(), fileName:null};
+    }
+    dataset.parcelles.push(p);
+    await saveDataset();
+    importView.classList.add("hidden");
+    mappingView.classList.add("hidden");
+    renderDashboard(false);
+  }
+  $("addOwnParcelBtn").addEventListener("click", async ()=>{
+    const p = {guid:"own-"+Date.now()+"-"+Math.random().toString(36).slice(2,7), parcelle:"", culture:"", surface:null, exploitant:"", ilot:"", commune:"", _addedOwn:true};
+    await addOwnParcelToDataset(p);
+    openParcelSheet(p);
+  });
   $("todoFilter").addEventListener("click", ()=>{
     const active = $("todoFilter").classList.toggle("active");
     $("todoFilter").setAttribute("aria-pressed", active);
@@ -2024,6 +2135,18 @@ button{
     await saveParcelMeta();
     renderParcelleList();
   });
+  (function initCultureSelect(){
+    const sel = $("psCulture");
+    let html = '<option value="">— Choisir —</option>';
+    CROPS.forEach(c=> html += '<option value="'+escapeHtml(c)+'">'+escapeHtml(c)+'</option>');
+    html += '<option value="__autre__">Autre…</option>';
+    sel.innerHTML = html;
+    sel.addEventListener("change", ()=>{
+      $("psCultureAutre").classList.toggle("hidden", sel.value!=="__autre__");
+      scheduleFieldSave();
+    });
+  })();
+  $("psCultureAutre").addEventListener("input", scheduleFieldSave);
   $("mapProviderSelect").value = getMapProvider();
   $("mapProviderSelect").addEventListener("change", ()=>{
     setMapProvider($("mapProviderSelect").value);
@@ -2245,6 +2368,12 @@ button{
     return "https://maps.apple.com/?dirflg=d&daddr="+coordsList.map(c=> c.lat+","+c.lon).join("+to:");
   }
 
+  function guessCropFromLabel(label){
+    if(!label) return "";
+    const norm = label.toLowerCase();
+    const found = CROPS.find(c=> norm.includes(c.toLowerCase()) || c.toLowerCase().includes(norm));
+    return found || "";
+  }
   function drawRpgFeatures(features){
     if(!map) return;
     const wasVisible = rpgLayerGroup && map.hasLayer(rpgLayerGroup);
@@ -2255,13 +2384,37 @@ button{
       const props = f.properties || {};
       const label = rpgGroupLabel(props.code_group);
       const surf = props.surf_parc!=null ? Number(props.surf_parc).toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha" : "";
-      const popup = "<b>Parcelle PAC (référence)</b><br>"+escapeHtml(label)+(surf?"<br>"+surf:"")+"<br><span style='color:var(--ink-soft);font-size:11.5px;'>Donnée anonymisée RPG "+RPG_ANNEE+"</span>";
+      const rpgId = "rpg-"+(props.id_parcel || (Date.now()+"-"+Math.random().toString(36).slice(2,7)));
+      const popup = "<b>Parcelle PAC (référence)</b><br>"+escapeHtml(label)+(surf?"<br>"+surf:"")+"<br><span style='color:var(--ink-soft);font-size:11.5px;'>Donnée anonymisée RPG "+RPG_ANNEE+"</span>"
+        + '<br><button type="button" class="popup-open-sheet" data-act="addrpg" data-guid="'+rpgId+'">➕ Ajouter cette parcelle</button>';
       const rings = f.geometry.type==="Polygon" ? [f.geometry.coordinates] : (f.geometry.coordinates||[]);
       rings.forEach(poly=>{
         const latlngs = poly.map(ring=> ring.map(c=> [c[1], c[0]]));
-        L.polygon(latlngs, {color:"#7C8B99", weight:1, fillColor:"#B9C2CB", fillOpacity:0.28, dashArray:"3,3"})
+        const layer = L.polygon(latlngs, {color:"#7C8B99", weight:1, fillColor:"#B9C2CB", fillOpacity:0.28, dashArray:"3,3"})
           .bindPopup(popup)
           .addTo(rpgLayerGroup);
+        layer.on("popupopen", (e)=>{
+          const el = e.popup.getElement();
+          const btn = el && el.querySelector('[data-act="addrpg"]');
+          if(!btn) return;
+          btn.addEventListener("click", async ()=>{
+            const guessed = guessCropFromLabel(label);
+            const p = {
+              guid: rpgId,
+              parcelle: "Parcelle PAC"+(props.id_parcel ? " "+props.id_parcel : ""),
+              culture: guessed || label || "",
+              surface: props.surf_parc!=null ? Number(props.surf_parc) : null,
+              exploitant: "", ilot: "", commune: "",
+              _addedOwn: true
+            };
+            geometries[p.guid] = {rings: latlngs};
+            await saveGeometries();
+            await addOwnParcelToDataset(p);
+            map.closePopup();
+            if(map) await renderMap();
+            openParcelSheet(p);
+          });
+        });
       });
     });
     if(wasVisible) rpgLayerGroup.addTo(map);
@@ -2275,17 +2428,25 @@ button{
   // ---------- Points personnalisés (à faire aujourd'hui, sans parcelle associée) ----------
   let customPointsLayer = null;
   let addingPointMode = false;
+  let pendingPointType = "todo";
+  const POINT_TYPES = {
+    todo:   {icon:"📍", label:"à faire aujourd'hui", color:"#B8860B", fill:"#FFB300"},
+    entree: {icon:"🚪", label:"entrée de champ",      color:"#1d6b4a", fill:"#2F9E6E"},
+    humide: {icon:"💧", label:"zone humide",          color:"#1d5fa8", fill:"#4FA3E3"},
+    autre:  {icon:"❓", label:"point",                color:"#6b5b95", fill:"#9B8AC4"}
+  };
 
   function drawCustomPoints(){
     if(!map) return;
     if(customPointsLayer){ map.removeLayer(customPointsLayer); }
     customPointsLayer = L.layerGroup().addTo(map);
     customPoints.forEach(pt=>{
+      const def = POINT_TYPES[pt.type||"todo"] || POINT_TYPES.todo;
       const marker = L.circleMarker([pt.lat, pt.lon], {
-        radius:9, color:"#B8860B", weight:2.5, fillColor:"#FFB300", fillOpacity:0.9
+        radius:9, color:def.color, weight:2.5, fillColor:def.fill, fillOpacity:0.9
       });
       marker.bindPopup(
-        "<b>📍 "+escapeHtml(pt.name||"Point ajouté")+"</b><br>★ à faire aujourd'hui"
+        "<b>"+def.icon+" "+escapeHtml(pt.name||"Point ajouté")+"</b><br>"+escapeHtml(def.label)
         + '<br><button type="button" class="popup-open-sheet" data-act="go">📍 Itinéraire</button> '
         + '<button type="button" class="popup-open-sheet" data-act="del" style="background:var(--danger);">🗑️ Supprimer</button>'
       );
@@ -2309,10 +2470,27 @@ button{
   }
 
   $("addPointBtn").addEventListener("click", ()=>{
-    addingPointMode = !addingPointMode;
-    $("addPointBtn").classList.toggle("active", addingPointMode);
-    $("addPointBtn").textContent = addingPointMode ? "📍 Touche la carte…" : "📍 Ajouter un point";
+    const showing = !$("pointTypeRow").classList.contains("hidden");
+    if(showing){
+      $("pointTypeRow").classList.add("hidden");
+      addingPointMode = false;
+      $("addPointBtn").classList.remove("active");
+      $("addPointBtn").textContent = "📍 Ajouter un point";
+    } else {
+      $("pointTypeRow").classList.remove("hidden");
+    }
   });
+  $("pointTypeRow").querySelectorAll(".point-type-chip").forEach(chip=>{
+    chip.addEventListener("click", ()=>{
+      $("pointTypeRow").querySelectorAll(".point-type-chip").forEach(c=> c.classList.remove("active"));
+      chip.classList.add("active");
+      pendingPointType = chip.dataset.type;
+      addingPointMode = true;
+      $("addPointBtn").classList.add("active");
+      $("addPointBtn").textContent = "📍 Touche la carte ("+POINT_TYPES[pendingPointType].label+")…";
+    });
+  });
+
 
   function highlightParcel(p){
     if(selectedParcelLayer){
@@ -2443,15 +2621,17 @@ button{
       }).addTo(map);
       map.on("click", async (e)=>{
         if(!addingPointMode) return;
-        const name = prompt("Nom de ce point (ex : \"Champ de M. Dupont\") :", "");
+        const typeLabel = POINT_TYPES[pendingPointType].label;
+        const name = prompt("Nom de ce point ("+typeLabel+") :", "");
         if(name===null) { /* annulé : on reste en mode placement */ return; }
-        const pt = {id:"pt"+Date.now()+"-"+Math.random().toString(36).slice(2,7), lat:e.latlng.lat, lon:e.latlng.lng, name: name||"Point ajouté", createdAt:Date.now()};
+        const pt = {id:"pt"+Date.now()+"-"+Math.random().toString(36).slice(2,7), lat:e.latlng.lat, lon:e.latlng.lng, name: name||"Point ajouté", type: pendingPointType, createdAt:Date.now()};
         customPoints.push(pt);
         await saveCustomPoints();
         drawCustomPoints();
         addingPointMode = false;
         $("addPointBtn").classList.remove("active");
         $("addPointBtn").textContent = "📍 Ajouter un point";
+        $("pointTypeRow").classList.add("hidden");
       });
     } else {
       map.eachLayer(l=>{ if(l instanceof L.CircleMarker || l instanceof L.Polygon) map.removeLayer(l); });
@@ -2594,19 +2774,163 @@ button{
     }
   }
 
+  // ---------- Bétail au pré ----------
+  function collectPatreFromDOM(){
+    const animaux = [];
+    $("psPatreAnimaux").querySelectorAll(".patre-animal").forEach(row=>{
+      animaux.push({
+        numero: row.querySelector(".patre-num").value.trim(),
+        gestation: row.querySelector(".patre-gest").value || ""
+      });
+    });
+    return {
+      dateMiseAuPre: $("psPatreDate").value || "",
+      animaux,
+      nbSansId: $("psPatreSansId").value===""?0:(parseInt($("psPatreSansId").value,10)||0)
+    };
+  }
+  function updatePatreTotal(){
+    const data = collectPatreFromDOM();
+    const total = data.animaux.length + (data.nbSansId||0);
+    $("psPatreTotal").textContent = total ? ("Total : "+total+" bête(s) au pré") : "Aucune bête enregistrée pour l'instant.";
+  }
+  let patreSaveTimer = null;
+  function schedulePatreSave(){
+    updatePatreTotal();
+    clearTimeout(patreSaveTimer);
+    patreSaveTimer = setTimeout(flushPatreSave, 500);
+  }
+  async function flushPatreSave(){
+    if(!currentParcel) return;
+    getParcelMeta(currentParcel).patre = collectPatreFromDOM();
+    await saveParcelMeta();
+  }
+  function renderPatreAnimaux(animaux){
+    const box = $("psPatreAnimaux");
+    let html = "";
+    animaux.forEach((a,i)=>{
+      html += '<div class="patre-animal" data-i="'+i+'">'
+        + '<input type="text" class="patre-num" placeholder="N° identification" value="'+escapeHtml(a.numero||"")+'">'
+        + '<input type="date" class="patre-gest" value="'+(a.gestation||"")+'" title="Date de gestation">'
+        + '<button type="button" class="patre-del" data-i="'+i+'">✕</button></div>';
+    });
+    box.innerHTML = html;
+    box.querySelectorAll(".patre-num, .patre-gest").forEach(inp=> inp.addEventListener("input", schedulePatreSave));
+    box.querySelectorAll(".patre-del").forEach(btn=> btn.addEventListener("click", async ()=>{
+      const idx = parseInt(btn.dataset.i,10);
+      const data = collectPatreFromDOM();
+      data.animaux.splice(idx,1);
+      renderPatreAnimaux(data.animaux);
+      updatePatreTotal();
+      if(currentParcel){ getParcelMeta(currentParcel).patre = data; await saveParcelMeta(); }
+    }));
+  }
+  function renderPatrePanel(){
+    if(!currentParcel) return;
+    const meta = getParcelMeta(currentParcel);
+    const patre = meta.patre || {dateMiseAuPre:"", animaux:[], nbSansId:0};
+    $("psPatreDate").value = patre.dateMiseAuPre || "";
+    $("psPatreSansId").value = patre.nbSansId || "";
+    renderPatreAnimaux(patre.animaux || []);
+    updatePatreTotal();
+  }
+  $("psPatreDate").addEventListener("input", schedulePatreSave);
+  $("psPatreSansId").addEventListener("input", schedulePatreSave);
+  $("psPatreAddAnimal").addEventListener("click", ()=>{
+    const data = collectPatreFromDOM();
+    data.animaux.push({numero:"", gestation:""});
+    renderPatreAnimaux(data.animaux);
+    updatePatreTotal();
+    if(currentParcel) getParcelMeta(currentParcel).patre = data;
+  });
+
+  // ---------- Interventions manuelles ----------
+  const QTE_TYPES = ["Fertilisation minérale","Épandage organique","Traitement phytosanitaire","Irrigation"];
+  function updateIntervQteVisibility(){
+    $("psIntervQteRow").classList.toggle("hidden", !QTE_TYPES.includes($("psIntervType").value));
+  }
+  function renderIntervLog(){
+    if(!currentParcel) return;
+    const meta = getParcelMeta(currentParcel);
+    const list = (meta.manualInterventions||[]).slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    let html = "";
+    list.forEach(iv=>{
+      const qte = (iv.quantite!=null && iv.quantite!=="") ? " · "+iv.quantite+" "+(iv.unite||"") : "";
+      html += '<div class="interv-log-row"><div><div class="d">'+escapeHtml(displayDate(iv.date))+'</div>'
+        + escapeHtml(iv.type||"")+qte+(iv.note?" — "+escapeHtml(iv.note):"")+'</div>'
+        + '<button type="button" class="interv-log-del" data-id="'+iv.id+'">🗑️</button></div>';
+    });
+    $("psIntervLog").innerHTML = html || '<div class="empty">Aucune intervention enregistrée pour cette parcelle.</div>';
+    $("psIntervLog").querySelectorAll(".interv-log-del").forEach(btn=> btn.addEventListener("click", async ()=>{
+      const meta = getParcelMeta(currentParcel);
+      meta.manualInterventions = (meta.manualInterventions||[]).filter(x=> x.id!==btn.dataset.id);
+      await saveParcelMeta();
+      renderIntervLog();
+    }));
+  }
+  $("psIntervType").addEventListener("change", updateIntervQteVisibility);
+  $("psIntervAdd").addEventListener("click", async ()=>{
+    if(!currentParcel) return;
+    const date = $("psIntervDate").value;
+    if(!date){ alert("Indique une date pour l'intervention."); return; }
+    const type = $("psIntervType").value;
+    const showQte = QTE_TYPES.includes(type);
+    const iv = {
+      id:"iv"+Date.now()+"-"+Math.random().toString(36).slice(2,7),
+      date, type,
+      quantite: (showQte && $("psIntervQte").value!=="") ? parseFloat($("psIntervQte").value) : null,
+      unite: showQte ? $("psIntervUnite").value : "",
+      note: $("psIntervNote").value.trim(),
+      manual:true
+    };
+    const meta = getParcelMeta(currentParcel);
+    meta.manualInterventions = meta.manualInterventions || [];
+    meta.manualInterventions.push(iv);
+    await saveParcelMeta();
+    $("psIntervQte").value = "";
+    $("psIntervNote").value = "";
+    renderIntervLog();
+  });
+  updateIntervQteVisibility();
+  function collectManualInterventions(){
+    const all = ((dataset && dataset.parcelles) ? dataset.parcelles : []).concat(manualParcelles);
+    const out = [];
+    all.forEach(p=>{
+      const meta = parcelMeta[metaKeyFor(p)];
+      if(meta && meta.manualInterventions){
+        meta.manualInterventions.forEach(iv=> out.push(Object.assign({parcelle:p.parcelle, operation: iv.type}, iv)));
+      }
+    });
+    return out;
+  }
+
   function openParcelSheet(p){
     currentParcel = p;
     const meta = getParcelMeta(p);
     $("psNom").value = p.parcelle || "";
-    $("psCulture").value = p.culture || "";
+    if(p.culture && CROPS.includes(p.culture)){
+      $("psCulture").value = p.culture;
+      $("psCultureAutre").value = "";
+      $("psCultureAutre").classList.add("hidden");
+    } else {
+      $("psCulture").value = p.culture ? "__autre__" : "";
+      $("psCultureAutre").value = p.culture || "";
+      $("psCultureAutre").classList.toggle("hidden", !p.culture);
+    }
     $("psSurface").value = p.surface!=null ? p.surface : "";
     $("psExploitant").value = p.exploitant || "";
     $("psIlot").value = p.ilot || "";
     $("psCommune").value = p.commune || "";
     $("psTodo").checked = !!meta.todo;
     $("psNote").value = meta.note || "";
-    $("psDelete").classList.toggle("hidden", !p._manual);
+    $("psDelete").classList.toggle("hidden", !(p._manual || p._addedOwn));
+    const badge = $("psSrcBadge");
+    if(p._manual){ badge.textContent = "client / prestation"; badge.className = "ps-src-badge manual"; }
+    else if(p._addedOwn){ badge.textContent = "ajoutée"; badge.className = "ps-src-badge own"; }
+    else { badge.className = "ps-src-badge hidden"; }
     renderParcelSheetPhotos();
+    renderPatrePanel();
+    renderIntervLog();
     $("parcelSheet").classList.remove("hidden");
   }
   let fieldSaveTimer = null;
@@ -2618,9 +2942,10 @@ button{
     if(!currentParcel) return;
     const p = currentParcel;
     const meta = p._manual ? null : getParcelMeta(p); // capturé avant toute modification d'identité
+    const cultureVal = $("psCulture").value==="__autre__" ? $("psCultureAutre").value.trim() : $("psCulture").value;
     const fields = {
       parcelle: $("psNom").value.trim(),
-      culture: $("psCulture").value.trim(),
+      culture: cultureVal,
       surface: $("psSurface").value===""? null : parseFloat($("psSurface").value),
       exploitant: $("psExploitant").value.trim(),
       ilot: $("psIlot").value.trim(),
@@ -2636,18 +2961,27 @@ button{
       renderParcelleList();
     }
   }
-  ["psNom","psCulture","psExploitant","psIlot","psCommune"].forEach(id=>{
+  ["psNom","psExploitant","psIlot","psCommune"].forEach(id=>{
     $(id).addEventListener("input", scheduleFieldSave);
   });
   $("psSurface").addEventListener("input", scheduleFieldSave);
 
   $("psDelete").addEventListener("click", async ()=>{
-    if(!currentParcel || !currentParcel._manual) return;
-    if(!confirm("Supprimer définitivement cette parcelle ajoutée manuellement ?")) return;
-    manualParcelles = manualParcelles.filter(x=> x.guid!==currentParcel.guid);
-    await saveManualParcelles();
+    if(!currentParcel || !(currentParcel._manual || currentParcel._addedOwn)) return;
+    if(!confirm("Supprimer définitivement cette parcelle ?")) return;
+    const guid = currentParcel.guid;
+    if(currentParcel._manual){
+      manualParcelles = manualParcelles.filter(x=> x.guid!==guid);
+      await saveManualParcelles();
+      renderManualParcelles();
+    } else {
+      dataset.parcelles = dataset.parcelles.filter(x=> x.guid!==guid);
+      await saveDataset();
+      renderParcelleList();
+    }
+    delete parcelMeta[guid];
+    await saveParcelMeta();
     closeParcelSheet();
-    renderManualParcelles();
   });
 
   function closeParcelSheet(){
@@ -2898,6 +3232,132 @@ button{
     }
   });
 
+  // ---------- Synchronisation multi-appareils (Firebase) ----------
+  // 1) Crée un projet gratuit sur https://console.firebase.google.com
+  // 2) Active "Firestore Database" (mode production) et "Authentication" > méthode "Anonyme"
+  // 3) Dans les paramètres du projet, copie la config web ci-dessous à la place des valeurs actuelles
+  // 4) Remplace SYNC_DOC_ID par un identifiant que TOI seul connais (garde-le identique sur tous tes appareils)
+  // 5) Dans Firestore > Règles, colle les règles indiquées dans la conversation avec Claude (restreintes à tes appareils)
+  const FIREBASE_CONFIG = {
+    apiKey: "COLLE_TA_CLE_ICI",
+    authDomain: "COLLE_TON_PROJET.firebaseapp.com",
+    projectId: "COLLE_TON_PROJET",
+    storageBucket: "COLLE_TON_PROJET.appspot.com",
+    messagingSenderId: "000000000000",
+    appId: "1:000000000000:web:xxxxxxxxxxxxxxxxxxxxxx"
+  };
+  const SYNC_DOC_ID = "sougey-parcelles-sync";
+  const SYNC_ENABLED = FIREBASE_CONFIG.apiKey !== "COLLE_TA_CLE_ICI";
+
+  function getDeviceId(){
+    let id = null;
+    try{ id = localStorage.getItem("geofolia-device-id"); }catch(e){}
+    if(!id){
+      id = "dev-"+Math.random().toString(36).slice(2,10)+Date.now().toString(36);
+      try{ localStorage.setItem("geofolia-device-id", id); }catch(e){}
+    }
+    return id;
+  }
+  const DEVICE_ID = getDeviceId();
+  let syncDb = null;
+  let lastPushedAt = 0;
+  let syncPushTimer = null;
+
+  function setSyncStatus(text){
+    const el = $("syncStatus");
+    if(el) el.textContent = text;
+  }
+
+  function gatherSyncPayload(){
+    return {
+      dataset: dataset || null,
+      geometries: geometries || {},
+      parcelMeta: parcelMeta || {},
+      customPoints: customPoints || [],
+      manualParcelles: manualParcelles || [],
+      updatedAt: Date.now(),
+      deviceId: DEVICE_ID
+    };
+  }
+
+  function scheduleSyncPush(){
+    if(!SYNC_ENABLED || !syncDb) return;
+    clearTimeout(syncPushTimer);
+    syncPushTimer = setTimeout(pushSyncSnapshot, 900);
+  }
+
+  async function pushSyncSnapshot(){
+    if(!SYNC_ENABLED || !syncDb) return;
+    try{
+      const payload = gatherSyncPayload();
+      lastPushedAt = payload.updatedAt;
+      await syncDb.collection("sync").doc(SYNC_DOC_ID).set(payload);
+      setSyncStatus("Synchronisé à l'instant sur cet appareil.");
+    }catch(e){
+      setSyncStatus("Échec de synchronisation (vérifie la connexion).");
+    }
+  }
+
+  async function applyRemoteSnapshot(data){
+    if(!data) return;
+    dataset = data.dataset || null;
+    geometries = data.geometries || {};
+    parcelMeta = data.parcelMeta || {};
+    customPoints = data.customPoints || [];
+    manualParcelles = data.manualParcelles || [];
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(dataset)); }catch(e){}
+    try{ localStorage.setItem(GEOM_KEY, JSON.stringify(geometries)); }catch(e){}
+    try{ localStorage.setItem(PARCEL_META_KEY, JSON.stringify(parcelMeta)); }catch(e){}
+    try{ localStorage.setItem(CUSTOM_POINTS_KEY, JSON.stringify(customPoints)); }catch(e){}
+    try{ localStorage.setItem(MANUAL_PARCELLES_KEY, JSON.stringify(manualParcelles)); }catch(e){}
+    if(currentParcel) closeParcelSheet();
+    if(dataset && dataset.parcelles && dataset.parcelles.length){
+      importView.classList.add("hidden");
+      renderDashboard(false);
+    }
+    renderManualParcelles();
+    if(map) await renderMap();
+    setSyncStatus("Mis à jour depuis un autre appareil.");
+  }
+
+  function initSync(){
+    if(!SYNC_ENABLED){
+      setSyncStatus("Synchronisation non configurée (voir index.html pour la configuration Firebase).");
+      return;
+    }
+    try{
+      firebase.initializeApp(FIREBASE_CONFIG);
+      syncDb = firebase.firestore();
+      setSyncStatus("Connexion en cours…");
+      firebase.auth().signInAnonymously().catch(()=>{
+        setSyncStatus("Échec de connexion à la synchronisation.");
+      });
+      firebase.auth().onAuthStateChanged(user=>{
+        if(!user) return;
+        syncDb.collection("sync").doc(SYNC_DOC_ID).onSnapshot(snap=>{
+          const data = snap.data();
+          if(!data) { setSyncStatus("En attente de première synchronisation."); return; }
+          if(data.updatedAt && data.updatedAt <= lastPushedAt) return; // écho de notre propre écriture
+          if(data.deviceId === DEVICE_ID) return;
+          applyRemoteSnapshot(data);
+        }, ()=>{
+          setSyncStatus("Échec de synchronisation (vérifie les règles Firestore).");
+        });
+      });
+    }catch(e){
+      setSyncStatus("Erreur d'initialisation de la synchronisation.");
+    }
+  }
+
+  $("syncCopyId").addEventListener("click", async ()=>{
+    try{
+      await navigator.clipboard.writeText(DEVICE_ID);
+      alert("Identifiant copié : "+DEVICE_ID+"\n\nColle-le dans tes règles Firestore pour autoriser cet appareil.");
+    }catch(e){
+      prompt("Copie manuellement cet identifiant d'appareil :", DEVICE_ID);
+    }
+  });
+
   // ---------- Boot ----------
 
   if("serviceWorker" in navigator){
@@ -2917,6 +3377,7 @@ button{
     if(found && dataset && dataset.parcelles && dataset.parcelles.length){ renderDashboard(false); }
     renderManualParcelles();
     loadWeather();
+    initSync();
   })();
 
 })();
