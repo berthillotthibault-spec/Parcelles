@@ -1074,13 +1074,6 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
 }
 #dashView.map-mode #rpgPanel.hidden{display:none !important;}
 
-/* Quand les choix de points sont ouverts, on descend la recherche pour éviter tout recouvrement. */
-body.v2-point-types-open #dashView.map-mode .map-search{
-  top:calc(env(safe-area-inset-top,0px) + 350px) !important;
-}
-body.v2-point-types-open #dashView.map-mode #mapSearchResults{
-  top:calc(env(safe-area-inset-top,0px) + 410px) !important;
-}
 
 /* Sur la carte, le chatbot passe à gauche pour ne jamais toucher le GPS ou +/-. */
 #dashView.map-mode .chatbot-btn{
@@ -1169,7 +1162,7 @@ body.v2-point-types-open #dashView.map-mode #mapSearchResults{
     /* Synchronise l'état visuel du sélecteur de points avec le CSS. */
     function syncPointMode(){
       const open=pointRow && !pointRow.classList.contains('hidden');
-      document.body.classList.toggle('v2-point-types-open',!!open);
+      document.body.classList.remove('v2-point-types-open');
     }
     if(pointRow){
       new MutationObserver(syncPointMode).observe(pointRow,{attributes:true,attributeFilter:['class']});
@@ -4466,14 +4459,14 @@ body.v2-map-open header.top{display:none !important}
       if(mapMode){
         const pOpen=!!(pointRow && !pointRow.classList.contains('hidden'));
         const rOpen=!!(rpgPanel && !rpgPanel.classList.contains('hidden'));
-        document.body.classList.toggle('v2-point-types-open',pOpen);
+        document.body.classList.remove('v2-point-types-open');
         document.body.classList.toggle('v2-rpg-open',rOpen);
       }
     }
     function syncMenus(){
       const pOpen=!!(pointRow && !pointRow.classList.contains('hidden'));
       const rOpen=!!(rpgPanel && !rpgPanel.classList.contains('hidden'));
-      document.body.classList.toggle('v2-point-types-open',pOpen);
+      document.body.classList.remove('v2-point-types-open');
       document.body.classList.toggle('v2-rpg-open',rOpen);
     }
     if(pointRow) new MutationObserver(syncMenus).observe(pointRow,{attributes:true,attributeFilter:['class']});
@@ -4506,5 +4499,383 @@ body.v2-map-open header.top{display:none !important}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
 </script>
+
+
+<style id="v2-ui-extensions-final">
+/* =========================================================
+   EXTENSIONS FINALES — météo + sous-onglets + carte
+   ========================================================= */
+/* Sur la carte : le bouton Ajouter un point n'a JAMAIS le droit
+   de déplacer la recherche. Les deux zones ont leur propre place. */
+#dashView.map-mode .map-search{
+  top:calc(env(safe-area-inset-top,0px) + 122px) !important;
+}
+#dashView.map-mode #pointTypeRow{
+  top:calc(env(safe-area-inset-top,0px) + 182px) !important;
+}
+#dashView.map-mode #pointTypeRow .point-type-chip{
+  min-height:38px !important;
+  padding:7px 12px !important;
+  font-size:12.5px !important;
+}
+#dashView.map-mode #rpgPanel{
+  top:calc(env(safe-area-inset-top,0px) + 182px) !important;
+}
+#dashView.map-mode .rpg-toggle-btn{
+  top:calc(env(safe-area-inset-top,0px) + 62px) !important;
+  height:48px !important;
+  min-height:48px !important;
+  padding:0 13px !important;
+  border-radius:16px !important;
+}
+
+/* Sous-onglets */
+.v2-section-menu-btn{
+  border:1px solid var(--ui-border)!important;
+  background:#fff!important;
+  color:var(--ui-green-dark)!important;
+  min-height:38px!important;
+  padding:8px 11px!important;
+  border-radius:12px!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  box-shadow:0 4px 12px rgba(24,48,34,.07)!important;
+  white-space:nowrap;
+}
+.v2-section-menu{
+  position:absolute;
+  right:0;
+  top:calc(100% + 7px);
+  width:min(250px,calc(100vw - 36px));
+  background:#fff;
+  border:1px solid var(--ui-border);
+  border-radius:16px;
+  padding:6px;
+  box-shadow:0 14px 35px rgba(20,40,28,.18);
+  z-index:5000;
+}
+.v2-section-menu-wrap{position:relative;flex:none}
+.v2-section-menu button{
+  display:block;width:100%;border:0!important;background:#fff!important;color:var(--ui-text)!important;
+  text-align:left;padding:11px 12px!important;border-radius:11px!important;font-size:13px!important;
+  box-shadow:none!important;min-height:42px!important;
+}
+.v2-section-menu button:active,.v2-section-menu button.active{background:var(--ui-green-soft)!important;color:var(--ui-green-dark)!important}
+.v2-section-menu[hidden]{display:none!important}
+
+/* Météo compacte */
+.weather-card{cursor:pointer!important;user-select:none;position:relative}
+.weather-card:after{content:'Voir les prévisions ›';position:absolute;right:14px;bottom:12px;font-size:10px;font-weight:800;color:var(--ui-green)}
+.weather-sheet{position:fixed;inset:0;background:rgba(16,28,20,.42);z-index:100000;display:flex;align-items:flex-end}
+.weather-sheet[hidden]{display:none!important}
+.weather-sheet-panel{width:100%;max-height:min(88dvh,760px);background:var(--ui-bg);border-radius:24px 24px 0 0;overflow:hidden;box-shadow:0 -12px 40px rgba(0,0,0,.2);display:flex;flex-direction:column}
+.weather-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;background:#fff;border-bottom:1px solid var(--ui-border)}
+.weather-sheet-head h2{margin:0;font-size:19px;color:var(--ui-text)}
+.weather-sheet-close{border:0;background:#f1f4f1;color:var(--ui-text);width:38px;height:38px;border-radius:50%;font-size:18px}
+.weather-tabs{display:flex;gap:7px;padding:10px 12px;background:#fff;overflow:auto}
+.weather-tabs button{border:1px solid var(--ui-border)!important;background:#fff!important;color:var(--ui-muted)!important;border-radius:12px!important;padding:9px 12px!important;white-space:nowrap;font-size:12px!important;font-weight:800!important;box-shadow:none!important}
+.weather-tabs button.active{background:var(--ui-green-soft)!important;color:var(--ui-green-dark)!important;border-color:#cfe2d5!important}
+.weather-content{overflow:auto;padding:10px 12px 24px}
+.weather-hourly{display:flex;gap:8px;overflow-x:auto;padding:3px 2px 8px}
+.weather-hour{flex:0 0 78px;background:#fff;border:1px solid var(--ui-border);border-radius:14px;padding:10px 7px;text-align:center;box-shadow:0 4px 14px rgba(24,48,34,.05)}
+.weather-hour .time{font-size:11px;font-weight:800;color:var(--ui-muted)}
+.weather-hour .ico{font-size:23px;margin:6px 0}.weather-hour .temp{font-size:16px;font-weight:800}.weather-hour .rain{font-size:10px;color:#4778a8;margin-top:4px}
+.weather-days{display:grid;gap:7px}
+.weather-day{display:grid;grid-template-columns:64px 34px 1fr auto;align-items:center;gap:8px;background:#fff;border:1px solid var(--ui-border);border-radius:13px;padding:9px 10px}
+.weather-day .day{font-size:12px;font-weight:800}.weather-day .ico{font-size:21px}.weather-day .desc{font-size:11px;color:var(--ui-muted)}.weather-day .temps{font-size:12px;font-weight:800;white-space:nowrap}.weather-day .rain{font-size:10px;color:#4778a8}
+.weather-empty{padding:18px;background:#fff;border-radius:14px;color:var(--ui-muted);font-size:13px}
+@media(max-width:420px){
+  .v2-section-menu-btn{padding:8px 9px!important;font-size:11px!important}
+  .weather-day{grid-template-columns:56px 30px 1fr auto;gap:6px}
+}
+</style>
+
+<div id="weatherSheet" class="weather-sheet" hidden aria-hidden="true">
+  <div class="weather-sheet-panel" role="dialog" aria-modal="true" aria-label="Prévisions météo">
+    <div class="weather-sheet-head"><div><h2>🌤️ Météo</h2><div id="weatherLocationLabel" style="font-size:11px;color:var(--ui-muted);margin-top:2px">Prévisions locales</div></div><button class="weather-sheet-close" id="weatherSheetClose" type="button" aria-label="Fermer">✕</button></div>
+    <div class="weather-tabs" role="tablist">
+      <button type="button" class="active" data-weather-view="hourly">Aujourd'hui</button>
+      <button type="button" data-weather-view="7">7 jours</button>
+      <button type="button" data-weather-view="14">14 jours</button>
+    </div>
+    <div id="weatherContent" class="weather-content"><div class="weather-empty">Chargement des prévisions…</div></div>
+  </div>
+</div>
+
+<script id="v2-ui-extensions-final-script">
+(function(){
+  'use strict';
+  function initExtensions(){
+    const dash=document.getElementById('dashView');
+    if(!dash) return;
+
+    /* -------- Carte : le clic Ajouter un point ne déplace jamais la recherche -------- */
+    const add=document.getElementById('addPointBtn');
+    if(add && !add.dataset.noSearchMove){
+      add.dataset.noSearchMove='1';
+      add.addEventListener('click',()=>document.body.classList.remove('v2-point-types-open'));
+    }
+    const pointRow=document.getElementById('pointTypeRow');
+    if(pointRow){
+      pointRow.addEventListener('click',()=>document.body.classList.remove('v2-point-types-open'));
+    }
+
+    /* -------- Sous-onglets -------- */
+    const sections=[
+      {id:'v2Home',items:[['dashboard','Tableau de bord'],['weather','Météo'],['assolement','Assolement']]},
+      {id:'v2Parcelles',items:[['parcelles','Mes parcelles'],['clients','Clients / prestations']]},
+      {id:'v2Interventions',items:[['today','À faire aujourd’hui'],['history','Historique']]},
+      {id:'v2Plus',items:[['sync','Synchronisation'],['data','Données']]}
+    ];
+    sections.forEach(cfg=>{
+      const sec=document.getElementById(cfg.id); if(!sec || sec.querySelector('.v2-section-menu-btn')) return;
+      const title=sec.querySelector('.v2-app-title'); if(!title) return;
+      const wrap=document.createElement('div'); wrap.className='v2-section-menu-wrap';
+      const btn=document.createElement('button'); btn.type='button'; btn.className='v2-section-menu-btn'; btn.textContent='☰ Onglets';
+      const menu=document.createElement('div'); menu.className='v2-section-menu'; menu.hidden=true;
+      cfg.items.forEach(([key,label])=>{
+        const b=document.createElement('button'); b.type='button'; b.dataset.subtab=key; b.textContent=label;
+        menu.appendChild(b);
+      });
+      wrap.append(btn,menu); title.appendChild(wrap);
+      btn.addEventListener('click',e=>{e.stopPropagation(); document.querySelectorAll('.v2-section-menu').forEach(m=>{if(m!==menu)m.hidden=true}); menu.hidden=!menu.hidden;});
+      menu.addEventListener('click',e=>{
+        const b=e.target.closest('[data-subtab]'); if(!b)return; menu.hidden=true; handleSubtab(cfg.id,b.dataset.subtab);
+      });
+    });
+    document.addEventListener('click',e=>{if(!e.target.closest('.v2-section-menu-wrap')) document.querySelectorAll('.v2-section-menu').forEach(m=>m.hidden=true)});
+
+    function handleSubtab(section,key){
+      if(key==='weather'){openWeather(); return;}
+      if(section==='v2Home'){
+        if(key==='assolement') document.querySelector('#v2Home .v2-assolement')?.scrollIntoView({behavior:'smooth',block:'start'});
+        else window.scrollTo({top:0,behavior:'smooth'});
+      }
+      if(section==='v2Parcelles'){
+        if(key==='clients') document.querySelector('#v2Parcelles .v2-client-block')?.scrollIntoView({behavior:'smooth',block:'start'});
+        else window.scrollTo({top:0,behavior:'smooth'});
+      }
+      if(section==='v2Interventions'){
+        if(key==='today') document.getElementById('todoFilter')?.click();
+        else window.scrollTo({top:0,behavior:'smooth'});
+      }
+      if(section==='v2Plus'){
+        if(key==='sync') document.querySelector('#v2Plus .v2-setting-group')?.scrollIntoView({behavior:'smooth',block:'start'});
+        else document.querySelectorAll('#v2Plus .v2-setting-group')[1]?.scrollIntoView({behavior:'smooth',block:'start'});
+      }
+    }
+
+    /* -------- Météo -------- */
+    const sheet=document.getElementById('weatherSheet');
+    const content=document.getElementById('weatherContent');
+    const close=document.getElementById('weatherSheetClose');
+    const card=document.getElementById('weatherCard');
+    let weatherData=null;
+    let weatherLoaded=false;
+    const labels=window.__PARCELLES_WMO_LABELS__ || {
+      0:['☀️','Ciel dégagé'],1:['🌤️','Plutôt dégagé'],2:['⛅','Partiellement nuageux'],3:['☁️','Couvert'],45:['🌫️','Brouillard'],48:['🌫️','Brouillard givrant'],51:['🌦️','Bruine légère'],53:['🌦️','Bruine'],55:['🌦️','Bruine forte'],61:['🌧️','Pluie légère'],63:['🌧️','Pluie'],65:['🌧️','Pluie forte'],66:['🌧️','Pluie verglaçante'],67:['🌧️','Pluie verglaçante forte'],71:['🌨️','Neige légère'],73:['🌨️','Neige'],75:['🌨️','Neige forte'],80:['🌦️','Averses légères'],81:['🌦️','Averses'],82:['⛈️','Averses fortes'],95:['⛈️','Orage'],96:['⛈️','Orage avec grêle'],99:['⛈️','Orage violent']
+    };
+    function fmtHour(iso){try{return new Date(iso).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}catch(e){return iso.slice(11,16)}}
+    function fmtDay(iso,i){try{return new Date(iso+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'}).replace('.','')}catch(e){return i===0?'Aujourd’hui':iso}}
+    function renderWeather(view){
+      if(!weatherData){content.innerHTML='<div class="weather-empty">Prévisions indisponibles.</div>';return}
+      const h=weatherData.hourly||{}, d=weatherData.daily||{};
+      if(view==='hourly'){
+        const now=new Date();
+        const times=h.time||[]; let start=times.findIndex(t=>new Date(t)>=now); if(start<0)start=0;
+        const end=Math.min(start+24,times.length);
+        let html='<div style="font-size:12px;color:var(--ui-muted);margin:2px 2px 9px">Prévisions heure par heure</div><div class="weather-hourly">';
+        for(let i=start;i<end;i++){
+          const code=(h.weather_code||[])[i], w=labels[code]||['🌡️','Météo'];
+          const temp=Math.round((h.temperature_2m||[])[i] ?? 0), rain=(h.precipitation_probability||[])[i];
+          html+='<div class="weather-hour"><div class="time">'+fmtHour(times[i])+'</div><div class="ico">'+w[0]+'</div><div class="temp">'+temp+'°</div>'+(rain!=null?'<div class="rain">💧 '+rain+'%</div>':'')+'</div>';
+        }
+        html+='</div>';
+        content.innerHTML=html;
+      }else{
+        const n=view==='7'?7:14, dates=d.time||[];
+        let html='<div style="font-size:12px;color:var(--ui-muted);margin:2px 2px 9px">Prévisions sur '+n+' jours</div><div class="weather-days">';
+        for(let i=0;i<Math.min(n,dates.length);i++){
+          const code=(d.weather_code||[])[i], w=labels[code]||['🌡️','Météo'];
+          const min=Math.round((d.temperature_2m_min||[])[i] ?? 0), max=Math.round((d.temperature_2m_max||[])[i] ?? 0), rain=(d.precipitation_probability_max||[])[i];
+          html+='<div class="weather-day"><div class="day">'+fmtDay(dates[i],i)+'</div><div class="ico">'+w[0]+'</div><div><div style="font-size:12px;font-weight:700">'+w[1]+'</div>'+(rain!=null?'<div class="rain">Pluie '+rain+'%</div>':'')+'</div><div class="temps">'+min+'° / '+max+'°</div></div>';
+        }
+        html+='</div>'; content.innerHTML=html;
+      }
+    }
+    async function loadDetailedWeather(){
+      try{
+        const loc=await (typeof getWeatherLocation==='function'?getWeatherLocation():null);
+        if(!loc) throw new Error('no location');
+        const url='https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=14';
+        const res=await (typeof fetchWithTimeout==='function'?fetchWithTimeout(url,9000):fetch(url));
+        if(!res.ok) throw new Error('weather');
+        weatherData=await res.json(); weatherLoaded=true;
+        const lab=document.getElementById('weatherLocationLabel'); if(lab)lab.textContent='Prévisions locales · mises à jour automatiquement';
+        renderWeather('hourly');
+      }catch(e){content.innerHTML='<div class="weather-empty">Impossible de charger les prévisions pour le moment. Réessaie dans quelques instants.</div>'}
+    }
+    function openWeather(){
+      if(!sheet)return; sheet.hidden=false; sheet.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden';
+      if(!weatherLoaded) loadDetailedWeather(); else renderWeather(document.querySelector('.weather-tabs button.active')?.dataset.weatherView||'hourly');
+    }
+    function closeWeather(){if(!sheet)return;sheet.hidden=true;sheet.setAttribute('aria-hidden','true');document.body.style.overflow='';}
+    card?.addEventListener('click',openWeather); close?.addEventListener('click',closeWeather); sheet?.addEventListener('click',e=>{if(e.target===sheet)closeWeather()});
+    document.querySelectorAll('.weather-tabs button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.weather-tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderWeather(b.dataset.weatherView)}));
+    window.addEventListener('keydown',e=>{if(e.key==='Escape')closeWeather()});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initExtensions);else initExtensions();
+})();
+</script>
+
 </body>
 </html>
+
+<style id="v2-compact-controls-final">
+/* =========================================================
+   MODE COMPACT — boutons plus fins et mieux proportionnés
+   Pensé pour les grands écrans de smartphones.
+   Ne change pas l'organisation de la carte.
+   ========================================================= */
+
+/* Navigation principale : plus discrète, tout en restant confortable au doigt. */
+.v2-bottom-nav{
+  padding:5px 8px calc(5px + env(safe-area-inset-bottom)) !important;
+}
+.v2-bottom-nav .v2-nav-inner{gap:2px !important}
+.v2-nav-btn{
+  min-height:48px !important;
+  height:48px !important;
+  padding:4px 3px !important;
+  border-radius:12px !important;
+  font-size:10.5px !important;
+  gap:1px !important;
+}
+.v2-nav-btn .ico{font-size:18px !important;line-height:18px !important}
+
+/* Carte : recherche moins haute et bouton Rechercher plus étroit. */
+#dashView.map-mode .map-search{
+  height:42px !important;
+  min-height:42px !important;
+  gap:6px !important;
+}
+#dashView.map-mode .map-search input{
+  height:42px !important;
+  min-height:42px !important;
+  border-radius:12px !important;
+  padding:0 12px 0 42px !important;
+  font-size:15px !important;
+}
+#dashView.map-mode .map-search-btn{
+  flex:0 0 78px !important;
+  width:78px !important;
+  min-width:78px !important;
+  height:42px !important;
+  min-height:42px !important;
+  border-radius:12px !important;
+  font-size:12px !important;
+  padding:0 4px !important;
+}
+
+/* Boutons PAC / Ajouter : environ 20 % moins hauts. */
+#dashView.map-mode #rpgPanelBtn,
+#dashView.map-mode #addPointBtn{
+  height:38px !important;
+  min-height:38px !important;
+  padding:0 10px !important;
+  border-radius:19px !important;
+  font-size:12.5px !important;
+  max-width:42vw !important;
+}
+
+/* Choix de point : compacts, mais toujours assez grands pour être tactiles. */
+#dashView.map-mode #pointTypeRow{
+  width:172px !important;
+  max-width:44vw !important;
+  gap:4px !important;
+}
+#dashView.map-mode #pointTypeRow .point-type-chip{
+  min-height:34px !important;
+  height:34px !important;
+  padding:4px 9px !important;
+  border-radius:10px !important;
+  font-size:12px !important;
+}
+
+/* Panneau PAC plus compact. */
+#dashView.map-mode #rpgPanel{
+  max-width:330px !important;
+  border-radius:13px !important;
+}
+
+/* Contrôles de carte : réduire l'encombrement à droite. */
+#dashView.map-mode .leaflet-control-zoom{
+  border-radius:11px !important;
+}
+#dashView.map-mode .leaflet-control-zoom a{
+  width:40px !important;
+  height:40px !important;
+  line-height:40px !important;
+  font-size:21px !important;
+}
+#dashView.map-mode #locateBtn{
+  width:44px !important;
+  height:44px !important;
+  min-height:44px !important;
+}
+
+/* Chatbot : plus petit pour laisser respirer la carte. */
+#dashView.map-mode .chatbot-btn,
+body.v2-map-open .chatbot-btn{
+  width:48px !important;
+  height:48px !important;
+  min-height:48px !important;
+}
+
+/* Boutons secondaires des écrans principaux. */
+.v2-quick button{
+  min-height:56px !important;
+  padding:10px 12px !important;
+  border-radius:14px !important;
+}
+.v2-quick button strong{font-size:13px !important}
+.v2-quick button span{font-size:10.5px !important}
+.v2-section-title button,
+.v2-section-menu-btn{
+  min-height:36px !important;
+  padding:7px 10px !important;
+  font-size:11.5px !important;
+  border-radius:10px !important;
+}
+.v2-section-menu{
+  border-radius:13px !important;
+  padding:5px !important;
+}
+.v2-section-menu button{
+  min-height:38px !important;
+  padding:9px 10px !important;
+  font-size:12px !important;
+  border-radius:9px !important;
+}
+
+/* Météo : cartes plus compactes dans la fenêtre détaillée. */
+.weather-tabs{gap:5px !important;padding:8px 10px !important}
+.weather-tabs button{padding:7px 10px !important;font-size:11.5px !important;border-radius:10px !important}
+.weather-content{padding:8px 10px 18px !important}
+.weather-hourly{gap:6px !important}
+.weather-hour{flex-basis:68px !important;padding:8px 6px !important;border-radius:12px !important}
+.weather-hour .ico{font-size:20px !important;margin:4px 0 !important}
+.weather-day{padding:8px 9px !important;border-radius:11px !important}
+
+@media(max-width:430px){
+  #dashView.map-mode #rpgPanelBtn,
+  #dashView.map-mode #addPointBtn{
+    max-width:43vw !important;
+    font-size:12px !important;
+    padding:0 8px !important;
+  }
+  #dashView.map-mode #pointTypeRow{width:168px !important;max-width:43vw !important}
+  #dashView.map-mode .map-search-btn{width:76px !important;min-width:76px !important;flex-basis:76px !important}
+  .v2-nav-btn{font-size:10px !important}
+}
+</style>
