@@ -5530,7 +5530,7 @@ body.v2-rpg-open #pointTypeRow,body.v2-rpg-open #mapFilterBtn{display:none !impo
     /* ---------- IA distante : Cloudflare Worker + Gemini ---------- */
     const endpoint=$('#aiEndpoint'), test=$('#aiTestBtn'), status=$('#aiStatus');
     const STORE_ENDPOINT='parcelles_gemini_worker_endpoint_v1';
-    const DEFAULT_ENDPOINT='';
+    const DEFAULT_ENDPOINT='https://wandering-sea-21a2.berthillotthibault.workers.dev';
     if(endpoint){
       endpoint.value=localStorage.getItem(STORE_ENDPOINT)||DEFAULT_ENDPOINT;
       endpoint.addEventListener('change',()=>localStorage.setItem(STORE_ENDPOINT,endpoint.value.trim().replace(/\/$/,'')));
