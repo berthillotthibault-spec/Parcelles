@@ -3998,7 +3998,9 @@ body.v2-point-types-open #dashView.map-mode #mapSearchResults{
     if(!$("chatbotMessages").children.length){
       addChatMsg("bot", "Bonjour ! Pose-moi une question sur tes parcelles ou demande-moi de modifier une donnée. Tape « aide » pour des exemples.");
     }
-    $("chatbotInput").focus();
+    // Ne pas donner automatiquement le focus au champ : sur iPhone cela
+    // ouvre le clavier et peut provoquer un zoom/scroll indésirable.
+    // Le champ reste volontairement sans focus à l'ouverture.
   });
   $("chatbotClose").addEventListener("click", ()=> $("chatbotPanel").classList.add("hidden"));
   async function sendChatMessage(){
@@ -4690,6 +4692,273 @@ body:not(.v2-map-open) .chatbot-panel{bottom:calc(150px + env(safe-area-inset-bo
 
     syncMapState();
     syncMenus();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+})();
+</script>
+
+
+<style id="v2-mobile-map-layout-final">
+/* =============================================================
+   PARCELLES — SOUgey / MOBILE MAP FINAL LAYOUT
+   This block is deliberately LAST. It does not redesign the app;
+   it fixes the spatial layout of the existing V2 on iPhone.
+   ============================================================= */
+
+/* The bottom navigation is the actual bottom area of the application. */
+.v2-bottom-nav{
+  display:block !important;
+  position:fixed !important;
+  left:0 !important; right:0 !important; bottom:0 !important;
+  width:100% !important;
+  height:auto !important;
+  min-height:74px !important;
+  z-index:999999 !important;
+  padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px)) !important;
+  box-sizing:border-box !important;
+  background:rgba(255,255,255,.97) !important;
+  border-top:1px solid rgba(20,40,28,.10) !important;
+  box-shadow:0 -5px 20px rgba(20,40,28,.10) !important;
+}
+.v2-bottom-nav .v2-nav-inner{
+  width:100% !important; max-width:none !important;
+}
+
+/* On the map, NEVER reserve a second white area below the map.
+   The navigation simply overlays the bottom of the map. */
+body.v2-map-open{
+  padding-bottom:0 !important;
+  overflow:hidden !important;
+}
+body.v2-map-open header.top{display:none !important}
+#dashView.map-mode{
+  position:fixed !important;
+  left:0 !important; top:0 !important; right:0 !important; bottom:0 !important;
+  width:100% !important; height:100dvh !important; min-height:100dvh !important;
+  margin:0 !important; padding:0 !important;
+  z-index:100 !important; overflow:hidden !important;
+}
+#dashView.map-mode #tabCarte{
+  position:absolute !important;
+  left:0 !important; top:0 !important; right:0 !important; bottom:0 !important;
+  width:100% !important; height:100% !important;
+  margin:0 !important; padding:0 !important;
+  overflow:hidden !important;
+}
+#dashView.map-mode #mapContainer{
+  position:absolute !important;
+  left:0 !important; top:0 !important; right:0 !important; bottom:0 !important;
+  width:100% !important; height:auto !important; min-height:0 !important;
+  margin:0 !important; padding:0 !important;
+  z-index:1 !important;
+}
+
+/* ---------------- TOP AREA ----------------
+   Search FIRST, then PAC / Ajouter un point underneath it. */
+#dashView.map-mode .map-search{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 62px) !important;
+  left:12px !important; right:12px !important;
+  width:auto !important; max-width:none !important;
+  margin:0 !important; padding:0 !important;
+  display:flex !important; align-items:stretch !important; gap:7px !important;
+  z-index:10020 !important;
+}
+#dashView.map-mode .map-search input{
+  flex:1 1 auto !important; min-width:0 !important; width:auto !important;
+  height:48px !important; min-height:48px !important;
+  padding:0 14px !important;
+  font-size:16px !important;
+  border-radius:15px !important;
+  background:#fff !important; color:#172019 !important;
+  box-sizing:border-box !important;
+}
+#dashView.map-mode .map-search-btn{
+  flex:0 0 94px !important; width:94px !important; min-width:94px !important;
+  height:48px !important; min-height:48px !important;
+  padding:0 7px !important; border-radius:15px !important;
+  font-size:14px !important; box-sizing:border-box !important;
+}
+
+#dashView.map-mode .rpg-toggle-btn{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 122px) !important;
+  height:44px !important; min-height:44px !important;
+  max-width:43vw !important;
+  padding:0 12px !important; margin:0 !important;
+  border-radius:22px !important;
+  font-size:14px !important; font-weight:650 !important;
+  line-height:1 !important; box-sizing:border-box !important;
+  z-index:10030 !important;
+  box-shadow:0 4px 14px rgba(0,0,0,.16) !important;
+}
+#dashView.map-mode #rpgPanelBtn{left:12px !important; right:auto !important}
+#dashView.map-mode #addPointBtn{left:auto !important; right:12px !important}
+
+/* Point types: beneath the Add Point button, NOT over the search. */
+#dashView.map-mode #pointTypeRow{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 174px) !important;
+  right:12px !important; left:auto !important;
+  width:210px !important; max-width:58vw !important;
+  display:flex !important; flex-direction:column !important;
+  gap:6px !important; align-items:stretch !important;
+  z-index:10050 !important;
+}
+#dashView.map-mode #pointTypeRow.hidden{display:none !important}
+#dashView.map-mode #pointTypeRow .point-type-chip{
+  min-height:40px !important; height:40px !important;
+  padding:6px 11px !important;
+  border-radius:12px !important;
+  background:#fff !important; color:#172019 !important;
+  border:1px solid #d7dfd9 !important;
+  font-size:14px !important; font-weight:650 !important;
+  line-height:1.1 !important; text-align:left !important;
+  opacity:1 !important; visibility:visible !important;
+  box-shadow:0 4px 14px rgba(0,0,0,.16) !important;
+}
+#dashView.map-mode #pointTypeRow .point-type-chip *{
+  color:inherit !important;
+}
+#dashView.map-mode #pointTypeRow .point-type-chip.active{
+  color:#155236 !important; background:#e8f1eb !important;
+}
+
+/* PAC panel: beneath the PAC button. Keep it away from the search. */
+#dashView.map-mode #rpgPanel{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 174px) !important;
+  left:12px !important; right:12px !important;
+  width:auto !important; max-width:none !important;
+  box-sizing:border-box !important;
+  z-index:10050 !important;
+  background:rgba(255,255,255,.98) !important;
+  color:#172019 !important;
+  border-radius:16px !important;
+  box-shadow:0 7px 22px rgba(0,0,0,.18) !important;
+}
+#dashView.map-mode #rpgPanel *{color:#172019}
+#dashView.map-mode #rpgPanel.hidden{display:none !important}
+
+/* Search results stay below the search itself. They never get put behind
+   either of the two top buttons. */
+#dashView.map-mode #mapSearchResults{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 116px) !important;
+  left:12px !important; right:12px !important;
+  width:auto !important; max-width:none !important;
+  margin:0 !important; z-index:10060 !important;
+}
+
+/* Do not move the search when a point/PAC menu opens. */
+body.v2-point-types-open #dashView.map-mode .map-search,
+body.v2-rpg-open #dashView.map-mode .map-search{
+  top:calc(env(safe-area-inset-top,0px) + 62px) !important;
+}
+body.v2-point-types-open #dashView.map-mode #mapSearchResults,
+body.v2-rpg-open #dashView.map-mode #mapSearchResults{
+  top:calc(env(safe-area-inset-top,0px) + 116px) !important;
+}
+
+/* ---------------- LEAFLET / LOWER MAP ---------------- */
+#dashView.map-mode .leaflet-control-zoom{
+  position:fixed !important;
+  left:auto !important; right:12px !important; top:auto !important;
+  bottom:calc(88px + env(safe-area-inset-bottom,0px)) !important;
+  margin:0 !important; z-index:10070 !important;
+  border:0 !important; border-radius:12px !important; overflow:hidden !important;
+  box-shadow:0 4px 14px rgba(0,0,0,.20) !important;
+}
+#dashView.map-mode .leaflet-control-zoom a{
+  width:44px !important; height:44px !important; line-height:44px !important;
+  background:#fff !important; color:#172019 !important;
+  font-size:23px !important; border:0 !important;
+}
+#dashView.map-mode .leaflet-control-zoom a+a{border-top:1px solid #e1e6e2 !important}
+#dashView.map-mode .map-actions{
+  position:fixed !important;
+  left:auto !important; right:12px !important; top:auto !important;
+  bottom:calc(188px + env(safe-area-inset-bottom,0px)) !important;
+  margin:0 !important; z-index:10075 !important;
+}
+#dashView.map-mode #locateBtn{
+  width:48px !important; height:48px !important; min-height:48px !important;
+  border-radius:50% !important;
+}
+
+/* ---------------- CHATBOT ----------------
+   Bottom-left, above the nav. Opening it must NOT focus/zoom the page. */
+.chatbot-btn{
+  position:fixed !important;
+  left:14px !important; right:auto !important;
+  bottom:calc(86px + env(safe-area-inset-bottom,0px)) !important;
+  width:52px !important; height:52px !important; min-height:52px !important;
+  z-index:10090 !important;
+}
+.chatbot-panel{
+  position:fixed !important;
+  left:10px !important; right:10px !important;
+  bottom:calc(148px + env(safe-area-inset-bottom,0px)) !important;
+  max-width:none !important; width:auto !important; margin:0 !important;
+  z-index:10091 !important;
+}
+.chatbot-panel input,
+.chatbot-panel textarea,
+.chatbot-panel select{
+  font-size:16px !important;
+}
+
+/* Parcel sheet closes visually when another V2 tab is selected. */
+#parcelSheet{z-index:200000 !important}
+
+@media(max-width:430px){
+  #dashView.map-mode .map-search{left:9px !important;right:9px !important}
+  #dashView.map-mode .map-search-btn{flex-basis:88px !important;width:88px !important;min-width:88px !important}
+  #dashView.map-mode .rpg-toggle-btn{padding:0 10px !important;max-width:45vw !important}
+  #dashView.map-mode #pointTypeRow{right:9px !important;width:195px !important}
+  #dashView.map-mode #rpgPanel{left:9px !important;right:9px !important}
+}
+</style>
+
+<script id="v2-mobile-map-layout-final-script">
+(function(){
+  "use strict";
+  function init(){
+    const dash=document.getElementById('dashView');
+    const nav=document.querySelector('.v2-bottom-nav');
+    if(!dash) return;
+
+    // Keep the bottom navigation present even while Leaflet/map mode is active.
+    function sync(){
+      const mapMode=dash.classList.contains('map-mode');
+      document.body.classList.toggle('v2-map-open',mapMode);
+      if(nav) nav.style.display=dash.classList.contains('hidden')?'none':'block';
+    }
+    new MutationObserver(sync).observe(dash,{attributes:true,attributeFilter:['class']});
+    sync();
+
+    // iPhone: prevent programmatic focus/scroll when the chatbot opens.
+    const chatBtn=document.getElementById('chatbotBtn');
+    if(chatBtn){
+      chatBtn.addEventListener('click',function(){
+        const input=document.getElementById('chatbotInput');
+        if(input){ input.blur(); }
+        window.scrollTo(0,0);
+      },true);
+    }
+
+    // Close the parcel sheet as soon as a bottom navigation item is chosen.
+    if(nav){
+      nav.addEventListener('click',function(e){
+        const b=e.target.closest('.v2-nav-btn');
+        if(!b) return;
+        const sheet=document.getElementById('parcelSheet');
+        if(sheet && !sheet.classList.contains('hidden')){
+          const close=document.getElementById('psClose');
+          if(close) close.click(); else sheet.classList.add('hidden');
+        }
+      },true);
+    }
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
