@@ -691,8 +691,32 @@ button{
 .interv-log-row{padding:8px 0;border-bottom:1px solid var(--rule);font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:flex-start;}
 .interv-log-row .d{color:var(--ink-soft);font-size:11.5px;}
 .interv-log-del{background:transparent;border:none;color:var(--danger);cursor:pointer;font-size:13px;flex:none;}
-.point-type-row{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;}
-.point-type-chip{border:1.5px solid var(--rule);background:var(--paper);border-radius:20px;padding:6px 11px;font-size:12.5px;cursor:pointer;font-family:'Inter',sans-serif;}
+.point-type-row{
+  position:fixed;top:calc(env(safe-area-inset-top,0px) + 128px);right:12px;left:auto;
+  display:flex;flex-direction:column;align-items:flex-end;gap:6px;z-index:2600;
+}
+.point-type-chip{border:1.5px solid var(--rule);background:rgba(255,255,255,.95);border-radius:20px;padding:6px 12px;font-size:12.5px;cursor:pointer;font-family:'Inter',sans-serif;box-shadow:0 2px 10px rgba(15,23,42,.12);white-space:nowrap;}
+.chatbot-btn{
+  position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);right:16px;
+  width:54px;height:54px;border-radius:50%;border:none;background:var(--forest);color:#fff;
+  font-size:24px;box-shadow:0 6px 20px rgba(15,23,42,.25);z-index:2500;cursor:pointer;
+}
+#dashView.map-mode .chatbot-btn,#dashView.map-mode .chatbot-panel{display:none !important;}
+.chatbot-panel{
+  position:fixed;right:14px;left:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 82px);
+  max-width:420px;margin-left:auto;background:var(--paper);border-radius:16px;
+  box-shadow:0 12px 36px rgba(15,23,42,.28);z-index:2500;display:flex;flex-direction:column;
+  max-height:70vh;overflow:hidden;
+}
+.chatbot-header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--rule);font-weight:700;font-size:14px;}
+.chatbot-header button{background:none;border:none;font-size:16px;cursor:pointer;color:var(--ink-soft);}
+.chatbot-messages{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;}
+.chatbot-msg{max-width:88%;padding:8px 12px;border-radius:14px;font-size:13.5px;line-height:1.4;white-space:pre-wrap;}
+.chatbot-msg.user{align-self:flex-end;background:var(--forest);color:#fff;border-bottom-right-radius:4px;}
+.chatbot-msg.bot{align-self:flex-start;background:var(--bg);color:var(--ink);border-bottom-left-radius:4px;}
+.chatbot-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rule);}
+.chatbot-input-row input{flex:1;box-sizing:border-box;font-size:14px;padding:9px 11px;border-radius:9px;border:1px solid var(--rule);font-family:'Inter',sans-serif;}
+.chatbot-input-row button{background:var(--forest);color:#fff;border:none;border-radius:9px;padding:0 14px;font-weight:700;cursor:pointer;}
 .point-type-chip.active{border-color:var(--forest);background:#E4EEE2;color:var(--forest-dark);font-weight:700;}
 .parcel-sheet-field-row{display:flex;gap:10px;}
 #psNote{width:100%;box-sizing:border-box;font-family:'Inter',sans-serif;font-size:14px;padding:10px 12px;border-radius:11px;border:1px solid var(--rule);resize:vertical;margin-bottom:16px;}
@@ -1053,6 +1077,19 @@ button{
     </div>
   </section>
 
+  <button type="button" id="chatbotBtn" class="chatbot-btn" aria-label="Ouvrir l'assistant">💬</button>
+  <div id="chatbotPanel" class="chatbot-panel hidden">
+    <div class="chatbot-header">
+      <span>💬 Assistant parcelles</span>
+      <button type="button" id="chatbotClose" aria-label="Fermer l'assistant">✕</button>
+    </div>
+    <div id="chatbotMessages" class="chatbot-messages"></div>
+    <div class="chatbot-input-row">
+      <input type="text" id="chatbotInput" placeholder="Tape une question ou une commande…" autocomplete="off">
+      <button type="button" id="chatbotSend">Envoyer</button>
+    </div>
+  </div>
+
 </div>
 
 <footer>
@@ -1162,12 +1199,39 @@ button{
         <option value="u/ha">u/ha (unités)</option>
         <option value="mm">mm</option>
       </select>
+      <input type="number" step="0.01" min="0" id="psIntervPrixUnitaire" placeholder="Prix unitaire (€)" style="flex:1;">
+    </div>
+    <div class="interv-form-row">
+      <input type="number" step="0.01" min="0" id="psIntervCoutOp" placeholder="Coût de l'opération (€/ha) — mécanisation, façon…" style="flex:1;">
     </div>
     <div class="parcel-sheet-field">
       <input type="text" id="psIntervNote" placeholder="Remarque (facultatif)">
     </div>
     <button type="button" class="secondary" id="psIntervAdd">+ Ajouter l'intervention</button>
     <div id="psIntervLog" style="margin-top:8px;"></div>
+
+    <hr class="rule">
+    <div class="ps-subhead">💶 Résultat économique</div>
+    <div class="patre-row">
+      <div class="parcel-sheet-field-row">
+        <div class="parcel-sheet-field">
+          <label for="psRendement">Rendement</label>
+          <input type="number" step="0.01" min="0" id="psRendement" placeholder="Rendement">
+        </div>
+        <div class="parcel-sheet-field">
+          <label for="psRendementUnite">Unité</label>
+          <select id="psRendementUnite">
+            <option value="q/ha">q/ha</option>
+            <option value="t/ha">t/ha</option>
+          </select>
+        </div>
+      </div>
+      <div class="parcel-sheet-field">
+        <label for="psPrixVente">Prix de vente (€ par unité de rendement)</label>
+        <input type="number" step="0.01" min="0" id="psPrixVente" placeholder="Prix de vente">
+      </div>
+      <div id="psEcoSummary" class="patre-total"></div>
+    </div>
   </div>
 </div>
 
@@ -2845,9 +2909,21 @@ button{
   });
 
   // ---------- Interventions manuelles ----------
-  const QTE_TYPES = ["Fertilisation minérale","Épandage organique","Traitement phytosanitaire","Irrigation"];
+  const QTE_TYPES = ["Semis","Fertilisation minérale","Épandage organique","Traitement phytosanitaire","Irrigation"];
+  const INTERV_TYPES = ["Déchaumage","Labour","Semis","Fertilisation minérale","Épandage organique","Traitement phytosanitaire","Fauche","Récolte / moisson","Roulage","Hersage","Irrigation","Autre"];
   function updateIntervQteVisibility(){
     $("psIntervQteRow").classList.toggle("hidden", !QTE_TYPES.includes($("psIntervType").value));
+  }
+  function intervCostPerHa(iv){
+    const produit = (iv.quantite!=null && iv.prixUnitaire!=null) ? (iv.quantite*iv.prixUnitaire) : 0;
+    const op = iv.coutOperation!=null ? iv.coutOperation : 0;
+    return produit + op;
+  }
+  function fmtEuro(n){
+    return n.toLocaleString("fr-FR",{minimumFractionDigits:0,maximumFractionDigits:2})+" €";
+  }
+  function fmtSurface(n){
+    return n.toLocaleString("fr-FR",{maximumFractionDigits:2})+" ha";
   }
   function renderIntervLog(){
     if(!currentParcel) return;
@@ -2856,8 +2932,10 @@ button{
     let html = "";
     list.forEach(iv=>{
       const qte = (iv.quantite!=null && iv.quantite!=="") ? " · "+iv.quantite+" "+(iv.unite||"") : "";
+      const costHa = intervCostPerHa(iv);
+      const costTxt = costHa ? " · "+fmtEuro(costHa)+"/ha" : "";
       html += '<div class="interv-log-row"><div><div class="d">'+escapeHtml(displayDate(iv.date))+'</div>'
-        + escapeHtml(iv.type||"")+qte+(iv.note?" — "+escapeHtml(iv.note):"")+'</div>'
+        + escapeHtml(iv.type||"")+qte+costTxt+(iv.note?" — "+escapeHtml(iv.note):"")+'</div>'
         + '<button type="button" class="interv-log-del" data-id="'+iv.id+'">🗑️</button></div>';
     });
     $("psIntervLog").innerHTML = html || '<div class="empty">Aucune intervention enregistrée pour cette parcelle.</div>';
@@ -2866,6 +2944,7 @@ button{
       meta.manualInterventions = (meta.manualInterventions||[]).filter(x=> x.id!==btn.dataset.id);
       await saveParcelMeta();
       renderIntervLog();
+      renderEcoPanel();
     }));
   }
   $("psIntervType").addEventListener("change", updateIntervQteVisibility);
@@ -2880,6 +2959,8 @@ button{
       date, type,
       quantite: (showQte && $("psIntervQte").value!=="") ? parseFloat($("psIntervQte").value) : null,
       unite: showQte ? $("psIntervUnite").value : "",
+      prixUnitaire: (showQte && $("psIntervPrixUnitaire").value!=="") ? parseFloat($("psIntervPrixUnitaire").value) : null,
+      coutOperation: $("psIntervCoutOp").value!=="" ? parseFloat($("psIntervCoutOp").value) : null,
       note: $("psIntervNote").value.trim(),
       manual:true
     };
@@ -2888,8 +2969,11 @@ button{
     meta.manualInterventions.push(iv);
     await saveParcelMeta();
     $("psIntervQte").value = "";
+    $("psIntervPrixUnitaire").value = "";
+    $("psIntervCoutOp").value = "";
     $("psIntervNote").value = "";
     renderIntervLog();
+    renderEcoPanel();
   });
   updateIntervQteVisibility();
   function collectManualInterventions(){
@@ -2903,6 +2987,56 @@ button{
     });
     return out;
   }
+
+  // ---------- Résultat économique (marge brute par parcelle) ----------
+  function totalChargesForParcel(p){
+    const meta = getParcelMeta(p);
+    const surface = p.surface || 0;
+    return (meta.manualInterventions||[]).reduce((sum,iv)=> sum + intervCostPerHa(iv)*surface, 0);
+  }
+  function collectEcoFromDOM(){
+    return {
+      rendement: $("psRendement").value!=="" ? parseFloat($("psRendement").value) : null,
+      rendementUnite: $("psRendementUnite").value,
+      prixVente: $("psPrixVente").value!=="" ? parseFloat($("psPrixVente").value) : null
+    };
+  }
+  let ecoSaveTimer = null;
+  function scheduleEcoSave(){
+    renderEcoPanel();
+    clearTimeout(ecoSaveTimer);
+    ecoSaveTimer = setTimeout(flushEcoSave, 500);
+  }
+  async function flushEcoSave(){
+    if(!currentParcel) return;
+    getParcelMeta(currentParcel).eco = collectEcoFromDOM();
+    await saveParcelMeta();
+  }
+  function renderEcoPanel(){
+    if(!currentParcel) return;
+    const p = currentParcel;
+    const eco = collectEcoFromDOM();
+    const surface = p.surface || 0;
+    const chargesTotal = totalChargesForParcel(p);
+    const chargesHa = surface ? chargesTotal/surface : 0;
+    let html = "";
+    if(eco.rendement!=null && eco.prixVente!=null){
+      const produitHa = eco.rendement * eco.prixVente;
+      const produitTotal = produitHa * surface;
+      const margeHa = produitHa - chargesHa;
+      const margeTotal = produitTotal - chargesTotal;
+      html = "Produit brut : "+fmtEuro(produitHa)+"/ha"+(surface?" · "+fmtEuro(produitTotal)+" au total":"")+"<br>"
+        + "Charges (intrants + opérations saisis) : "+fmtEuro(chargesHa)+"/ha"+(surface?" · "+fmtEuro(chargesTotal)+" au total":"")+"<br>"
+        + "<b>Marge brute : "+fmtEuro(margeHa)+"/ha"+(surface?" · "+fmtEuro(margeTotal)+" au total":"")+"</b>";
+    } else if(chargesTotal){
+      html = "Charges (intrants + opérations saisis) : "+fmtEuro(chargesHa)+"/ha"+(surface?" · "+fmtEuro(chargesTotal)+" au total":"")+"<br>Renseigne un rendement et un prix de vente pour calculer la marge brute.";
+    } else {
+      html = "Renseigne un rendement, un prix de vente et des interventions chiffrées pour calculer la marge brute.";
+    }
+    $("psEcoSummary").innerHTML = html;
+  }
+  ["psRendement","psPrixVente"].forEach(id=> $(id).addEventListener("input", scheduleEcoSave));
+  $("psRendementUnite").addEventListener("change", scheduleEcoSave);
 
   function openParcelSheet(p){
     currentParcel = p;
@@ -2931,6 +3065,11 @@ button{
     renderParcelSheetPhotos();
     renderPatrePanel();
     renderIntervLog();
+    const eco = meta.eco || {};
+    $("psRendement").value = eco.rendement!=null ? eco.rendement : "";
+    $("psRendementUnite").value = eco.rendementUnite || "q/ha";
+    $("psPrixVente").value = eco.prixVente!=null ? eco.prixVente : "";
+    renderEcoPanel();
     $("parcelSheet").classList.remove("hidden");
   }
   let fieldSaveTimer = null;
@@ -3357,6 +3496,236 @@ button{
       prompt("Copie manuellement cet identifiant d'appareil :", DEVICE_ID);
     }
   });
+
+  // ---------- Assistant conversationnel (règles locales — aucune donnée envoyée en ligne) ----------
+  function normStr(s){
+    return (s||"").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
+  }
+  function allOwnParcelles(){
+    return ((dataset && dataset.parcelles) ? dataset.parcelles : []);
+  }
+  function allParcellesForSearch(){
+    return allOwnParcelles().concat(manualParcelles);
+  }
+  function findParcelle(nameQuery){
+    const q = normStr(nameQuery);
+    if(!q) return null;
+    const all = allParcellesForSearch();
+    let matches = all.filter(p=> normStr(p.parcelle)===q);
+    if(matches.length===1) return matches[0];
+    if(!matches.length) matches = all.filter(p=> p.parcelle && (normStr(p.parcelle).includes(q) || q.includes(normStr(p.parcelle))));
+    if(matches.length===1) return matches[0];
+    if(matches.length>1) return {_ambiguous:true, matches};
+    return null;
+  }
+  function ambiguousReply(matches){
+    return "Plusieurs parcelles correspondent : "+matches.map(p=>p.parcelle||"(sans nom)").join(", ")+". Précise le nom exact.";
+  }
+  function parseFrDate(raw){
+    let s = normStr(raw);
+    if(/^aujourd ?hui$/.test(s)) return new Date().toISOString().slice(0,10);
+    if(s==="hier"){ const d=new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
+    let m = s.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+    if(m){ let [,d,mo,y]=m; if(y.length===2) y="20"+y; return y+"-"+mo.padStart(2,"0")+"-"+d.padStart(2,"0"); }
+    m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[0];
+    return null;
+  }
+  function matchCropLabel(label){
+    const found = CROPS.find(c=> normStr(c)===normStr(label));
+    return found || (label.trim().charAt(0).toUpperCase()+label.trim().slice(1));
+  }
+  async function persistParcelField(p, fields){
+    Object.assign(p, fields);
+    if(p._manual){ await saveManualParcelles(); }
+    else {
+      const meta = getParcelMeta(p);
+      meta.overrides = Object.assign({}, meta.overrides||{}, fields);
+      await saveParcelMeta();
+    }
+  }
+
+  async function handleChatIntent(raw){
+    const text = raw.trim();
+    const norm = normStr(text);
+    if(!norm) return "Dis-moi ce que tu veux savoir ou faire.";
+
+    if(/^(aide|help|\?|que peux tu faire|commandes?)/.test(norm)){
+      return "Je peux répondre à des questions et modifier tes données, uniquement en local sur cet appareil. Exemples :\n"
+        + "• « surface totale »\n• « surface de maïs »\n• « infos sur la parcelle Champ Neuf »\n"
+        + "• « interventions sur la parcelle Champ Neuf »\n• « marge de la parcelle Champ Neuf »\n"
+        + "• « bêtes au pré sur la parcelle Champ Neuf »\n"
+        + "• « ajoute une intervention labour sur la parcelle Champ Neuf le 12/09/2026 »\n"
+        + "• « change la culture de la parcelle Champ Neuf en colza »\n"
+        + "• « ajoute une parcelle Champ du Bois »\n"
+        + "• « mets le rendement de la parcelle Champ Neuf a 75 »\n"
+        + "• « mets le prix de vente de la parcelle Champ Neuf a 220 »\n"
+        + "Je ne supprime jamais rien tout seul — les suppressions se font dans la fiche parcelle.";
+    }
+
+    if(/surface totale|hectares? au total|combien d.?hectares?( j.?ai)?( au total)?$/.test(norm)){
+      const total = allOwnParcelles().reduce((s,p)=> s+(p.surface||0), 0);
+      return "Surface totale de l'exploitation : "+fmtSurface(total)+" sur "+allOwnParcelles().length+" parcelle(s).";
+    }
+
+    let m = norm.match(/^ajoute(?:r)? une intervention (.+) sur (?:la parcelle )?(.+) le (.+)$/);
+    if(m){
+      const typeRaw = m[1].trim(), nameRaw = m[2].trim(), dateRaw = m[3].trim();
+      const found = findParcelle(nameRaw);
+      if(!found) return "Je ne trouve pas de parcelle nommée « "+nameRaw+" ».";
+      if(found._ambiguous) return ambiguousReply(found.matches);
+      const date = parseFrDate(dateRaw);
+      if(!date) return "Je n'ai pas compris la date « "+dateRaw+" ». Utilise jj/mm/aaaa, « aujourd'hui » ou « hier ».";
+      const typeMatch = INTERV_TYPES.find(t=> normStr(t)===normStr(typeRaw)) || (typeRaw.charAt(0).toUpperCase()+typeRaw.slice(1));
+      const iv = {id:"iv"+Date.now()+"-"+Math.random().toString(36).slice(2,7), date, type:typeMatch, quantite:null, unite:"", prixUnitaire:null, coutOperation:null, note:"", manual:true};
+      const meta = getParcelMeta(found);
+      meta.manualInterventions = meta.manualInterventions || [];
+      meta.manualInterventions.push(iv);
+      await saveParcelMeta();
+      if(currentParcel && currentParcel.guid===found.guid){ renderIntervLog(); renderEcoPanel(); }
+      renderDashboard(false);
+      return "Intervention « "+typeMatch+" » ajoutée sur "+(found.parcelle||nameRaw)+" le "+displayDate(date)+".";
+    }
+
+    m = norm.match(/^change(?:r)? la culture de (?:la parcelle )?(.+) en (.+)$/);
+    if(m){
+      const nameRaw = m[1].trim(), cropRaw = m[2].trim();
+      const found = findParcelle(nameRaw);
+      if(!found) return "Je ne trouve pas de parcelle nommée « "+nameRaw+" ».";
+      if(found._ambiguous) return ambiguousReply(found.matches);
+      const crop = matchCropLabel(cropRaw);
+      await persistParcelField(found, {culture: crop});
+      renderDashboard(false); renderManualParcelles();
+      if(currentParcel && currentParcel.guid===found.guid) openParcelSheet(found);
+      return "Culture de "+(found.parcelle||nameRaw)+" mise à jour : "+crop+".";
+    }
+
+    m = text.match(/ajoute(?:r)? une parcelle (.+)$/i);
+    if(m){
+      const name = m[1].trim();
+      const p = {guid:"own-"+Date.now()+"-"+Math.random().toString(36).slice(2,7), parcelle:name, culture:"", surface:null, exploitant:"", ilot:"", commune:"", _addedOwn:true};
+      await addOwnParcelToDataset(p);
+      return "Parcelle « "+name+" » ajoutée à ton exploitation. Ouvre sa fiche pour compléter surface et culture.";
+    }
+
+    m = norm.match(/^(?:mets|definis?) le rendement de (?:la parcelle )?(.+) a (.+)$/);
+    if(m){
+      const nameRaw = m[1].trim(); const val = parseFloat(m[2].replace(",","."));
+      const found = findParcelle(nameRaw);
+      if(!found) return "Je ne trouve pas de parcelle nommée « "+nameRaw+" ».";
+      if(found._ambiguous) return ambiguousReply(found.matches);
+      if(isNaN(val)) return "Je n'ai pas compris la valeur du rendement.";
+      const meta = getParcelMeta(found);
+      meta.eco = Object.assign({rendementUnite:"q/ha", prixVente:null}, meta.eco||{}, {rendement: val});
+      await saveParcelMeta();
+      if(currentParcel && currentParcel.guid===found.guid){ $("psRendement").value = val; renderEcoPanel(); }
+      return "Rendement de "+(found.parcelle||nameRaw)+" mis à "+val+" "+meta.eco.rendementUnite+".";
+    }
+
+    m = norm.match(/^(?:mets|definis?) le prix de vente de (?:la parcelle )?(.+) a (.+)$/);
+    if(m){
+      const nameRaw = m[1].trim(); const val = parseFloat(m[2].replace(",","."));
+      const found = findParcelle(nameRaw);
+      if(!found) return "Je ne trouve pas de parcelle nommée « "+nameRaw+" ».";
+      if(found._ambiguous) return ambiguousReply(found.matches);
+      if(isNaN(val)) return "Je n'ai pas compris le prix de vente.";
+      const meta = getParcelMeta(found);
+      meta.eco = Object.assign({rendementUnite:"q/ha", rendement:null}, meta.eco||{}, {prixVente: val});
+      await saveParcelMeta();
+      if(currentParcel && currentParcel.guid===found.guid){ $("psPrixVente").value = val; renderEcoPanel(); }
+      return "Prix de vente de "+(found.parcelle||nameRaw)+" mis à "+val+" €.";
+    }
+
+    m = norm.match(/^(?:marge|resultat economique|resultat eco)(?:s)?(?: de| sur)? (?:la parcelle )?(.+)$/);
+    if(m){
+      const found = findParcelle(m[1].trim());
+      if(!found) return "Je ne trouve pas de parcelle nommée « "+m[1].trim()+" ».";
+      if(found._ambiguous) return ambiguousReply(found.matches);
+      const meta = getParcelMeta(found);
+      const eco = meta.eco || {};
+      const surface = found.surface || 0;
+      const chargesTotal = totalChargesForParcel(found);
+      const chargesHa = surface ? chargesTotal/surface : 0;
+      if(eco.rendement==null || eco.prixVente==null){
+        return "Renseigne un rendement et un prix de vente pour "+found.parcelle+" (charges actuelles : "+fmtEuro(chargesHa)+"/ha).";
+      }
+      const produitHa = eco.rendement*eco.prixVente;
+      const margeHa = produitHa - chargesHa;
+      return "Marge brute de "+found.parcelle+" : "+fmtEuro(margeHa)+"/ha"+(surface?" ("+fmtEuro(margeHa*surface)+" au total)":"")+".";
+    }
+
+    m = norm.match(/^(?:betes|animaux) au pre (?:sur|de) (?:la parcelle )?(.+)$/);
+    if(m){
+      const found = findParcelle(m[1].trim());
+      if(!found) return "Je ne trouve pas de parcelle nommée « "+m[1].trim()+" ».";
+      if(found._ambiguous) return ambiguousReply(found.matches);
+      const meta = getParcelMeta(found);
+      const patre = meta.patre;
+      if(!patre || ((!patre.animaux||!patre.animaux.length) && !patre.nbSansId)) return "Aucune bête enregistrée au pré sur "+found.parcelle+".";
+      const total = (patre.animaux||[]).length + (patre.nbSansId||0);
+      return total+" bête(s) au pré sur "+found.parcelle+" depuis le "+(patre.dateMiseAuPre?displayDate(patre.dateMiseAuPre):"date non renseignée")+".";
+    }
+
+    m = norm.match(/^interventions? (?:sur|de) (?:la parcelle )?(.+)$/);
+    if(m){
+      const found = findParcelle(m[1].trim());
+      if(!found) return "Je ne trouve pas de parcelle nommée « "+m[1].trim()+" ».";
+      if(found._ambiguous) return ambiguousReply(found.matches);
+      const meta = getParcelMeta(found);
+      const list = (meta.manualInterventions||[]).slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+      if(!list.length) return "Aucune intervention manuelle enregistrée sur "+found.parcelle+".";
+      return "Interventions sur "+found.parcelle+" :\n"+list.slice(0,8).map(iv=> "• "+displayDate(iv.date)+" — "+iv.type+(iv.quantite?" ("+iv.quantite+" "+iv.unite+")":"")).join("\n");
+    }
+
+    m = norm.match(/^(?:infos?|informations?) (?:sur|de) (?:la parcelle )?(.+)$/) || norm.match(/^parcelle (.+)$/);
+    if(m){
+      const found = findParcelle(m[1].trim());
+      if(!found) return "Je ne trouve pas de parcelle nommée « "+m[1].trim()+" ».";
+      if(found._ambiguous) return ambiguousReply(found.matches);
+      return (found.parcelle||"(sans nom)")+" — "+(found.culture||"culture non renseignée")+", "+(found.surface!=null?fmtSurface(found.surface):"surface non renseignée")+(found.commune?", "+found.commune:"")+".";
+    }
+
+    m = norm.match(/^(?:surface (?:de|du|des) |combien d.?hectares? de )(.+)$/);
+    if(m){
+      const cropQ = normStr(m[1]);
+      const matching = allOwnParcelles().filter(p=> p.culture && normStr(p.culture).includes(cropQ));
+      if(!matching.length) return "Je ne trouve aucune parcelle avec une culture correspondant à « "+m[1]+" ».";
+      const total = matching.reduce((s,p)=> s+(p.surface||0),0);
+      return fmtSurface(total)+" répartis sur "+matching.length+" parcelle(s) pour « "+m[1]+" ».";
+    }
+
+    return "Je n'ai pas compris. Tape « aide » pour voir des exemples de questions et de commandes.";
+  }
+
+  function addChatMsg(role, text){
+    const box = $("chatbotMessages");
+    const div = document.createElement("div");
+    div.className = "chatbot-msg "+role;
+    div.textContent = text;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+  $("chatbotBtn").addEventListener("click", ()=>{
+    $("chatbotPanel").classList.remove("hidden");
+    if(!$("chatbotMessages").children.length){
+      addChatMsg("bot", "Bonjour ! Pose-moi une question sur tes parcelles ou demande-moi de modifier une donnée. Tape « aide » pour des exemples.");
+    }
+    $("chatbotInput").focus();
+  });
+  $("chatbotClose").addEventListener("click", ()=> $("chatbotPanel").classList.add("hidden"));
+  async function sendChatMessage(){
+    const input = $("chatbotInput");
+    const text = input.value.trim();
+    if(!text) return;
+    addChatMsg("user", text);
+    input.value = "";
+    let reply;
+    try{ reply = await handleChatIntent(text); }
+    catch(e){ reply = "Une erreur est survenue en traitant ta demande."; }
+    addChatMsg("bot", reply);
+  }
+  $("chatbotSend").addEventListener("click", sendChatMessage);
+  $("chatbotInput").addEventListener("keydown", (e)=>{ if(e.key==="Enter") sendChatMessage(); });
 
   // ---------- Boot ----------
 
