@@ -697,6 +697,7 @@ button{
   box-shadow:0 2px 10px rgba(15,23,42,.12);z-index:1200;display:none;
 }
 #dashView.map-mode .rpg-toggle-btn{display:block;}
+.rpg-toggle-btn.active{background:var(--forest);color:#fff;border-color:var(--forest);}
 .rpg-panel{
   position:fixed;top:calc(env(safe-area-inset-top,0px) + 128px);left:12px;right:12px;
   background:var(--paper);border-radius:14px;padding:14px;
@@ -948,6 +949,10 @@ button{
         <button type="button" class="secondary todo-filter-btn active" id="todoFilter" aria-pressed="true">★ Aujourd'hui</button>
         <button type="button" class="secondary" id="todoReset" title="Décocher toutes les parcelles marquées à faire">Réinitialiser</button>
         <button type="button" class="secondary" id="groupItinerary" title="Itinéraire pour toutes les parcelles à faire aujourd'hui">🧭 Itinéraire du jour</button>
+        <select id="mapProviderSelect" title="Service utilisé pour les itinéraires" aria-label="Service utilisé pour les itinéraires">
+          <option value="apple">via Plans (iOS)</option>
+          <option value="google">via Google Maps</option>
+        </select>
       </div>
       <div class="plist" id="parcelleList"></div>
 
@@ -970,6 +975,7 @@ button{
         <button type="button" class="map-gps-btn" id="locateBtn" aria-label="Afficher ma position">● Ma position</button>
       </div>
       <button type="button" class="rpg-toggle-btn" id="rpgPanelBtn" aria-label="Parcelles PAC alentours">🌾 PAC alentours</button>
+      <button type="button" class="rpg-toggle-btn" id="addPointBtn" style="left:auto;right:12px;" aria-pressed="false">📍 Ajouter un point</button>
       <div id="rpgPanel" class="rpg-panel hidden">
         <div class="parcel-sheet-label">Parcelles PAC alentours (référence)</div>
         <div style="display:flex;gap:8px;align-items:center;margin:8px 0;">
@@ -1044,6 +1050,7 @@ button{
   const GEOM_KEY = "geofolia-geometries-v1";
   const GEO_CACHE_KEY = "commune-geo-cache-v1";
   const PARCEL_META_KEY = "parcel-meta-v1";
+  const CUSTOM_POINTS_KEY = "custom-points-v1";
   const SS_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
   const REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
   const CHART_COLORS = ["#2F5233","#B8933B","#445E75","#8B5E3C","#6B7A5E","#7A5A78","#4A7A6E"];
@@ -1068,6 +1075,7 @@ button{
   let geometries = {};         // guid -> {rings:[[[lat,lon],...],...], nom, culture, surface, ilot, commune, insee}
   let geoCache = {};           // insee -> {lat, lon} | null  (commune fallback geocoding)
   let parcelMeta = {};         // clé parcelle -> {todo:bool, note:string, photoIds:[]}
+  let customPoints = [];       // points ajoutés à la main sur la carte : {id, lat, lon, name, createdAt}
   let cultureColorMap = {};
   let map = null;
   let rpgLayerGroup = null;
@@ -1652,6 +1660,20 @@ button{
     }catch(e){}
   }
 
+  async function saveCustomPoints(){
+    try{
+      const value = JSON.stringify(customPoints);
+      try{ localStorage.setItem(CUSTOM_POINTS_KEY, value); }catch(e){}
+      if(window.storage) await window.storage.set(CUSTOM_POINTS_KEY, value, false);
+    }catch(e){}
+  }
+  async function loadCustomPoints(){
+    try{
+      try{ const value = localStorage.getItem(CUSTOM_POINTS_KEY); if(value){ customPoints=JSON.parse(value); return; } }catch(e){}
+      if(window.storage){ const res=await window.storage.get(CUSTOM_POINTS_KEY,false); if(res&&res.value) customPoints=JSON.parse(res.value); }
+    }catch(e){}
+  }
+
   // ---------- Parcelles PAC alentours (RPG, référence — jamais mélangé à mes propres parcelles) ----------
 
   // Table officielle des 28 groupes de cultures du RPG (code_group -> libellé)
@@ -1690,19 +1712,28 @@ button{
   const RPG_ANNEE = 2023; // dernière campagne fiablement disponible sur l'API au moment de l'écriture
   async function fetchRpgAround(lat, lon, radiusKm, onProgress){
     const geom = JSON.stringify(makeCircleGeoJSON(lat, lon, radiusKm));
-    const pageSize = 1000, maxFeatures = 3000;
-    let start = 0, all = [], total = null;
+    const pageSize = 1000, maxFeatures = 6000, maxPages = 30;
+    let start = 0, all = [], total = null, pages = 0;
     while(true){
+      pages++;
+      if(pages > maxPages) break; // garde-fou : évite toute boucle qui s'éterniserait
       const url = "https://apicarto.ign.fr/api/rpg/v2?annee="+RPG_ANNEE+"&geom="+encodeURIComponent(geom)+"&_limit="+pageSize+"&_start="+start;
-      const res = await fetchWithTimeout(url, 15000);
+      const res = await fetchWithTimeout(url, 20000);
       if(!res.ok) break;
       const data = await res.json();
-      if(total===null) total = data.totalFeatures!=null ? data.totalFeatures : (data.features||[]).length;
       const feats = data.features || [];
+      if(feats.length===0) break; // page vide = plus rien à récupérer
+      if(total===null) total = (typeof data.totalFeatures === "number") ? data.totalFeatures : null;
       all = all.concat(feats);
       if(onProgress) onProgress(all.length, total);
       start += pageSize;
-      if(feats.length < pageSize) break;
+      // On ne s'arrête sur "page incomplète" que si l'API ne nous a donné aucun total fiable.
+      // Sinon on continue tant qu'il manque des résultats par rapport au total annoncé.
+      if(total!=null){
+        if(all.length >= total) break;
+      } else if(feats.length < pageSize){
+        break;
+      }
       if(all.length >= maxFeatures) break;
     }
     return all;
@@ -1890,10 +1921,14 @@ button{
     await saveParcelMeta();
     renderParcelleList();
   });
+  $("mapProviderSelect").value = getMapProvider();
+  $("mapProviderSelect").addEventListener("change", ()=>{
+    setMapProvider($("mapProviderSelect").value);
+  });
   $("groupItinerary").addEventListener("click", async ()=>{
     if(!dataset || !dataset.parcelles) return;
     const todos = dataset.parcelles.filter(p => getParcelMeta(p).todo);
-    if(!todos.length){ alert("Aucune parcelle n'est marquée à faire aujourd'hui."); return; }
+    if(!todos.length && !customPoints.length){ alert("Aucune parcelle ni aucun point n'est marqué à faire aujourd'hui."); return; }
     const btn = $("groupItinerary");
     const label = btn.textContent;
     btn.textContent = "Recherche…";
@@ -1902,15 +1937,10 @@ button{
       const c = await resolveParcelCoords(p);
       if(c) coordsList.push(c);
     }
+    customPoints.forEach(pt=> coordsList.push({lat:pt.lat, lon:pt.lon}));
     btn.textContent = label;
-    if(!coordsList.length){ alert("Impossible de localiser les parcelles marquées à faire aujourd'hui."); return; }
-    // Apple Plans ne gère de façon fiable qu'une seule destination : pour un itinéraire
-    // à plusieurs étapes, on passe par Google Maps (waypoints officiellement supportés).
-    const destination = coordsList[coordsList.length-1];
-    const waypoints = coordsList.slice(0,-1).map(c=> c.lat+","+c.lon).join("|");
-    let url = "https://www.google.com/maps/dir/?api=1&destination="+destination.lat+","+destination.lon+"&travelmode=driving";
-    if(waypoints) url += "&waypoints="+encodeURIComponent(waypoints);
-    window.open(url, "_blank");
+    if(!coordsList.length){ alert("Impossible de localiser les parcelles/points marqués à faire aujourd'hui."); return; }
+    window.open(buildGroupItineraryUrl(coordsList), "_blank");
   });
   $("search").addEventListener("input", renderParcelleList);
   $("sortSel").addEventListener("change", renderParcelleList);
@@ -2085,6 +2115,32 @@ button{
     return null;
   }
 
+  const MAP_PROVIDER_KEY = "map-provider-pref-v1";
+  function getMapProvider(){
+    try{ return localStorage.getItem(MAP_PROVIDER_KEY) || "apple"; }catch(e){ return "apple"; }
+  }
+  function setMapProvider(value){
+    try{ localStorage.setItem(MAP_PROVIDER_KEY, value); }catch(e){}
+  }
+  function buildSingleItineraryUrl(coords){
+    if(getMapProvider()==="google"){
+      return "https://www.google.com/maps/dir/?api=1&destination="+coords.lat+","+coords.lon+"&travelmode=driving";
+    }
+    return "https://maps.apple.com/?daddr="+coords.lat+","+coords.lon+"&dirflg=d";
+  }
+  function buildGroupItineraryUrl(coordsList){
+    if(getMapProvider()==="google"){
+      const destination = coordsList[coordsList.length-1];
+      const waypoints = coordsList.slice(0,-1);
+      let url = "https://www.google.com/maps/dir/?api=1&destination="+destination.lat+","+destination.lon+"&travelmode=driving";
+      if(waypoints.length) url += "&waypoints="+encodeURIComponent(waypoints.map(c=>c.lat+","+c.lon).join("|"));
+      return url;
+    }
+    // Plans (iOS) : enchaînement d'étapes non documenté officiellement par Apple mais qui
+    // fonctionne généralement en pratique — un peu moins fiable que la version Google Maps.
+    return "https://maps.apple.com/?dirflg=d&daddr="+coordsList.map(c=> c.lat+","+c.lon).join("+to:");
+  }
+
   function drawRpgFeatures(features){
     if(!map) return;
     const wasVisible = rpgLayerGroup && map.hasLayer(rpgLayerGroup);
@@ -2111,6 +2167,48 @@ button{
     if(visible){ if(!map.hasLayer(rpgLayerGroup)) rpgLayerGroup.addTo(map); }
     else { if(map.hasLayer(rpgLayerGroup)) map.removeLayer(rpgLayerGroup); }
   }
+
+  // ---------- Points personnalisés (à faire aujourd'hui, sans parcelle associée) ----------
+  let customPointsLayer = null;
+  let addingPointMode = false;
+
+  function drawCustomPoints(){
+    if(!map) return;
+    if(customPointsLayer){ map.removeLayer(customPointsLayer); }
+    customPointsLayer = L.layerGroup().addTo(map);
+    customPoints.forEach(pt=>{
+      const marker = L.circleMarker([pt.lat, pt.lon], {
+        radius:9, color:"#B8860B", weight:2.5, fillColor:"#FFB300", fillOpacity:0.9
+      });
+      marker.bindPopup(
+        "<b>📍 "+escapeHtml(pt.name||"Point ajouté")+"</b><br>★ à faire aujourd'hui"
+        + '<br><button type="button" class="popup-open-sheet" data-act="go">📍 Itinéraire</button> '
+        + '<button type="button" class="popup-open-sheet" data-act="del" style="background:var(--danger);">🗑️ Supprimer</button>'
+      );
+      marker.on("popupopen", (e)=>{
+        const el = e.popup.getElement();
+        const goBtn = el && el.querySelector('[data-act="go"]');
+        const delBtn = el && el.querySelector('[data-act="del"]');
+        if(goBtn) goBtn.addEventListener("click", ()=>{
+          window.open(buildSingleItineraryUrl({lat:pt.lat, lon:pt.lon}), "_blank");
+        });
+        if(delBtn) delBtn.addEventListener("click", async ()=>{
+          if(!confirm("Supprimer ce point ?")) return;
+          customPoints = customPoints.filter(x=> x.id!==pt.id);
+          await saveCustomPoints();
+          map.closePopup();
+          drawCustomPoints();
+        });
+      });
+      marker.addTo(customPointsLayer);
+    });
+  }
+
+  $("addPointBtn").addEventListener("click", ()=>{
+    addingPointMode = !addingPointMode;
+    $("addPointBtn").classList.toggle("active", addingPointMode);
+    $("addPointBtn").textContent = addingPointMode ? "📍 Touche la carte…" : "📍 Ajouter un point";
+  });
 
   function highlightParcel(p){
     if(selectedParcelLayer){
@@ -2239,6 +2337,18 @@ button{
         attribution: 'Orthophotos &copy; IGN/G&eacute;oportail',
         maxNativeZoom: 19, maxZoom: 20, minZoom: 2
       }).addTo(map);
+      map.on("click", async (e)=>{
+        if(!addingPointMode) return;
+        const name = prompt("Nom de ce point (ex : \"Champ de M. Dupont\") :", "");
+        if(name===null) { /* annulé : on reste en mode placement */ return; }
+        const pt = {id:"pt"+Date.now()+"-"+Math.random().toString(36).slice(2,7), lat:e.latlng.lat, lon:e.latlng.lng, name: name||"Point ajouté", createdAt:Date.now()};
+        customPoints.push(pt);
+        await saveCustomPoints();
+        drawCustomPoints();
+        addingPointMode = false;
+        $("addPointBtn").classList.remove("active");
+        $("addPointBtn").textContent = "📍 Ajouter un point";
+      });
     } else {
       map.eachLayer(l=>{ if(l instanceof L.CircleMarker || l instanceof L.Polygon) map.removeLayer(l); });
     }
@@ -2320,6 +2430,7 @@ button{
       drawRpgFeatures(cachedRpg.features);
       if($("rpgShowToggle").checked) setRpgVisible(true);
     }
+    drawCustomPoints();
   }
 
   // ---------- Import wiring ----------
@@ -2477,7 +2588,7 @@ button{
       alert("Position inconnue pour cette parcelle (pas de géométrie ni de commune identifiable).");
       return;
     }
-    window.open("https://maps.apple.com/?daddr="+coords.lat+","+coords.lon+"&dirflg=d", "_blank");
+    window.open(buildSingleItineraryUrl(coords), "_blank");
   });
 
   $("psShowMap").addEventListener("click", async ()=>{
@@ -2650,6 +2761,7 @@ button{
     await loadGeoCache();
     await loadGeometries();
     await loadParcelMeta();
+    await loadCustomPoints();
     const found = await loadDataset();
     if(found && dataset && dataset.parcelles && dataset.parcelles.length){ renderDashboard(false); }
     loadWeather();
