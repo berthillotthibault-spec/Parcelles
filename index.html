@@ -3833,157 +3833,114 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
   }
 
   async function handleChatIntent(raw){
-    const text = raw.trim();
-    const norm = normStr(text);
-    if(!norm) return "Dis-moi ce que tu veux savoir ou faire.";
+    const text=(raw||'').trim();
+    const n=normStr(text).replace(/[’']/g,"'").replace(/\s+/g,' ');
+    if(!n) return "Dis-moi ce que tu veux savoir ou faire.";
+    const all=allParcellesForSearch();
+    const own=allOwnParcelles();
+    const surfaceOf=p=>Number(p?.surface)||0;
+    const cultureOf=p=>(p?.culture||'Non renseigné').trim()||'Non renseigné';
+    const fmtList=(arr,max=12)=>arr.slice(0,max).map(p=>`• ${p.parcelle||'(sans nom)'} — ${cultureOf(p)} — ${fmtSurface(surfaceOf(p))}`).join('\n');
 
-    if(/^(aide|help|\?|que peux tu faire|commandes?)/.test(norm)){
-      return "Je peux répondre à des questions et modifier tes données, uniquement en local sur cet appareil. Exemples :\n"
-        + "• « surface totale »\n• « surface de maïs »\n• « infos sur la parcelle Champ Neuf »\n"
-        + "• « interventions sur la parcelle Champ Neuf »\n• « marge de la parcelle Champ Neuf »\n"
-        + "• « bêtes au pré sur la parcelle Champ Neuf »\n"
-        + "• « ajoute une intervention labour sur la parcelle Champ Neuf le 12/09/2026 »\n"
-        + "• « change la culture de la parcelle Champ Neuf en colza »\n"
-        + "• « ajoute une parcelle Champ du Bois »\n"
-        + "• « mets le rendement de la parcelle Champ Neuf a 75 »\n"
-        + "• « mets le prix de vente de la parcelle Champ Neuf a 220 »\n"
-        + "Je ne supprime jamais rien tout seul — les suppressions se font dans la fiche parcelle.";
+    if(/^(aide|help|menu|commandes?|que peux tu faire|qu'est ce que tu peux faire|quoi faire)$/.test(n)){
+      return "Je peux consulter et modifier les données de l'exploitation.\n\n"+
+      "📊 DONNÉES\n• surface totale / surface de maïs / surface par culture\n• nombre de parcelles / liste des parcelles\n• parcelles d'une commune\n• rendement, prix de vente, marge\n\n"+
+      "🌾 PARCELLE\n• infos sur [nom]\n• culture / surface / commune de [nom]\n• interventions sur [nom]\n• bêtes au pré sur [nom]\n\n"+
+      "✏️ MODIFICATIONS\n• change la culture de [nom] en colza\n• mets le rendement de [nom] à 75\n• mets le prix de vente de [nom] à 220\n• ajoute une intervention labour sur [nom] le 12/09/2026\n\nJe ne supprime aucune donnée automatiquement. Pour une modification ambiguë, je demande confirmation ou précision.";
     }
 
-    if(/surface totale|hectares? au total|combien d.?hectares?( j.?ai)?( au total)?$/.test(norm)){
-      const total = allOwnParcelles().reduce((s,p)=> s+(p.surface||0), 0);
-      return "Surface totale de l'exploitation : "+fmtSurface(total)+" sur "+allOwnParcelles().length+" parcelle(s).";
-    }
+    if(/(?:bonjour|salut|bonsoir|coucou)/.test(n) && n.length<45) return "Bonjour ! Je suis prêt. Tu peux me demander une information précise sur tes parcelles ou une modification.";
 
-    let m = norm.match(/^ajoute(?:r)? une intervention (.+) sur (?:la parcelle )?(.+) le (.+)$/);
+    // Totaux et statistiques générales
+    if(/\b(combien|nombre|nb)\b.*parcelle|\bcombien de parcelles\b|\bnombre de parcelles\b/.test(n))
+      return `L'exploitation contient ${own.length} parcelle(s), pour ${fmtSurface(own.reduce((s,p)=>s+surfaceOf(p),0))}.`;
+    if(/surface totale|hectares? au total|superficie totale|surface de l'exploitation/.test(n))
+      return `Surface totale de l'exploitation : ${fmtSurface(own.reduce((s,p)=>s+surfaceOf(p),0))} sur ${own.length} parcelle(s).`;
+    if(/(?:quelles?|liste des) parcelles|liste.*parcelle/.test(n))
+      return own.length ? `Voici les principales parcelles :\n${fmtList(own,18)}` : "Aucune parcelle n'est chargée.";
+
+    // Surface par culture, avec variantes naturelles
+    let m=n.match(/surface (?:de|en|pour) (.+)$/) || n.match(/(.+?)\s+(?:en|de)\s+surface$/);
+    if(m && !/totale|exploitation/.test(m[1])){
+      const wanted=m[1].replace(/^(la |le |les |du |de la |des )/,'').trim();
+      const matches=own.filter(p=>normStr(cultureOf(p)).includes(normStr(wanted)));
+      if(matches.length) return `${fmtSurface(matches.reduce((s,p)=>s+surfaceOf(p),0))} pour ${matches.length} parcelle(s) en « ${wanted} ».`;
+    }
+    m=n.match(/(?:répartition|repartition|surfaces?|hectares?).*(?:par|selon) (?:culture|cultures)/);
     if(m){
-      const typeRaw = m[1].trim(), nameRaw = m[2].trim(), dateRaw = m[3].trim();
-      const found = findParcelle(nameRaw);
-      if(!found) return "Je ne trouve pas de parcelle nommée « "+nameRaw+" ».";
-      if(found._ambiguous) return ambiguousReply(found.matches);
-      const date = parseFrDate(dateRaw);
-      if(!date) return "Je n'ai pas compris la date « "+dateRaw+" ». Utilise jj/mm/aaaa, « aujourd'hui » ou « hier ».";
-      const typeMatch = INTERV_TYPES.find(t=> normStr(t)===normStr(typeRaw)) || (typeRaw.charAt(0).toUpperCase()+typeRaw.slice(1));
-      const iv = {id:"iv"+Date.now()+"-"+Math.random().toString(36).slice(2,7), date, type:typeMatch, quantite:null, unite:"", prixUnitaire:null, coutOperation:null, note:"", manual:true};
-      const meta = getParcelMeta(found);
-      meta.manualInterventions = meta.manualInterventions || [];
-      meta.manualInterventions.push(iv);
-      await saveParcelMeta();
-      if(currentParcel && currentParcel.guid===found.guid){ renderIntervLog(); renderEcoPanel(); }
-      renderDashboard(false);
-      return "Intervention « "+typeMatch+" » ajoutée sur "+(found.parcelle||nameRaw)+" le "+displayDate(date)+".";
+      const groups={}; own.forEach(p=>groups[cultureOf(p)]=(groups[cultureOf(p)]||0)+surfaceOf(p));
+      return Object.entries(groups).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`• ${c} : ${fmtSurface(v)}`).join('\n') || "Aucune donnée de culture.";
+    }
+    m=n.match(/(?:parcelles?|champs?).*(?:dans|sur|de) (?:la commune )?(.+)$/);
+    if(m && /commune|dans|sur/.test(n)){
+      const q=m[1].trim(); const matches=own.filter(p=>normStr(p.commune||'').includes(normStr(q)));
+      if(matches.length) return `${matches.length} parcelle(s) :\n${fmtList(matches,18)}`;
     }
 
-    m = norm.match(/^change(?:r)? la culture de (?:la parcelle )?(.+) en (.+)$/);
-    if(m){
-      const nameRaw = m[1].trim(), cropRaw = m[2].trim();
-      const found = findParcelle(nameRaw);
-      if(!found) return "Je ne trouve pas de parcelle nommée « "+nameRaw+" ».";
-      if(found._ambiguous) return ambiguousReply(found.matches);
-      const crop = matchCropLabel(cropRaw);
-      await persistParcelField(found, {culture: crop});
-      renderDashboard(false); renderManualParcelles();
-      if(currentParcel && currentParcel.guid===found.guid) openParcelSheet(found);
-      return "Culture de "+(found.parcelle||nameRaw)+" mise à jour : "+crop+".";
-    }
-
-    m = text.match(/ajoute(?:r)? une parcelle (.+)$/i);
-    if(m){
-      const name = m[1].trim();
-      const p = {guid:"own-"+Date.now()+"-"+Math.random().toString(36).slice(2,7), parcelle:name, culture:"", surface:null, exploitant:"", ilot:"", commune:"", _addedOwn:true};
-      await addOwnParcelToDataset(p);
-      return "Parcelle « "+name+" » ajoutée à ton exploitation. Ouvre sa fiche pour compléter surface et culture.";
-    }
-
-    m = norm.match(/^(?:mets|definis?) le rendement de (?:la parcelle )?(.+) a (.+)$/);
-    if(m){
-      const nameRaw = m[1].trim(); const val = parseFloat(m[2].replace(",","."));
-      const found = findParcelle(nameRaw);
-      if(!found) return "Je ne trouve pas de parcelle nommée « "+nameRaw+" ».";
-      if(found._ambiguous) return ambiguousReply(found.matches);
-      if(isNaN(val)) return "Je n'ai pas compris la valeur du rendement.";
-      const meta = getParcelMeta(found);
-      meta.eco = Object.assign({rendementUnite:"q/ha", prixVente:null}, meta.eco||{}, {rendement: val});
-      await saveParcelMeta();
-      if(currentParcel && currentParcel.guid===found.guid){ $("psRendement").value = val; renderEcoPanel(); }
-      return "Rendement de "+(found.parcelle||nameRaw)+" mis à "+val+" "+meta.eco.rendementUnite+".";
-    }
-
-    m = norm.match(/^(?:mets|definis?) le prix de vente de (?:la parcelle )?(.+) a (.+)$/);
-    if(m){
-      const nameRaw = m[1].trim(); const val = parseFloat(m[2].replace(",","."));
-      const found = findParcelle(nameRaw);
-      if(!found) return "Je ne trouve pas de parcelle nommée « "+nameRaw+" ».";
-      if(found._ambiguous) return ambiguousReply(found.matches);
-      if(isNaN(val)) return "Je n'ai pas compris le prix de vente.";
-      const meta = getParcelMeta(found);
-      meta.eco = Object.assign({rendementUnite:"q/ha", rendement:null}, meta.eco||{}, {prixVente: val});
-      await saveParcelMeta();
-      if(currentParcel && currentParcel.guid===found.guid){ $("psPrixVente").value = val; renderEcoPanel(); }
-      return "Prix de vente de "+(found.parcelle||nameRaw)+" mis à "+val+" €.";
-    }
-
-    m = norm.match(/^(?:marge|resultat economique|resultat eco)(?:s)?(?: de| sur)? (?:la parcelle )?(.+)$/);
-    if(m){
-      const found = findParcelle(m[1].trim());
-      if(!found) return "Je ne trouve pas de parcelle nommée « "+m[1].trim()+" ».";
-      if(found._ambiguous) return ambiguousReply(found.matches);
-      const meta = getParcelMeta(found);
-      const eco = meta.eco || {};
-      const surface = found.surface || 0;
-      const chargesTotal = totalChargesForParcel(found);
-      const chargesHa = surface ? chargesTotal/surface : 0;
-      if(eco.rendement==null || eco.prixVente==null){
-        return "Renseigne un rendement et un prix de vente pour "+found.parcelle+" (charges actuelles : "+fmtEuro(chargesHa)+"/ha).";
+    // Parcelle ciblée : accepter plusieurs formulations
+    const namePatterns=[
+      /(?:infos?|informations?|details?|détails?|renseignements?)\s+(?:sur|de)\s+(?:la parcelle\s+)?(.+)$/,
+      /(?:surface|culture|commune|exploitant|ilot|îlot)\s+(?:de|du|de la|pour)\s+(?:la parcelle\s+)?(.+)$/,
+      /(?:interventions?|travaux)\s+(?:sur|de)\s+(?:la parcelle\s+)?(.+)$/,
+      /(?:bêtes|betes|animaux)\s+(?:au pré|au pre|sur)\s+(?:la parcelle\s+)?(.+)$/,
+      /(?:marge|résultat économique|resultat economique|resultat eco)\s+(?:de|sur)\s+(?:la parcelle\s+)?(.+)$/
+    ];
+    let target=null, targetName='';
+    for(const re of namePatterns){ const mm=n.match(re); if(mm){targetName=mm[1].trim();target=findParcelle(targetName);break;} }
+    if(target){
+      if(target._ambiguous) return ambiguousReply(target.matches);
+      const meta=getParcelMeta(target);
+      if(/interventions?|travaux/.test(n)){
+        const list=meta.manualInterventions||[];
+        return list.length ? `Interventions sur ${target.parcelle}:\n${list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,12).map(iv=>`• ${displayDate(iv.date)} — ${iv.type}${iv.quantite?' — '+iv.quantite+' '+(iv.unite||''):''}`).join('\n')}` : `Aucune intervention manuelle enregistrée sur ${target.parcelle}.`;
       }
-      const produitHa = eco.rendement*eco.prixVente;
-      const margeHa = produitHa - chargesHa;
-      return "Marge brute de "+found.parcelle+" : "+fmtEuro(margeHa)+"/ha"+(surface?" ("+fmtEuro(margeHa*surface)+" au total)":"")+".";
+      if(/bêtes|betes|animaux/.test(n)){
+        const pat=meta.paturage||meta.patre; const count=(pat?.animaux?.length||0)+(Number(pat?.nbSansId)||0);
+        return count ? `${count} animal(aux) enregistré(s) au pré sur ${target.parcelle}.` : `Aucune bête enregistrée au pré sur ${target.parcelle}.`;
+      }
+      if(/marge|résultat|resultat/.test(n)){
+        const eco=meta.eco||{}; const r=Number(eco.rendement), prix=Number(eco.prixVente), charges=Number(eco.chargesHa||eco.charges||0);
+        if(!isFinite(r)||!isFinite(prix)) return `Pour calculer la marge de ${target.parcelle}, renseigne son rendement et son prix de vente.`;
+        const marge=r*prix-charges; return `Marge calculée pour ${target.parcelle} : ${fmtEuro(marge)}/ha${surfaceOf(target)?` soit environ ${fmtEuro(marge*surfaceOf(target))} sur la parcelle`:''}.`;
+      }
+      return `${target.parcelle||'(sans nom)'} — culture : ${cultureOf(target)} ; surface : ${target.surface!=null?fmtSurface(target.surface):'non renseignée'}${target.commune?', commune : '+target.commune:''}${target.ilot?', îlot : '+target.ilot:''}.`;
     }
 
-    m = norm.match(/^(?:betes|animaux) au pre (?:sur|de) (?:la parcelle )?(.+)$/);
+    // Modifications : formulations plus souples
+    m=n.match(/(?:change|modifier|mets|met|définis|definis|passe|passer).*culture.*?(?:de|pour|sur)\s+(?:la parcelle\s+)?(.+?)\s+(?:en|à|a)\s+(.+)$/);
     if(m){
-      const found = findParcelle(m[1].trim());
-      if(!found) return "Je ne trouve pas de parcelle nommée « "+m[1].trim()+" ».";
-      if(found._ambiguous) return ambiguousReply(found.matches);
-      const meta = getParcelMeta(found);
-      const patre = meta.patre;
-      if(!patre || ((!patre.animaux||!patre.animaux.length) && !patre.nbSansId)) return "Aucune bête enregistrée au pré sur "+found.parcelle+".";
-      const total = (patre.animaux||[]).length + (patre.nbSansId||0);
-      return total+" bête(s) au pré sur "+found.parcelle+" depuis le "+(patre.dateMiseAuPre?displayDate(patre.dateMiseAuPre):"date non renseignée")+".";
+      const found=findParcelle(m[1].trim()); if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`; if(found._ambiguous)return ambiguousReply(found.matches);
+      const crop=matchCropLabel(m[2].trim()); await persistParcelField(found,{culture:crop}); renderDashboard(false); renderManualParcelles();
+      if(currentParcel?.guid===found.guid) openParcelSheet(found); return `Culture de ${found.parcelle} mise à jour : ${crop}.`;
     }
-
-    m = norm.match(/^interventions? (?:sur|de) (?:la parcelle )?(.+)$/);
+    m=n.match(/(?:mets|met|définis|definis|change).*rendement.*?(?:de|pour|sur)\s+(?:la parcelle\s+)?(.+?)\s+(?:à|a|de)\s*([0-9]+(?:[.,][0-9]+)?)/);
     if(m){
-      const found = findParcelle(m[1].trim());
-      if(!found) return "Je ne trouve pas de parcelle nommée « "+m[1].trim()+" ».";
-      if(found._ambiguous) return ambiguousReply(found.matches);
-      const meta = getParcelMeta(found);
-      const list = (meta.manualInterventions||[]).slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
-      if(!list.length) return "Aucune intervention manuelle enregistrée sur "+found.parcelle+".";
-      return "Interventions sur "+found.parcelle+" :\n"+list.slice(0,8).map(iv=> "• "+displayDate(iv.date)+" — "+iv.type+(iv.quantite?" ("+iv.quantite+" "+iv.unite+")":"")).join("\n");
+      const found=findParcelle(m[1].trim()); if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`; if(found._ambiguous)return ambiguousReply(found.matches);
+      const val=parseFloat(m[2].replace(',','.')); const meta=getParcelMeta(found); meta.eco=Object.assign({},meta.eco||{},{rendement:val}); await saveParcelMeta(); if(currentParcel?.guid===found.guid){$('psRendement').value=val;renderEcoPanel();} return `Rendement de ${found.parcelle} mis à ${val} ${meta.eco.rendementUnite||'q/ha'}.`;
     }
-
-    m = norm.match(/^(?:infos?|informations?) (?:sur|de) (?:la parcelle )?(.+)$/) || norm.match(/^parcelle (.+)$/);
+    m=n.match(/(?:mets|met|définis|definis|change).*prix.*?(?:de|pour|sur)\s+(?:la parcelle\s+)?(.+?)\s+(?:à|a|de)\s*([0-9]+(?:[.,][0-9]+)?)/);
     if(m){
-      const found = findParcelle(m[1].trim());
-      if(!found) return "Je ne trouve pas de parcelle nommée « "+m[1].trim()+" ».";
-      if(found._ambiguous) return ambiguousReply(found.matches);
-      return (found.parcelle||"(sans nom)")+" — "+(found.culture||"culture non renseignée")+", "+(found.surface!=null?fmtSurface(found.surface):"surface non renseignée")+(found.commune?", "+found.commune:"")+".";
+      const found=findParcelle(m[1].trim()); if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`; if(found._ambiguous)return ambiguousReply(found.matches);
+      const val=parseFloat(m[2].replace(',','.')); const meta=getParcelMeta(found); meta.eco=Object.assign({},meta.eco||{},{prixVente:val}); await saveParcelMeta(); if(currentParcel?.guid===found.guid){$('psPrixVente').value=val;renderEcoPanel();} return `Prix de vente de ${found.parcelle} mis à ${val} €.`;
     }
-
-    m = norm.match(/^(?:surface (?:de|du|des) |combien d.?hectares? de )(.+)$/);
+    m=n.match(/ajoute(?:r)?\s+(?:une\s+)?intervention\s+(.+?)\s+(?:sur|pour)\s+(?:la parcelle\s+)?(.+?)(?:\s+(?:le|pour le)\s+(.+))?$/);
     if(m){
-      const cropQ = normStr(m[1]);
-      const matching = allOwnParcelles().filter(p=> p.culture && normStr(p.culture).includes(cropQ));
-      if(!matching.length) return "Je ne trouve aucune parcelle avec une culture correspondant à « "+m[1]+" ».";
-      const total = matching.reduce((s,p)=> s+(p.surface||0),0);
-      return fmtSurface(total)+" répartis sur "+matching.length+" parcelle(s) pour « "+m[1]+" ».";
+      const found=findParcelle(m[2].trim()); if(!found)return `Je ne trouve pas la parcelle « ${m[2].trim()} ».`; if(found._ambiguous)return ambiguousReply(found.matches);
+      const date=parseFrDate(m[3]||"aujourd'hui"); if(!date)return `Je n'ai pas compris la date « ${m[3]} ».`;
+      const typeMatch=INTERV_TYPES.find(t=>normStr(t)===normStr(m[1])) || m[1].trim().replace(/^./,c=>c.toUpperCase());
+      const meta=getParcelMeta(found); meta.manualInterventions=meta.manualInterventions||[]; meta.manualInterventions.push({id:'iv'+Date.now(),date,type:typeMatch,quantite:null,unite:'',prixUnitaire:null,coutOperation:null,note:'',manual:true});
+      await saveParcelMeta(); if(currentParcel?.guid===found.guid){renderIntervLog();renderEcoPanel();} renderDashboard(false); return `Intervention « ${typeMatch} » ajoutée sur ${found.parcelle} le ${displayDate(date)}.`;
     }
 
-    return "Je n'ai pas compris. Tape « aide » pour voir des exemples de questions et de commandes.";
+    if(/à faire|a faire|aujourd'hui|aujourd hui|todo/.test(n)){
+      const todos=own.filter(p=>getParcelMeta(p).todo); return todos.length?`${todos.length} parcelle(s) à faire aujourd'hui :\n${fmtList(todos,15)}`:"Aucune parcelle n'est marquée « à faire » aujourd'hui.";
+    }
+    if(/culture.*dominante|culture.*plus.*grande|plus grande culture/.test(n)){
+      const groups={};own.forEach(p=>groups[cultureOf(p)]=(groups[cultureOf(p)]||0)+surfaceOf(p)); const e=Object.entries(groups).sort((a,b)=>b[1]-a[1])[0]; return e?`La culture la plus représentée est ${e[0]} avec ${fmtSurface(e[1])}.`:"Aucune donnée.";
+    }
+
+    return `Je n'ai pas compris précisément « ${text} ». Essaie par exemple : « surface totale », « surface de maïs », « infos sur [parcelle] », « interventions sur [parcelle] », « quelles parcelles sont à faire aujourd'hui ? » ou « change la culture de [parcelle] en colza ».`;
   }
-
   function addChatMsg(role, text){
     const box = $("chatbotMessages");
     const div = document.createElement("div");
@@ -4015,6 +3972,17 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
   }
   $("chatbotSend").addEventListener("click", sendChatMessage);
   $("chatbotInput").addEventListener("keydown", (e)=>{ if(e.key==="Enter") sendChatMessage(); });
+
+  // API interne exposée à la couche UI V2 (sans rendre les données globales).
+  try{ Object.defineProperty(window,'parcellesDataset',{configurable:true,get:()=>dataset}); }catch(e){ window.parcellesDataset=dataset; }
+  window.__PARCELLES_API__ = {
+    renderMap,
+    renderParcelleList,
+    getWeatherLocation,
+    renderDashboard,
+    closeParcelSheet,
+    openParcelSheet
+  };
 
   // ---------- Boot ----------
 
@@ -4711,7 +4679,7 @@ body.v2-map-open header.top{display:none !important}
     }
     async function loadDetailedWeather(){
       try{
-        const loc=await (typeof getWeatherLocation==='function'?getWeatherLocation():null);
+        const loc=await (window.__PARCELLES_API__?.getWeatherLocation ? window.__PARCELLES_API__.getWeatherLocation() : null);
         if(!loc) throw new Error('no location');
         const url='https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=14';
         const res=await (typeof fetchWithTimeout==='function'?fetchWithTimeout(url,9000):fetch(url));
@@ -5129,13 +5097,13 @@ body.v2-map-open .chatbot-btn{
       document.getElementById('mapFilterReset').addEventListener('click',async()=>{
         window.__PARCELLES_MAP_CULTURE_FILTER__=''; window.__PARCELLES_MAP_TODO_ONLY__=false;
         document.getElementById('mapTodoFilter').checked=false; populate();
-        if(typeof renderMap==='function') await renderMap();
+        if(window.__PARCELLES_API__?.renderMap) await window.__PARCELLES_API__.renderMap();
       });
       document.getElementById('mapFilterApply').addEventListener('click',async()=>{
         window.__PARCELLES_MAP_CULTURE_FILTER__=document.getElementById('mapCultureFilter').value||'';
         window.__PARCELLES_MAP_TODO_ONLY__=document.getElementById('mapTodoFilter').checked;
         panel.hidden=true;
-        if(typeof renderMap==='function') await renderMap();
+        if(window.__PARCELLES_API__?.renderMap) await window.__PARCELLES_API__.renderMap();
       });
 
       const sync=()=>{
@@ -5174,7 +5142,7 @@ body.v2-map-open .chatbot-btn{
           window.__PARCELLES_CULTURE_FILTER__='';
           document.getElementById('parcelTodoFilter').checked=false;
           if(document.getElementById('todoFilter')?.classList.contains('active')) document.getElementById('todoFilter').click();
-          if(typeof renderParcelleList==='function') renderParcelleList();
+          if(window.__PARCELLES_API__?.renderParcelleList) window.__PARCELLES_API__.renderParcelleList();
           panel.hidden=true;
         });
         document.getElementById('parcelFilterApply').addEventListener('click',()=>{
@@ -5182,7 +5150,7 @@ body.v2-map-open .chatbot-btn{
           const wantTodo=document.getElementById('parcelTodoFilter').checked;
           const active=document.getElementById('todoFilter')?.classList.contains('active');
           if(document.getElementById('todoFilter') && wantTodo!==active) document.getElementById('todoFilter').click();
-          else if(typeof renderParcelleList==='function') renderParcelleList();
+          else if(window.__PARCELLES_API__?.renderParcelleList) window.__PARCELLES_API__.renderParcelleList();
           panel.hidden=true;
         });
       }
@@ -5208,6 +5176,175 @@ body.v2-map-open .chatbot-btn{
 
     /* Prevent the chatbot from causing viewport zoom/focus side effects. */
     document.querySelectorAll('.chatbot-btn').forEach(btn=>btn.style.touchAction='manipulation');
+  });
+})();
+</script>
+
+<style id="parcelles-final-compact-v8">
+/* ===== V8 : compactage global + carte stable ===== */
+/* Carte : recherche toujours en première ligne */
+#dashView.map-mode .map-search{
+  top:calc(env(safe-area-inset-top,0px) + 7px) !important;
+  left:12px !important; right:12px !important;
+  height:38px !important; min-height:38px !important;
+  max-width:none !important; margin:0 !important; gap:6px !important;
+  z-index:9000 !important;
+}
+#dashView.map-mode .map-search input{
+  height:38px !important; min-height:38px !important;
+  width:auto !important; flex:1 1 auto !important;
+  border-radius:11px !important; font-size:14px !important;
+  padding-left:34px !important; padding-right:8px !important;
+}
+#dashView.map-mode .map-search:before{left:12px !important;top:5px !important;font-size:19px !important}
+#dashView.map-mode .map-search-btn{
+  height:38px !important; min-height:38px !important;
+  flex:0 0 76px !important; width:76px !important; min-width:76px !important;
+  border-radius:11px !important; font-size:11px !important; padding:0 5px !important;
+}
+/* Boutons sous la recherche */
+#dashView.map-mode #rpgPanelBtn,#dashView.map-mode #addPointBtn{
+  top:calc(env(safe-area-inset-top,0px) + 53px) !important;
+  height:34px !important; min-height:34px !important;
+  padding:0 9px !important; border-radius:12px !important;
+  font-size:11.5px !important; max-width:40vw !important; z-index:8900 !important;
+}
+#dashView.map-mode #rpgPanelBtn{left:12px !important;right:auto !important}
+#dashView.map-mode #addPointBtn{right:12px !important;left:auto !important}
+/* Choix Ajouter un point : compacts et sous son bouton */
+#dashView.map-mode #pointTypeRow{
+  top:calc(env(safe-area-inset-top,0px) + 92px) !important;
+  right:12px !important; left:auto !important; width:174px !important;
+  max-width:47vw !important; gap:4px !important; z-index:8800 !important;
+}
+#dashView.map-mode #pointTypeRow .point-type-chip{
+  height:30px !important; min-height:30px !important; padding:4px 8px !important;
+  border-radius:9px !important; font-size:11px !important;
+}
+/* Filtres : sous Ajouter un point quand fermé, puis sous les choix quand ouverts */
+.map-filter-btn{
+  left:auto !important; right:12px !important;
+  top:calc(env(safe-area-inset-top,0px) + 92px) !important;
+  height:30px !important; min-height:30px !important; padding:0 9px !important;
+  border-radius:10px !important; font-size:10.5px !important; z-index:8750 !important;
+}
+body.v2-point-types-open .map-filter-btn{
+  top:calc(env(safe-area-inset-top,0px) + 224px) !important;
+}
+.map-filter-panel{
+  left:auto !important; right:12px !important;
+  top:calc(env(safe-area-inset-top,0px) + 128px) !important;
+  width:230px !important; max-width:calc(100vw - 24px) !important;
+  padding:8px !important; border-radius:12px !important; z-index:8760 !important;
+}
+body.v2-point-types-open .map-filter-panel{top:calc(env(safe-area-inset-top,0px) + 260px) !important}
+/* PAC : juste sous son bouton, petit panneau */
+#dashView.map-mode #rpgPanel{
+  top:calc(env(safe-area-inset-top,0px) + 93px) !important;
+  left:12px !important; right:auto !important; width:240px !important; max-width:calc(100vw - 24px) !important;
+  padding:9px !important; border-radius:12px !important; z-index:8760 !important;
+}
+#dashView.map-mode #rpgPanel select{font-size:11px !important;padding:6px 7px !important;min-height:32px !important}
+#dashView.map-mode #rpgPanel button{font-size:10.5px !important;min-height:32px !important;padding:6px 8px !important}
+#dashView.map-mode #rpgPanel label{font-size:11px !important}
+/* Contrôles bas */
+#dashView.map-mode .leaflet-control-zoom{right:12px !important;bottom:calc(56px + env(safe-area-inset-bottom,0px) + 7px) !important}
+#dashView.map-mode .leaflet-control-zoom a{width:38px !important;height:38px !important;line-height:38px !important;font-size:19px !important}
+#dashView.map-mode .map-actions{right:12px !important;bottom:calc(56px + env(safe-area-inset-bottom,0px) + 91px) !important}
+#dashView.map-mode #locateBtn{width:40px !important;height:40px !important;min-height:40px !important}
+#dashView.map-mode .chatbot-btn,body.v2-map-open .chatbot-btn{left:14px !important;right:auto !important;bottom:calc(56px + env(safe-area-inset-bottom,0px) + 7px) !important;width:46px !important;height:46px !important;min-height:46px !important;z-index:9500 !important}
+/* Navigation compacte */
+.v2-bottom-nav{padding:5px 8px calc(5px + env(safe-area-inset-bottom,0px)) !important}
+.v2-nav-btn{min-height:45px !important;height:45px !important;padding:2px 2px !important;font-size:9.5px !important}
+.v2-nav-btn .ico{font-size:17px !important;line-height:17px !important}
+/* Parcelles : tout le chrome compact */
+#v2Parcelles .v2-app-title{padding:6px 2px 8px !important}
+#v2Parcelles .v2-section-title{margin:5px 0 8px !important}
+#v2Parcelles .toolbar{padding:7px !important;gap:6px !important;border-radius:12px !important}
+#v2Parcelles .toolbar input[type=text],#v2Parcelles .toolbar select,#v2Parcelles .toolbar button{min-height:36px !important;height:36px !important;font-size:12px !important;padding:5px 8px !important;border-radius:9px !important}
+#v2Parcelles .prow{padding:9px 10px !important;margin-bottom:5px !important;border-radius:11px !important}
+#v2Parcelles .pname{font-size:13px !important}.v2-parcel-filter-btn{height:30px !important;min-height:30px !important;font-size:10px !important;padding:0 8px !important}
+#v2Parcelles .v2-card{padding:10px !important;margin:8px 0 !important}
+/* Général : réduire les boutons sans réduire les champs de saisie */
+.v2-section button:not(.v2-nav-btn),.v2-card button{min-height:34px;padding:6px 9px;border-radius:9px}
+/* Météo : accès explicite même si la carte météo est vide */
+#v2Home .weather-card{min-height:48px !important;padding:8px 10px !important;margin:8px 0 !important}
+#v2Home .weather-card .wicon{font-size:24px !important}
+#v2Home .weather-card .wtemp{font-size:18px !important}
+#v2Home .weather-card .wdesc{font-size:11.5px !important}.weather-card:after{font-size:9px !important;right:10px !important;bottom:8px !important}
+/* Fiche et panneaux secondaires */
+#parcelSheet input,#parcelSheet select,#parcelSheet textarea{min-height:40px !important}
+</style>
+
+<script id="parcelles-final-compact-v8-script">
+(function(){
+  'use strict';
+  function ready(fn){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fn,{once:true});else fn();}
+  ready(function(){
+    const q=s=>document.querySelector(s), qa=s=>Array.from(document.querySelectorAll(s));
+    const pointRow=q('#pointTypeRow'), filterBtn=q('#mapFilterBtn'), filterPanel=q('#mapFilterPanel');
+    function syncPointState(){
+      const open=pointRow && !pointRow.classList.contains('hidden');
+      document.body.classList.toggle('v2-point-types-open',!!open);
+    }
+    if(pointRow){new MutationObserver(syncPointState).observe(pointRow,{attributes:true,attributeFilter:['class']});syncPointState();}
+
+    // Les filtres sont appliqués immédiatement, sans bouton Appliquer obligatoire.
+    const mf=q('#mapCultureFilter'), mt=q('#mapTodoFilter');
+    async function applyMapFilters(){
+      window.__PARCELLES_MAP_CULTURE_FILTER__=mf?.value||'';
+      window.__PARCELLES_MAP_TODO_ONLY__=!!mt?.checked;
+      if(window.__PARCELLES_API__?.renderMap) await window.__PARCELLES_API__.renderMap();
+    }
+    mf?.addEventListener('change',applyMapFilters); mt?.addEventListener('change',applyMapFilters);
+    const pf=q('#parcelCultureFilter'), pt=q('#parcelTodoFilter');
+    function applyParcelFilters(){
+      window.__PARCELLES_CULTURE_FILTER__=pf?.value||'';
+      const base=q('#todoFilter');
+      if(base && pt){const want=!!pt.checked, active=base.classList.contains('active');if(want!==active)base.click();else if(window.__PARCELLES_API__?.renderParcelleList)window.__PARCELLES_API__.renderParcelleList();}
+      else if(window.__PARCELLES_API__?.renderParcelleList)window.__PARCELLES_API__.renderParcelleList();
+    }
+    pf?.addEventListener('change',applyParcelFilters);pt?.addEventListener('change',applyParcelFilters);
+
+    // Expose un accès météo clair depuis le menu ☰ de l'accueil.
+    const home=q('#v2Home');
+    if(home && !home.querySelector('.v2-weather-open-btn')){
+      const title=home.querySelector('.v2-app-title');
+      const b=document.createElement('button');b.type='button';b.className='v2-weather-open-btn';b.textContent='☼';b.title='Météo';
+      Object.assign(b.style,{border:'0',background:'#e8f1eb',color:'#155236',width:'34px',height:'34px',borderRadius:'10px',fontSize:'17px',fontWeight:'800'});
+      b.addEventListener('click',()=>window.__PARCELLES_OPEN_WEATHER__?.());
+      if(title) title.appendChild(b);
+    }
+
+    // Recharge météo détaillée à l'ouverture et fournit un vrai fallback de localisation.
+    window.__PARCELLES_WEATHER_FORCE_REFRESH__=async function(){
+      try{
+        const loc=await (window.__PARCELLES_API__?.getWeatherLocation ? window.__PARCELLES_API__.getWeatherLocation() : null);
+        if(!loc) throw new Error('localisation indisponible');
+        const url='https://api.open-meteo.com/v1/forecast?latitude='+loc.lat+'&longitude='+loc.lon+'&current=temperature_2m,weather_code,wind_speed_10m&hourly=temperature_2m,precipitation_probability,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=14';
+        const res=await fetch(url);if(!res.ok)throw new Error('http');const data=await res.json();
+        const content=q('#weatherContent');if(!content) return;
+        window.__PARCELLES_WEATHER_DATA__=data;
+        const labels={0:['☀️','Ciel dégagé'],1:['🌤️','Plutôt dégagé'],2:['⛅','Partiellement nuageux'],3:['☁️','Couvert'],45:['🌫️','Brouillard'],48:['🌫️','Brouillard givrant'],51:['🌦️','Bruine légère'],53:['🌦️','Bruine'],55:['🌦️','Bruine forte'],61:['🌧️','Pluie légère'],63:['🌧️','Pluie'],65:['🌧️','Pluie forte'],71:['🌨️','Neige'],73:['🌨️','Neige'],75:['🌨️','Neige forte'],80:['🌦️','Averses'],81:['🌦️','Averses'],82:['⛈️','Averses fortes'],95:['⛈️','Orage'],96:['⛈️','Orage'],99:['⛈️','Orage violent']};
+        function dayLabel(x){return new Date(x+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'}).replace('.','')}
+        function draw(view){
+          const h=data.hourly||{},d=data.daily||{};if(view==='hourly'){
+            const now=Date.now(), times=h.time||[],start=Math.max(0,times.findIndex(x=>new Date(x).getTime()>=now)),end=Math.min(start+24,times.length);
+            let html='<div style="font-size:12px;color:#69736b;margin:2px 2px 8px">Aujourd’hui · heure par heure</div><div class="weather-hourly">';
+            for(let i=start;i<end;i++){const w=labels[h.weather_code?.[i]]||['🌡️','Météo'];html+=`<div class="weather-hour"><div class="time">${new Date(times[i]).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</div><div class="ico">${w[0]}</div><div class="temp">${Math.round(h.temperature_2m?.[i]??0)}°</div><div class="rain">💧 ${h.precipitation_probability?.[i]??0}%</div></div>`}html+='</div>';content.innerHTML=html;
+          }else{const n=view==='7'?7:14,dates=d.time||[];let html=`<div style="font-size:12px;color:#69736b;margin:2px 2px 8px">Prévisions · ${n} jours</div><div class="weather-days">`;for(let i=0;i<Math.min(n,dates.length);i++){const w=labels[d.weather_code?.[i]]||['🌡️','Météo'];html+=`<div class="weather-day"><div class="day">${dayLabel(dates[i])}</div><div class="ico">${w[0]}</div><div><div style="font-size:12px;font-weight:700">${w[1]}</div><div class="rain">Pluie ${d.precipitation_probability_max?.[i]??0}%</div></div><div class="temps">${Math.round(d.temperature_2m_min?.[i]??0)}° / ${Math.round(d.temperature_2m_max?.[i]??0)}°</div></div>`}html+='</div>';content.innerHTML=html;}
+        }
+        qa('.weather-tabs button').forEach(b=>b.onclick=()=>{qa('.weather-tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');draw(b.dataset.weatherView)});
+        draw('hourly');
+      }catch(e){const c=q('#weatherContent');if(c)c.innerHTML='<div class="weather-empty">Prévisions indisponibles. Autorise la localisation de Safari puis réessaie.</div>';}
+    };
+    const oldOpen=window.__PARCELLES_OPEN_WEATHER__;
+    if(typeof oldOpen==='function'){
+      const open=oldOpen;window.__PARCELLES_OPEN_WEATHER__=function(){open();setTimeout(()=>window.__PARCELLES_WEATHER_FORCE_REFRESH__(),40)};
+    }
+
+    // Ferme les panneaux flottants lors d'un changement d'onglet.
+    qa('.v2-nav-btn').forEach(b=>b.addEventListener('click',()=>{if(filterPanel)filterPanel.hidden=true;}));
   });
 })();
 </script>
