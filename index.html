@@ -4722,6 +4722,50 @@ body.v2-map-open header.top{display:none !important}
 </script>
 
 </body>
+
+<style id="fix-map-bottom-white-band">
+/* Correction ciblée : aucun espace de mise en page sous la carte en mode Carte.
+   La navigation reste fixe au bord inférieur du viewport. */
+html, body {
+  margin: 0 !important;
+}
+body.v2-map-open {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+body.v2-map-open #app {
+  height: 100dvh !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+body.v2-map-open #dashView.map-mode {
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+body.v2-map-open #dashView.map-mode #tabCarte,
+body.v2-map-open #dashView.map-mode #mapContainer {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+body.v2-map-open .v2-bottom-nav {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+}
+</style>
 </html>
 
 <style id="v2-compact-controls-final">
