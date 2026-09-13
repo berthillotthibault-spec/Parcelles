@@ -1206,6 +1206,58 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
 })();
 </script>
 
+
+<style id="map-settings-only">
+#dashView.map-mode .map-settings-wrap{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 62px) !important;
+  right:10px !important;
+  left:auto !important;
+  z-index:12000 !important;
+}
+#dashView.map-mode .map-settings-btn{
+  width:44px !important; height:44px !important; min-height:44px !important;
+  padding:0 !important; margin:0 !important;
+  display:flex !important; align-items:center !important; justify-content:center !important;
+  border:0 !important; border-radius:14px !important;
+  background:rgba(255,255,255,.97) !important; color:#172019 !important;
+  box-shadow:0 5px 16px rgba(15,23,42,.18) !important;
+  font-size:22px !important; line-height:1 !important;
+  -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+  cursor:pointer !important;
+}
+#dashView.map-mode .map-settings-btn:active{transform:scale(.96)}
+#dashView.map-mode .map-settings-panel{
+  position:absolute !important; top:50px !important; right:0 !important; left:auto !important;
+  width:205px !important; max-width:calc(100vw - 20px) !important;
+  padding:7px !important; box-sizing:border-box !important;
+  border:1px solid rgba(15,23,42,.08) !important; border-radius:15px !important;
+  background:rgba(255,255,255,.98) !important;
+  box-shadow:0 12px 30px rgba(15,23,42,.20) !important;
+  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+}
+#dashView.map-mode .map-settings-panel.hidden{display:none !important}
+#dashView.map-mode .map-settings-title{
+  padding:7px 9px 6px !important; font-size:13px !important; font-weight:800 !important;
+  color:#172019 !important; border-bottom:1px solid #e7ebe7 !important; margin-bottom:4px !important;
+}
+#dashView.map-mode .map-settings-item{
+  width:100% !important; min-height:40px !important; height:40px !important;
+  padding:0 9px !important; margin:2px 0 !important;
+  display:flex !important; align-items:center !important; gap:9px !important;
+  border:0 !important; border-radius:10px !important; background:transparent !important;
+  color:#172019 !important; font-size:13px !important; font-weight:650 !important;
+  text-align:left !important; cursor:pointer !important;
+}
+#dashView.map-mode .map-settings-item:active,#dashView.map-mode .map-settings-item:hover{background:#eef3ee !important}
+@media(max-width:430px){
+  #dashView.map-mode .map-settings-wrap{right:10px !important}
+  #dashView.map-mode .map-settings-btn{width:42px !important;height:42px !important;min-height:42px !important}
+  #dashView.map-mode .map-settings-panel{top:48px !important;width:200px !important}
+}
+/* The legacy controls remain in the DOM so their existing handlers and functionality are preserved, but they are never displayed. */
+#dashView.map-mode #rpgPanelBtn,#dashView.map-mode #addPointBtn{display:none !important}
+</style>
 </head>
 <body>
 
@@ -1316,8 +1368,17 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
       <div class="map-actions">
         <button type="button" class="map-gps-btn" id="locateBtn" aria-label="Afficher ma position">● Ma position</button>
       </div>
-      <button type="button" class="rpg-toggle-btn" id="rpgPanelBtn" aria-label="Parcelles PAC alentours">🌾 PAC alentours</button>
-      <button type="button" class="rpg-toggle-btn" id="addPointBtn" style="left:auto;right:12px;" aria-pressed="false">📍 Ajouter un point</button>
+      <div id="mapSettingsWrap" class="map-settings-wrap">
+        <button type="button" id="mapSettingsBtn" class="map-settings-btn" aria-label="Paramètres" aria-expanded="false" aria-controls="mapSettingsPanel">⚙️</button>
+        <div id="mapSettingsPanel" class="map-settings-panel hidden" role="menu" aria-label="Paramètres de la carte">
+          <div class="map-settings-title">⚙️ Paramètres</div>
+          <button type="button" class="map-settings-item" id="mapSettingsPacBtn" role="menuitem">🗺️ <span>PAC alentours</span></button>
+          <button type="button" class="map-settings-item" id="mapSettingsAddBtn" role="menuitem">📍 <span>Ajouter un point</span></button>
+          <button type="button" class="map-settings-item" id="mapSettingsFilterBtn" role="menuitem">🔎 <span>Filtres</span></button>
+        </div>
+      </div>
+      <button type="button" class="rpg-toggle-btn" id="rpgPanelBtn" aria-label="Parcelles PAC alentours" hidden>🌾 PAC alentours</button>
+      <button type="button" class="rpg-toggle-btn" id="addPointBtn" style="left:auto;right:12px;" aria-pressed="false" hidden>📍 Ajouter un point</button>
       <div id="pointTypeRow" class="point-type-row hidden">
         <button type="button" class="point-type-chip active" data-type="todo">📍 À faire</button>
         <button type="button" class="point-type-chip" data-type="entree">🚪 Entrée de champ</button>
@@ -4721,6 +4782,45 @@ body.v2-map-open header.top{display:none !important}
 })();
 </script>
 
+
+<script id="map-settings-controller">
+(function(){
+  'use strict';
+  function init(){
+    const wrap=document.getElementById('mapSettingsWrap');
+    const btn=document.getElementById('mapSettingsBtn');
+    const panel=document.getElementById('mapSettingsPanel');
+    const pac=document.getElementById('mapSettingsPacBtn');
+    const add=document.getElementById('mapSettingsAddBtn');
+    const filter=document.getElementById('mapSettingsFilterBtn');
+    const oldPac=document.getElementById('rpgPanelBtn');
+    const oldAdd=document.getElementById('addPointBtn');
+    const oldFilter=document.getElementById('mapFilterBtn');
+    if(!wrap||!btn||!panel||wrap.dataset.bound==='1') return;
+    wrap.dataset.bound='1';
+    const close=()=>{panel.classList.add('hidden');btn.setAttribute('aria-expanded','false');};
+    const toggle=()=>{const open=panel.classList.toggle('hidden')===false;btn.setAttribute('aria-expanded',String(open));};
+    btn.addEventListener('click',function(e){e.stopPropagation();toggle();});
+    panel.addEventListener('click',function(e){e.stopPropagation();});
+    document.addEventListener('click',function(e){if(!wrap.contains(e.target)) close();});
+    pac?.addEventListener('click',function(){close();oldPac?.click();});
+    add?.addEventListener('click',function(){close();oldAdd?.click();});
+    filter?.addEventListener('click',function(){
+      close();
+      if(oldFilter){oldFilter.hidden=false;oldFilter.click();oldFilter.hidden=true;}
+    });
+    const dash=document.getElementById('dashView');
+    const sync=()=>{
+      const mapMode=!!dash && dash.classList.contains('map-mode');
+      if(!mapMode) close();
+      if(mapMode && oldFilter) oldFilter.hidden=true;
+    };
+    if(dash){new MutationObserver(sync).observe(dash,{attributes:true,attributeFilter:['class']});}
+    sync();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
+})();
+</script>
 </body>
 
 <style id="fix-map-bottom-white-band">
