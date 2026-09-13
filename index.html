@@ -852,17 +852,14 @@ button{
 
 /* Navigation basse : elle reste disponible même sur la carte. */
 .v2-bottom-nav{
-  display:block !important;
   position:fixed !important;
   left:0 !important;right:0 !important;bottom:0 !important;
   z-index:99999 !important;
   padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px)) !important;
 }
-body.v2-map-open .v2-bottom-nav{display:block !important;}
 body.v2-map-open header.top{display:none !important;}
 
 /* Réserve exactement la place de la barre basse : plus de bande blanche inutile. */
-body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
 
 /* La carte occupe l'écran jusqu'à la barre basse. */
 #dashView.map-mode,
@@ -1141,7 +1138,9 @@ body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px)) !important;}
 .chatbot-icon{position:relative;display:flex;align-items:center;justify-content:center;width:28px;height:21px;box-sizing:border-box;border-radius:11px;background:#fff;color:#6b7280;line-height:1;flex:0 0 auto}
 .chatbot-icon::after{content:"";position:absolute;left:4px;bottom:-5px;width:9px;height:9px;background:#fff;clip-path:polygon(0 0,100% 0,0 100%)}
 .chatbot-icon-dots{position:relative;z-index:1;display:block;font-size:10px;line-height:10px;letter-spacing:1px;color:#6b7280;white-space:nowrap}
-.chatbot-panel{position:fixed;left:14px;right:14px;bottom:calc(56px + env(safe-area-inset-bottom,0px) + 68px);width:auto;max-width:420px;margin:0 auto;max-height:min(70dvh,calc(var(--chat-viewport-height,100dvh) - 90px));overflow:hidden;z-index:10091;display:flex;flex-direction:column;box-sizing:border-box}
+.chatbot-panel{position:fixed;left:14px;right:14px;bottom:calc(56px + env(safe-area-inset-bottom,0px) + 68px);width:auto;max-width:420px;margin:0 auto;max-height:min(70dvh,calc(var(--chat-viewport-height,100dvh) - 90px));overflow:hidden;z-index:10091;display:flex;flex-direction:column;box-sizing:border-box;background:#fff;}
+body.chatbot-open .chatbot-btn{bottom:calc(env(safe-area-inset-bottom,0px) + 14px)}
+body.chatbot-open .chatbot-panel{bottom:0;max-height:var(--chat-viewport-height,100dvh);padding-bottom:env(safe-area-inset-bottom,0px)}
 .chatbot-panel input,.chatbot-panel textarea,.chatbot-panel select{font-size:16px}
 #v2Home .weather-card{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:10px;min-height:58px;margin:8px 0 12px;padding:9px 12px;box-sizing:border-box;border-radius:15px;cursor:pointer;position:relative;z-index:2}#v2Home .weather-card .wicon{font-size:25px;line-height:1}#v2Home .weather-card .wtemp{font-size:18px;font-weight:800;line-height:1.05}#v2Home .weather-card .wdesc{font-size:11.5px;line-height:1.25}#v2Home .weather-card .wdetails{font-size:10.5px;line-height:1.25;margin-top:2px}#v2Home .weather-card::after{content:'›';position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:24px;line-height:1;color:var(--ui-green)}
 .weather-sheet{position:fixed;inset:0 0 76px 0;background:rgba(16,28,20,.42);z-index:100000;display:flex;align-items:flex-end;box-sizing:border-box}.weather-sheet[hidden]{display:none}.weather-sheet-panel{width:100%;max-height:calc(100% - env(safe-area-inset-top,0px) - 12px);background:var(--ui-bg);border-radius:24px 24px 0 0;overflow:hidden;box-shadow:0 -12px 40px rgba(0,0,0,.2);display:flex;flex-direction:column;box-sizing:border-box}.weather-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;background:#fff;border-bottom:1px solid var(--ui-border);flex:none}.weather-sheet-head h2{margin:0;font-size:19px;color:var(--ui-text)}.weather-sheet-close{border:0;background:#f1f4f1;color:var(--ui-text);width:38px;height:38px;border-radius:50%;font-size:18px;flex:none}.weather-tabs{display:flex;gap:7px;padding:10px 12px;background:#fff;overflow-x:auto;flex:none}.weather-tabs button{border:1px solid var(--ui-border);background:#fff;color:var(--ui-muted);border-radius:12px;padding:9px 12px;white-space:nowrap;font-size:12px;font-weight:800;box-shadow:none}.weather-tabs button.active{background:var(--ui-green-soft);color:var(--ui-green-dark);border-color:#cfe2d5}.weather-content{min-height:0;overflow:auto;padding:10px 12px 18px;-webkit-overflow-scrolling:touch}.weather-summary{background:#fff;border:1px solid var(--ui-border);border-radius:15px;padding:10px;margin-bottom:10px}.weather-summary-main{display:flex;align-items:center;gap:9px}.weather-summary-icon{font-size:30px;line-height:1}.weather-summary-main strong{display:block;font-size:22px;line-height:1.05}.weather-summary-main span:not(.weather-summary-icon){display:block;font-size:12px;color:var(--ui-muted);margin-top:2px}.weather-summary-metrics{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;font-size:10.5px;color:var(--ui-muted)}.weather-summary-metrics span{background:#f4f7f3;border-radius:8px;padding:5px 7px}.weather-section-label{font-size:12px;color:var(--ui-muted);font-weight:700;margin:4px 2px 8px}.weather-hourly{display:flex;gap:7px;overflow-x:auto;padding:2px 1px 8px;-webkit-overflow-scrolling:touch}.weather-hour{flex:0 0 70px;background:#fff;border:1px solid var(--ui-border);border-radius:12px;padding:8px 6px;text-align:center}.weather-hour .time{font-size:10.5px;font-weight:800;color:var(--ui-muted)}.weather-hour .ico{font-size:21px;margin:5px 0}.weather-hour .temp{font-size:16px;font-weight:800}.weather-hour .rain{font-size:9.5px;color:#4778a8;margin-top:3px}.weather-days{display:grid;gap:7px}.weather-day{display:grid;grid-template-columns:58px 28px 1fr auto;align-items:center;gap:7px;background:#fff;border:1px solid var(--ui-border);border-radius:12px;padding:8px 9px}.weather-day .day{font-size:11px;font-weight:800}.weather-day .ico{font-size:20px}.weather-day .desc strong{display:block;font-size:11px}.weather-day .desc span{display:block;font-size:9.5px;color:#4778a8;margin-top:2px}.weather-day .temps{font-size:11px;font-weight:800;white-space:nowrap}.weather-empty{padding:18px;background:#fff;border-radius:14px;color:var(--ui-muted);font-size:13px}
@@ -3933,8 +3932,8 @@ html.chatbot-scroll-lock,body.chatbot-scroll-lock{overflow:hidden;overscroll-beh
   function updateChatViewport(){if(!chatLocked)return;const vv=window.visualViewport;const viewportHeight=vv?vv.height:window.innerHeight;document.documentElement.style.setProperty('--chat-viewport-height',viewportHeight+'px');}
   function lockPageForChat(){if(chatLocked)return;chatScrollY=window.scrollY||window.pageYOffset||0;chatLocked=true;document.documentElement.classList.add('chatbot-scroll-lock');document.body.classList.add('chatbot-scroll-lock');chatTouchLockHandler=function(e){const panel=$('chatbotPanel');if(panel&&!panel.contains(e.target))e.preventDefault();};document.addEventListener('touchmove',chatTouchLockHandler,{passive:false});updateChatViewport();window.visualViewport?.addEventListener('resize',updateChatViewport);window.visualViewport?.addEventListener('scroll',updateChatViewport);window.addEventListener('resize',updateChatViewport);}
   function unlockPageAfterChat(){if(!chatLocked)return;window.visualViewport?.removeEventListener('resize',updateChatViewport);window.visualViewport?.removeEventListener('scroll',updateChatViewport);window.removeEventListener('resize',updateChatViewport);if(chatTouchLockHandler){document.removeEventListener('touchmove',chatTouchLockHandler);chatTouchLockHandler=null;}document.documentElement.style.removeProperty('--chat-viewport-height');document.body.classList.remove('chatbot-scroll-lock');document.documentElement.classList.remove('chatbot-scroll-lock');chatLocked=false;const y=chatScrollY;if(Math.abs((window.scrollY||window.pageYOffset||0)-y)>1)window.scrollTo({top:y,left:0,behavior:'auto'});}
-  function openChat(){const panel=$('chatbotPanel'),button=$('chatbotBtn');if(!panel||!button)return;lockPageForChat();panel.classList.remove('hidden');button.setAttribute('aria-expanded','true');button.setAttribute('aria-label','Fermer l’assistant');if(!$('chatbotMessages').children.length)addChatMsg('bot','Bonjour ! Pose-moi une question sur tes parcelles ou demande-moi de modifier une donnée. Tape « aide » pour des exemples.');}
-  function closeChat(){const panel=$('chatbotPanel'),button=$('chatbotBtn');if(!panel||!button)return;panel.classList.add('hidden');button.setAttribute('aria-expanded','false');button.setAttribute('aria-label','Ouvrir l’assistant');const input=$('chatbotInput');if(document.activeElement===input)input.blur();unlockPageAfterChat();}
+  function openChat(){const panel=$('chatbotPanel'),button=$('chatbotBtn');if(!panel||!button)return;lockPageForChat();document.body.classList.add('chatbot-open');panel.classList.remove('hidden');button.setAttribute('aria-expanded','true');button.setAttribute('aria-label','Fermer l’assistant');if(!$('chatbotMessages').children.length)addChatMsg('bot','Bonjour ! Pose-moi une question sur tes parcelles ou demande-moi de modifier une donnée. Tape « aide » pour des exemples.');}
+  function closeChat(){const panel=$('chatbotPanel'),button=$('chatbotBtn');if(!panel||!button)return;panel.classList.add('hidden');document.body.classList.remove('chatbot-open');button.setAttribute('aria-expanded','false');button.setAttribute('aria-label','Ouvrir l’assistant');const input=$('chatbotInput');if(document.activeElement===input)input.blur();unlockPageAfterChat();}
   function toggleChat(){const panel=$('chatbotPanel');if(!panel)return;if(panel.classList.contains('hidden'))openChat();else closeChat();}
   $('chatbotBtn').addEventListener('click',toggleChat);$('chatbotClose').addEventListener('click',closeChat);document.addEventListener('click',function(e){if(chatLocked&&e.target.closest('.v2-nav-btn'))closeChat();},true);
   async function sendChatMessage(){
@@ -3999,7 +3998,6 @@ html.chatbot-scroll-lock,body.chatbot-scroll-lock{overflow:hidden;overscroll-beh
   --ui-radius:18px;
 }
 html,body{background:var(--ui-bg)!important;color:var(--ui-text)!important}
-body{padding-bottom:calc(78px + env(safe-area-inset-bottom))}
 header.top{background:linear-gradient(180deg,#f7faf7 0%,rgba(247,250,247,.88) 100%);padding:24px 20px 14px;border-bottom:1px solid rgba(31,107,69,.06)}
 header.top h1{font-family:Inter,system-ui,sans-serif;font-size:27px;font-weight:800;letter-spacing:-.04em;color:var(--ui-text)}
 header.top .subtitle{font-size:13px;margin-top:5px}
@@ -4037,7 +4035,7 @@ header.top .subtitle{font-size:13px;margin-top:5px}
 #dashView:not(.map-mode) .rule{border-top-color:transparent;margin:12px 0}
 #dashView:not(.map-mode) .badge{display:block;margin:0 2px 8px}
 .v2-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:var(--ui-green-soft);color:var(--ui-green-dark);font-size:11px;font-weight:700}
-.v2-bottom-nav{position:fixed;z-index:99990;left:0;right:0;bottom:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid rgba(20,40,28,.08);display:none;box-shadow:0 -6px 24px rgba(20,40,28,.07)}
+.v2-bottom-nav{position:fixed;z-index:99990;left:0;right:0;bottom:0;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.94);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:1px solid rgba(20,40,28,.08);box-shadow:0 -6px 24px rgba(20,40,28,.07)}
 .v2-bottom-nav .v2-nav-inner{max-width:680px;margin:auto;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
 .v2-nav-btn{border:0!important;background:transparent!important;color:#718078!important;min-height:54px!important;padding:7px 4px!important;border-radius:14px!important;box-shadow:none!important;font-size:10px!important;font-weight:700!important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
 .v2-nav-btn .ico{font-size:21px;line-height:20px}.v2-nav-btn.active{color:var(--ui-green)!important;background:#edf5ef!important}
@@ -4061,10 +4059,9 @@ header.top .subtitle{font-size:13px;margin-top:5px}
 #v2Plus .ps-subhead{padding:12px 15px!important;margin:0!important}
 .v2-hide{display:none!important}
 #dashView.map-mode #tabCarte.v2-hide{display:block!important}
-@media(min-width:701px){.v2-bottom-nav{display:grid}.v2-bottom-nav .v2-nav-inner{grid-template-columns:repeat(5,1fr)}}
-@media(max-width:700px){.v2-bottom-nav{display:block}.wrap{padding:0 14px}body{padding-bottom:calc(80px + env(safe-area-inset-bottom))}}
+@media(min-width:701px){.v2-bottom-nav .v2-nav-inner{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:700px){.wrap{padding:0 14px}}
 /* Fullscreen map keeps its own UI and hides app nav */
-body.v2-map-open .v2-bottom-nav{display:none!important}
 body.v2-map-open header.top{display:none}
 /* Import screen polish */
 #importView{background:transparent!important}
@@ -4239,11 +4236,10 @@ body.v2-map-open header.top{display:none}
    competing positioning blocks.
    ============================================================= */
 html,body{width:100%;max-width:100%;overflow-x:hidden}
-body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px)) !important}
+body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 
 /* Bottom navigation: always present on every dashboard screen, including map. */
 .v2-bottom-nav{
-  display:block !important;
   position:fixed !important;
   left:0 !important;right:0 !important;bottom:0 !important;
   width:100% !important;height:76px !important;
@@ -4258,6 +4254,11 @@ body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px)) !important}
 }
 .v2-bottom-nav .v2-nav-inner{width:100% !important;max-width:none !important;height:100% !important}
 .v2-nav-btn{min-height:58px !important;font-size:12px !important}
+
+/* Chatbot open state: the bottom navigation is removed from rendering and
+   the document no longer reserves its bottom space. */
+body.chatbot-open{padding-bottom:0}
+body.chatbot-open .v2-bottom-nav{display:none}
 
 /* Map is behind the controls and behind the navigation bar. */
 body.v2-map-open{padding-bottom:0 !important;overflow:hidden !important}
