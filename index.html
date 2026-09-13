@@ -4801,8 +4801,7 @@ body.v2-map-open header.top{display:none !important}
     const map=document.getElementById('mapContainer');
     const rpg=document.getElementById('rpgPanelBtn');
     const add=document.getElementById('addPointBtn');
-    const filter=document.getElementById('mapFilterBtn');
-    if(!dash || !map || !rpg || !add || !filter) return;
+    if(!dash || !map || !rpg || !add) return;
 
     const gear=document.createElement('button');
     gear.id='mapSettingsBtn'; gear.type='button'; gear.textContent='⚙️';
@@ -4831,7 +4830,7 @@ body.v2-map-open header.top{display:none !important}
       close();
       if(action==='rpg') rpg.click();
       else if(action==='point') add.click();
-      else if(action==='filter') filter.click();
+      else if(action==='filter'){ const filterBtn=document.getElementById('mapFilterBtn'); if(filterBtn) filterBtn.click(); }
     });
     document.addEventListener('click',function(e){
       if(!panel.hidden && e.target!==gear && !panel.contains(e.target)) close();
