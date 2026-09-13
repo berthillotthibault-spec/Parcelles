@@ -4798,7 +4798,24 @@ body.v2-map-open header.top{display:none !important}
     const oldFilter=document.getElementById('mapFilterBtn');
     if(!wrap||!btn||!panel||wrap.dataset.bound==='1') return;
     wrap.dataset.bound='1';
-    const closeSettings=()=>{panel.classList.add('hidden');btn.setAttribute('aria-expanded','false');};
+    const setFilterButtonVisible=(visible)=>{
+      const f=document.getElementById('mapFilterBtn');
+      if(!f) return;
+      f.hidden=!visible;
+      f.setAttribute('aria-hidden',String(!visible));
+      if(!visible) f.style.setProperty('display','none','important');
+      else f.style.removeProperty('display');
+    };
+    const closeSettings=()=>{
+      panel.classList.add('hidden');
+      btn.setAttribute('aria-expanded','false');
+      setFilterButtonVisible(false);
+    };
+    const openSettings=()=>{
+      panel.classList.remove('hidden');
+      btn.setAttribute('aria-expanded','true');
+      setFilterButtonVisible(true);
+    };
     const closeMapOverlays=()=>{
       const rpg=document.getElementById('rpgPanel');
       const pointRow=document.getElementById('pointTypeRow');
@@ -4821,7 +4838,7 @@ body.v2-map-open header.top{display:none !important}
     btn.addEventListener('click',function(e){
       e.stopPropagation();
       if(!panel.classList.contains('hidden') || hasOpenMapOverlay()) closeMapOverlays();
-      else { closeSettings(); panel.classList.remove('hidden'); btn.setAttribute('aria-expanded','true'); }
+      else openSettings();
     });
     panel.addEventListener('click',function(e){e.stopPropagation();});
     document.addEventListener('click',function(e){if(!wrap.contains(e.target)) closeSettings();});
