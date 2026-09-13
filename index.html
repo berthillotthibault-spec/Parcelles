@@ -3779,114 +3779,287 @@ html.chatbot-scroll-lock,body.chatbot-scroll-lock{overflow:hidden;overscroll-beh
     }
   }
 
+  // ---------- Assistant Parcelles : moteur local déterministe + contexte conversationnel ----------
+  const chatState = {
+    lastParcelGuid:null,
+    lastInterventionId:null,
+    lastIntent:null,
+    pendingAction:null
+  };
+  const chatConversation=[];
+  function chatSay(text,intent,parcel,intervention){
+    if(intent) chatState.lastIntent=intent;
+    if(parcel && parcel.guid) chatState.lastParcelGuid=parcel.guid;
+    if(intervention && intervention.id) chatState.lastInterventionId=intervention.id;
+    return text;
+  }
+  function chatInterventionLabel(iv){ return String(iv?.type||iv?.operation||'Intervention').trim()||'Intervention'; }
+  function chatInterventionDate(iv){ return iv?.date || ''; }
+  function chatAllInterventions(){
+    const out=[];
+    (dataset?.interventions||[]).forEach(iv=>out.push({...iv,_source:'dataset'}));
+    ((dataset?.parcelles||[]).concat(manualParcelles||[])).forEach(p=>{
+      const meta=parcelMeta[metaKeyFor(p)]||{};
+      (meta.manualInterventions||[]).forEach(iv=>out.push({...iv,parcelle:iv.parcelle||p.parcelle,guidParcelle:iv.guidParcelle||p.guid,_source:'manual'}));
+    });
+    return out.filter(iv=>iv.date||iv.operation||iv.type);
+  }
+  function chatInterventionParcel(iv){
+    if(!iv) return null;
+    const name=normStr(iv.parcelle||'');
+    if(iv.guidParcelle){
+      const p=(dataset?.parcelles||[]).concat(manualParcelles||[]).find(x=>x.guid===iv.guidParcelle);
+      if(p)return p;
+    }
+    if(name){
+      const found=findParcelle(iv.parcelle);
+      if(found && !found._ambiguous)return found;
+      const p=(dataset?.parcelles||[]).concat(manualParcelles||[]).find(x=>normStr(x.parcelle||'')===name);
+      if(p)return p;
+    }
+    return null;
+  }
+  function chatSortedInterventions(list){ return list.slice().sort((a,b)=>(chatInterventionDate(b)||'').localeCompare(chatInterventionDate(a)||'')); }
+  function chatDateToday(){ return new Date().toISOString().slice(0,10); }
+  function chatDateOffset(days){ const d=new Date(); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
+  function chatMonthStart(){ const d=new Date(); d.setDate(1); return d.toISOString().slice(0,10); }
+  function chatParseDate(raw){
+    const s=normStr(raw||'');
+    if(!s)return null;
+    if(/^(aujourd ?hui|ce jour)$/.test(s))return chatDateToday();
+    if(s==='hier')return chatDateOffset(-1);
+    if(s==='demain')return chatDateOffset(1);
+    if(/^avant[- ]hier$/.test(s))return chatDateOffset(-2);
+    let m=s.match(/(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/);
+    if(m){let y=m[3]?Number(m[3]):new Date().getFullYear();if(y<100)y+=2000;return `${y}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;}
+    m=s.match(/(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0];
+    return null;
+  }
+  function chatResolveParcelFromContext(){
+    if(chatState.lastParcelGuid){
+      const p=(dataset?.parcelles||[]).concat(manualParcelles||[]).find(x=>x.guid===chatState.lastParcelGuid);
+      if(p)return p;
+    }
+    return null;
+  }
+  function chatFindParcelFromText(n){
+    const pronoun=/^(celle[- ]ci|celle[- ]là|cette parcelle|la parcelle|elle|sa|son)$/i.test(n.trim());
+    if(pronoun)return chatResolveParcelFromContext();
+    return null;
+  }
+  function chatFormatIntervention(iv){
+    const p=chatInterventionParcel(iv);
+    return `• ${displayDate(iv.date)} — ${chatInterventionLabel(iv)}${p?.parcelle?` — ${p.parcelle}`:''}${iv.culture?` — ${iv.culture}`:''}`;
+  }
+  function chatActionConfirmation(action){
+    chatState.pendingAction=action;
+    return `Je vais ${action.description}. Confirme avec « oui » pour appliquer la modification, ou « non » pour annuler.`;
+  }
+  async function chatExecuteAction(action){
+    if(!action)return "Je n'ai aucune modification en attente.";
+    if(action.kind==='intervention-add'){
+      const meta=getParcelMeta(action.parcel);meta.manualInterventions=meta.manualInterventions||[];
+      const iv={id:'iv'+Date.now(),date:action.date,type:action.type,quantite:null,unite:'',prixUnitaire:null,coutOperation:null,note:'',manual:true};
+      meta.manualInterventions.push(iv);await saveParcelMeta();renderDashboard(false);
+      if(currentParcel?.guid===action.parcel.guid){renderIntervLog();renderEcoPanel();}
+      chatState.lastParcelGuid=action.parcel.guid;chatState.lastInterventionId=iv.id;
+      return `C'est fait : intervention « ${action.type} » ajoutée sur ${action.parcel.parcelle} le ${displayDate(action.date)}.`;
+    }
+    if(action.kind==='parcel-field'){
+      if(action.field==='__eco.rendement'||action.field==='__eco.prixVente'){
+        const meta=getParcelMeta(action.parcel);meta.eco=Object.assign({},meta.eco||{}, {[action.field==='__eco.rendement'?'rendement':'prixVente']:action.value});await saveParcelMeta();
+        if(currentParcel?.guid===action.parcel.guid){if(action.field==='__eco.rendement')$('psRendement').value=action.value;else $('psPrixVente').value=action.value;renderEcoPanel();}
+      }else{
+        await persistParcelField(action.parcel,{[action.field]:action.value});
+        renderDashboard(false);renderManualParcelles();
+        if(currentParcel?.guid===action.parcel.guid)openParcelSheet(action.parcel);
+      }
+      return `C'est fait : ${action.description}.`;
+    }
+    if(action.kind==='parcel-eco'){
+      const meta=getParcelMeta(action.parcel);meta.eco=Object.assign({},meta.eco||{},{[action.field]:action.value});await saveParcelMeta();
+      if(currentParcel?.guid===action.parcel.guid){$('psPrixVente').value=action.value;renderEcoPanel();}
+      return `C'est fait : ${action.description}.`;
+    }
+    if(action.kind==='intervention-edit'){
+      const iv=action.intervention;
+      if(action.source==='manual'){
+        const found=findManualIntervention(iv.id);if(!found)throw new Error('intervention_missing');
+        Object.assign(found.iv,action.update);found.iv.manual=true;await saveParcelMeta();
+      }else{
+        const live=(dataset?.interventions||[]).find(x=>x.id===iv.id);if(!live)throw new Error('intervention_missing');
+        Object.assign(live,action.update);live.operation=live.type||live.operation||action.update.type;if(live.type)delete live.type;await saveDataset();
+      }
+      ensureInterventionIds();renderDashboard(false);
+      return `C'est fait : l'intervention du ${displayDate(action.oldDate)} sur ${action.parcel?.parcelle||iv.parcelle||'la parcelle'} est maintenant « ${action.update.type} ».`;
+    }
+    return "Cette modification n'est pas disponible dans l'application.";
+  }
+
   async function handleChatIntent(raw){
     const text=(raw||'').trim();
     const n=normStr(text).replace(/[’']/g,"'").replace(/\s+/g,' ');
-    if(!n) return "Dis-moi ce que tu veux savoir ou faire.";
+    if(!n)return "Dis-moi ce que tu veux savoir ou faire.";
+
+    // Confirmation d'une modification en attente : aucune écriture avant confirmation.
+    if(chatState.pendingAction){
+      if(/^(oui|ok|okay|d'accord|dac|confirme|confirmer|vas[- ]y|fais[- ]le|fait)$/.test(n)){
+        const action=chatState.pendingAction;chatState.pendingAction=null;
+        try{return await chatExecuteAction(action);}catch(e){chatState.pendingAction=null;return "La modification n'a pas pu être enregistrée. Rien n'est confirmé comme modifié.";}
+      }
+      if(/^(non|annule|annuler|stop|pas maintenant)$/.test(n)){chatState.pendingAction=null;return "D'accord, je n'ai rien modifié.";}
+      return "J'attends ta confirmation : « oui » pour appliquer la modification ou « non » pour l'annuler.";
+    }
+
     const all=allParcellesForSearch();
     const own=allOwnParcelles();
     const surfaceOf=p=>Number(p?.surface)||0;
     const cultureOf=p=>(p?.culture||'Non renseigné').trim()||'Non renseigné';
     const fmtList=(arr,max=12)=>arr.slice(0,max).map(p=>`• ${p.parcelle||'(sans nom)'} — ${cultureOf(p)} — ${fmtSurface(surfaceOf(p))}`).join('\n');
+    const interventions=chatSortedInterventions(chatAllInterventions());
 
     if(/^(aide|help|menu|commandes?|que peux tu faire|qu'est ce que tu peux faire|quoi faire)$/.test(n)){
-      return "Je peux consulter et modifier les données de l'exploitation.\n\n"+
-      "📊 DONNÉES\n• surface totale / surface de maïs / surface par culture\n• nombre de parcelles / liste des parcelles\n• parcelles d'une commune\n• rendement, prix de vente, marge\n\n"+
-      "🌾 PARCELLE\n• infos sur [nom]\n• culture / surface / commune de [nom]\n• interventions sur [nom]\n• bêtes au pré sur [nom]\n\n"+
-      "✏️ MODIFICATIONS\n• change la culture de [nom] en colza\n• mets le rendement de [nom] à 75\n• mets le prix de vente de [nom] à 220\n• ajoute une intervention labour sur [nom] le 12/09/2026\n\nJe ne supprime aucune donnée automatiquement. Pour une modification ambiguë, je demande confirmation ou précision.";
+      return "Je peux t'aider directement avec les données de l'application.\n\n"+
+      "🌾 PARCELLES\n• « Combien ai-je de parcelles ? »\n• « Quelle est la surface totale ? »\n• « Montre-moi les parcelles de maïs »\n• « Quelle est la plus grande parcelle ? »\n• « Quelle est la surface de SUD SOUGEY ? »\n\n"+
+      "🚜 INTERVENTIONS\n• « Quelle est ma dernière intervention ? »\n• « Qu'est-ce que j'ai fait hier ? »\n• « Et avant ? »\n• « Combien d'interventions ce mois-ci ? »\n• « Qu'est-ce que j'ai fait sur SUD SOUGEY ? »\n\n"+
+      "✏️ MODIFICATIONS\n• « Change la culture de SUD SOUGEY en colza »\n• « Modifie ma dernière intervention »\n• « Ajoute une intervention labour sur SUD SOUGEY »\n\nJe n'invente pas les données. Pour une modification, je te demande confirmation avant de l'enregistrer.";
+    }
+    if(/^(bonjour|salut|bonsoir|coucou|hello)([ !,.].*)?$/.test(n))return "Bonjour ! Dis-moi ce que tu veux consulter ou modifier dans tes parcelles.";
+
+    // Références conversationnelles : « et avant ? », « sa culture ? », « sur quelle parcelle ? »
+    if(/^(et )?(avant|la précédente|le précédent|celle d'avant|l'intervention précédente)$/.test(n)){
+      if(!interventions.length)return "Je n'ai aucune intervention enregistrée.";
+      const idx=chatState.lastInterventionId?interventions.findIndex(iv=>iv.id===chatState.lastInterventionId):-1;
+      const iv=interventions[idx>=0?idx+1:1]||interventions[1];
+      if(!iv)return "Il n'y a pas d'intervention précédente dans les données disponibles.";
+      return chatSay(chatFormatIntervention(iv),'CONSULTATION_INTERVENTION',chatInterventionParcel(iv),iv);
+    }
+    if(/^(et )?(sa|son) (culture|surface|commune)$/.test(n)){
+      const p=chatResolveParcelFromContext();if(!p)return "Je n'ai pas de parcelle de référence dans le contexte. Précise son nom.";
+      if(/culture/.test(n))return chatSay(`La culture de ${p.parcelle} est ${cultureOf(p)}.`,'CONSULTATION_CULTURE',p);
+      if(/surface/.test(n))return chatSay(`La surface de ${p.parcelle} est ${p.surface!=null?fmtSurface(p.surface):'non renseignée'}.`,'CONSULTATION_PARCELLE',p);
+      return chatSay(`${p.parcelle} est située sur la commune de ${p.commune||'non renseignée'}.`,'CONSULTATION_PARCELLE',p);
+    }
+    if(/^(sur quelle parcelle|quelle parcelle)\??$/.test(n)){
+      const iv=chatState.lastInterventionId?interventions.find(x=>x.id===chatState.lastInterventionId):interventions[0];const p=chatInterventionParcel(iv);
+      return p?chatSay(`C'était sur ${p.parcelle}.`,'CONSULTATION_INTERVENTION',p,iv):"Je n'ai pas assez de contexte pour déterminer la parcelle.";
     }
 
-    if(/(?:bonjour|salut|bonsoir|coucou)/.test(n) && n.length<45) return "Bonjour ! Je suis prêt. Tu peux me demander une information précise sur tes parcelles ou une modification.";
+    // Statistiques générales
+    let countCrop=n.match(/(?:combien|nombre|nb).*?(?:parcelle|champs?).*?(?:de|en|avec)\s+(.+)$/);
+    if(countCrop){
+      const wanted=countCrop[1].trim();const matches=own.filter(p=>normStr(cultureOf(p)).includes(normStr(wanted)));
+      return chatSay(`Tu as ${matches.length} parcelle(s) en ${wanted}.`,'STATISTIQUES');
+    }
+    if(/(?:combien|nombre|nb).*(?:parcelle|champs?)|(?:j'ai|jai)\s+(?:combien|quel nombre).*(?:parcelle|champs?)/.test(n))
+      return chatSay(`Tu as ${own.length} parcelle(s) enregistrée(s).`,'CONSULTATION_PARCELLE');
+    if(/surface totale|superficie totale|hectares? au total|surface de l'exploitation|combien d'hectares/.test(n) && !/ma[iï]s|culture/.test(n))
+      return chatSay(`La surface totale est de ${fmtSurface(own.reduce((s,p)=>s+surfaceOf(p),0))}.`,'STATISTIQUES');
+    if(/(?:quelles?|liste des) parcelles|liste.*parcelle|montre.*parcelle/.test(n)){
+      let matches=own;
+      const crop=(n.match(/(?:de|en|de la|du|des)\s+([a-zàâçéèêëîïôûùüÿœ -]+)$/)||[])[1];
+      if(crop)matches=own.filter(p=>normStr(cultureOf(p)).includes(normStr(crop)));
+      return matches.length?chatSay(`Voici ${matches.length} parcelle(s)${crop?` en ${crop}`:''} :\n${fmtList(matches,18)}`,'RECHERCHE_PARCELLE'):"Aucune parcelle ne correspond.";
+    }
+    if(/plus grande parcelle|parcelle la plus grande/.test(n)){
+      const p=own.slice().sort((a,b)=>surfaceOf(b)-surfaceOf(a))[0];return p?chatSay(`La plus grande parcelle est ${p.parcelle||'(sans nom)'} avec ${fmtSurface(p.surface)}.`,'STATISTIQUES',p):"Aucune parcelle n'est chargée.";
+    }
 
-    // Totaux et statistiques générales
-    if(/\b(combien|nombre|nb)\b.*parcelle|\bcombien de parcelles\b|\bnombre de parcelles\b/.test(n))
-      return `L'exploitation contient ${own.length} parcelle(s), pour ${fmtSurface(own.reduce((s,p)=>s+surfaceOf(p),0))}.`;
-    if(/surface totale|hectares? au total|superficie totale|surface de l'exploitation/.test(n))
-      return `Surface totale de l'exploitation : ${fmtSurface(own.reduce((s,p)=>s+surfaceOf(p),0))} sur ${own.length} parcelle(s).`;
-    if(/(?:quelles?|liste des) parcelles|liste.*parcelle/.test(n))
-      return own.length ? `Voici les principales parcelles :\n${fmtList(own,18)}` : "Aucune parcelle n'est chargée.";
-
-    // Surface par culture, avec variantes naturelles
-    let m=n.match(/surface (?:de|en|pour) (.+)$/) || n.match(/(.+?)\s+(?:en|de)\s+surface$/);
+    // Surfaces par culture / assolement
+    let m=n.match(/(?:surface|hectares?|superficie)\s+(?:de|en|pour|du|de la|des)\s+(.+?)(?:\s+sur\s+mes parcelles)?$/);
     if(m && !/totale|exploitation/.test(m[1])){
-      const wanted=m[1].replace(/^(la |le |les |du |de la |des )/,'').trim();
-      const matches=own.filter(p=>normStr(cultureOf(p)).includes(normStr(wanted)));
-      if(matches.length) return `${fmtSurface(matches.reduce((s,p)=>s+surfaceOf(p),0))} pour ${matches.length} parcelle(s) en « ${wanted} ».`;
+      const wanted=m[1].trim();const matches=own.filter(p=>normStr(cultureOf(p)).includes(normStr(wanted))||normStr(wanted).includes(normStr(cultureOf(p))));
+      if(matches.length)return chatSay(`${fmtSurface(matches.reduce((s,p)=>s+surfaceOf(p),0))} en ${wanted}, sur ${matches.length} parcelle(s).`,'CONSULTATION_ASOLEMENT');
+      return `Je ne trouve aucune parcelle avec la culture « ${wanted} ».`;
     }
-    m=n.match(/(?:répartition|repartition|surfaces?|hectares?).*(?:par|selon) (?:culture|cultures)/);
-    if(m){
-      const groups={}; own.forEach(p=>groups[cultureOf(p)]=(groups[cultureOf(p)]||0)+surfaceOf(p));
-      return Object.entries(groups).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`• ${c} : ${fmtSurface(v)}`).join('\n') || "Aucune donnée de culture.";
+    if(/culture.*plus.*surface|culture.*dominante|plus grande culture|quelle culture.*plus/.test(n)){
+      const groups={};own.forEach(p=>{const c=cultureOf(p);groups[c]=(groups[c]||0)+surfaceOf(p);});const e=Object.entries(groups).sort((a,b)=>b[1]-a[1])[0];return e?chatSay(`La culture qui occupe le plus de surface est ${e[0]}, avec ${fmtSurface(e[1])}.`,'STATISTIQUES'):"Aucune donnée de culture.";
     }
-    m=n.match(/(?:parcelles?|champs?).*(?:dans|sur|de) (?:la commune )?(.+)$/);
-    if(m && /commune|dans|sur/.test(n)){
-      const q=m[1].trim(); const matches=own.filter(p=>normStr(p.commune||'').includes(normStr(q)));
-      if(matches.length) return `${matches.length} parcelle(s) :\n${fmtList(matches,18)}`;
+    if(/répartition|repartition|surface.*par culture|hectares?.*par culture|assolement/.test(n)){
+      const groups={};own.forEach(p=>{const c=cultureOf(p);groups[c]=(groups[c]||0)+surfaceOf(p);});return Object.entries(groups).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`• ${c} : ${fmtSurface(v)}`).join('\n')||"Aucune donnée de culture.";
     }
 
-    // Parcelle ciblée : accepter plusieurs formulations
+    // Parcelle ciblée, y compris « cette parcelle » grâce au contexte.
+    const pronounParcel=chatFindParcelFromText(n);
+    if(pronounParcel){chatState.lastParcelGuid=pronounParcel.guid;}
     const namePatterns=[
       /(?:infos?|informations?|details?|détails?|renseignements?)\s+(?:sur|de)\s+(?:la parcelle\s+)?(.+)$/,
       /(?:surface|culture|commune|exploitant|ilot|îlot)\s+(?:de|du|de la|pour)\s+(?:la parcelle\s+)?(.+)$/,
-      /(?:interventions?|travaux)\s+(?:sur|de)\s+(?:la parcelle\s+)?(.+)$/,
-      /(?:bêtes|betes|animaux)\s+(?:au pré|au pre|sur)\s+(?:la parcelle\s+)?(.+)$/,
-      /(?:marge|résultat économique|resultat economique|resultat eco)\s+(?:de|sur)\s+(?:la parcelle\s+)?(.+)$/
+      /(?:interventions?|travaux)\s+(?:sur|de)\s+(?:la parcelle\s+)?(.+)$/
     ];
-    let target=null, targetName='';
-    for(const re of namePatterns){ const mm=n.match(re); if(mm){targetName=mm[1].trim();target=findParcelle(targetName);break;} }
+    let target=pronounParcel,targetName='';
+    if(!target){for(const re of namePatterns){const mm=n.match(re);if(mm){targetName=mm[1].trim();target=findParcelle(targetName);break;}}}
     if(target){
-      if(target._ambiguous) return ambiguousReply(target.matches);
+      if(target._ambiguous)return ambiguousReply(target.matches);
       const meta=getParcelMeta(target);
       if(/interventions?|travaux/.test(n)){
-        const list=meta.manualInterventions||[];
-        return list.length ? `Interventions sur ${target.parcelle}:\n${list.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,12).map(iv=>`• ${displayDate(iv.date)} — ${iv.type}${iv.quantite?' — '+iv.quantite+' '+(iv.unite||''):''}`).join('\n')}` : `Aucune intervention manuelle enregistrée sur ${target.parcelle}.`;
+        const list=interventions.filter(iv=>{const p=chatInterventionParcel(iv);return (p&&p.guid===target.guid)||normStr(iv.parcelle||'')===normStr(target.parcelle||'');});
+        return list.length?chatSay(`Interventions sur ${target.parcelle} :\n${list.slice(0,15).map(chatFormatIntervention).join('\n')}`,'CONSULTATION_INTERVENTION',target,list[0]):`Aucune intervention enregistrée sur ${target.parcelle}.`;
       }
       if(/bêtes|betes|animaux/.test(n)){
-        const pat=meta.paturage||meta.patre; const count=(pat?.animaux?.length||0)+(Number(pat?.nbSansId)||0);
-        return count ? `${count} animal(aux) enregistré(s) au pré sur ${target.parcelle}.` : `Aucune bête enregistrée au pré sur ${target.parcelle}.`;
+        const pat=meta.paturage||meta.patre;const count=(pat?.animaux?.length||0)+(Number(pat?.nbSansId)||0);return count?`${count} animal(aux) enregistré(s) au pré sur ${target.parcelle}.`:`Aucune bête enregistrée au pré sur ${target.parcelle}.`;
       }
-      if(/marge|résultat|resultat/.test(n)){
-        const eco=meta.eco||{}; const r=Number(eco.rendement), prix=Number(eco.prixVente), charges=Number(eco.chargesHa||eco.charges||0);
-        if(!isFinite(r)||!isFinite(prix)) return `Pour calculer la marge de ${target.parcelle}, renseigne son rendement et son prix de vente.`;
-        const marge=r*prix-charges; return `Marge calculée pour ${target.parcelle} : ${fmtEuro(marge)}/ha${surfaceOf(target)?` soit environ ${fmtEuro(marge*surfaceOf(target))} sur la parcelle`:''}.`;
-      }
-      return `${target.parcelle||'(sans nom)'} — culture : ${cultureOf(target)} ; surface : ${target.surface!=null?fmtSurface(target.surface):'non renseignée'}${target.commune?', commune : '+target.commune:''}${target.ilot?', îlot : '+target.ilot:''}.`;
+      if(/culture/.test(n))return chatSay(`La culture de ${target.parcelle} est ${cultureOf(target)}.`,'CONSULTATION_CULTURE',target);
+      if(/surface/.test(n))return chatSay(`La surface de ${target.parcelle} est ${target.surface!=null?fmtSurface(target.surface):'non renseignée'}.`,'CONSULTATION_PARCELLE',target);
+      return chatSay(`${target.parcelle||'(sans nom)'} — culture : ${cultureOf(target)} ; surface : ${target.surface!=null?fmtSurface(target.surface):'non renseignée'}${target.commune?', commune : '+target.commune:''}${target.ilot?', îlot : '+target.ilot:''}.`,'CONSULTATION_PARCELLE',target);
     }
 
-    // Modifications : formulations plus souples
-    m=n.match(/(?:change|modifier|mets|met|définis|definis|passe|passer).*culture.*?(?:de|pour|sur)\s+(?:la parcelle\s+)?(.+?)\s+(?:en|à|a)\s+(.+)$/);
-    if(m){
-      const found=findParcelle(m[1].trim()); if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`; if(found._ambiguous)return ambiguousReply(found.matches);
-      const crop=matchCropLabel(m[2].trim()); await persistParcelField(found,{culture:crop}); renderDashboard(false); renderManualParcelles();
-      if(currentParcel?.guid===found.guid) openParcelSheet(found); return `Culture de ${found.parcelle} mise à jour : ${crop}.`;
+    // Interventions : recherche chronologique, dates relatives, mois courant.
+    if(/derni[eè]re intervention|intervention la plus récente|dernier travail/.test(n)){
+      const iv=interventions[0];if(!iv)return "Je n'ai aucune intervention enregistrée.";return chatSay(`La dernière intervention est : ${chatFormatIntervention(iv)}.`,'RECHERCHE_INTERVENTION',chatInterventionParcel(iv),iv);
     }
+    if(/(?:qu'est[- ]ce que|quoi|que).*(?:fait|réalisé|travail).*hier|intervention.*hier|travail.*hier/.test(n)){
+      const d=chatDateOffset(-1),list=interventions.filter(iv=>iv.date===d);if(!list.length)return `Je ne trouve aucune intervention datée du ${displayDate(d)}.`;return chatSay(`Le ${displayDate(d)}, tu as fait :\n${list.map(chatFormatIntervention).join('\n')}`,'RECHERCHE_INTERVENTION',chatInterventionParcel(list[0]),list[0]);
+    }
+    if(/interventions?.*(?:ce mois|ce mois-ci)|(?:combien).*(?:interventions?|travaux).*(?:ce mois|mois-ci)/.test(n)){
+      const start=chatMonthStart(),list=interventions.filter(iv=>iv.date>=start);return chatSay(`Tu as ${list.length} intervention(s) depuis le début du mois.`,'STATISTIQUES');
+    }
+    if(/(?:derni[eè]r|dernier).*(?:d[eé]chaumage|labour|semis|fauche|r[eé]colte)/.test(n)){
+      const type=(n.match(/(?:d[eé]chaumage|labour|semis|fauche|r[eé]colte)/)||[])[0];const list=interventions.filter(iv=>normStr(chatInterventionLabel(iv)).includes(normStr(type))).sort((a,b)=>(b.date||'').localeCompare(a.date||''));if(!list.length)return `Je ne trouve aucune intervention de type « ${type} ».`;const iv=list[0];return chatSay(`La dernière intervention « ${type} » est le ${displayDate(iv.date)}${chatInterventionParcel(iv)?.parcelle?` sur ${chatInterventionParcel(iv).parcelle}`:''}.`,'RECHERCHE_INTERVENTION',chatInterventionParcel(iv),iv);
+    }
+
+    // Modifications de culture / rendement / prix : on prépare toujours une écriture puis on confirme.
+    m=n.match(/(?:change|modifier|mets|met|définis|definis|passe|passer).*?culture.*?(?:de|pour|sur)\s+(?:la parcelle\s+)?(.+?)\s+(?:en|à|a)\s+(.+)$/);
+    if(m){const found=findParcelle(m[1].trim())||chatFindParcelFromText(m[1].trim());if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`;if(found._ambiguous)return ambiguousReply(found.matches);const crop=matchCropLabel(m[2].trim());return chatActionConfirmation({kind:'parcel-field',parcel:found,field:'culture',value:crop,description:`modifier la culture de ${found.parcelle} en « ${crop} »`});}
     m=n.match(/(?:mets|met|définis|definis|change).*rendement.*?(?:de|pour|sur)\s+(?:la parcelle\s+)?(.+?)\s+(?:à|a|de)\s*([0-9]+(?:[.,][0-9]+)?)/);
-    if(m){
-      const found=findParcelle(m[1].trim()); if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`; if(found._ambiguous)return ambiguousReply(found.matches);
-      const val=parseFloat(m[2].replace(',','.')); const meta=getParcelMeta(found); meta.eco=Object.assign({},meta.eco||{},{rendement:val}); await saveParcelMeta(); if(currentParcel?.guid===found.guid){$('psRendement').value=val;renderEcoPanel();} return `Rendement de ${found.parcelle} mis à ${val} ${meta.eco.rendementUnite||'q/ha'}.`;
-    }
+    if(m){const found=findParcelle(m[1].trim());if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`;if(found._ambiguous)return ambiguousReply(found.matches);const val=parseFloat(m[2].replace(',','.'));return chatActionConfirmation({kind:'parcel-field',parcel:found,field:'__eco.rendement',value:val,description:`mettre le rendement de ${found.parcelle} à ${val}`});}
     m=n.match(/(?:mets|met|définis|definis|change).*prix.*?(?:de|pour|sur)\s+(?:la parcelle\s+)?(.+?)\s+(?:à|a|de)\s*([0-9]+(?:[.,][0-9]+)?)/);
-    if(m){
-      const found=findParcelle(m[1].trim()); if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`; if(found._ambiguous)return ambiguousReply(found.matches);
-      const val=parseFloat(m[2].replace(',','.')); const meta=getParcelMeta(found); meta.eco=Object.assign({},meta.eco||{},{prixVente:val}); await saveParcelMeta(); if(currentParcel?.guid===found.guid){$('psPrixVente').value=val;renderEcoPanel();} return `Prix de vente de ${found.parcelle} mis à ${val} €.`;
+    if(m){const found=findParcelle(m[1].trim());if(!found)return `Je ne trouve pas la parcelle « ${m[1].trim()} ».`;if(found._ambiguous)return ambiguousReply(found.matches);const val=parseFloat(m[2].replace(',','.'));return chatActionConfirmation({kind:'parcel-eco',parcel:found,value:val,field:'prixVente',description:`mettre le prix de vente de ${found.parcelle} à ${val} €`});}
+
+    // Modification de la dernière intervention.
+    if(/modifie|modifier|change|changer|mets|met/.test(n) && /derni[eè]re intervention|celle-ci|celle[- ]là|l'intervention précédente|la précédente/.test(n)){
+      const iv=chatState.lastInterventionId?interventions.find(x=>x.id===chatState.lastInterventionId):interventions[0];if(!iv)return "Je ne trouve aucune intervention à modifier.";const p=chatInterventionParcel(iv);const typeMatch=n.match(/(?:en|comme|par)\s+(.+)$/);const newType=typeMatch?matchCropLabel(typeMatch[1].trim()):null;
+      if(!newType)return `Que veux-tu modifier sur l'intervention du ${displayDate(iv.date)}${p?.parcelle?` sur ${p.parcelle}`:''} ? Par exemple : « change son type en déchaumage ».`;
+      return chatActionConfirmation({kind:'intervention-edit',intervention:iv,source:iv._source,parcel:p,oldDate:iv.date,update:{type:newType}});
     }
-    m=n.match(/ajoute(?:r)?\s+(?:une\s+)?intervention\s+(.+?)\s+(?:sur|pour)\s+(?:la parcelle\s+)?(.+?)(?:\s+(?:le|pour le)\s+(.+))?$/);
-    if(m){
-      const found=findParcelle(m[2].trim()); if(!found)return `Je ne trouve pas la parcelle « ${m[2].trim()} ».`; if(found._ambiguous)return ambiguousReply(found.matches);
-      const date=parseFrDate(m[3]||"aujourd'hui"); if(!date)return `Je n'ai pas compris la date « ${m[3]} ».`;
-      const typeMatch=INTERV_TYPES.find(t=>normStr(t)===normStr(m[1])) || m[1].trim().replace(/^./,c=>c.toUpperCase());
-      const meta=getParcelMeta(found); meta.manualInterventions=meta.manualInterventions||[]; meta.manualInterventions.push({id:'iv'+Date.now(),date,type:typeMatch,quantite:null,unite:'',prixUnitaire:null,coutOperation:null,note:'',manual:true});
-      await saveParcelMeta(); if(currentParcel?.guid===found.guid){renderIntervLog();renderEcoPanel();} renderDashboard(false); return `Intervention « ${typeMatch} » ajoutée sur ${found.parcelle} le ${displayDate(date)}.`;
+    if(/change (son|le type)|mets (son|le type)/.test(n) && chatState.lastInterventionId){
+      const iv=interventions.find(x=>x.id===chatState.lastInterventionId);const p=chatInterventionParcel(iv);const mm=n.match(/(?:en|comme|par)\s+(.+)$/);if(iv&&mm){const newType=matchCropLabel(mm[1].trim());return chatActionConfirmation({kind:'intervention-edit',intervention:iv,source:iv._source,parcel:p,oldDate:iv.date,update:{type:newType}});}
+    }
+    if(/supprime|supprimer|efface|effacer/.test(n) && /intervention|celle-ci|celle[- ]là|la précédente|derni[eè]re/.test(n)){
+      return "La suppression d'une intervention n'est pas disponible dans cette version de l'application. Je ne supprime donc aucune donnée.";
     }
 
-    if(/à faire|a faire|aujourd'hui|aujourd hui|todo/.test(n)){
-      const todos=own.filter(p=>getParcelMeta(p).todo); return todos.length?`${todos.length} parcelle(s) à faire aujourd'hui :\n${fmtList(todos,15)}`:"Aucune parcelle n'est marquée « à faire » aujourd'hui.";
-    }
-    if(/culture.*dominante|culture.*plus.*grande|plus grande culture/.test(n)){
-      const groups={};own.forEach(p=>groups[cultureOf(p)]=(groups[cultureOf(p)]||0)+surfaceOf(p)); const e=Object.entries(groups).sort((a,b)=>b[1]-a[1])[0]; return e?`La culture la plus représentée est ${e[0]} avec ${fmtSurface(e[1])}.`:"Aucune donnée.";
+    // Ajout d'intervention.
+    m=n.match(/(?:ajoute|ajouter|crée|creer|enregistre|marque).*?(?:une )?intervention\s+(.+?)\s+(?:sur|pour)\s+(?:la parcelle\s+)?(.+?)(?:\s+(?:le|pour le)\s+(.+))?$/);
+    if(m){const found=findParcelle(m[2].trim())||chatFindParcelFromText(m[2].trim());if(!found)return `Je ne trouve pas la parcelle « ${m[2].trim()} ».`;if(found._ambiguous)return ambiguousReply(found.matches);const date=chatParseDate(m[3]||'aujourd hui');if(!date)return `Je n'ai pas compris la date « ${m[3]} ».`;const typeMatch=INTERV_TYPES.find(t=>normStr(t)===normStr(m[1]))||m[1].trim().replace(/^./,c=>c.toUpperCase());return chatActionConfirmation({kind:'intervention-add',parcel:found,date,type:typeMatch,description:`ajouter l'intervention « ${typeMatch} » sur ${found.parcelle} le ${displayDate(date)}`});}
+
+    if(/à faire|a faire|todo/.test(n)){
+      const todos=own.filter(p=>getParcelMeta(p).todo);return todos.length?`Il y a ${todos.length} parcelle(s) à faire :\n${fmtList(todos,15)}`:"Aucune parcelle n'est marquée « à faire ».";
     }
 
-    return `Je n'ai pas compris précisément « ${text} ». Essaie par exemple : « surface totale », « surface de maïs », « infos sur [parcelle] », « interventions sur [parcelle] », « quelles parcelles sont à faire aujourd'hui ? » ou « change la culture de [parcelle] en colza ».`;
+    // Demande de météo : ne jamais inventer de données locales.
+    if(/météo|meteo|temps aujourd|prévision|prevision/.test(n))return "Je peux t'aider avec les données météo affichées par l'application, mais je n'ai pas de donnée météo fiable disponible dans le contexte du chatbot pour cette demande.";
+
+    // Dernier recours : question libre vers Gemini, avec contexte structuré et historique.
+    // Le modèle distant ne devient jamais la source de vérité pour les écritures locales.
+    if(typeof window.__PARCELLES_ASK_REMOTE_AI__==='function'){
+      try{
+        const answer=await window.__PARCELLES_ASK_REMOTE_AI__(text);
+        if(answer)return chatSay(answer,'AUTRE');
+      }catch(e){ /* on retombe sur une réponse honnête plutôt que d'inventer */ }
+    }
+    // Hors sujet / incompris : réponse explicite plutôt qu'une réponse générique hors contexte.
+    return `Je n'ai pas assez d'informations pour répondre précisément à « ${text} ». Précise par exemple la parcelle, la culture ou l'intervention concernée.`;
   }
   // ---------- Édition des interventions : même stockage, même identifiant ----------
   function ensureInterventionIds(){
@@ -3942,9 +4115,13 @@ html.chatbot-scroll-lock,body.chatbot-scroll-lock{overflow:hidden;overscroll-beh
     if(!text) return;
     addChatMsg("user", text);
     input.value = "";
+    chatConversation.push({role:'user',content:text});
+    if(chatConversation.length>20)chatConversation.splice(0,chatConversation.length-20);
     let reply;
     try{ reply = await handleChatIntent(text); }
-    catch(e){ reply = "Une erreur est survenue en traitant ta demande."; }
+    catch(e){ reply = "Je n'ai pas pu traiter cette demande correctement."; }
+    chatConversation.push({role:'assistant',content:reply});
+    if(chatConversation.length>20)chatConversation.splice(0,chatConversation.length-20);
     addChatMsg("bot", reply);
   }
   $("chatbotSend").addEventListener("click", sendChatMessage);
@@ -3952,6 +4129,11 @@ html.chatbot-scroll-lock,body.chatbot-scroll-lock{overflow:hidden;overscroll-beh
 
   // API interne exposée à la couche UI V2 (sans rendre les données globales).
   try{ Object.defineProperty(window,'parcellesDataset',{configurable:true,get:()=>dataset}); }catch(e){ window.parcellesDataset=dataset; }
+  try{ Object.defineProperty(window,'__PARCELLES_ALL_OWN__',{configurable:true,value:()=>allOwnParcelles()}); }catch(e){ window.__PARCELLES_ALL_OWN__=()=>allOwnParcelles(); }
+  try{ Object.defineProperty(window,'__PARCELLES_META__',{configurable:true,get:()=>parcelMeta}); }catch(e){ window.__PARCELLES_META__=parcelMeta; }
+  try{ Object.defineProperty(window,'__PARCELLES_GET_META__',{configurable:true,value:p=>getParcelMeta(p)}); }catch(e){ window.__PARCELLES_GET_META__=p=>getParcelMeta(p); }
+  try{ Object.defineProperty(window,'__PARCELLES_MANUAL__',{configurable:true,get:()=>manualParcelles}); }catch(e){ window.__PARCELLES_MANUAL__=manualParcelles; }
+  try{ Object.defineProperty(window,'__PARCELLES_CHAT_HISTORY__',{configurable:true,get:()=>chatConversation}); }catch(e){ window.__PARCELLES_CHAT_HISTORY__=chatConversation; }
   window.__PARCELLES_API__ = {
     renderMap,
     renderParcelleList,
@@ -5279,12 +5461,29 @@ body.v2-point-types-open #mapFilterPanel{display:none !important}
     function workerUrl(){return (endpoint?.value||'').trim().replace(/\/$/,'');}
     function setStatus(text,kind){if(!status)return;status.textContent=text;status.classList.remove('ok','error');if(kind)status.classList.add(kind);}
 
-    /* Rend le contexte agricole utile sans envoyer les données inutiles. */
+    /* Contexte structuré : toutes les données utiles au chatbot, pas seulement 150 parcelles. */
     function aiContext(){
-      const data=window.parcellesDataset||{};const ps=Array.isArray(data.parcelles)?data.parcelles:[];
-      const rows=ps.slice(0,150).map(p=>({nom:p.parcelle||p.nom||'',surface:p.surface??null,culture:p.culture||'',commune:p.commune||'',ilot:p.ilot||''}));
-      const total=rows.reduce((a,p)=>a+(Number(p.surface)||0),0);
-      return {application:'Parcelles — Le Sougey',date:new Date().toISOString().slice(0,10),nombre_parcelles:ps.length,surface_totale:total,parcelles:rows};
+      const data=window.parcellesDataset||{};
+      const ps=Array.isArray(data.parcelles)?data.parcelles:[];
+      const own=typeof window.__PARCELLES_ALL_OWN__==='function'?window.__PARCELLES_ALL_OWN__():ps;
+      const manual=Array.isArray(window.__PARCELLES_MANUAL__) ? window.__PARCELLES_MANUAL__ : [];
+      const rows=own.map(p=>({guid:p.guid||'',nom:p.parcelle||p.nom||'',surface:p.surface??null,culture:p.culture||'',commune:p.commune||'',ilot:p.ilot||''}));
+      const interventions=[];
+      (data.interventions||[]).forEach(iv=>interventions.push({id:iv.id||'',source:'dataset',parcelle:iv.parcelle||'',guidParcelle:iv.guidParcelle||'',date:iv.date||'',type:iv.type||iv.operation||'',culture:iv.culture||'',note:iv.note||''}));
+      manual.forEach(p=>{
+        const meta=typeof window.__PARCELLES_GET_META__==='function' ? (window.__PARCELLES_GET_META__(p)||{}) : ((window.__PARCELLES_META__||{})[p.guid]||{});
+        (meta.manualInterventions||[]).forEach(iv=>interventions.push({id:iv.id||'',source:'manual',parcelle:iv.parcelle||p.parcelle||'',guidParcelle:iv.guidParcelle||p.guid||'',date:iv.date||'',type:iv.type||iv.operation||'',culture:iv.culture||'',note:iv.note||''}));
+      });
+      return {
+        application:'Parcelles — Le Sougey',
+        instructions:'Utilise uniquement les données fournies pour les faits concernant l’application. Si une donnée manque, dis-le. Ne prétends jamais avoir modifié une donnée sans résultat d’écriture confirmé.',
+        date:new Date().toISOString().slice(0,10),
+        nombre_parcelles:own.length,
+        surface_totale:own.reduce((a,p)=>a+(Number(p.surface)||0),0),
+        parcelles:rows,
+        interventions:interventions.sort((a,b)=>(b.date||'').localeCompare(a.date||'')),
+        conversation:Array.isArray(window.__PARCELLES_CHAT_HISTORY__)?window.__PARCELLES_CHAT_HISTORY__.slice(-12):[]
+      };
     }
     async function callWorker(message){
       const url=workerUrl();
@@ -5316,36 +5515,14 @@ body.v2-point-types-open #mapFilterPanel{display:none !important}
     window.__PARCELLES_ASK_REMOTE_AI__=callWorker;
     window.__PARCELLES_TEST_REMOTE_AI__=testConnection;
 
-    /* Les commandes de modification restent locales ; les questions et analyses
-       complexes passent à Gemini via le Worker. */
+    /* Le moteur local est la source de vérité pour les données de l'application.
+       Gemini sert uniquement de secours pour une question libre non reconnue. */
     const send=$('#chatbotSend'), input=$('#chatbotInput'), messages=$('#chatbotMessages');
     if(send && input && messages){
-      let busy=false;
-      send.addEventListener('click',async function(e){
-        if(busy)return;
-        const text=input.value.trim();if(!text)return;
-        const configured=!!workerUrl();
-        if(!configured)return;
-        e.stopImmediatePropagation();e.preventDefault();busy=true;
-        const add=(role,t)=>{const d=document.createElement('div');d.className='chatbot-msg '+role;d.textContent=t;messages.appendChild(d);messages.scrollTop=messages.scrollHeight;};
-        add('user',text);input.value='';
-        const actionLike=/\b(change|modifier|mets?|mettez|définis|definis|ajoute|ajouter|supprime|supprimer|crée|creer|enregistre|marque|passe|passer)\b.*\b(culture|rendement|prix|intervention|note|parcelle|à faire|a faire)\b/i.test(text);
-        if(actionLike && window.__PARCELLES_API__?.handleChatIntent){
-          try{const answer=await window.__PARCELLES_API__.handleChatIntent(text);add('bot',answer);setStatus('Commande traitée par l’application.','ok');}
-          catch(err){add('bot','La commande n’a pas pu être exécutée.');setStatus('Erreur de commande.','error');}
-          finally{busy=false;}
-          return;
-        }
-        const wait=document.createElement('div');wait.className='chatbot-msg bot';wait.textContent='Gemini réfléchit…';messages.appendChild(wait);messages.scrollTop=messages.scrollHeight;
-        try{const answer=await callWorker(text);wait.textContent=answer;setStatus('Gemini opérationnel.','ok');}
-        catch(err){wait.remove();add('bot','Je n’arrive pas à joindre l’assistant IA. Vérifie l’adresse du Worker dans Plus.');setStatus('IA non joignable.','error');}
-        finally{busy=false;}
-      },true);
-      input.addEventListener('keydown',function(e){
-        if(e.key!=='Enter'||e.shiftKey||busy)return;
-        if(!workerUrl())return;
-        e.preventDefault();send.click();
-      },true);
+      const remoteFallback=window.__PARCELLES_ASK_REMOTE_AI__;
+      // Le gestionnaire principal est déjà installé dans le script métier.
+      // Ce bloc ne capture plus le clic : il évite ainsi le double traitement et la perte du contexte.
+      window.__PARCELLES_CHAT_REMOTE_FALLBACK__=remoteFallback||null;
     }
   });
 })();
