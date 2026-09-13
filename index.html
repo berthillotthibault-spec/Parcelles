@@ -4795,26 +4795,17 @@ body.v2-map-open header.top{display:none !important}
     const filter=document.getElementById('mapSettingsFilterBtn');
     const oldPac=document.getElementById('rpgPanelBtn');
     const oldAdd=document.getElementById('addPointBtn');
-    const oldFilter=document.getElementById('mapFilterBtn');
     if(!wrap||!btn||!panel||wrap.dataset.bound==='1') return;
     wrap.dataset.bound='1';
-    const setFilterButtonVisible=(visible)=>{
-      const f=document.getElementById('mapFilterBtn');
-      if(!f) return;
-      f.hidden=!visible;
-      f.setAttribute('aria-hidden',String(!visible));
-      if(!visible) f.style.setProperty('display','none','important');
-      else f.style.removeProperty('display');
-    };
     const closeSettings=()=>{
       panel.classList.add('hidden');
       btn.setAttribute('aria-expanded','false');
-      setFilterButtonVisible(false);
+      const filterPanel=document.getElementById('mapFilterPanel');
+      if(filterPanel) filterPanel.hidden=true;
     };
     const openSettings=()=>{
       panel.classList.remove('hidden');
       btn.setAttribute('aria-expanded','true');
-      setFilterButtonVisible(true);
     };
     const closeMapOverlays=()=>{
       const rpg=document.getElementById('rpgPanel');
@@ -4844,15 +4835,16 @@ body.v2-map-open header.top{display:none !important}
     document.addEventListener('click',function(e){if(!wrap.contains(e.target)) closeSettings();});
     pac?.addEventListener('click',function(){closeSettings();oldPac?.click();});
     add?.addEventListener('click',function(){closeSettings();oldAdd?.click();});
-    filter?.addEventListener('click',function(){
+    filter?.addEventListener('click',function(e){
+      e.preventDefault();
+      e.stopPropagation();
       closeSettings();
-      if(oldFilter){oldFilter.hidden=false;oldFilter.click();oldFilter.hidden=true;}
+      window.__PARCELLES_OPEN_MAP_FILTERS__?.();
     });
     const dash=document.getElementById('dashView');
     const sync=()=>{
       const mapMode=!!dash && dash.classList.contains('map-mode');
        if(!mapMode) closeSettings();
-      if(mapMode && oldFilter) oldFilter.hidden=true;
     };
     if(dash){new MutationObserver(sync).observe(dash,{attributes:true,attributeFilter:['class']});}
     sync();
@@ -5163,18 +5155,6 @@ body.v2-map-open .chatbot-btn{
   z-index:6750 !important;
 }
 
-/* Map filters */
-.map-filter-btn{
-  position:fixed !important;
-  left:12px !important;
-  top:calc(env(safe-area-inset-top,0px) + 106px) !important;
-  height:34px !important;min-height:34px !important;
-  padding:0 11px !important;border-radius:14px !important;
-  border:1px solid rgba(20,50,35,.12) !important;
-  background:rgba(255,255,255,.96) !important;color:#172019 !important;
-  box-shadow:0 5px 15px rgba(15,23,42,.14) !important;
-  z-index:6650 !important;font-size:11px !important;font-weight:800 !important;
-}
 .map-filter-panel{
   position:fixed !important;
   left:12px !important;top:calc(env(safe-area-inset-top,0px) + 148px) !important;
@@ -5235,7 +5215,7 @@ body.v2-map-open .chatbot-btn{
 .v2-parcel-filter-panel[hidden]{display:none !important}
 
 /* General form buttons compact, but keep inputs comfortable */
-.v2-section button:not(.v2-nav-btn):not(.v2-section-menu-btn):not(.map-filter-btn),
+.v2-section button:not(.v2-nav-btn):not(.v2-section-menu-btn),
 .v2-card button{
   min-height:38px;
   padding:7px 10px;
@@ -5270,21 +5250,12 @@ body.v2-map-open .chatbot-btn{
     /* All section menu buttons: icon only. */
     document.querySelectorAll('.v2-section-menu-btn').forEach(b=>b.textContent='☰');
 
-    /* ---------- Map filter ---------- */
-    if(!document.getElementById('mapFilterBtn')){
-      const btn=document.createElement('button');
-      btn.id='mapFilterBtn'; btn.type='button'; btn.className='map-filter-btn';
-      btn.textContent='⚙︎ Filtres';
-      btn.hidden=true;
-      document.body.appendChild(btn);
-
+    /* ---------- Map filter : panneau unique, sans bouton flottant ---------- */
+    if(!document.getElementById('mapFilterPanel')){
       const panel=document.createElement('div');
       panel.id='mapFilterPanel'; panel.className='map-filter-panel'; panel.hidden=true;
       panel.innerHTML=
-        '<div style="font-weight:800;font-size:13px;margin-bottom:7px">Filtres carte</div>'+
-        '<div class="filter-row"><label for="mapCultureFilter">Culture</label><select id="mapCultureFilter"><option value="">Toutes</option></select></div>'+
-        '<div class="filter-row"><label><input type="checkbox" id="mapTodoFilter"> À faire uniquement</label></div>'+
-        '<div class="filter-actions"><button type="button" class="filter-reset" id="mapFilterReset">Réinitialiser</button><button type="button" class="filter-apply" id="mapFilterApply">Appliquer</button></div>';
+        '<div style="font-weight:800;font-size:13px;margin-bottom:7px">Filtres carte</div>'+        '<div class="filter-row"><label for="mapCultureFilter">Culture</label><select id="mapCultureFilter"><option value="">Toutes</option></select></div>'+        '<div class="filter-row"><label><input type="checkbox" id="mapTodoFilter"> À faire uniquement</label></div>'+        '<div class="filter-actions"><button type="button" class="filter-reset" id="mapFilterReset">Réinitialiser</button><button type="button" class="filter-apply" id="mapFilterApply">Appliquer</button></div>';
       document.body.appendChild(panel);
 
       const populate=()=>{
@@ -5294,7 +5265,7 @@ body.v2-map-open .chatbot-btn{
         sel.innerHTML='<option value="">Toutes</option>'+vals.map(v=>'<option value="'+String(v).replace(/"/g,'&quot;')+'">'+String(v).replace(/[&<>]/g,'')+'</option>').join('');
         sel.value=current;
       };
-      btn.addEventListener('click',e=>{e.stopPropagation(); populate(); panel.hidden=!panel.hidden});
+      window.__PARCELLES_OPEN_MAP_FILTERS__=function(){ populate(); panel.hidden=false; };
       document.getElementById('mapFilterReset').addEventListener('click',async()=>{
         window.__PARCELLES_MAP_CULTURE_FILTER__=''; window.__PARCELLES_MAP_TODO_ONLY__=false;
         document.getElementById('mapTodoFilter').checked=false; populate();
@@ -5306,10 +5277,8 @@ body.v2-map-open .chatbot-btn{
         panel.hidden=true;
         if(window.__PARCELLES_API__?.renderMap) await window.__PARCELLES_API__.renderMap();
       });
-
       const sync=()=>{
         const mapOpen=document.body.classList.contains('v2-map-open');
-        btn.hidden=!mapOpen;
         if(!mapOpen) panel.hidden=true;
       };
       new MutationObserver(sync).observe(document.body,{attributes:true,attributeFilter:['class']});
@@ -5422,16 +5391,6 @@ body.v2-map-open .chatbot-btn{
   height:30px !important; min-height:30px !important; padding:4px 8px !important;
   border-radius:9px !important; font-size:11px !important;
 }
-/* Filtres : sous Ajouter un point quand fermé, puis sous les choix quand ouverts */
-.map-filter-btn{
-  left:auto !important; right:12px !important;
-  top:calc(env(safe-area-inset-top,0px) + 92px) !important;
-  height:30px !important; min-height:30px !important; padding:0 9px !important;
-  border-radius:10px !important; font-size:10.5px !important; z-index:8750 !important;
-}
-body.v2-point-types-open .map-filter-btn{
-  top:calc(env(safe-area-inset-top,0px) + 224px) !important;
-}
 .map-filter-panel{
   left:auto !important; right:12px !important;
   top:calc(env(safe-area-inset-top,0px) + 128px) !important;
@@ -5483,7 +5442,7 @@ body.v2-point-types-open .map-filter-panel{top:calc(env(safe-area-inset-top,0px)
   function ready(fn){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fn,{once:true});else fn();}
   ready(function(){
     const q=s=>document.querySelector(s), qa=s=>Array.from(document.querySelectorAll(s));
-    const pointRow=q('#pointTypeRow'), filterBtn=q('#mapFilterBtn'), filterPanel=q('#mapFilterPanel');
+    const pointRow=q('#pointTypeRow'), filterPanel=q('#mapFilterPanel');
     function syncPointState(){
       const open=pointRow && !pointRow.classList.contains('hidden');
       document.body.classList.toggle('v2-point-types-open',!!open);
@@ -5610,19 +5569,6 @@ body.v2-point-types-open .map-filter-panel{top:calc(env(safe-area-inset-top,0px)
   justify-content:flex-start !important; white-space:nowrap !important;
 }
 
-/* ---------- Filtres : sa propre ligne, jamais au même emplacement ---------- */
-.map-filter-btn{
-  left:auto !important; right:10px !important;
-  top:calc(env(safe-area-inset-top,0px) + 84px) !important;
-  height:28px !important; min-height:28px !important;
-  padding:0 8px !important; border-radius:8px !important;
-  font-size:10px !important; line-height:28px !important;
-  z-index:9030 !important;
-}
-/* Quand Ajouter est ouvert, Filtres passe sous TOUTES les propositions. */
-body.v2-point-types-open .map-filter-btn{
-  top:calc(env(safe-area-inset-top,0px) + 204px) !important;
-}
 .map-filter-panel{
   left:auto !important; right:10px !important;
   top:calc(env(safe-area-inset-top,0px) + 116px) !important;
@@ -5634,7 +5580,7 @@ body.v2-point-types-open .map-filter-panel{
 }
 /* Les deux menus ne sont jamais simultanément ouverts. */
 body.v2-point-types-open #mapFilterPanel{display:none !important}
-body.v2-rpg-open #pointTypeRow,body.v2-rpg-open #mapFilterBtn{display:none !important}
+body.v2-rpg-open #pointTypeRow{display:none !important}
 
 /* ---------- PAC ---------- */
 #dashView.map-mode #rpgPanel{
@@ -5693,7 +5639,7 @@ body.v2-rpg-open #pointTypeRow,body.v2-rpg-open #mapFilterBtn{display:none !impo
 
   ready(function(){
     /* ---------- Carte : états exclusifs réellement pilotés en JS ---------- */
-    const pointRow=$('#pointTypeRow'), addPoint=$('#addPointBtn'), filterBtn=$('#mapFilterBtn'), filterPanel=$('#mapFilterPanel'), rpg=$('#rpgPanel'), rpgBtn=$('#rpgPanelBtn');
+    const pointRow=$('#pointTypeRow'), addPoint=$('#addPointBtn'), filterPanel=$('#mapFilterPanel'), rpg=$('#rpgPanel'), rpgBtn=$('#rpgPanelBtn');
     function pointOpen(){return !!(pointRow && !pointRow.classList.contains('hidden'));}
     function rpgOpen(){return !!(rpg && !rpg.classList.contains('hidden'));}
     function syncMapMenus(){
@@ -5707,7 +5653,6 @@ body.v2-rpg-open #pointTypeRow,body.v2-rpg-open #mapFilterBtn{display:none !impo
     if(rpg)new MutationObserver(syncMapMenus).observe(rpg,{attributes:true,attributeFilter:['class']});
     addPoint?.addEventListener('click',()=>setTimeout(syncMapMenus,0),true);
     rpgBtn?.addEventListener('click',()=>setTimeout(syncMapMenus,0),true);
-    filterBtn?.addEventListener('click',()=>setTimeout(syncMapMenus,0),true);
     syncMapMenus();
 
     /* ---------- IA distante : Cloudflare Worker + Gemini ---------- */
