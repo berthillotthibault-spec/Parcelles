@@ -5502,6 +5502,89 @@ body.v2-rpg-open #pointTypeRow,body.v2-rpg-open #mapFilterBtn{display:none !impo
 </style>
 
 
+
+
+<style id="search-bar-final-adjustment">
+/* Recherche carte : épaisseur type maquette + largeur quasi pleine */
+#dashView.map-mode .map-search{
+  top:calc(env(safe-area-inset-top,0px) + 8px) !important;
+  left:8px !important;
+  right:8px !important;
+  width:auto !important;
+  height:68px !important;
+  min-height:68px !important;
+  gap:8px !important;
+  z-index:9100 !important;
+}
+#dashView.map-mode .map-search input{
+  height:68px !important;
+  min-height:68px !important;
+  flex:1 1 auto !important;
+  width:auto !important;
+  box-sizing:border-box !important;
+  padding:0 14px 0 48px !important;
+  border-radius:22px !important;
+  font-size:16px !important;
+  line-height:68px !important;
+}
+#dashView.map-mode .map-search:before{
+  left:17px !important;
+  top:18px !important;
+  font-size:22px !important;
+}
+#dashView.map-mode .map-search-btn{
+  flex:0 0 138px !important;
+  width:138px !important;
+  min-width:138px !important;
+  height:68px !important;
+  min-height:68px !important;
+  padding:0 12px !important;
+  border-radius:22px !important;
+  font-size:16px !important;
+  line-height:68px !important;
+}
+
+/* Les boutons placés sous la recherche descendent avec sa nouvelle hauteur. */
+#dashView.map-mode #rpgPanelBtn,
+#dashView.map-mode #addPointBtn{
+  top:calc(env(safe-area-inset-top,0px) + 84px) !important;
+  height:42px !important;
+  min-height:42px !important;
+  padding:0 12px !important;
+  border-radius:14px !important;
+  font-size:12px !important;
+  line-height:42px !important;
+}
+#dashView.map-mode #rpgPanelBtn{left:8px !important;right:auto !important}
+#dashView.map-mode #addPointBtn{right:8px !important;left:auto !important}
+
+#dashView.map-mode #pointTypeRow{
+  top:calc(env(safe-area-inset-top,0px) + 132px) !important;
+  right:8px !important;
+}
+#dashView.map-mode .map-filter-btn{
+  right:8px !important;
+  top:calc(env(safe-area-inset-top,0px) + 132px) !important;
+}
+#dashView.map-mode .map-filter-panel{
+  right:8px !important;
+  top:calc(env(safe-area-inset-top,0px) + 180px) !important;
+}
+#dashView.map-mode .map-search-results{
+  left:8px !important;
+  right:8px !important;
+  top:calc(env(safe-area-inset-top,0px) + 84px) !important;
+}
+
+@media(max-width:390px){
+  #dashView.map-mode .map-search-btn{
+    flex-basis:112px !important;
+    width:112px !important;
+    min-width:112px !important;
+    font-size:14px !important;
+  }
+}
+</style>
 <script id="parcelles-ultimate-fix-v9-script">
 (function(){
   'use strict';
