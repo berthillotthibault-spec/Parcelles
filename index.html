@@ -4798,21 +4798,43 @@ body.v2-map-open header.top{display:none !important}
     const oldFilter=document.getElementById('mapFilterBtn');
     if(!wrap||!btn||!panel||wrap.dataset.bound==='1') return;
     wrap.dataset.bound='1';
-    const close=()=>{panel.classList.add('hidden');btn.setAttribute('aria-expanded','false');};
-    const toggle=()=>{const open=panel.classList.toggle('hidden')===false;btn.setAttribute('aria-expanded',String(open));};
-    btn.addEventListener('click',function(e){e.stopPropagation();toggle();});
+    const closeSettings=()=>{panel.classList.add('hidden');btn.setAttribute('aria-expanded','false');};
+    const closeMapOverlays=()=>{
+      const rpg=document.getElementById('rpgPanel');
+      const pointRow=document.getElementById('pointTypeRow');
+      const filterPanel=document.getElementById('mapFilterPanel');
+      if(rpg && !rpg.classList.contains('hidden') && oldPac) oldPac.click();
+      if(pointRow && !pointRow.classList.contains('hidden') && oldAdd) oldAdd.click();
+      if(filterPanel) filterPanel.hidden=true;
+      closeSettings();
+    };
+    const hasOpenMapOverlay=()=>{
+      const rpg=document.getElementById('rpgPanel');
+      const pointRow=document.getElementById('pointTypeRow');
+      const filterPanel=document.getElementById('mapFilterPanel');
+      return !!(
+        (rpg && !rpg.classList.contains('hidden')) ||
+        (pointRow && !pointRow.classList.contains('hidden')) ||
+        (filterPanel && !filterPanel.hidden)
+      );
+    };
+    btn.addEventListener('click',function(e){
+      e.stopPropagation();
+      if(!panel.classList.contains('hidden') || hasOpenMapOverlay()) closeMapOverlays();
+      else { closeSettings(); panel.classList.remove('hidden'); btn.setAttribute('aria-expanded','true'); }
+    });
     panel.addEventListener('click',function(e){e.stopPropagation();});
-    document.addEventListener('click',function(e){if(!wrap.contains(e.target)) close();});
-    pac?.addEventListener('click',function(){close();oldPac?.click();});
-    add?.addEventListener('click',function(){close();oldAdd?.click();});
+    document.addEventListener('click',function(e){if(!wrap.contains(e.target)) closeSettings();});
+    pac?.addEventListener('click',function(){closeSettings();oldPac?.click();});
+    add?.addEventListener('click',function(){closeSettings();oldAdd?.click();});
     filter?.addEventListener('click',function(){
-      close();
+      closeSettings();
       if(oldFilter){oldFilter.hidden=false;oldFilter.click();oldFilter.hidden=true;}
     });
     const dash=document.getElementById('dashView');
     const sync=()=>{
       const mapMode=!!dash && dash.classList.contains('map-mode');
-      if(!mapMode) close();
+       if(!mapMode) closeSettings();
       if(mapMode && oldFilter) oldFilter.hidden=true;
     };
     if(dash){new MutationObserver(sync).observe(dash,{attributes:true,attributeFilter:['class']});}
