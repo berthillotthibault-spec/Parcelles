@@ -4721,6 +4721,63 @@ body.v2-map-open header.top{display:none !important}
 })();
 </script>
 
+
+<style id="search-bar-thin-wide-final">
+/* Barre de recherche carte : fine, longue et sur toute la largeur */
+#dashView.map-mode .map-search{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 8px) !important;
+  left:8px !important;
+  right:8px !important;
+  width:auto !important;
+  height:46px !important;
+  min-height:46px !important;
+  margin:0 !important;
+  padding:0 !important;
+  display:flex !important;
+  align-items:stretch !important;
+  gap:6px !important;
+  box-sizing:border-box !important;
+  z-index:10020 !important;
+}
+#dashView.map-mode .map-search input{
+  flex:1 1 auto !important;
+  width:0 !important;
+  min-width:0 !important;
+  height:46px !important;
+  min-height:46px !important;
+  margin:0 !important;
+  padding:0 12px 0 40px !important;
+  box-sizing:border-box !important;
+  border-radius:15px !important;
+  font-size:16px !important;
+  line-height:46px !important;
+}
+#dashView.map-mode .map-search:before{
+  left:14px !important;
+  top:10px !important;
+  font-size:19px !important;
+  z-index:2 !important;
+}
+#dashView.map-mode .map-search-btn{
+  flex:0 0 88px !important;
+  width:88px !important;
+  min-width:88px !important;
+  height:46px !important;
+  min-height:46px !important;
+  margin:0 !important;
+  padding:0 6px !important;
+  border-radius:15px !important;
+  font-size:13px !important;
+  line-height:46px !important;
+  box-sizing:border-box !important;
+}
+#dashView.map-mode #rpgPanelBtn,
+#dashView.map-mode #addPointBtn{
+  top:calc(env(safe-area-inset-top,0px) + 60px) !important;
+}
+</style>
+
 </body>
 </html>
 
