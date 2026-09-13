@@ -5610,88 +5610,11 @@ body.v2-rpg-open #pointTypeRow,body.v2-rpg-open #mapFilterBtn{display:none !impo
 })();
 </script>
 
-<style id="parcelles-search-portrait-final">
-/* =========================================================
-   BARRE DE RECHERCHE — portrait iPhone
-   Fine, longue et sur toute la largeur disponible.
-   ========================================================= */
-#dashView.map-mode .map-search{
-  position:fixed !important;
-  top:calc(env(safe-area-inset-top,0px) + 8px) !important;
-  left:8px !important;
-  right:8px !important;
-  width:auto !important;
-  max-width:none !important;
-  height:40px !important;
-  min-height:40px !important;
-  margin:0 !important;
-  display:flex !important;
-  align-items:stretch !important;
-  gap:6px !important;
-  box-sizing:border-box !important;
-  z-index:9100 !important;
-}
-
-#dashView.map-mode .map-search input{
-  flex:1 1 auto !important;
-  width:auto !important;
-  min-width:0 !important;
-  height:40px !important;
-  min-height:40px !important;
-  box-sizing:border-box !important;
-  margin:0 !important;
-  padding:0 10px 0 34px !important;
-  border-radius:11px !important;
-  font-size:16px !important;
-  line-height:40px !important;
-}
-
-#dashView.map-mode .map-search:before{
-  left:11px !important;
-  top:4px !important;
-  font-size:18px !important;
-}
-
-#dashView.map-mode .map-search-btn{
-  flex:0 0 82px !important;
-  width:82px !important;
-  min-width:82px !important;
-  height:40px !important;
-  min-height:40px !important;
-  box-sizing:border-box !important;
-  margin:0 !important;
-  padding:0 5px !important;
-  border-radius:11px !important;
-  font-size:11px !important;
-  line-height:40px !important;
-  white-space:nowrap !important;
-}
-
-/* Les boutons de la ligne suivante restent immédiatement sous la recherche. */
-#dashView.map-mode #rpgPanelBtn,
-#dashView.map-mode #addPointBtn{
-  top:calc(env(safe-area-inset-top,0px) + 54px) !important;
-}
-
-#dashView.map-mode #pointTypeRow{
-  top:calc(env(safe-area-inset-top,0px) + 91px) !important;
-}
-
-.map-filter-btn{
-  top:calc(env(safe-area-inset-top,0px) + 91px) !important;
-}
-
-@media(max-width:420px){
-  #dashView.map-mode .map-search{
-    left:7px !important;
-    right:7px !important;
-    gap:5px !important;
-  }
-  #dashView.map-mode .map-search-btn{
-    flex-basis:80px !important;
-    width:80px !important;
-    min-width:80px !important;
-    font-size:11px !important;
-  }
+<style id="search-bar-thin-final">
+/* UNIQUEMENT la barre blanche de recherche : même largeur/position, hauteur réduite d'environ 30 %. */
+#dashView.map-mode .map-search input#mapSearch{
+  height:32px !important;
+  min-height:32px !important;
+  align-self:center !important;
 }
 </style>
