@@ -4852,6 +4852,82 @@ body.v2-map-open header.top{display:none !important}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
 })();
 </script>
+
+<style id="targeted-map-ui-alignment-fix">
+/* 1) Ajouter un point : placé durablement sous la zone Paramètres,
+   avec un décalage basé sur la position/hauteur du bouton et non sur la hauteur d'écran. */
+#dashView.map-mode #pointTypeRow{
+  top:calc(env(safe-area-inset-top,0px) + 62px + 44px + 12px) !important;
+}
+@media(max-width:430px){
+  #dashView.map-mode #pointTypeRow{
+    top:calc(env(safe-area-inset-top,0px) + 62px + 42px + 12px) !important;
+  }
+}
+
+/* 2) Géolocalisation : le bouton reste exactement à sa place,
+   mais son contenu est centré dans une vraie zone circulaire. */
+#dashView.map-mode .map-actions{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+#dashView.map-mode #locateBtn{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  box-sizing:border-box !important;
+  width:44px !important;
+  height:44px !important;
+  min-width:44px !important;
+  min-height:44px !important;
+  padding:0 !important;
+  margin:0 !important;
+  border-radius:50% !important;
+  line-height:1 !important;
+  font-size:0 !important;
+  text-align:center !important;
+}
+#dashView.map-mode #locateBtn::before{
+  content:'⌖';
+  display:block;
+  width:1em;
+  height:1em;
+  line-height:1em;
+  font-size:23px;
+  font-family:Arial,sans-serif;
+  font-weight:700;
+  text-align:center;
+  transform:none !important;
+}
+
+/* 3) Chatbot : centrage réel de l'icône dans le cercle bleu. */
+#dashView.map-mode .chatbot-btn,
+body.v2-map-open .chatbot-btn{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  box-sizing:border-box !important;
+  padding:0 !important;
+  margin:0 !important;
+  line-height:1 !important;
+  text-align:center !important;
+  font-size:0 !important;
+}
+#dashView.map-mode .chatbot-btn::before,
+body.v2-map-open .chatbot-btn::before{
+  content:'…';
+  display:block;
+  width:1em;
+  height:1em;
+  line-height:0.72em;
+  font-family:Arial,sans-serif;
+  font-size:25px;
+  font-weight:700;
+  text-align:center;
+  transform:none !important;
+}
+</style>
 </body>
 
 <style id="fix-map-bottom-white-band">
