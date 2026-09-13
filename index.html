@@ -4846,7 +4846,30 @@ body.v2-map-open header.top{display:none !important}
   else init();
 })();
 </script>
-</body>
+<!-- REPARATION FINALE PARAMETRES -->
+<style id="parcelles-parametres-final-repair">
+#dashView.map-mode #rpgPanelBtn,#dashView.map-mode #addPointBtn,#dashView.map-mode #mapFilterBtn{display:none!important}
+#mapSettingsBtn.parcelles-final-gear{position:fixed!important;top:calc(env(safe-area-inset-top,0px) + 62px)!important;right:10px!important;left:auto!important;width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;margin:0!important;padding:0!important;display:none!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;border:0!important;border-radius:14px!important;background:#fff!important;color:#172019!important;font-size:24px!important;line-height:1!important;box-shadow:0 4px 14px rgba(0,0,0,.15)!important;z-index:2147483000!important;-webkit-appearance:none!important;appearance:none!important}
+#dashView.map-mode #mapSettingsBtn.parcelles-final-gear{display:flex!important}
+#mapSettingsPanel.parcelles-final-panel{position:fixed!important;top:calc(env(safe-area-inset-top,0px) + 114px)!important;right:10px!important;left:auto!important;width:210px!important;max-width:calc(100vw - 20px)!important;margin:0!important;padding:7px!important;box-sizing:border-box!important;background:#fff!important;border:1px solid rgba(24,48,34,.10)!important;border-radius:15px!important;box-shadow:0 14px 35px rgba(20,40,28,.18)!important;z-index:2147482999!important}
+#mapSettingsPanel.parcelles-final-panel[hidden]{display:none!important}
+#mapSettingsPanel.parcelles-final-panel .map-settings-title{padding:5px 8px 7px;font-size:13px;font-weight:800;color:#172019}
+#mapSettingsPanel.parcelles-final-panel button{width:100%!important;min-height:42px!important;margin:0!important;padding:9px 10px!important;border:0!important;border-radius:11px!important;background:#fff!important;color:#172019!important;text-align:left!important;font-size:13px!important;font-weight:700!important;box-shadow:none!important}
+#mapSettingsPanel.parcelles-final-panel button:active{background:#eef4ef!important}
+</style>
+<script id="parcelles-parametres-final-repair">
+(function(){'use strict';if(window.__PARCELLES_FINAL_PARAM_REPAIR__)return;window.__PARCELLES_FINAL_PARAM_REPAIR__=true;
+function q(id){return document.getElementById(id)}
+function mapOn(){var d=q('dashView');return !!(d&&d.classList.contains('map-mode')&&!d.classList.contains('hidden'))}
+function close(){var p=q('mapSettingsPanel');if(p)p.hidden=true}
+function clickLater(id,n){var b=q(id);if(b){b.click();return}if((n||0)<15)setTimeout(function(){clickLater(id,(n||0)+1)},80)}
+function ensure(){var d=q('dashView'),m=q('mapContainer'),r=q('rpgPanelBtn'),a=q('addPointBtn');if(!d||!m||!r||!a)return;
+var g=q('mapSettingsBtn');if(!g){g=document.createElement('button');g.id='mapSettingsBtn';g.className='parcelles-final-gear';g.type='button';g.textContent='⚙️';g.setAttribute('aria-label','Paramètres de la carte');g.setAttribute('title','Paramètres');document.body.appendChild(g);g.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(!mapOn())return;var p=q('mapSettingsPanel');if(p)p.hidden=!p.hidden})}else g.classList.add('parcelles-final-gear');
+var p=q('mapSettingsPanel');if(!p){p=document.createElement('div');p.id='mapSettingsPanel';p.className='parcelles-final-panel';p.hidden=true;p.innerHTML='<div class="map-settings-title">Paramètres</div><button type="button" data-map-setting="rpg">🗺️ PAC alentours</button><button type="button" data-map-setting="point">📍 Ajouter un point</button><button type="button" data-map-setting="filter">🔎 Filtres</button>';document.body.appendChild(p);p.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();var b=e.target.closest('[data-map-setting]');if(!b)return;var x=b.getAttribute('data-map-setting');close();if(x==='rpg')clickLater('rpgPanelBtn');else if(x==='point')clickLater('addPointBtn');else clickLater('mapFilterBtn')})}
+}
+function boot(){ensure();var d=q('dashView');if(d&&!d.__paramRepairObs){new MutationObserver(function(){ensure();if(!mapOn())close()}).observe(d,{attributes:true,attributeFilter:['class'],childList:true,subtree:true});d.__paramRepairObs=true}new MutationObserver(ensure).observe(document.body,{childList:true,subtree:true});document.addEventListener('click',function(e){var p=q('mapSettingsPanel'),g=q('mapSettingsBtn');if(p&&!p.hidden&&e.target!==g&&!p.contains(e.target))close()},true);document.addEventListener('keydown',function(e){if(e.key==='Escape')close()})}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();})();
+</script></body>
 
 <style id="fix-map-bottom-white-band">
 /* Correction ciblée : aucun espace de mise en page sous la carte en mode Carte.
