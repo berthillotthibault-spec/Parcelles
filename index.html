@@ -4721,6 +4721,132 @@ body.v2-map-open header.top{display:none !important}
 })();
 </script>
 
+
+<style id="parcelles-map-settings-only">
+/* ---------- Carte : regroupement PAC / point / filtres ---------- */
+#dashView.map-mode #rpgPanelBtn,
+#dashView.map-mode #addPointBtn,
+#dashView.map-mode #mapFilterBtn{
+  display:none !important;
+}
+#mapSettingsBtn{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 62px) !important;
+  right:10px !important;
+  left:auto !important;
+  width:46px !important;
+  height:46px !important;
+  min-width:46px !important;
+  min-height:46px !important;
+  padding:0 !important;
+  margin:0 !important;
+  display:none;
+  align-items:center !important;
+  justify-content:center !important;
+  border:0 !important;
+  border-radius:14px !important;
+  background:#fff !important;
+  color:#172019 !important;
+  font-size:24px !important;
+  line-height:1 !important;
+  box-shadow:0 4px 14px rgba(0,0,0,.15) !important;
+  z-index:10031 !important;
+  -webkit-tap-highlight-color:transparent;
+}
+#dashView.map-mode #mapSettingsBtn{display:flex !important;}
+#mapSettingsPanel{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 114px) !important;
+  right:10px !important;
+  left:auto !important;
+  width:210px !important;
+  max-width:calc(100vw - 20px) !important;
+  box-sizing:border-box !important;
+  padding:7px !important;
+  background:#fff !important;
+  border:1px solid rgba(24,48,34,.10) !important;
+  border-radius:15px !important;
+  box-shadow:0 14px 35px rgba(20,40,28,.18) !important;
+  z-index:10030 !important;
+}
+#mapSettingsPanel[hidden]{display:none !important;}
+#mapSettingsPanel .map-settings-title{
+  padding:5px 8px 7px;
+  font-size:13px;
+  font-weight:800;
+  color:#172019;
+}
+#mapSettingsPanel button{
+  width:100% !important;
+  min-height:42px !important;
+  margin:0 !important;
+  padding:9px 10px !important;
+  border:0 !important;
+  border-radius:11px !important;
+  background:#fff !important;
+  color:#172019 !important;
+  text-align:left !important;
+  font-size:13px !important;
+  font-weight:700 !important;
+  box-shadow:none !important;
+}
+#mapSettingsPanel button:active{background:#eef4ef !important;}
+</style>
+<script id="parcelles-map-settings-only-script">
+(function(){
+  'use strict';
+  function init(){
+    if(document.getElementById('mapSettingsBtn')) return;
+    const dash=document.getElementById('dashView');
+    const map=document.getElementById('mapContainer');
+    const rpg=document.getElementById('rpgPanelBtn');
+    const add=document.getElementById('addPointBtn');
+    const filter=document.getElementById('mapFilterBtn');
+    if(!dash || !map || !rpg || !add || !filter) return;
+
+    const gear=document.createElement('button');
+    gear.id='mapSettingsBtn'; gear.type='button'; gear.textContent='⚙️';
+    gear.setAttribute('aria-label','Paramètres de la carte');
+    gear.setAttribute('title','Paramètres');
+
+    const panel=document.createElement('div');
+    panel.id='mapSettingsPanel'; panel.hidden=true;
+    panel.innerHTML=
+      '<div class="map-settings-title">Paramètres</div>'+ 
+      '<button type="button" data-map-setting="rpg">🗺️ PAC alentours</button>'+ 
+      '<button type="button" data-map-setting="point">📍 Ajouter un point</button>'+ 
+      '<button type="button" data-map-setting="filter">🔎 Filtres</button>';
+
+    document.body.appendChild(gear);
+    document.body.appendChild(panel);
+
+    function isMap(){ return dash.classList.contains('map-mode') && !dash.classList.contains('hidden'); }
+    function close(){ panel.hidden=true; }
+    function toggle(e){ e.stopPropagation(); if(!isMap()) return; panel.hidden=!panel.hidden; }
+    gear.addEventListener('click',toggle);
+    panel.addEventListener('click',function(e){
+      e.stopPropagation();
+      const b=e.target.closest('[data-map-setting]'); if(!b) return;
+      const action=b.dataset.mapSetting;
+      close();
+      if(action==='rpg') rpg.click();
+      else if(action==='point') add.click();
+      else if(action==='filter') filter.click();
+    });
+    document.addEventListener('click',function(e){
+      if(!panel.hidden && e.target!==gear && !panel.contains(e.target)) close();
+    });
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') close(); });
+
+    const observer=new MutationObserver(function(){
+      if(!isMap()) close();
+    });
+    observer.observe(dash,{attributes:true,attributeFilter:['class']});
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true});
+  else init();
+})();
+</script>
 </body>
 
 <style id="fix-map-bottom-white-band">
