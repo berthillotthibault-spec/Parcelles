@@ -4869,7 +4869,160 @@ var p=q('mapSettingsPanel');if(!p){p=document.createElement('div');p.id='mapSett
 }
 function boot(){ensure();var d=q('dashView');if(d&&!d.__paramRepairObs){new MutationObserver(function(){ensure();if(!mapOn())close()}).observe(d,{attributes:true,attributeFilter:['class'],childList:true,subtree:true});d.__paramRepairObs=true}new MutationObserver(ensure).observe(document.body,{childList:true,subtree:true});document.addEventListener('click',function(e){var p=q('mapSettingsPanel'),g=q('mapSettingsBtn');if(p&&!p.hidden&&e.target!==g&&!p.contains(e.target))close()},true);document.addEventListener('keydown',function(e){if(e.key==='Escape')close()})}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();})();
-</script></body>
+</script><!-- REPARATION ROBUSTE PARAMETRES V2 -->
+<style id="parametres-robustes-v2">
+/* Le bouton est volontairement attaché au conteneur de la carte et non au body.
+   Il devient visible dès que l'onglet Carte est visible, même si map-mode n'est pas encore appliqué. */
+#mapSettingsBtnV2{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 58px) !important;
+  right:10px !important;
+  width:46px !important;
+  height:46px !important;
+  min-width:46px !important;
+  min-height:46px !important;
+  z-index:2147483647 !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  padding:0 !important;
+  margin:0 !important;
+  border:0 !important;
+  border-radius:14px !important;
+  background:#fff !important;
+  color:#172019 !important;
+  font-size:24px !important;
+  line-height:1 !important;
+  box-shadow:0 4px 14px rgba(0,0,0,.18) !important;
+  -webkit-appearance:none !important;
+  appearance:none !important;
+  pointer-events:auto !important;
+}
+#mapSettingsPanelV2{
+  position:fixed !important;
+  top:calc(env(safe-area-inset-top,0px) + 110px) !important;
+  right:10px !important;
+  width:220px !important;
+  max-width:calc(100vw - 20px) !important;
+  z-index:2147483646 !important;
+  padding:7px !important;
+  box-sizing:border-box !important;
+  background:#fff !important;
+  border:1px solid rgba(24,48,34,.10) !important;
+  border-radius:15px !important;
+  box-shadow:0 14px 35px rgba(20,40,28,.22) !important;
+}
+#mapSettingsPanelV2[hidden]{display:none !important}
+#mapSettingsPanelV2 button{
+  display:block !important;
+  width:100% !important;
+  min-height:44px !important;
+  padding:9px 10px !important;
+  margin:0 !important;
+  border:0 !important;
+  border-radius:11px !important;
+  background:#fff !important;
+  color:#172019 !important;
+  text-align:left !important;
+  font-size:14px !important;
+  font-weight:700 !important;
+}
+#mapSettingsPanelV2 .settings-title{padding:5px 8px 7px;font-size:13px;font-weight:800}
+#mapSettingsPanelV2 button:active{background:#eef4ef !important}
+</style>
+<script id="parametres-robustes-v2-script">
+(function(){
+'use strict';
+if(window.__PARCELLES_PARAMETRES_V2__) return;
+window.__PARCELLES_PARAMETRES_V2__=true;
+
+function byId(id){return document.getElementById(id)}
+function carteVisible(){
+  var tab=byId('tabCarte');
+  var dash=byId('dashView');
+  return !!(tab && !tab.classList.contains('hidden') && dash && !dash.classList.contains('hidden'));
+}
+function closeMenu(){var p=byId('mapSettingsPanelV2');if(p)p.hidden=true}
+function clickWhenReady(id, tries){
+  var b=byId(id);
+  if(b){b.click();return}
+  if((tries||0)<25)setTimeout(function(){clickWhenReady(id,(tries||0)+1)},80);
+}
+function ensure(){
+  var tab=byId('tabCarte');
+  if(!tab) return;
+
+  var g=byId('mapSettingsBtnV2');
+  if(!g){
+    g=document.createElement('button');
+    g.id='mapSettingsBtnV2';
+    g.type='button';
+    g.textContent='⚙️';
+    g.setAttribute('aria-label','Paramètres de la carte');
+    g.setAttribute('title','Paramètres');
+    document.body.appendChild(g);
+    g.addEventListener('click',function(e){
+      e.preventDefault();e.stopPropagation();
+      if(!carteVisible()){closeMenu();return}
+      var p=byId('mapSettingsPanelV2');
+      if(p)p.hidden=!p.hidden;
+    });
+  }
+
+  var p=byId('mapSettingsPanelV2');
+  if(!p){
+    p=document.createElement('div');
+    p.id='mapSettingsPanelV2';
+    p.hidden=true;
+    p.innerHTML='<div class="settings-title">Paramètres</div>'+
+      '<button type="button" data-action="rpg">🗺️ PAC alentours</button>'+
+      '<button type="button" data-action="point">📍 Ajouter un point</button>'+
+      '<button type="button" data-action="filter">🔎 Filtres</button>';
+    document.body.appendChild(p);
+    p.addEventListener('click',function(e){
+      e.preventDefault();e.stopPropagation();
+      var b=e.target.closest('[data-action]');
+      if(!b)return;
+      var a=b.getAttribute('data-action');
+      closeMenu();
+      if(a==='rpg')clickWhenReady('rpgPanelBtn');
+      if(a==='point')clickWhenReady('addPointBtn');
+      if(a==='filter')clickWhenReady('mapFilterBtn');
+    });
+  }
+
+  /* Diagnostic visible dans la console, sans modifier les autres fonctions. */
+  g.dataset.carte=carteVisible()?'visible':'cachee';
+}
+function boot(){
+  ensure();
+  var body=document.body;
+  var obs=new MutationObserver(function(){ensure();if(!carteVisible())closeMenu()});
+  obs.observe(body,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden']});
+  document.addEventListener('click',function(e){
+    var p=byId('mapSettingsPanelV2'),g=byId('mapSettingsBtnV2');
+    if(p&&!p.hidden&&e.target!==g&&!p.contains(e.target))closeMenu();
+  },true);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu()});
+  window.__PARCELLES_DIAGNOSTIC_PARAMETRES__=function(){
+    return {
+      tabCarte:!!byId('tabCarte'),
+      tabCarteHidden:!!(byId('tabCarte')&&byId('tabCarte').classList.contains('hidden')),
+      dashView:!!byId('dashView'),
+      mapMode:!!(byId('dashView')&&byId('dashView').classList.contains('map-mode')),
+      rpg:!!byId('rpgPanelBtn'),
+      addPoint:!!byId('addPointBtn'),
+      filter:!!byId('mapFilterBtn'),
+      gear:!!byId('mapSettingsBtnV2'),
+      panel:!!byId('mapSettingsPanelV2')
+    };
+  };
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+else boot();
+})();
+</script>
+</body>
 
 <style id="fix-map-bottom-white-band">
 /* Correction ciblée : aucun espace de mise en page sous la carte en mode Carte.
