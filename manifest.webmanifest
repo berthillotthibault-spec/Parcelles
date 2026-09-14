@@ -1,0 +1,18 @@
+{
+  "name": "Parcelles 2.0",
+  "short_name": "Parcelles",
+  "description": "Gestion parcellaire agricole, utilisable sur le terrain.",
+  "lang": "fr",
+  "start_url": "./index14.html",
+  "display": "standalone",
+  "background_color": "#f4f7f3",
+  "theme_color": "#1f6b45",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
