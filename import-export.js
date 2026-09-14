@@ -2,12 +2,14 @@ import {APP_VERSION, campaignFor, checksum, clone, download, escapeHtml, geometr
 import {migrateData} from './state.js';
 
 const FIELD_ALIASES = {
-  name:['nom','name','parcelle','parcel','libelle','désignation','designation'],
-  sourceId:['id','guid','identifiant','code','numero','numéro','id parcelle','id_parcelle'],
-  surfaceHa:['surface','surface ha','surface_ha','ha','superficie','area'],
-  culture:['culture','cultures','crop','espece','espèce'],
-  commune:['commune','ville','municipalité','municipalite'],
-  ilot:['ilot','îlot','bloc'],
+  // Alias génériques + noms de champs Geofolia (DBF/SHP).
+  // Les exports Geofolia utilisent des noms DBF tronqués à 10 caractères.
+  name:['nom','name','parcelle','parcel','libelle','désignation','designation','NOM_PARCEL','NOM_PARCELLE'],
+  sourceId:['GUID_PARC','ID_EXTERNE','COD_PARCEL','id','guid','identifiant','code','numero','numéro','id parcelle','id_parcelle'],
+  surfaceHa:['surface','surface ha','surface_ha','ha','superficie','area','SURFACE'],
+  culture:['culture','cultures','crop','espece','espèce','CP_CULTU','CP_CODCULT'],
+  commune:['LIB_COMMUN','commune','ville','municipalité','municipalite'],
+  ilot:['ilot','îlot','bloc','NUM_ILOT'],
   status:['statut','status','a faire','à faire'],
   type:['type','operation','opération','intervention','travail'],
   date:['date','date intervention'],
@@ -17,8 +19,14 @@ const FIELD_ALIASES = {
 };
 
 function findField(headers, key){
-  const aliases = FIELD_ALIASES[key].map(normalize);
-  return headers.find(header => aliases.includes(normalize(header))) || null;
+  // Respecte l'ordre de priorité des alias. Important pour Geofolia :
+  // GUID_PARC doit être préféré à COD_PARCEL et LIB_COMMUN aux autres codes.
+  const normalizedHeaders = new Map(headers.map(header => [normalize(header), header]));
+  for (const alias of FIELD_ALIASES[key]) {
+    const match = normalizedHeaders.get(normalize(alias));
+    if (match) return match;
+  }
+  return null;
 }
 function objectFromRow(row, headers){
   const field = key => { const header=findField(headers,key); return header ? row[header] : undefined; };
@@ -65,12 +73,34 @@ async function zipContent(file){
 
 async function loadShpReader(){
   if(window.shp)return;
-  await new Promise((resolve,reject)=>{
-    const script=document.createElement('script');script.src='https://unpkg.com/shpjs@6.2.0/dist/shp.js';script.async=true;
-    script.onload=()=>window.shp?resolve():reject(new Error('Lecteur shapefile indisponible.'));
-    script.onerror=()=>reject(new Error('Impossible de charger le lecteur shapefile. Vérifiez votre connexion.'));
-    document.head.append(script);
-  });
+
+  // Plusieurs CDN : évite qu'un blocage ponctuel d'un CDN casse l'import SHP.
+  const sources = [
+    'https://unpkg.com/shpjs@6.2.0/dist/shp.min.js',
+    'https://cdn.jsdelivr.net/npm/shpjs@6.2.0/dist/shp.min.js'
+  ];
+
+  let lastError = null;
+  for (const src of sources) {
+    try {
+      await new Promise((resolve,reject)=>{
+        const existing = [...document.scripts].find(script => script.src === src);
+        if (existing && window.shp) return resolve();
+
+        const script=document.createElement('script');
+        script.src=src;
+        script.async=true;
+        script.crossOrigin='anonymous';
+        script.onload=()=>window.shp ? resolve() : reject(new Error('Le script SHP est chargé mais window.shp est absent.'));
+        script.onerror=()=>reject(new Error(`Échec du chargement de ${src}`));
+        document.head.append(script);
+      });
+      if(window.shp)return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(`Impossible de charger le lecteur shapefile. Vérifiez la connexion puis réessayez.${lastError ? ` (${lastError.message})` : ''}`);
 }
 
 export async function inspectFiles(files, state){
