@@ -24,7 +24,7 @@ async function init(){
   parcelMap=new ParcelMap({onSelect:parcel=>{selectedParcelId=parcel.id;rememberRecent(parcel.id);renderMapSheet();},onToast:toast});
   bindEvents();store.subscribe(()=>renderAll());
   applyTheme();renderAll();renderNetwork();
-  if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(error=>console.warn('[Parcelles] SW',error));
+  if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js?v=2026.09.14-deployfix.2',{updateViaCache:'none'}).catch(error=>console.warn('[Parcelles] SW',error));
   window.addEventListener('online',()=>{renderNetwork();if(!weatherCache)refreshWeather({silent:true});});
   window.addEventListener('offline',renderNetwork);
   document.addEventListener('parcelles:gps',event=>{lastGps=event.detail;renderNetwork();if(fieldModeOpen)renderFieldGps(event.detail);});

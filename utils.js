@@ -1,5 +1,5 @@
 export const APP_VERSION = 4;
-export const BUILD_ID = '2026.09.14-ux-p0.1';
+export const BUILD_ID = '2026.09.14-deployfix.2';
 export const ENTITY_TYPES = [
   'parcelles','interventions','tasks','rotations','grazingSessions','materiels',
   'products','clients','documents','photos','points','templates','importSessions','syncConflicts'

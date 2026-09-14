@@ -1,10 +1,11 @@
-const BUILD='2026.09.14-ux-p0.1';
+const BUILD='2026.09.14-deployfix.2';
 const SHELL=`parcelles-shell-${BUILD}`;
 const RUNTIME=`parcelles-runtime-${BUILD}`;
 const APP_SHELL=[
-  './','./index.html','./manifest.webmanifest','./parcelles.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/apple-touch-icon.png',
-  './css/base.css','./css/components.css','./css/map.css','./css/responsive.css',
-  './js/app.js','./js/state.js','./js/storage.js','./js/import-export.js','./js/map.js','./js/sync.js','./js/utils.js','./js/shapefile-fallback.js','./js/zip-lite.js'
+  './','./index.html','./manifest.webmanifest','./parcelles.svg',
+  './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png',
+  './base.css','./components.css','./map.css','./responsive.css',
+  './app.js','./state.js','./storage.js','./import-export.js','./map.js','./sync.js','./utils.js','./shapefile-fallback.js','./zip-lite.js'
 ];
 
 self.addEventListener('install',event=>{
