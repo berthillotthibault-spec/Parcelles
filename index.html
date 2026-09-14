@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17663f">
-  <meta name="description" content="Gestion parcellaire agricole locale, mobile et hors connexion.">
+  <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -43,6 +43,7 @@
           </div>
           <div id="today-summary" class="today-summary"></div>
           <div id="next-action" class="next-action"></div>
+          <div id="today-quick-actions" class="quick-action-strip" aria-label="Raccourcis fréquents"></div>
           <div class="today-grid">
             <article class="panel weather-card" data-home-card="weather"><div class="panel-heading"><h2>Météo</h2><button class="text-button" data-action="open-weather">Détails</button></div><div id="weather-content" class="weather-content"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></article>
             <article class="panel" data-home-card="today"><div class="panel-heading"><h2>Aujourd’hui</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="today-work-list" class="stack-list"></div></article>
@@ -77,8 +78,8 @@
           <div class="view-heading"><div><p class="eyebrow">Exploitation</p><h1 id="parcels-title">Parcelles</h1><p id="parcels-counter" class="lead"></p></div><button class="button primary" data-action="new-parcel">＋ Parcelle</button></div>
           <div class="toolbar-panel">
             <label class="search-field"><span aria-hidden="true">⌕</span><input id="parcel-search" type="search" autocomplete="off" placeholder="Nom, culture, commune, > 5 ha…"></label>
-            <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button></div>
-            <label class="compact-select">Trier <select id="parcel-sort"><option value="name">Nom</option><option value="surface-desc">Surface ↓</option><option value="surface-asc">Surface ↑</option><option value="culture">Culture</option><option value="commune">Commune</option><option value="recent">Dernier travail</option></select></label>
+            <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button><button class="filter-chip" data-parcel-filter="archived">Archivées</button></div>
+            <label class="compact-select">Trier <select id="parcel-sort"><option value="name">Nom</option><option value="surface-desc">Surface ↓</option><option value="surface-asc">Surface ↑</option><option value="culture">Culture</option><option value="commune">Commune</option><option value="recent">Dernier travail</option><option value="distance">Distance</option></select></label>
           </div>
           <div id="recent-parcels" class="recent-strip"></div>
           <div id="parcel-list" class="parcel-list" aria-live="polite"></div>
@@ -104,7 +105,7 @@
             <button class="menu-row" data-action="open-grazing"><span>♧</span><span><strong>Pâturage</strong><small>Animaux actuellement au pré</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-clients"><span>⌘</span><span><strong>Clients</strong><small>Parcelles et travaux de prestation</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-observations"><span>!</span><span><strong>Observations terrain</strong><small>Adventices, maladies, dégâts et notes datées</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-stock"><span>▦</span><span><strong>Stocks</strong><small>Produits et fournitures disponibles</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-stock"><span>▦</span><span><strong>Stocks</strong><small>Valorisation, seuils et mouvements</small></span><b>›</b></button>
           </div>
           <div class="settings-group"><h2>Outils</h2>
             <button class="menu-row" data-action="open-weather"><span>☁</span><span><strong>Météo</strong><small>Heure par heure et 7 jours</small></span><b>›</b></button>
@@ -114,10 +115,11 @@
             <button class="menu-row" data-action="open-assistant"><span>✦</span><span><strong>Assistant</strong><small>Questions sur vos données</small></span><b>›</b></button>
             <button class="menu-row" data-action="voice-assistant"><span>◉</span><span><strong>Commande vocale</strong><small>Dicter une recherche ou un travail si le navigateur le permet</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-notifications"><span>◌</span><span><strong>Notifications</strong><small>Tâches, travaux et entretiens à surveiller</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-statistics"><span>▥</span><span><strong>Pilotage</strong><small>Surfaces, coûts, travaux et matériel</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-statistics"><span>▥</span><span><strong>Pilotage</strong><small>Économie, marges, stocks et matériel</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-reports"><span>▤</span><span><strong>Rapports</strong><small>Exports CSV et GeoJSON</small></span><b>›</b></button>
           </div>
           <div class="settings-group"><h2>Application</h2>
+            <button class="menu-row" data-action="open-account"><span>☁</span><span><strong>Compte & équipe</strong><small>Multi-appareils, rôles et synchronisation</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-data-center"><span>⇅</span><span><strong>Mes données</strong><small>Import, sauvegardes, corbeille et diagnostic</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-settings"><span>⚙</span><span><strong>Paramètres</strong><small>Exploitation, carte, confidentialité</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-privacy"><span>◉</span><span><strong>Confidentialité</strong><small>GPS, cloud et traitement des données</small></span><b>›</b></button>
@@ -147,6 +149,7 @@
   <script src="https://unpkg.com/shpjs@6.2.0/dist/shp.min.js" defer></script>
   <script>window.addEventListener('error',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.message} — ${e.filename||''}:${e.lineno||''}`});window.addEventListener('unhandledrejection',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.reason?.message||e.reason}`});</script>
   <script>setTimeout(function(){if(document.documentElement.dataset.appReady==='1')return;var e=document.getElementById('boot-error');if(e){e.className='boot-fallback';e.innerHTML="<strong>Parcelles n’a pas terminé son démarrage.</strong><br><button onclick='location.reload()'>Réessayer</button>";}},9000);</script>
+  <script src="./config.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

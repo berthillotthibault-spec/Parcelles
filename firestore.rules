@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function memberPath(workspaceId, uid) { return /databases/$(database)/documents/workspaces/$(workspaceId)/members/$(uid); }
+    function isMember(workspaceId) { return signedIn() && exists(memberPath(workspaceId, request.auth.uid)); }
+    function memberRole(workspaceId) { return get(memberPath(workspaceId, request.auth.uid)).data.role; }
+    function isOwner(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) == 'owner'; }
+    function canEdit(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) in ['owner','editor']; }
+    function invitePath(token) { return /databases/$(database)/documents/invites/$(token); }
+    function validInvite(token, workspaceId) {
+      return signedIn() && token is string && exists(invitePath(token))
+        && get(invitePath(token)).data.workspaceId == workspaceId
+        && request.auth.token.email != null
+        && get(invitePath(token)).data.email == request.auth.token.email
+        && get(invitePath(token)).data.expiresAt > request.time.toMillis();
+    }
+
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+      match /workspaces/{workspaceId} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    match /workspaces/{workspaceId} {
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isMember(workspaceId);
+      allow update, delete: if isOwner(workspaceId);
+
+      match /members/{uid} {
+        allow read: if isMember(workspaceId);
+        allow create: if signedIn() && (
+          isOwner(workspaceId)
+          || (request.auth.uid == uid && getAfter(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid)
+          || (request.auth.uid == uid && validInvite(request.resource.data.inviteToken, workspaceId))
+        );
+        allow update, delete: if isOwner(workspaceId);
+      }
+
+      match /data/{entityId} {
+        allow read: if isMember(workspaceId);
+        allow create, update, delete: if canEdit(workspaceId);
+      }
+
+      match /devices/{deviceId} {
+        allow read: if isMember(workspaceId);
+        allow create, update: if isMember(workspaceId) && request.resource.data.userId == request.auth.uid;
+        allow delete: if isOwner(workspaceId) || (isMember(workspaceId) && resource.data.userId == request.auth.uid);
+      }
+
+      match /audit/{auditId} {
+        allow read: if isMember(workspaceId);
+        allow create: if isMember(workspaceId) && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    match /invites/{token} {
+      allow create: if signedIn() && isOwner(request.resource.data.workspaceId);
+      allow read: if signedIn() && request.auth.token.email != null && request.auth.token.email == resource.data.email;
+      allow delete: if signedIn() && (
+        (request.auth.token.email != null && request.auth.token.email == resource.data.email)
+        || isOwner(resource.data.workspaceId)
+      );
+      allow update: if false;
+    }
+  }
+}

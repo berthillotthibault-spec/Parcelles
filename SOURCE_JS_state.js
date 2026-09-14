@@ -9,15 +9,15 @@ export function emptyState(){
       createdAt:timestamp,updatedAt:timestamp
     },
     campagnes:[],
-    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],maintenanceRecords:[],routeSessions:[],
+    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],members:[],assistantMessages:[],devices:[],
     preferences:{
       mapLayer:'osm',mapColorMode:'culture',theme:'system',gpsConsent:false,
-      autoBackup:true,syncEnabled:false,weatherDays:7,
-      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:''
+      autoBackup:true,syncEnabled:false,workspaceId:'',cloudRole:null,syncAttachments:true,weatherDays:7,
+      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true
     },
     metadata:{
       createdAt:timestamp,updatedAt:timestamp,lastImportAt:null,lastSyncAt:null,lastWeatherAt:null,
-      revision:0,lastAutoBackupDay:null,lastBuildId:null
+      revision:0,lastAutoBackupDay:null,lastBuildId:null,syncCursors:{}
     },
     queue:[],journal:[]
   };
@@ -101,6 +101,21 @@ export function migrateData(input){
     data.version=5;
   }
 
+  if(data.version<6){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.stockItems=data.stockItems.map(item=>normalizeEntity('stockItems',{category:'Intrant',unitPrice:null,...item},null,{preserveDeleted:true}));
+    data.parcelles=data.parcelles.map(parcel=>({...parcel,economicsByCampaign:parcel.economicsByCampaign||((parcel.economics&&Object.keys(parcel.economics).length)?{[campaignFor()]:clone(parcel.economics)}:{})}));
+    data.version=6;
+  }
+
+
+  if(data.version<7){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.version=7;
+  }
+
   data={...base,...data,
     version:APP_VERSION,
     exploitation:{...base.exploitation,...data.exploitation},
@@ -125,7 +140,9 @@ function validate(type,entity){
 }
 
 export class Store{
-  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();}
+  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;}
+
+  setWriteGuard(fn){this.writeGuard=typeof fn==='function'?fn:null;}
 
   async init(){
     await this.storage.init();
@@ -174,6 +191,7 @@ export class Store{
   }
 
   async mutate(label,fn,options={}){
+    if(!options.bypassPermissions&&this.writeGuard&&!this.writeGuard(options))throw new Error('Votre rôle ne permet pas cette modification.');
     const previous=this.snapshot();
     try{
       const result=await fn(this.state);
@@ -207,6 +225,7 @@ export class Store{
 
   async upsertMany(type,entities,{label='Mise à jour groupée'}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
+    if(this.writeGuard&&!this.writeGuard({entity:type,action:'update'}))throw new Error('Votre rôle ne permet pas cette modification.');
     const previous=this.snapshot();
     try{
       const normalized=entities.map(entity=>{const existing=entity.id?this.get(type,entity.id,{includeDeleted:true}):null;const value=normalizeEntity(type,entity,existing);const errors=validate(type,value);if(errors.length)throw new Error(errors.join(' — '));return{value,existing};});
@@ -230,14 +249,45 @@ export class Store{
 
   async purge(type,id){
     const found=this.get(type,id,{includeDeleted:true});if(!found)throw new Error('Élément introuvable.');
-    await this.mutate(`${type.slice(0,-1)} supprimé définitivement.`,state=>{state[type]=state[type].filter(v=>v.id!==id);},{queue:false,kind:'purge'});
+    await this.mutate(`${type.slice(0,-1)} supprimé définitivement.`,state=>{state[type]=state[type].filter(v=>v.id!==id);},{queue:false,kind:'purge',entity:type,entityId:id,action:'purge'});
     if((type==='photos'||type==='documents'))await this.storage.blobDelete(id);
   }
 
-  async setPreferences(patch){return this.mutate('Préférences mises à jour.',state=>Object.assign(state.preferences,patch),{queue:false,kind:'settings'});}
-  async setExploitation(patch){return this.mutate('Informations de l’exploitation mises à jour.',state=>Object.assign(state.exploitation,patch,{updatedAt:now()}),{queue:false,kind:'settings'});}
+  async recordStockMovement(movement){
+    const item=this.get('stockItems',movement.stockItemId);if(!item)throw new Error('Stock introuvable.');
+    const normalized=normalizeEntity('stockMovements',movement,null);
+    const quantity=toNumber(movement.quantity);if(quantity<0)throw new Error('Quantité invalide.');
+    await this.mutate(`Mouvement de stock : ${item.name||'Produit'}`,state=>{
+      const stock=state.stockItems.find(x=>x.id===item.id);const current=toNumber(stock.quantity);
+      let next=current,delta=0;
+      if(movement.type==='Entrée'){delta=quantity;next=current+quantity;}
+      else if(movement.type==='Sortie'){delta=-quantity;next=Math.max(0,current-quantity);if(quantity>current)throw new Error('Stock insuffisant pour cette sortie.');}
+      else {next=quantity;delta=next-current;}
+      const enteredPrice=movement.unitPrice!==null&&movement.unitPrice!==undefined&&String(movement.unitPrice).trim()!==''?toNumber(movement.unitPrice):null;
+      if(movement.type==='Entrée'&&enteredPrice!==null&&next>0){const oldValue=current*toNumber(stock.unitPrice),newValue=quantity*enteredPrice;stock.unitPrice=(oldValue+newValue)/next;}
+      else if(movement.type==='Ajustement'&&enteredPrice!==null)stock.unitPrice=enteredPrice;
+      normalized.delta=delta;normalized.balanceAfter=next;normalized.unitPrice=enteredPrice;
+      state.stockMovements.push(normalized);stock.quantity=next;stock.updatedAt=now();stock.version=(stock.version||0)+1;
+    },{entity:'stockMovements',entityId:normalized.id,action:'create',payload:normalized});
+    return normalized;
+  }
 
-  async replaceState(next,label='Données remplacées',{kind='restore',log=true}={}){
+  async applyRemote(type,entity){
+    if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
+    const incoming=clone(entity);
+    const errors=validate(type,incoming);if(errors.length&&!incoming.deletedAt)throw new Error(errors.join(' — '));
+    await this.mutate(`Synchronisation distante : ${type}`,state=>{
+      const index=state[type].findIndex(item=>item.id===incoming.id);
+      if(index>=0)state[type][index]=incoming;else state[type].push(incoming);
+    },{entity:type,entityId:incoming.id,action:'remote',queue:false,log:false,bypassPermissions:true});
+    return incoming;
+  }
+
+  async setPreferences(patch){return this.mutate('Préférences mises à jour.',state=>Object.assign(state.preferences,patch),{queue:false,kind:'settings',entity:'preferences',action:'update'});}
+  async setExploitation(patch){return this.mutate('Informations de l’exploitation mises à jour.',state=>Object.assign(state.exploitation,patch,{updatedAt:now()}),{queue:false,kind:'settings',entity:'exploitation',action:'update'});}
+
+  async replaceState(next,label='Données remplacées',{kind='restore',log=true,bypassPermissions=false}={}){
+    if(!bypassPermissions&&this.writeGuard&&!this.writeGuard({entity:'state',action:'restore'}))throw new Error('Votre rôle ne permet pas de restaurer les données.');
     const migrated=migrateData(next);
     const previous=this.snapshot();
     try{

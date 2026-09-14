@@ -7,7 +7,7 @@ const copy=(src,dst=path.basename(src))=>fs.copyFileSync(path.join(root,src),pat
 for(const name of fs.readdirSync(path.join(root,'js')))copy(`js/${name}`);
 for(const name of fs.readdirSync(path.join(root,'css')))copy(`css/${name}`);
 for(const name of fs.readdirSync(path.join(root,'icons')))copy(`icons/${name}`);
-for(const name of ['parcelles.svg'])copy(name);
+for(const name of ['parcelles.svg','config.js'])copy(name);
 let index=fs.readFileSync(path.join(root,'index.html'),'utf8')
   .replaceAll('./css/','./').replaceAll('./js/','./').replaceAll('./icons/','./');
 fs.writeFileSync(path.join(out,'index.html'),index);

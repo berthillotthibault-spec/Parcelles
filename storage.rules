@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function memberPath(workspaceId) {
+      return /databases/(default)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid);
+    }
+    function isMember(workspaceId) {
+      return request.auth != null && firestore.exists(memberPath(workspaceId));
+    }
+    function canEdit(workspaceId) {
+      return isMember(workspaceId) && firestore.get(memberPath(workspaceId)).data.role in ['owner','editor'];
+    }
+
+    match /workspaces/{workspaceId}/attachments/{entityType}/{fileId} {
+      allow read: if isMember(workspaceId);
+      allow create, update: if canEdit(workspaceId)
+        && request.resource.size < 25 * 1024 * 1024;
+      allow delete: if canEdit(workspaceId);
+    }
+  }
+}

@@ -29,3 +29,8 @@ Le service worker porte un BUILD_ID. Lorsqu'une nouvelle version est détectée,
 - Diagnostic indique `déploiement OK` ;
 - un import SHP peut être analysé ;
 - l'application reste consultable après passage hors connexion une fois les ressources installées.
+
+
+## Configuration cloud facultative
+
+Le build GitHub contient `config.js` avec le cloud désactivé. Pour activer la synchronisation, renseignez la configuration publique Firebase dans ce fichier et déployez les règles de `firebase/`.

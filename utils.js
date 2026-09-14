@@ -1,8 +1,8 @@
-export const APP_VERSION = 5;
-export const BUILD_ID = '2026.09.14-ux-p0.1';
+export const APP_VERSION = 7;
+export const BUILD_ID = '2026.09.14-v5.0.0';
 export const ENTITY_TYPES = [
   'parcelles','interventions','tasks','rotations','grazingSessions','materiels',
-  'products','clients','documents','photos','points','templates','importSessions','syncConflicts','notifications','observations','stockItems','maintenanceRecords','routeSessions'
+  'products','clients','documents','photos','points','templates','importSessions','syncConflicts','notifications','observations','stockItems','stockMovements','maintenanceRecords','routeSessions','members','assistantMessages','devices'
 ];
 
 export const uid = (prefix = 'obj') => `${prefix}_${Date.now().toString(36)}_${crypto.getRandomValues(new Uint32Array(1))[0].toString(36)}`;
