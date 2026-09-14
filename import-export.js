@@ -1,6 +1,9 @@
 import {APP_VERSION, campaignFor, checksum, clone, download, escapeHtml, geometryAreaHa, localDateTime, normalize, toNumber, uid, validateIntervention, validateParcel} from './utils.js';
 import {migrateData} from './state.js';
 
+const IMPORT_ENGINE_BUILD='geofolia-v8-20260914';
+console.info('[Parcelles] importeur', IMPORT_ENGINE_BUILD);
+
 const FIELD_ALIASES = {
   // Champs génériques + noms DBF Geofolia.
   // Les exports SHP/DBF Geofolia utilisent notamment NOM_PARCEL, GUID_PARC,
@@ -19,22 +22,54 @@ const FIELD_ALIASES = {
   cost:['cout','coût','cost','prix']
 };
 
+function normalizedKey(value=''){
+  // Normalisation locale volontairement indépendante du reste de l'application :
+  // les champs DBF peuvent contenir _, espaces, accents ou variations de casse.
+  return String(value ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g,'')
+    .trim();
+}
 function findField(headers, key){
-  // Respecte l'ordre des alias afin de choisir les bons champs Geofolia
-  // lorsqu'un DBF contient plusieurs identifiants/codes possibles.
-  const normalizedHeaders = new Map(headers.map(header => [normalize(header), header]));
-  for (const alias of FIELD_ALIASES[key]) {
-    const found = normalizedHeaders.get(normalize(alias));
-    if (found) return found;
+  const byKey=new Map((headers||[]).map(header=>[normalizedKey(header),header]));
+  for(const alias of FIELD_ALIASES[key] || []){
+    const found=byKey.get(normalizedKey(alias));
+    if(found) return found;
   }
   return null;
 }
+function valueFromRow(row,key,headers=[]){
+  // 1. Correspondance via les en-têtes annoncés par le parseur.
+  const header=findField(headers,key);
+  if(header && Object.prototype.hasOwnProperty.call(row,header)) return row[header];
+  // 2. Secours : recherche directement dans les vraies clés de la ligne.
+  // Cela élimine le cas où shpjs expose des propriétés que le tableau headers
+  // ne reflète pas exactement (DBF, casse, underscores, troncature).
+  const rowKeys=Object.keys(row||{});
+  const byKey=new Map(rowKeys.map(k=>[normalizedKey(k),k]));
+  for(const alias of FIELD_ALIASES[key] || []){
+    const actual=byKey.get(normalizedKey(alias));
+    if(actual) return row[actual];
+  }
+  return undefined;
+}
 function objectFromRow(row, headers){
-  const field = key => { const header=findField(headers,key); return header ? row[header] : undefined; };
+  const field=key=>valueFromRow(row,key,headers);
+  const surface=toNumber(field('surfaceHa'));
   return {
-    nom:String(field('name') || '').trim(),sourceId:String(field('sourceId') || '').trim() || null,surfaceHa:toNumber(field('surfaceHa')),
-    culture:String(field('culture') || '').trim(),commune:String(field('commune') || '').trim(),ilot:String(field('ilot') || '').trim(),status:String(field('status') || '').trim(),
-    type:String(field('type') || '').trim(),date:field('date'),product:String(field('product') || '').trim(),dose:field('dose'),cost:toNumber(field('cost')),
+    nom:String(field('name') ?? '').trim(),
+    sourceId:String(field('sourceId') ?? '').trim() || null,
+    surfaceHa:Number.isFinite(surface) ? surface : null,
+    culture:String(field('culture') ?? '').trim(),
+    commune:String(field('commune') ?? '').trim(),
+    ilot:String(field('ilot') ?? '').trim(),
+    status:String(field('status') ?? '').trim(),
+    type:String(field('type') ?? '').trim(),
+    date:field('date'),
+    product:String(field('product') ?? '').trim(),
+    dose:field('dose'),
+    cost:toNumber(field('cost')),
     raw:row
   };
 }
@@ -187,12 +222,30 @@ export async function inspectFiles(files, state){
   const allRows=parsed.flatMap(source=>source.rows.map(row=>({...row,_source:source})));
   const normalized=allRows.map(row=>({...objectFromRow(row,row._source.headers),geometry:row.geometry||null,_source:row._source.file}));
   const classification=classifyRows(normalized,state);
-  const validParcels=normalized.filter(row=>row.nom&&!row.type).filter(row=>!validateParcel(row).length);
+  const parcelCandidates=normalized.filter(row=>row.nom&&!row.type);
+  const validParcels=parcelCandidates.filter(row=>!validateParcel(row).length);
   const probableInterventions=normalized.filter(row=>row.type&&(row.date||row.product));
-  const knownFields=new Set([...Object.values(FIELD_ALIASES).flat(), 'SIRET','PACAGE','CODE_EXPLO','RAIS_SOCIA','CAMPAGNE','CODE_P_ORI','GUID_P_ORI','TYPE_PARC','CODE_INSEE','COMMENTAIR','FD_COMMENT','PD_COMMENT','CODE_GNIS','VARIETE','DESTIN_EDI','DESTINATIO'].map(normalize));
-  parsed.forEach(source=>source.headers.filter(header=>!knownFields.has(normalize(header))&&header!=='geometry').slice(0,12).forEach(header=>warnings.push(`${source.file} : colonne non reconnue « ${header} »`)));
   const invalidGeometry=normalized.filter(row=>row.geometry&&validateParcel(row).some(error=>error.includes('Géométrie'))).length;
-  if(parsed.length && !validParcels.length) warnings.unshift('Aucune parcelle valide détectée : vérifiez les noms de champs du DBF.');
+
+  // Pour un SHP Geofolia, des dizaines de colonnes métier supplémentaires sont normales.
+  // On ne les signale plus comme erreurs : on contrôle uniquement les champs utiles.
+  parsed.forEach(source=>{
+    if(!source.rows.length) return;
+    const sample=source.rows[0];
+    const h=source.headers||Object.keys(sample||{});
+    const missing=[];
+    if(valueFromRow(sample,'name',h)===undefined) missing.push('nom (NOM_PARCEL)');
+    if(valueFromRow(sample,'surfaceHa',h)===undefined) missing.push('surface (SURFACE)');
+    if(source.hasGeometry && valueFromRow(sample,'sourceId',h)===undefined) missing.push('identifiant (GUID_PARC)');
+    if(missing.length) warnings.push(`${source.file} : champs utiles absents : ${missing.join(', ')}.`);
+  });
+  if(parsed.length && !parcelCandidates.length){
+    const sampleKeys=Object.keys(parsed[0]?.rows?.[0]||{}).filter(k=>!['geometry','_feature'].includes(k)).slice(0,25);
+    warnings.unshift(`Aucune parcelle nommée détectée. Champs réellement reçus : ${sampleKeys.join(', ') || 'aucun'}.`);
+  } else if(parcelCandidates.length && !validParcels.length){
+    const first=parcelCandidates[0];
+    warnings.unshift(`Les parcelles sont reconnues mais échouent à la validation : ${validateParcel(first).join(' ; ') || 'cause inconnue'}.`);
+  }
   return {sources:parsed.map(source=>({file:source.file,rows:source.rows.length,type:source.type,hasGeometry:source.hasGeometry,headers:source.headers})),rows:normalized,summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface:validParcels.reduce((sum,row)=>sum+(row.surfaceHa||0),0),cultures:[...new Set(validParcels.map(row=>row.culture).filter(Boolean))],communes:[...new Set(validParcels.map(row=>row.commune).filter(Boolean))],geometryValid:normalized.filter(row=>row.geometry&&!validateParcel(row).some(error=>error.includes('Géométrie'))).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(row=>!row.nom&&!row.type).length,...classification},warnings,invalid};
 }
 
