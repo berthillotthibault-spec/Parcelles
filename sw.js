@@ -1,69 +1,42 @@
-/* Service Worker — Parcelles Le Sougey
-   Met en cache l'appli elle-même, les librairies (CDN) et les tuiles de carte IGN
-   déjà consultées, pour un usage sans réseau au champ. */
-
-const CACHE_NAME = "parcelles-sougey-v1";
+const CACHE_NAME = 'parcelles-2-0-v1';
 const APP_SHELL = [
-  "./",
-  "./index.html"
+  './',
+  './index14.html',
+  './manifest.webmanifest',
+  './icon.svg'
 ];
 
-self.addEventListener("install", (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .catch(() => {})
+      .then(cache => Promise.all(APP_SHELL.map(url => cache.add(url).catch(() => undefined))))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-self.addEventListener("activate", (event) => {
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-
-  let url;
-  try { url = new URL(event.request.url); } catch (e) { return; }
-
-  const isTile = url.hostname === "data.geopf.fr";
-  const isCdn = url.hostname === "cdnjs.cloudflare.com";
-  const isGeocode = url.hostname === "geo.api.gouv.fr" || url.hostname === "api.open-meteo.com";
-
-  // Géocodage / météo : jamais de cache (données changeantes), on laisse passer normalement.
-  if (isGeocode) return;
-
-  // Tuiles IGN et librairies CDN : cache d'abord, puis on rafraîchit en arrière-plan.
-  if (isTile || isCdn) {
-    event.respondWith(
-      caches.open(CACHE_NAME).then((cache) =>
-        cache.match(event.request).then((cached) => {
-          const network = fetch(event.request).then((res) => {
-            if (res && res.status === 200) cache.put(event.request, res.clone());
-            return res;
-          }).catch(() => cached);
-          return cached || network;
-        })
-      )
-    );
-    return;
-  }
-
-  // Page principale (navigation) : réseau d'abord, secours sur le cache hors-ligne.
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((res) => {
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, res.clone()));
-          return res;
-        })
-        .catch(() => caches.match("./index.html"))
-    );
-  }
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+  const request = event.request;
+  event.respondWith(
+    caches.match(request).then(cached => {
+      const network = fetch(request).then(response => {
+        if (response && response.ok && (request.url.startsWith(self.location.origin) || request.url.startsWith('https://cdnjs.cloudflare.com'))) {
+          caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
+        }
+        return response;
+      });
+      return cached || network;
+    }).catch(() => {
+      if (request.mode === 'navigate') return caches.match('./index14.html');
+      return caches.match(request);
+    })
+  );
 });
