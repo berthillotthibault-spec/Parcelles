@@ -9,10 +9,10 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <link rel="stylesheet" href="css/base.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/map.css">
-  <link rel="stylesheet" href="css/responsive.css">
+  <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="components.css">
+  <link rel="stylesheet" href="map.css">
+  <link rel="stylesheet" href="responsive.css">
   <title>Parcelles 2.0</title>
 </head>
 <body>
@@ -109,6 +109,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>window.addEventListener('error',event=>{document.querySelector('#boot-error').textContent=`Erreur de démarrage : ${event.message} — ${event.filename||''}:${event.lineno||''}`});window.addEventListener('unhandledrejection',event=>{document.querySelector('#boot-error').textContent=`Erreur de démarrage : ${event.reason?.message||event.reason}`});</script>
-  <script type="module" src="js/app.js?v=3"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>
