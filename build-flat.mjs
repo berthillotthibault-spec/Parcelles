@@ -1,0 +1,20 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const out=path.join(root,'dist-github-root');fs.rmSync(out,{recursive:true,force:true});fs.mkdirSync(out,{recursive:true});
+const copy=(src,dst=path.basename(src))=>fs.copyFileSync(path.join(root,src),path.join(out,dst));
+for(const name of fs.readdirSync(path.join(root,'js')))copy(`js/${name}`);
+for(const name of fs.readdirSync(path.join(root,'css')))copy(`css/${name}`);
+for(const name of fs.readdirSync(path.join(root,'icons')))copy(`icons/${name}`);
+for(const name of ['parcelles.svg'])copy(name);
+let index=fs.readFileSync(path.join(root,'index.html'),'utf8')
+  .replaceAll('./css/','./').replaceAll('./js/','./').replaceAll('./icons/','./');
+fs.writeFileSync(path.join(out,'index.html'),index);
+let manifest=fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8').replaceAll('./icons/','./');
+fs.writeFileSync(path.join(out,'manifest.webmanifest'),manifest);
+let sw=fs.readFileSync(path.join(root,'sw.js'),'utf8').replaceAll('./css/','./').replaceAll('./js/','./').replaceAll('./icons/','./');
+fs.writeFileSync(path.join(out,'sw.js'),sw);
+let runtime=fs.readFileSync(path.join(out,'runtime.js'),'utf8').replaceAll('./css/','./').replaceAll('./js/','./').replaceAll('./icons/','./');
+fs.writeFileSync(path.join(out,'runtime.js'),runtime);
+console.log(`✓ Build GitHub racine créé : ${out}`);

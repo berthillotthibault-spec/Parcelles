@@ -8,12 +8,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <link rel="stylesheet" href="./base.css">
-  <link rel="stylesheet" href="./components.css">
-  <link rel="stylesheet" href="./map.css">
-  <link rel="stylesheet" href="./responsive.css">
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/components.css">
+  <link rel="stylesheet" href="./css/map.css">
+  <link rel="stylesheet" href="./css/responsive.css">
   <title>Parcelles</title>
 </head>
 <body>
@@ -77,7 +77,7 @@
           <div class="view-heading"><div><p class="eyebrow">Exploitation</p><h1 id="parcels-title">Parcelles</h1><p id="parcels-counter" class="lead"></p></div><button class="button primary" data-action="new-parcel">＋ Parcelle</button></div>
           <div class="toolbar-panel">
             <label class="search-field"><span aria-hidden="true">⌕</span><input id="parcel-search" type="search" autocomplete="off" placeholder="Nom, culture, commune, > 5 ha…"></label>
-            <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button></div>
+            <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button><button class="filter-chip" data-parcel-filter="archived">Archivées</button></div>
             <label class="compact-select">Trier <select id="parcel-sort"><option value="name">Nom</option><option value="surface-desc">Surface ↓</option><option value="surface-asc">Surface ↑</option><option value="culture">Culture</option><option value="commune">Commune</option><option value="recent">Dernier travail</option></select></label>
           </div>
           <div id="recent-parcels" class="recent-strip"></div>
@@ -147,6 +147,6 @@
   <script src="https://unpkg.com/shpjs@6.2.0/dist/shp.min.js" defer></script>
   <script>window.addEventListener('error',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.message} — ${e.filename||''}:${e.lineno||''}`});window.addEventListener('unhandledrejection',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.reason?.message||e.reason}`});</script>
   <script>setTimeout(function(){if(document.documentElement.dataset.appReady==='1')return;var e=document.getElementById('boot-error');if(e){e.className='boot-fallback';e.innerHTML="<strong>Parcelles n’a pas terminé son démarrage.</strong><br><button onclick='location.reload()'>Réessayer</button>";}},9000);</script>
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>
