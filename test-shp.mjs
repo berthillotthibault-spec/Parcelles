@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {parseShpDbf} from '../js/shapefile-fallback.js';
+
+const here=path.dirname(fileURLToPath(import.meta.url));
+const dir=path.join(here,'fixtures','shp');
+const files=fs.readdirSync(dir);
+const find=ext=>path.join(dir,files.find(f=>f.toLowerCase().endsWith(ext)));
+const asArrayBuffer=file=>{const b=fs.readFileSync(file);return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);};
+const result=parseShpDbf({shp:asArrayBuffer(find('.shp')),dbf:asArrayBuffer(find('.dbf')),prj:fs.readFileSync(find('.prj'),'utf8')});
+
+assert.equal(result.diagnostic.shapeType,5);
+assert.equal(result.diagnostic.projection,'lambert93');
+assert.equal(result.diagnostic.shapeCount,110);
+assert.equal(result.diagnostic.recordCount,110);
+assert.equal(result.geojson.features.length,110);
+assert.ok(result.diagnostic.fields.includes('GUID_PARC'));
+assert.ok(result.diagnostic.fields.includes('NOM_PARCEL'));
+const first=result.geojson.features[0];
+assert.equal(first.properties.NOM_PARCEL,'LAURENCIN');
+assert.equal(first.properties.LIB_COMMUN,'Montrevel-en-Bresse');
+assert.equal(first.properties.CP_CULTU,"Orge 2 rangs d'hiver");
+assert.ok(Math.abs(Number(first.properties.SURFACE)-5.7537323)<1e-7);
+const coord=first.geometry.type==='Polygon'?first.geometry.coordinates[0][0]:first.geometry.coordinates[0][0][0];
+assert.ok(Math.abs(coord[0]-5.102915)<0.00002);
+assert.ok(Math.abs(coord[1]-46.333602)<0.00002);
+const total=result.geojson.features.reduce((s,f)=>s+(Number(f.properties.SURFACE)||0),0);
+assert.ok(Math.abs(total-280.0515705)<1e-6);
+console.log('✓ SHP réel : 110 parcelles, DBF Windows-1252 et Lambert-93 validés.');

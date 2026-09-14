@@ -1,0 +1,8 @@
+{
+  "name": "parcelles-le-sougey",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test-shp.mjs && node tests/test-zip.mjs && node tests/test-core.mjs && node tests/test-static.mjs"
+  }
+}
