@@ -2,7 +2,7 @@ import {Store} from './state.js';
 import {StorageService} from './storage.js';
 import {ParcelMap} from './map.js';
 import {SyncService} from './sync.js';
-import {applyImport, exportCsv, exportGeoJson, importPreviewHtml, inspectFiles, makeBackup, validateBackup} from './import-export.js?v=6';
+import {applyImport, exportCsv, exportGeoJson, importPreviewHtml, inspectFiles, makeBackup, validateBackup} from './import-export.js?v=7';
 import {campaignFor, download, escapeHtml, formatEuro, formatNumber, isoDate, localDate, localDateTime, normalize, toNumber, uid} from './utils.js';
 
 const $ = selector => document.querySelector(selector);

@@ -2,12 +2,15 @@ import {APP_VERSION, campaignFor, checksum, clone, download, escapeHtml, geometr
 import {migrateData} from './state.js';
 
 const FIELD_ALIASES = {
-  name:['nom','name','parcelle','parcel','libelle','désignation','designation'],
-  sourceId:['id','guid','identifiant','code','numero','numéro','id parcelle','id_parcelle'],
-  surfaceHa:['surface','surface ha','surface_ha','ha','superficie','area'],
-  culture:['culture','cultures','crop','espece','espèce'],
-  commune:['commune','ville','municipalité','municipalite'],
-  ilot:['ilot','îlot','bloc'],
+  // Champs génériques + noms DBF Geofolia.
+  // Les exports SHP/DBF Geofolia utilisent notamment NOM_PARCEL, GUID_PARC,
+  // CP_CULTU, LIB_COMMUN et NUM_ILOT.
+  name:['NOM_PARCEL','NOM_PARCELLE','nom','name','parcelle','parcel','libelle','désignation','designation'],
+  sourceId:['GUID_PARC','ID_EXTERNE','COD_PARCEL','CODE_TRACA','id','guid','identifiant','code','numero','numéro','id parcelle','id_parcelle'],
+  surfaceHa:['SURFACE','surface','surface ha','surface_ha','ha','superficie','area'],
+  culture:['CP_CULTU','CP_CODCULT','culture','cultures','crop','espece','espèce'],
+  commune:['LIB_COMMUN','commune','ville','municipalité','municipalite'],
+  ilot:['NUM_ILOT','ilot','îlot','bloc'],
   status:['statut','status','a faire','à faire'],
   type:['type','operation','opération','intervention','travail'],
   date:['date','date intervention'],
@@ -17,8 +20,14 @@ const FIELD_ALIASES = {
 };
 
 function findField(headers, key){
-  const aliases = FIELD_ALIASES[key].map(normalize);
-  return headers.find(header => aliases.includes(normalize(header))) || null;
+  // Respecte l'ordre des alias afin de choisir les bons champs Geofolia
+  // lorsqu'un DBF contient plusieurs identifiants/codes possibles.
+  const normalizedHeaders = new Map(headers.map(header => [normalize(header), header]));
+  for (const alias of FIELD_ALIASES[key]) {
+    const found = normalizedHeaders.get(normalize(alias));
+    if (found) return found;
+  }
+  return null;
 }
 function objectFromRow(row, headers){
   const field = key => { const header=findField(headers,key); return header ? row[header] : undefined; };
@@ -180,7 +189,7 @@ export async function inspectFiles(files, state){
   const classification=classifyRows(normalized,state);
   const validParcels=normalized.filter(row=>row.nom&&!row.type).filter(row=>!validateParcel(row).length);
   const probableInterventions=normalized.filter(row=>row.type&&(row.date||row.product));
-  const knownFields=new Set(Object.values(FIELD_ALIASES).flat().map(normalize));
+  const knownFields=new Set([...Object.values(FIELD_ALIASES).flat(), 'SIRET','PACAGE','CODE_EXPLO','RAIS_SOCIA','CAMPAGNE','CODE_P_ORI','GUID_P_ORI','TYPE_PARC','CODE_INSEE','COMMENTAIR','FD_COMMENT','PD_COMMENT','CODE_GNIS','VARIETE','DESTIN_EDI','DESTINATIO'].map(normalize));
   parsed.forEach(source=>source.headers.filter(header=>!knownFields.has(normalize(header))&&header!=='geometry').slice(0,12).forEach(header=>warnings.push(`${source.file} : colonne non reconnue « ${header} »`)));
   const invalidGeometry=normalized.filter(row=>row.geometry&&validateParcel(row).some(error=>error.includes('Géométrie'))).length;
   if(parsed.length && !validParcels.length) warnings.unshift('Aucune parcelle valide détectée : vérifiez les noms de champs du DBF.');
