@@ -2,14 +2,12 @@ import {APP_VERSION, campaignFor, checksum, clone, download, escapeHtml, geometr
 import {migrateData} from './state.js';
 
 const FIELD_ALIASES = {
-  // Alias génériques + noms de champs Geofolia (DBF/SHP).
-  // Les exports Geofolia utilisent des noms DBF tronqués à 10 caractères.
-  name:['nom','name','parcelle','parcel','libelle','désignation','designation','NOM_PARCEL','NOM_PARCELLE'],
-  sourceId:['GUID_PARC','ID_EXTERNE','COD_PARCEL','id','guid','identifiant','code','numero','numéro','id parcelle','id_parcelle'],
-  surfaceHa:['surface','surface ha','surface_ha','ha','superficie','area','SURFACE'],
-  culture:['culture','cultures','crop','espece','espèce','CP_CULTU','CP_CODCULT'],
-  commune:['LIB_COMMUN','commune','ville','municipalité','municipalite'],
-  ilot:['ilot','îlot','bloc','NUM_ILOT'],
+  name:['nom','name','parcelle','parcel','libelle','désignation','designation'],
+  sourceId:['id','guid','identifiant','code','numero','numéro','id parcelle','id_parcelle'],
+  surfaceHa:['surface','surface ha','surface_ha','ha','superficie','area'],
+  culture:['culture','cultures','crop','espece','espèce'],
+  commune:['commune','ville','municipalité','municipalite'],
+  ilot:['ilot','îlot','bloc'],
   status:['statut','status','a faire','à faire'],
   type:['type','operation','opération','intervention','travail'],
   date:['date','date intervention'],
@@ -19,14 +17,8 @@ const FIELD_ALIASES = {
 };
 
 function findField(headers, key){
-  // Respecte l'ordre de priorité des alias. Important pour Geofolia :
-  // GUID_PARC doit être préféré à COD_PARCEL et LIB_COMMUN aux autres codes.
-  const normalizedHeaders = new Map(headers.map(header => [normalize(header), header]));
-  for (const alias of FIELD_ALIASES[key]) {
-    const match = normalizedHeaders.get(normalize(alias));
-    if (match) return match;
-  }
-  return null;
+  const aliases = FIELD_ALIASES[key].map(normalize);
+  return headers.find(header => aliases.includes(normalize(header))) || null;
 }
 function objectFromRow(row, headers){
   const field = key => { const header=findField(headers,key); return header ? row[header] : undefined; };
@@ -51,86 +43,148 @@ function spreadsheetRows(buffer){
   return {rows,headers:Object.keys(rows[0] || {})};
 }
 function flattenGeoJson(data){
-  const features = data.type === 'FeatureCollection' ? data.features : data.type === 'Feature' ? [data] : [];
-  return features.map(feature => ({...feature.properties,geometry:feature.geometry,_feature:feature}));
+  if (Array.isArray(data)) return data.flatMap(flattenGeoJson);
+  if (!data || typeof data !== 'object') return [];
+  const features = data.type === 'FeatureCollection' ? (data.features || []) : data.type === 'Feature' ? [data] : [];
+  return features.map(feature => ({...(feature.properties || {}),geometry:feature.geometry || null,_feature:feature}));
 }
+
+function extensionOf(name=''){
+  const match=String(name).toLowerCase().match(/\.[^.]+$/);
+  return match ? match[0] : '';
+}
+function baseNameOf(name=''){
+  return String(name).normalize('NFC').replace(/\.(shp|shx|dbf|prj|cpg)$/i,'');
+}
+function groupLooseShapefiles(files){
+  const groups=new Map();
+  for(const file of files){
+    const ext=extensionOf(file.name);
+    if(!['.shp','.shx','.dbf','.prj','.cpg'].includes(ext)) continue;
+    const base=baseNameOf(file.name);
+    const key=normalize(base);
+    if(!groups.has(key)) groups.set(key,{base,files:{}});
+    groups.get(key).files[ext.slice(1)]=file;
+  }
+  return [...groups.values()];
+}
+
 async function zipContent(file){
-  if (!window.JSZip) throw new Error('Le lecteur ZIP n’est pas chargé.');
-  const zip = await window.JSZip.loadAsync(file);
+  if (!window.JSZip) throw new Error('Le lecteur ZIP n’est pas chargé. Rechargez la page avec une connexion internet.');
+  let zip;
+  try{ zip = await window.JSZip.loadAsync(file); }
+  catch(error){ throw new Error(`ZIP illisible : ${error.message}`); }
   const entries = Object.values(zip.files).filter(entry => !entry.dir);
   const geo = entries.find(entry => /\.(geo)?json$/i.test(entry.name));
   const csv = entries.find(entry => /\.csv$/i.test(entry.name));
   if (geo) return {name:geo.name,type:'geojson',value:JSON.parse(await geo.async('text'))};
   if (csv) return {name:csv.name,type:'csv',value:await csv.async('text')};
-  const parts = ['.shp','.shx','.dbf'].map(ext => entries.find(entry=>entry.name.toLowerCase().endsWith(ext)));
-  if (parts.every(Boolean)){
-    await loadShpReader();
-    const result = await window.shp(await file.arrayBuffer());
-    return {name:file.name,type:'geojson',value:result};
+  const shpEntries=entries.filter(entry=>/\.shp$/i.test(entry.name));
+  const dbfEntries=entries.filter(entry=>/\.dbf$/i.test(entry.name));
+  if(!shpEntries.length || !dbfEntries.length){
+    throw new Error(`ZIP SHP incomplet : ${shpEntries.length} .shp et ${dbfEntries.length} .dbf détecté(s). Le ZIP doit contenir au minimum .shp + .dbf, idéalement .shx + .prj.`);
   }
-  throw new Error('Le ZIP ne contient ni GeoJSON, ni CSV, ni ensemble SHP/SHX/DBF valide.');
+  await loadShpReader();
+  try{
+    const buffer=await file.arrayBuffer();
+    const result=window.shp.parseZip ? await window.shp.parseZip(buffer) : await window.shp(buffer);
+    const rows=flattenGeoJson(result);
+    if(!rows.length) throw new Error('Le lecteur SHP a répondu mais aucune géométrie n’a été produite.');
+    return {name:file.name,type:'geojson',value:Array.isArray(result)?{type:'FeatureCollection',features:result.flatMap(x=>x?.features||[])}:result};
+  }catch(error){
+    throw new Error(`Lecture SHP impossible : ${error.message}. Fichiers détectés dans le ZIP : ${entries.map(e=>e.name.split('/').pop()).join(', ')}`);
+  }
+}
+
+async function looseShapefileContent(group){
+  const {shp,dbf,prj,cpg}=group.files;
+  if(!shp || !dbf) throw new Error(`Jeu SHP incomplet « ${group.base} » : .shp et .dbf sont obligatoires.`);
+  await loadShpReader();
+  try{
+    const payload={shp:await shp.arrayBuffer(),dbf:await dbf.arrayBuffer()};
+    if(prj) payload.prj=await prj.text();
+    if(cpg) payload.cpg=await cpg.text();
+    const result=await window.shp(payload);
+    const rows=flattenGeoJson(result);
+    if(!rows.length) throw new Error('Aucune géométrie produite.');
+    return {name:`${group.base}.shp`,type:'geojson',value:result};
+  }catch(error){
+    throw new Error(`Lecture du jeu SHP « ${group.base} » impossible : ${error.message}`);
+  }
 }
 
 async function loadShpReader(){
   if(window.shp)return;
-
-  // Plusieurs CDN : évite qu'un blocage ponctuel d'un CDN casse l'import SHP.
-  const sources = [
+  const sources=[
     'https://unpkg.com/shpjs@6.2.0/dist/shp.min.js',
-    'https://cdn.jsdelivr.net/npm/shpjs@6.2.0/dist/shp.min.js'
+    'https://cdn.jsdelivr.net/npm/shpjs@6.2.0/dist/shp.min.js',
+    'https://unpkg.com/shpjs@6.2.0/dist/shp.js'
   ];
-
-  let lastError = null;
-  for (const src of sources) {
-    try {
+  const failures=[];
+  for(const src of sources){
+    try{
       await new Promise((resolve,reject)=>{
-        const existing = [...document.scripts].find(script => script.src === src);
-        if (existing && window.shp) return resolve();
-
+        const existing=[...document.scripts].find(script=>script.src===src);
+        if(existing && window.shp) return resolve();
         const script=document.createElement('script');
-        script.src=src;
-        script.async=true;
-        script.crossOrigin='anonymous';
-        script.onload=()=>window.shp ? resolve() : reject(new Error('Le script SHP est chargé mais window.shp est absent.'));
-        script.onerror=()=>reject(new Error(`Échec du chargement de ${src}`));
+        script.src=src; script.async=true;
+        script.onload=()=>window.shp?resolve():reject(new Error('script chargé mais objet shp absent'));
+        script.onerror=()=>reject(new Error('chargement réseau refusé'));
         document.head.append(script);
       });
       if(window.shp)return;
-    } catch (error) {
-      lastError = error;
-    }
+    }catch(error){failures.push(`${src}: ${error.message}`);}
   }
-  throw new Error(`Impossible de charger le lecteur shapefile. Vérifiez la connexion puis réessayez.${lastError ? ` (${lastError.message})` : ''}`);
+  throw new Error(`Lecteur shapefile indisponible. ${failures.join(' | ')}`);
 }
 
 export async function inspectFiles(files, state){
-  const parsed = []; const warnings = []; const invalid = [];
-  for (const file of files) {
-    try {
-      const extension = file.name.split('.').pop().toLowerCase();
-      let input;
-      if (extension === 'csv') input = {name:file.name,type:'csv',value:await file.text()};
-      else if (['xlsx','xls'].includes(extension)) input = {name:file.name,type:'sheet',value:await file.arrayBuffer()};
-      else if (['json','geojson'].includes(extension)) input = {name:file.name,type:'geojson',value:JSON.parse(await file.text())};
-      else if (extension === 'zip') input = await zipContent(file);
-      else if (extension === 'shp') throw new Error('Sélectionnez le ZIP complet (SHP + SHX + DBF + PRJ) pour conserver la projection.');
-      else throw new Error(`Format .${extension} non pris en charge.`);
-      let rows=[],headers=[];
-      if (input.type === 'csv') ({rows,headers}=csvRows(input.value));
-      if (input.type === 'sheet') ({rows,headers}=spreadsheetRows(input.value));
-      if (input.type === 'geojson') { rows=flattenGeoJson(input.value); headers=Object.keys(rows[0] || {}); }
-      parsed.push({file:file.name,rows,headers,hasGeometry:rows.some(row=>row.geometry),type:input.type});
-    } catch(error) { invalid.push({file:file.name,message:error.message}); }
+  const parsed=[]; const warnings=[]; const invalid=[];
+  const list=[...files];
+  const looseGroups=groupLooseShapefiles(list);
+  const consumed=new Set();
+
+  // 1) Jeux SHP sélectionnés séparément : .shp + .dbf (+ .shx/.prj/.cpg)
+  for(const group of looseGroups){
+    Object.values(group.files).forEach(file=>consumed.add(file));
+    try{
+      const input=await looseShapefileContent(group);
+      const rows=flattenGeoJson(input.value),headers=Object.keys(rows[0]||{}).filter(key=>!['_feature','geometry'].includes(key));
+      parsed.push({file:input.name,rows,headers,hasGeometry:rows.some(row=>row.geometry),type:input.type});
+      if(!group.files.prj) warnings.push(`${input.name} : aucun .prj fourni ; la projection peut être incorrecte.`);
+    }catch(error){ invalid.push({file:`${group.base}.shp`,message:error.message}); }
   }
-  const allRows = parsed.flatMap(source => source.rows.map(row=>({...row,_source:source})));
-  const normalized = allRows.map(row => ({...objectFromRow(row,row._source.headers),geometry:row.geometry || null,_source:row._source.file}));
-  const classification = classifyRows(normalized,state);
-  const validParcels = normalized.filter(row => row.nom && !row.type).filter(row => !validateParcel(row).length);
-  const probableInterventions = normalized.filter(row => row.type && (row.date || row.product));
-  const knownFields = new Set(Object.values(FIELD_ALIASES).flat().map(normalize));
-  parsed.forEach(source => source.headers.filter(header => !knownFields.has(normalize(header)) && header !== 'geometry').forEach(header => warnings.push(`${source.file} : colonne non reconnue « ${header} »`)));
-  const invalidGeometry = normalized.filter(row => row.geometry && validateParcel(row).some(error=>error.includes('Géométrie'))).length;
-  return {sources:parsed.map(source=>({file:source.file,rows:source.rows.length,type:source.type,hasGeometry:source.hasGeometry,headers:source.headers})),rows:normalized,summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface:validParcels.reduce((sum,row)=>sum+(row.surfaceHa||0),0),cultures:[...new Set(validParcels.map(row=>row.culture).filter(Boolean))],communes:[...new Set(validParcels.map(row=>row.commune).filter(Boolean))],geometryValid:normalized.filter(row=>row.geometry && !validateParcel(row).some(error=>error.includes('Géométrie'))).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(row=>!row.nom && !row.type).length,...classification},warnings,invalid};
+
+  // 2) Autres fichiers, dont ZIP SHP
+  for(const file of list){
+    if(consumed.has(file)) continue;
+    try{
+      const extension=file.name.split('.').pop().toLowerCase();
+      let input;
+      if(extension==='csv') input={name:file.name,type:'csv',value:await file.text()};
+      else if(['xlsx','xls'].includes(extension)) input={name:file.name,type:'sheet',value:await file.arrayBuffer()};
+      else if(['json','geojson'].includes(extension)) input={name:file.name,type:'geojson',value:JSON.parse(await file.text())};
+      else if(extension==='zip') input=await zipContent(file);
+      else throw new Error(`Format .${extension} non pris en charge seul.`);
+      let rows=[],headers=[];
+      if(input.type==='csv') ({rows,headers}=csvRows(input.value));
+      if(input.type==='sheet') ({rows,headers}=spreadsheetRows(input.value));
+      if(input.type==='geojson') { rows=flattenGeoJson(input.value); headers=Object.keys(rows[0]||{}).filter(key=>!['_feature','geometry'].includes(key)); }
+      if(!rows.length) throw new Error('Le fichier a été lu mais ne contient aucune ligne exploitable.');
+      parsed.push({file:file.name,rows,headers,hasGeometry:rows.some(row=>row.geometry),type:input.type});
+    }catch(error){ invalid.push({file:file.name,message:error.message}); }
+  }
+
+  const allRows=parsed.flatMap(source=>source.rows.map(row=>({...row,_source:source})));
+  const normalized=allRows.map(row=>({...objectFromRow(row,row._source.headers),geometry:row.geometry||null,_source:row._source.file}));
+  const classification=classifyRows(normalized,state);
+  const validParcels=normalized.filter(row=>row.nom&&!row.type).filter(row=>!validateParcel(row).length);
+  const probableInterventions=normalized.filter(row=>row.type&&(row.date||row.product));
+  const knownFields=new Set(Object.values(FIELD_ALIASES).flat().map(normalize));
+  parsed.forEach(source=>source.headers.filter(header=>!knownFields.has(normalize(header))&&header!=='geometry').slice(0,12).forEach(header=>warnings.push(`${source.file} : colonne non reconnue « ${header} »`)));
+  const invalidGeometry=normalized.filter(row=>row.geometry&&validateParcel(row).some(error=>error.includes('Géométrie'))).length;
+  if(parsed.length && !validParcels.length) warnings.unshift('Aucune parcelle valide détectée : vérifiez les noms de champs du DBF.');
+  return {sources:parsed.map(source=>({file:source.file,rows:source.rows.length,type:source.type,hasGeometry:source.hasGeometry,headers:source.headers})),rows:normalized,summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface:validParcels.reduce((sum,row)=>sum+(row.surfaceHa||0),0),cultures:[...new Set(validParcels.map(row=>row.culture).filter(Boolean))],communes:[...new Set(validParcels.map(row=>row.commune).filter(Boolean))],geometryValid:normalized.filter(row=>row.geometry&&!validateParcel(row).some(error=>error.includes('Géométrie'))).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(row=>!row.nom&&!row.type).length,...classification},warnings,invalid};
 }
 
 function classifyRows(rows,state){
