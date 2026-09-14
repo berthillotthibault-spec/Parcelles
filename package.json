@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/test-shp.mjs && node tests/test-zip.mjs && node tests/test-core.mjs && node tests/test-static.mjs"
+    "test": "node tests/test-shp.mjs && node tests/test-zip.mjs && node tests/test-core.mjs && node tests/test-v4.mjs && node tests/test-static.mjs",
+    "preflight": "node scripts/preflight.mjs",
+    "build:flat": "node scripts/build-flat.mjs",
+    "release:check": "npm test && npm run preflight && npm run build:flat"
   }
 }

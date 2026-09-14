@@ -3,9 +3,9 @@ const STATIC=`parcelles-static-${BUILD}`;
 const RUNTIME=`parcelles-runtime-${BUILD}`;
 const CORE=[
  './','./index.html','./manifest.webmanifest','./parcelles.svg',
- './base.css','./components.css','./map.css','./responsive.css',
- './app.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./utils.js','./runtime.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',
- './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png'
+ './css/base.css','./css/components.css','./css/map.css','./css/responsive.css',
+ './js/app.js','./js/state.js','./js/storage.js','./js/map.js','./js/import-export.js','./js/sync.js','./js/utils.js','./js/runtime.js','./js/insights.js','./js/notifications.js','./js/reports.js','./js/statistics.js','./js/remote-ai.js','./js/zip-lite.js','./js/shapefile-fallback.js',
+ './icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/apple-touch-icon.png'
 ];
 self.addEventListener('install',event=>event.waitUntil(caches.open(STATIC).then(cache=>cache.addAll(CORE))));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(k=>k.startsWith('parcelles-')&&!([STATIC,RUNTIME].includes(k))).map(k=>caches.delete(k)));await self.clients.claim();})()));
@@ -19,5 +19,7 @@ self.addEventListener('fetch',event=>{
  if(url.origin===location.origin){
    event.respondWith(caches.match(req).then(hit=>hit||fetch(req).then(r=>{if(r.ok){const c=r.clone();caches.open(RUNTIME).then(x=>x.put(req,c));}return r;})));return;
  }
+ const dependencyHost=['cdnjs.cloudflare.com','unpkg.com'].includes(url.hostname);
+ if(dependencyHost){event.respondWith(caches.match(req).then(hit=>hit||fetch(req).then(r=>{if(r.ok){const c=r.clone();caches.open(RUNTIME).then(x=>x.put(req,c));}return r;}).catch(()=>caches.match(req))));return;}
  event.respondWith(fetch(req).catch(()=>caches.match(req)));
 });
