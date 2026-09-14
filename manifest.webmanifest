@@ -1,18 +1,13 @@
 {
   "name": "Parcelles 2.0",
   "short_name": "Parcelles",
-  "description": "Gestion parcellaire agricole, utilisable sur le terrain.",
+  "description": "Carnet parcellaire local, mobile et utilisable hors connexion.",
   "lang": "fr",
-  "start_url": "./index14.html",
+  "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f4f7f3",
-  "theme_color": "#1f6b45",
+  "background_color": "#f4f6f1",
+  "theme_color": "#1e6b45",
   "icons": [
-    {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
+    {"src":"icons/parcelles.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
   ]
 }
