@@ -1,0 +1,19 @@
+PARCELLES — DÉPLOIEMENT GITHUB PAGES
+
+BUILD : 2026.09.14-deployfix.2
+
+IMPORTANT : tous les fichiers de ce dossier doivent être placés À LA RACINE du dépôt GitHub Parcelles.
+Il ne faut pas créer de dossier css/ ou js/ pour cette version.
+
+1. Extraire le ZIP.
+2. Dans GitHub > dépôt Parcelles, remplacer les anciens fichiers par tous les fichiers de ce dossier.
+3. Vérifier que index.html, app.js, base.css, sw.js et manifest.webmanifest sont au même niveau.
+4. Attendre environ 1 minute après le commit.
+5. Sur iPhone, ouvrir : https://berthillotthibault-spec.github.io/Parcelles/?build=2026.09.14-deployfix.2
+6. Si une ancienne PWA est installée sur l'écran d'accueil, ouvrir d'abord le site dans Safari puis recharger.
+
+SIGNES QUE LE BON BUILD EST CHARGÉ :
+- la page est mise en forme en vert/blanc ;
+- la navigation Aujourd’hui / Carte / Parcelles / Travaux / Plus est fixe en bas ;
+- le statut ne reste pas sur « Initialisation » ;
+- Plus > Mes données > Diagnostic indique le build 2026.09.14-deployfix.2.

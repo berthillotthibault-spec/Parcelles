@@ -7,13 +7,13 @@
   <meta name="description" content="Gestion parcellaire agricole locale, mobile et hors connexion.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest?v=2026.09.14-deployfix.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=2026.09.14-deployfix.2">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <link rel="stylesheet" href="./css/base.css">
-  <link rel="stylesheet" href="./css/components.css">
-  <link rel="stylesheet" href="./css/map.css">
-  <link rel="stylesheet" href="./css/responsive.css">
+  <link rel="stylesheet" href="./base.css?v=2026.09.14-deployfix.2">
+  <link rel="stylesheet" href="./components.css?v=2026.09.14-deployfix.2">
+  <link rel="stylesheet" href="./map.css?v=2026.09.14-deployfix.2">
+  <link rel="stylesheet" href="./responsive.css?v=2026.09.14-deployfix.2">
   <title>Parcelles</title>
 </head>
 <body>
@@ -138,6 +138,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://unpkg.com/shpjs@6.2.0/dist/shp.min.js" defer></script>
   <script>window.addEventListener('error',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.message} — ${e.filename||''}:${e.lineno||''}`});window.addEventListener('unhandledrejection',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.reason?.message||e.reason}`});</script>
-  <script type="module" src="./js/app.js"></script>
+  <script type="module" src="./app.js?v=2026.09.14-deployfix.2"></script>
 </body>
 </html>
