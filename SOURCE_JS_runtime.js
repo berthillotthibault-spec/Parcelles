@@ -3,9 +3,9 @@ import {BUILD_ID} from './utils.js';
 const REQUIRED_ASSETS = [
   './index.html',
   './css/base.css','./css/components.css','./css/map.css','./css/responsive.css',
-  './js/app.js','./js/state.js','./js/storage.js','./js/map.js','./js/import-export.js',
-  './js/shapefile-fallback.js','./js/zip-lite.js','./js/sync.js','./js/utils.js','./js/runtime.js','./js/insights.js','./js/notifications.js','./js/reports.js','./js/statistics.js','./js/remote-ai.js',
-  './manifest.webmanifest','./parcelles.svg'
+  './js/app.js','./js/diagnostics.js','./js/state.js','./js/storage.js','./js/map.js','./js/import-export.js',
+  './js/shapefile-fallback.js','./js/zip-lite.js','./js/sync.js','./js/permissions.js','./js/utils.js','./js/runtime.js','./js/insights.js','./js/notifications.js','./js/reports.js','./js/statistics.js','./js/pilotage.js','./js/remote-ai.js',
+  './manifest.webmanifest','./parcelles.svg','./config.js'
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}

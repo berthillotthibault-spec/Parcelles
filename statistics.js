@@ -17,11 +17,11 @@ export function buildStatistics(state,{campaign=campaignFor()}={}){
   for(const w of works){
     const key=w.type||'Travail';byWorkType[key]=(byWorkType[key]||0)+1;
     const month=String(w.date||w.plannedDate||'').slice(0,7)||'Sans date';byMonth[month]=(byMonth[month]||0)+1;
-    totalCost+=toNumber(w.cost);totalHours+=toNumber(w.durationHours);totalFuel+=toNumber(w.fuelLiters);
+    totalCost+=toNumber(w.cost);totalHours+=toNumber(w.duration??w.durationHours);totalFuel+=toNumber(w.fuel??w.fuelLiters);
   }
   const equipment=machines.map(m=>{
     const linked=works.filter(w=>w.equipmentId===m.id||w.machineId===m.id);
-    return{id:m.id,name:m.nom||'Matériel',works:linked.length,hours:linked.reduce((s,w)=>s+toNumber(w.durationHours),0),cost:linked.reduce((s,w)=>s+toNumber(w.machineCost),0)};
+    return{id:m.id,name:m.nom||'Matériel',works:linked.length,hours:linked.reduce((s,w)=>s+toNumber(w.duration??w.durationHours),0),cost:linked.reduce((s,w)=>s+toNumber(w.machineCost),0)};
   }).sort((a,b)=>b.hours-a.hours||b.works-a.works);
   const today=new Date().toISOString().slice(0,10);
   const tasksOpen=tasks.filter(t=>t.status!=='Terminé');

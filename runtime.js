@@ -3,9 +3,9 @@ import {BUILD_ID} from './utils.js';
 const REQUIRED_ASSETS = [
   './index.html',
   './base.css','./components.css','./map.css','./responsive.css',
-  './app.js','./state.js','./storage.js','./map.js','./import-export.js',
-  './shapefile-fallback.js','./zip-lite.js','./sync.js','./utils.js','./runtime.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./remote-ai.js',
-  './manifest.webmanifest','./parcelles.svg'
+  './app.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
+  './shapefile-fallback.js','./zip-lite.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
+  './manifest.webmanifest','./parcelles.svg','./config.js'
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}
