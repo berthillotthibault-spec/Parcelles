@@ -1,105 +1,61 @@
-/* Parcelles 2.0 — Service Worker v8
-   Objectif : ne plus bloquer les mises à jour JS/HTML derrière un cache ancien. */
-const CACHE = 'parcelles-2-v8-geofolia';
-
-// Le dépôt GitHub Pages actuel place les fichiers À LA RACINE.
-// Les anciennes versions pointaient à tort vers ./js/ et ./css/.
-const APP_SHELL = [
-  './',
-  './index.html',
-  './manifest.webmanifest',
-  './parcelles.svg',
-  './base.css',
-  './components.css',
-  './map.css',
-  './responsive.css',
-  './app.js',
-  './utils.js',
-  './storage.js',
-  './state.js',
-  './import-export.js',
-  './map.js',
-  './sync.js'
+const BUILD='2026.09.14-ux-p0.1';
+const SHELL=`parcelles-shell-${BUILD}`;
+const RUNTIME=`parcelles-runtime-${BUILD}`;
+const APP_SHELL=[
+  './','./index.html','./manifest.webmanifest','./parcelles.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/apple-touch-icon.png',
+  './css/base.css','./css/components.css','./css/map.css','./css/responsive.css',
+  './js/app.js','./js/state.js','./js/storage.js','./js/import-export.js','./js/map.js','./js/sync.js','./js/utils.js','./js/shapefile-fallback.js','./js/zip-lite.js'
 ];
 
-const OPTIONAL_RUNTIME = [
-  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-  'https://unpkg.com/shpjs@6.2.0/dist/shp.min.js',
-  'https://cdn.jsdelivr.net/npm/shpjs@6.2.0/dist/shp.min.js'
-];
-
-self.addEventListener('install', event => {
+self.addEventListener('install',event=>{
   event.waitUntil((async()=>{
-    const cache=await caches.open(CACHE);
-    // addAll rendait l'installation entière invalide si un seul chemin était faux.
-    // Ici chaque ressource est indépendante.
-    await Promise.allSettled(APP_SHELL.map(async url=>{
-      const response=await fetch(url,{cache:'reload'});
-      if(response.ok) await cache.put(url,response.clone());
-    }));
-    await Promise.allSettled(OPTIONAL_RUNTIME.map(async url=>{
-      const response=await fetch(url,{cache:'reload'});
-      if(response.ok) await cache.put(url,response.clone());
-    }));
+    const cache=await caches.open(SHELL);
+    await cache.addAll(APP_SHELL);
     await self.skipWaiting();
   })());
 });
 
-self.addEventListener('activate', event => {
+self.addEventListener('activate',event=>{
   event.waitUntil((async()=>{
     const keys=await caches.keys();
-    await Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)));
+    await Promise.all(keys.filter(k=>k.startsWith('parcelles-')&&!([SHELL,RUNTIME].includes(k))).map(k=>caches.delete(k)));
     await self.clients.claim();
   })());
 });
 
-function isCodeRequest(request,url){
-  if(url.origin!==self.location.origin) return false;
-  if(request.mode==='navigate') return true;
-  return /\.(?:html|js|mjs|css)$/i.test(url.pathname);
+async function networkFirst(request,fallback){
+  const cache=await caches.open(RUNTIME);
+  try{
+    const response=await fetch(request,{cache:'no-cache'});
+    if(response&&response.ok)cache.put(request,response.clone());
+    return response;
+  }catch(error){
+    return (await cache.match(request))||(await caches.match(request))||(fallback?await caches.match(fallback):null)||Response.error();
+  }
+}
+async function staleWhileRevalidate(request){
+  const cache=await caches.open(RUNTIME);
+  const cached=await cache.match(request);
+  const network=fetch(request).then(response=>{if(response&&(response.ok||response.type==='opaque'))cache.put(request,response.clone());return response;}).catch(()=>null);
+  return cached||(await network)||Response.error();
 }
 
-self.addEventListener('fetch', event => {
-  if(event.request.method!=='GET') return;
-  const url=new URL(event.request.url);
-
-  // HTML/JS/CSS : réseau d'abord. Une nouvelle version publiée est donc prise
-  // immédiatement ; le cache ne sert qu'en mode hors connexion.
-  if(isCodeRequest(event.request,url)){
-    event.respondWith((async()=>{
-      try{
-        const response=await fetch(event.request,{cache:'no-store'});
-        if(response.ok){
-          const cache=await caches.open(CACHE);
-          await cache.put(event.request,response.clone());
-        }
-        return response;
-      }catch(error){
-        return (await caches.match(event.request,{ignoreSearch:true})) ||
-          (event.request.mode==='navigate' ? await caches.match('./index.html') : null) ||
-          new Response('Hors connexion',{status:503,statusText:'Hors connexion'});
-      }
-    })());
+self.addEventListener('fetch',event=>{
+  const req=event.request;if(req.method!=='GET')return;
+  const url=new URL(req.url);
+  if(req.mode==='navigate'){
+    event.respondWith(networkFirst(req,'./index.html'));return;
+  }
+  if(url.origin===location.origin){
+    if(/\.(?:js|css|html|webmanifest)$/i.test(url.pathname))event.respondWith(networkFirst(req));
+    else event.respondWith(staleWhileRevalidate(req));
     return;
   }
+  // Runtime-cache CDN libraries after first successful online use, so subsequent
+  // launches can still load the application when the network is unavailable.
+  if(['cdnjs.cloudflare.com','unpkg.com'].includes(url.hostname))event.respondWith(staleWhileRevalidate(req));
+});
 
-  // Images / bibliothèques : cache d'abord, réseau en secours.
-  event.respondWith((async()=>{
-    const cached=await caches.match(event.request);
-    if(cached) return cached;
-    try{
-      const response=await fetch(event.request);
-      if(response.ok && url.origin===self.location.origin){
-        const cache=await caches.open(CACHE);
-        await cache.put(event.request,response.clone());
-      }
-      return response;
-    }catch(error){
-      return new Response('Hors connexion',{status:503,statusText:'Hors connexion'});
-    }
-  })());
+self.addEventListener('message',event=>{
+  if(event.data==='SKIP_WAITING')self.skipWaiting();
 });
