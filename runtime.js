@@ -9,6 +9,9 @@ const REQUIRED_ASSETS = [
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}
+function sessionGet(key,fallback=''){try{return sessionStorage.getItem(key)??fallback;}catch{return fallback;}}
+function sessionSet(key,value){try{sessionStorage.setItem(key,String(value));return true;}catch{return false;}}
+function sessionRemove(key){try{sessionStorage.removeItem(key);return true;}catch{return false;}}
 function timeoutSignal(ms){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),ms);
@@ -66,8 +69,8 @@ export async function registerAppServiceWorker({onUpdate,onMessage}={}){
     });
   });
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(sessionStorage.getItem('parcelles:sw-reloading')==='1')return;
-    sessionStorage.setItem('parcelles:sw-reloading','1');
+    if(sessionGet('parcelles:sw-reloading')==='1')return;
+    sessionSet('parcelles:sw-reloading','1');
     location.reload();
   });
   navigator.serviceWorker.addEventListener('message',event=>onMessage?.(event.data));
@@ -105,7 +108,7 @@ export async function resetRuntimeAndReload(){
     const registrations=await navigator.serviceWorker.getRegistrations().catch(()=>[]);
     await Promise.all(registrations.filter(r=>r.scope.startsWith(location.origin)).map(r=>r.unregister().catch(()=>false)));
   }
-  sessionStorage.removeItem('parcelles:sw-reloading');
+  sessionRemove('parcelles:sw-reloading');
   location.reload();
 }
 

@@ -1,4 +1,4 @@
-const BUILD='2026.09.15-v7.1.0';
+const BUILD='2026.09.15-v7.1.2';
 const STATIC=`parcelles-static-${BUILD}`;
 const RUNTIME=`parcelles-runtime-${BUILD}`;
 const CORE=[
