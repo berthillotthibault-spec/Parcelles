@@ -1,0 +1,4 @@
+:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 36%,transparent);outline-offset:3px}
+button,[role="button"],input,select,textarea{touch-action:manipulation}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+@media(forced-colors:active){.ui-material,.panel,.surface-group,.menu-row,.parcel-row,.work-row{border:1px solid CanvasText}.nav-item.is-active{outline:2px solid Highlight}.status-dot,.crop-dot{forced-color-adjust:none}}
