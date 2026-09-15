@@ -2,8 +2,8 @@ import {BUILD_ID} from './utils.js';
 
 const REQUIRED_ASSETS = [
   './index.html',
-  './base.css','./components.css','./map.css','./responsive.css',
-  './app.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
+  './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css',
+  './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
   './shapefile-fallback.js','./zip-lite.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
   './manifest.webmanifest','./parcelles.svg','./config.js'
 ];

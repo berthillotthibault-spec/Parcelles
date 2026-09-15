@@ -3,19 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#17663f">
+  <meta name="theme-color" content="#286a4a">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
-  <meta name="application-name" content="Parcelles 7.0">
-  <meta name="parcelles-build" content="2026.09.15-v7.0.0">
+  <meta name="application-name" content="Parcelles 7.1">
+  <meta name="parcelles-build" content="2026.09.15-v7.1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="./tokens.css">
   <link rel="stylesheet" href="./base.css">
   <link rel="stylesheet" href="./components.css">
   <link rel="stylesheet" href="./map.css">
+  <link rel="stylesheet" href="./shell.css">
+  <link rel="stylesheet" href="./screens.css">
   <link rel="stylesheet" href="./responsive.css">
+  <link rel="stylesheet" href="./accessibility.css">
   <title>Parcelles</title>
 </head>
 <body>
@@ -26,31 +30,62 @@
   <div id="app" class="app-shell">
     <header class="app-header">
       <button class="brand" data-view="today" aria-label="Ouvrir Aujourd’hui">
-        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5 9 4l4 2.5L18 4l2 1.5v11L15 20l-4-2.5L6 20l-2-1.5z"/><path d="M9 4v13.5M13 6.5V20"/></svg></span>
-        <span><strong>Parcelles</strong><small id="farm-name">Mon exploitation</small></span>
+        <span class="brand-mark" aria-hidden="true">
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
+        </span>
+        <span class="brand-copy"><strong>Parcelles</strong><small id="farm-name">Mon exploitation</small></span>
       </button>
       <div class="header-actions">
-        <button class="icon-button" data-action="global-search" aria-label="Rechercher partout" title="Recherche"><span aria-hidden="true">⌕</span></button>
-        <button id="network-button" class="connection-button" data-action="network-details" aria-label="État de connexion"><span id="network-dot"></span><span id="network-label">Initialisation</span></button>
-        <button class="icon-button" data-action="open-settings" aria-label="Paramètres" title="Paramètres"><span aria-hidden="true">⚙</span></button>
+        <button class="icon-button" data-action="global-search" aria-label="Rechercher partout" title="Recherche">
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        </button>
+        <button class="icon-button header-status" id="notification-button" data-action="open-notifications" data-count="0" aria-label="Notifications" title="Notifications">
+          <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+        </button>
+        <button id="network-button" class="connection-button sr-only" data-action="network-details" aria-label="État de connexion"><span id="network-dot"></span><span id="network-label">Initialisation</span></button>
       </div>
     </header>
+
+    <div id="offline-banner" class="offline-banner hidden" role="status">
+      <span>Hors connexion · vos données locales restent disponibles</span>
+    </div>
+
+    <aside class="desktop-sidebar" aria-label="Navigation principale ordinateur">
+      <button class="desktop-brand" data-view="today" aria-label="Accueil Parcelles">
+        <span class="brand-mark" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg></span>
+        <span class="desktop-brand-copy"><strong>Parcelles</strong><small id="desktop-farm-name">Mon exploitation</small></span>
+      </button>
+      <nav class="desktop-nav">
+        <button class="nav-item is-active" data-view="today" aria-current="page"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8M9 21v-7h6v7"/></svg><small>Aujourd’hui</small></button>
+        <button class="nav-item" data-view="map"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20"/></svg><small>Carte</small></button>
+        <button class="nav-item" data-view="parcels"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 4h12l2 5-2 11H6L4 9zM4 9h16M9 4v16M15 4v16"/></svg><small>Parcelles</small></button>
+        <button class="nav-item" data-view="work"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 4h14v16H5zM8 7h6M9 12l2 2 4-5"/></svg><small>Travaux</small></button>
+        <button class="nav-item" data-view="more"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 12h.01M12 12h.01M18 12h.01"/></svg><small>Plus</small></button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-foot">
+        <div class="sidebar-sync"><span id="desktop-network-dot" class="status-dot"></span><span id="desktop-network-label">À jour</span></div>
+        <button data-action="global-search"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Recherche <kbd>⌘K</kbd></button>
+        <button data-action="open-settings"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>Paramètres</button>
+      </div>
+    </aside>
 
     <main id="main" tabindex="-1">
       <section id="view-today" class="view is-active" aria-labelledby="today-title">
         <div class="page-container today-page">
-          <div class="view-heading hero-heading">
-            <div><p class="eyebrow" id="today-label">Aujourd’hui</p><h1 id="today-title">Bonjour</h1><p id="today-subtitle" class="lead">Votre exploitation en un coup d’œil.</p></div>
-            <button class="button primary large" data-action="new-work">＋ Ajouter un travail</button>
+          <div class="today-welcome">
+            <div><p class="eyebrow" id="today-label">Aujourd’hui</p><h1 id="today-title">Bonjour</h1><p id="today-subtitle">Votre journée, sans le bruit.</p></div>
+            <div class="today-primary-action"><button class="button primary" data-action="new-work"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span class="action-label">Travail</span></button></div>
           </div>
-          <div id="today-summary" class="today-summary"></div>
           <div id="next-action" class="next-action"></div>
-          <div id="today-quick-actions" class="quick-action-strip" aria-label="Raccourcis fréquents"></div>
+          <div id="today-summary" class="today-summary" aria-label="Repères de l’exploitation"></div>
+          <div id="today-quick-actions" class="quick-action-strip" aria-label="Actions rapides"></div>
           <div class="today-grid">
-            <article class="panel weather-card" data-home-card="weather"><div class="panel-heading"><h2>Météo</h2><button class="text-button" data-action="open-weather">Détails</button></div><div id="weather-content" class="weather-content"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></article>
-            <article class="panel" data-home-card="today"><div class="panel-heading"><h2>Aujourd’hui</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="today-work-list" class="stack-list"></div></article>
-            <article class="panel" data-home-card="alerts"><div class="panel-heading"><h2>À surveiller</h2><button class="text-button" data-action="open-quality">Qualité</button></div><div id="alerts-list" class="stack-list"></div></article>
-            <article class="panel" data-home-card="tasks"><div class="panel-heading"><h2>Tâches</h2><button class="text-button" data-action="open-tasks">Tout voir</button></div><div id="today-task-list" class="stack-list"></div></article><article class="panel" data-home-card="recent"><div class="panel-heading"><h2>Récent</h2><button class="text-button" data-view="work">Historique</button></div><div id="recent-list" class="stack-list"></div></article>
+            <article class="panel weather-card" data-home-card="weather"><div class="panel-heading"><h2>Météo</h2><button class="text-button" data-action="open-weather">Voir</button></div><div id="weather-content" class="weather-content"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></article>
+            <article class="panel" data-home-card="today"><div class="panel-heading"><h2>À faire aujourd’hui</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="today-work-list" class="stack-list"></div></article>
+            <article class="panel" data-home-card="tasks"><div class="panel-heading"><h2>Tâches</h2><button class="text-button" data-action="open-tasks">Tout voir</button></div><div id="today-task-list" class="stack-list"></div></article>
+            <article class="panel" data-home-card="alerts"><div class="panel-heading"><h2>À surveiller</h2><button class="text-button" data-action="open-notifications">Voir</button></div><div id="alerts-list" class="stack-list"></div></article>
+            <article class="panel" data-home-card="recent"><div class="panel-heading"><h2>Activité récente</h2><button class="text-button" data-view="work">Historique</button></div><div id="recent-list" class="stack-list"></div></article>
           </div>
         </div>
       </section>
@@ -60,39 +95,50 @@
         <div class="map-stage">
           <div id="map" aria-label="Carte des parcelles"></div>
           <div class="map-topbar">
-            <label class="map-search"><span class="sr-only">Rechercher une parcelle</span><span aria-hidden="true">⌕</span><input id="map-search-input" type="search" autocomplete="off" placeholder="Rechercher une parcelle"></label>
-            <button class="map-circle-button" data-action="open-map-layers" aria-label="Couches de la carte" title="Couches">◫</button>
+            <label class="map-search"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span class="sr-only">Rechercher une parcelle</span><input id="map-search-input" type="search" autocomplete="off" placeholder="Rechercher une parcelle"></label>
+            <button class="map-circle-button" data-action="open-map-layers" aria-label="Couches de la carte" title="Couches"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 2 3 7l9 5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg></button>
           </div>
           <div id="map-search-results" class="map-search-results hidden"></div>
           <div class="map-controls">
-            <button class="map-circle-button" data-action="locate" aria-label="Me localiser">◎</button>
-            <button class="map-circle-button" data-action="fit-parcels" aria-label="Cadrer mes parcelles">⌂</button>
-            <button class="map-circle-button" data-action="add-point" aria-label="Ajouter un point">＋</button>
-            <button class="map-circle-button" data-action="map-tools" aria-label="Outils de mesure">⌁</button>
+            <button class="map-circle-button" data-action="locate" aria-label="Me localiser"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="5"/></svg></button>
+            <button class="map-circle-button" data-action="map-tools" aria-label="Outils de carte"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3z"/></svg></button>
           </div>
-          <div id="map-legend" class="map-legend"></div><div id="map-draw-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong>Dessiner la parcelle</strong><small id="map-draw-count">Touchez la carte pour placer les sommets.</small></div><button class="small-button" data-action="undo-draw-point">Annuler le point</button><button class="small-button" data-action="cancel-parcel-draw">Quitter</button><button class="button primary" data-action="finish-parcel-draw">Terminer</button></div><div id="map-measure-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong id="measure-title">Mesure</strong><small id="measure-value">Touchez la carte.</small></div><button class="small-button" data-action="undo-measure-point">Annuler le point</button><button class="small-button" data-action="cancel-measure">Quitter</button><button class="button primary" data-action="finish-measure">Terminer</button></div>
-          <aside id="map-parcel-sheet" class="map-bottom-sheet" aria-live="polite"><div class="sheet-empty">Touchez une parcelle pour afficher ses informations.</div></aside>
+          <div id="map-legend" class="map-legend"></div>
+          <div id="map-draw-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong>Dessiner la parcelle</strong><small id="map-draw-count">Touchez la carte pour placer les sommets.</small></div><button class="small-button" data-action="undo-draw-point">Annuler le point</button><button class="small-button" data-action="cancel-parcel-draw">Quitter</button><button class="button primary" data-action="finish-parcel-draw">Terminer</button></div>
+          <div id="map-measure-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong id="measure-title">Mesure</strong><small id="measure-value">Touchez la carte.</small></div><button class="small-button" data-action="undo-measure-point">Annuler le point</button><button class="small-button" data-action="cancel-measure">Quitter</button><button class="button primary" data-action="finish-measure">Terminer</button></div>
+          <aside id="map-parcel-sheet" class="map-bottom-sheet is-empty" aria-live="polite"></aside>
         </div>
       </section>
 
       <section id="view-parcels" class="view" aria-labelledby="parcels-title">
         <div class="page-container">
-          <div class="view-heading"><div><p class="eyebrow">Exploitation</p><h1 id="parcels-title">Parcelles</h1><p id="parcels-counter" class="lead"></p></div><button class="button primary" data-action="new-parcel">＋ Parcelle</button></div>
+          <div class="view-heading"><div><h1 id="parcels-title">Parcelles</h1><p id="parcels-counter" class="lead"></p></div><button class="button primary icon-only" data-action="new-parcel" aria-label="Nouvelle parcelle"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
           <div class="toolbar-panel">
-            <label class="search-field"><span aria-hidden="true">⌕</span><input id="parcel-search" type="search" autocomplete="off" placeholder="Nom, culture, commune, > 5 ha…"></label>
-            <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button><button class="filter-chip" data-parcel-filter="archived">Archivées</button></div>
-            <label class="compact-select">Trier <select id="parcel-sort"><option value="name">Nom</option><option value="surface-desc">Surface ↓</option><option value="surface-asc">Surface ↑</option><option value="culture">Culture</option><option value="commune">Commune</option><option value="recent">Dernier travail</option><option value="distance">Distance</option></select></label>
+            <label class="search-field"><svg class="ui-icon" width="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="parcel-search" type="search" autocomplete="off" placeholder="Nom, culture, commune, > 5 ha…"></label>
+            <button class="button secondary icon-only" data-action="parcel-filters" aria-label="Filtrer et trier"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M7 12h10M10 19h4"/></svg></button>
+            <label class="compact-select sr-only">Trier <select id="parcel-sort"><option value="name">Nom</option><option value="surface-desc">Surface ↓</option><option value="surface-asc">Surface ↑</option><option value="culture">Culture</option><option value="commune">Commune</option><option value="recent">Dernier travail</option><option value="distance">Distance</option></select></label>
           </div>
+          <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button><button class="filter-chip" data-parcel-filter="archived">Archivées</button></div>
           <div id="recent-parcels" class="recent-strip"></div>
           <div id="parcel-list" class="parcel-list" aria-live="polite"></div>
         </div>
       </section>
 
+      <section id="view-parcel" class="view" aria-labelledby="parcel-detail-title">
+        <div class="page-container parcel-detail-page">
+          <div class="detail-topbar"><button class="back-button" data-view="parcels"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M15 18l-6-6 6-6"/></svg>Parcelles</button><div id="parcel-detail-top-actions" class="detail-top-actions"></div></div>
+          <div class="detail-hero"><h1 id="parcel-detail-title">Parcelle</h1><p id="parcel-detail-subtitle" class="detail-subtitle"></p></div>
+          <div id="parcel-detail-actions" class="detail-actions"></div>
+          <div id="parcel-detail-tabs" class="detail-tabs"></div>
+          <div id="parcel-detail-body" class="detail-body"></div>
+        </div>
+      </section>
+
       <section id="view-work" class="view" aria-labelledby="work-title">
         <div class="page-container">
-          <div class="view-heading"><div><p class="eyebrow">Journal agricole</p><h1 id="work-title">Travaux</h1></div><div class="heading-actions"><button class="button secondary" data-action="open-chantiers">Chantiers</button><button class="button secondary" data-action="batch-work">Travail groupé</button><button class="button primary" data-action="new-work">＋ Travail</button></div></div>
-          <div class="segmented" id="work-tabs"><button class="is-active" data-work-tab="today">Aujourd’hui</button><button data-work-tab="upcoming">À venir</button><button data-work-tab="history">Historique</button></div>
-          <div class="toolbar-panel compact-toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><input id="work-search" type="search" placeholder="Type, parcelle, produit…"></label><button class="button secondary" data-action="work-filters">Filtres</button></div>
+          <div class="view-heading"><div><h1 id="work-title">Travaux</h1><p class="lead">Planifier, réaliser, retrouver.</p></div><button class="button primary icon-only" data-action="new-work" aria-label="Nouveau travail"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          <div class="segmented" id="work-tabs"><button class="is-active" data-work-tab="today">Aujourd’hui</button><button data-work-tab="upcoming">Planifiés</button><button data-work-tab="history">Historique</button></div>
+          <div class="toolbar-panel compact-toolbar"><label class="search-field"><svg class="ui-icon" width="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="work-search" type="search" placeholder="Type, parcelle, produit…"></label><button class="button secondary icon-only" data-action="work-filters" aria-label="Filtres"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M7 12h10M10 19h4"/></svg></button></div>
           <div id="work-filter-summary" class="active-filters"></div>
           <div id="work-list" class="work-list"></div>
         </div>
@@ -100,57 +146,48 @@
 
       <section id="view-more" class="view" aria-labelledby="more-title">
         <div class="page-container narrow">
-          <div class="view-heading"><div><p class="eyebrow">Outils</p><h1 id="more-title">Plus</h1></div></div>
-          <div class="settings-group"><h2>Exploitation</h2>
-            <button class="menu-row" data-action="open-rotations"><span>◔</span><span><strong>Assolement</strong><small>Cultures, surfaces et rotations</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-equipment"><span>⚒</span><span><strong>Matériel</strong><small>Compteurs, coûts et entretiens</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-grazing"><span>♧</span><span><strong>Pâturage</strong><small>Animaux actuellement au pré</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-clients"><span>⌘</span><span><strong>Clients</strong><small>Parcelles et travaux de prestation</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-observations"><span>!</span><span><strong>Observations terrain</strong><small>Adventices, dégâts, GPS et suivi de résolution</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-chantiers"><span>⏱</span><span><strong>Chantiers</strong><small>Préparer, démarrer et suivre les travaux multi-parcelles</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-stock"><span>▦</span><span><strong>Stocks</strong><small>Valorisation, seuils et mouvements</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-documents"><span>▤</span><span><strong>Documents</strong><small>Classement, rattachements et recherche</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-traceability"><span>☷</span><span><strong>Traçabilité</strong><small>Registre de campagne et pièces justificatives</small></span><b>›</b></button>
+          <div class="view-heading"><div><h1 id="more-title">Plus</h1><p class="lead">Les outils utiles, rangés par usage.</p></div></div>
+          <label class="search-field more-search"><svg class="ui-icon" width="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="more-search" type="search" placeholder="Rechercher un outil"></label>
+          <p class="group-label">Favoris</p>
+          <div class="more-favorites">
+            <button class="tool-shortcut" data-action="open-equipment"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 15h7l2-7h4l2 4h2v3"/><circle cx="7" cy="16" r="3"/><circle cx="18" cy="16" r="2"/></svg><strong>Matériel</strong></button>
+            <button class="tool-shortcut" data-action="open-stock"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7l8-4 8 4-8 4zM4 7v10l8 4 8-4V7M12 11v10"/></svg><strong>Stocks</strong></button>
+            <button class="tool-shortcut" data-action="open-statistics"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><strong>Pilotage</strong></button>
+            <button class="tool-shortcut" data-action="open-documents"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 3h9l3 3v15H6zM15 3v4h4M9 12h6M9 16h6"/></svg><strong>Documents</strong></button>
           </div>
-          <div class="settings-group"><h2>Outils</h2>
-            <button class="menu-row" data-action="open-weather"><span>☁</span><span><strong>Météo</strong><small>Heure par heure et 7 jours</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-integrations"><span>⌁</span><span><strong>Intégrations agricoles</strong><small>GPX, KML, traces machine et station météo</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-calendar"><span>□</span><span><strong>Calendrier & tâches</strong><small>Planning des travaux et échéances</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-field-mode"><span>◎</span><span><strong>Mode terrain</strong><small>GPS, sessions chronométrées, observations et entrées</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-day-route"><span>↝</span><span><strong>Tournée du jour</strong><small>Parcelles à visiter et itinéraire</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-assistant"><span>✦</span><span><strong>Assistant terrain</strong><small>Analyse locale, actions et voix</small></span><b>›</b></button>
-            <button class="menu-row" data-action="voice-assistant"><span>◉</span><span><strong>Commande vocale</strong><small>Dicter une recherche ou un travail si le navigateur le permet</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-notifications"><span>◌</span><span><strong>Notifications</strong><small>Tâches, travaux et entretiens à surveiller</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-automations"><span>⚡</span><span><strong>Automatisations</strong><small>Règles locales, alertes et actions répétitives</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-statistics"><span>▥</span><span><strong>Pilotage</strong><small>Économie, marges, stocks et matériel</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-reports"><span>▤</span><span><strong>Rapports</strong><small>PDF, CSV, traçabilité et GeoJSON</small></span><b>›</b></button>
-          </div>
-          <div class="settings-group"><h2>Application</h2>
-            <button class="menu-row" data-action="open-native"><span>◈</span><span><strong>Application iPhone</strong><small>Mode natif, notifications, biométrie et partage</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-account"><span>☁</span><span><strong>Compte & équipe</strong><small>Multi-appareils, rôles et synchronisation</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-platform"><span>⬡</span><span><strong>Plateforme 7.0</strong><small>Espaces isolés, backend et tâches cloud</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-data-center"><span>⇅</span><span><strong>Mes données</strong><small>Import, sauvegardes, corbeille et diagnostic</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-settings"><span>⚙</span><span><strong>Paramètres</strong><small>Exploitation, carte, confidentialité</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-privacy"><span>◉</span><span><strong>Confidentialité</strong><small>GPS, cloud et traitement des données</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-help"><span>?</span><span><strong>Aide</strong><small>Guide rapide et fonctionnement hors connexion</small></span><b>›</b></button>
+          <p class="group-label">Toutes les fonctions</p>
+          <div class="menu-list" id="more-category-list">
+            <button class="menu-row" data-action="open-more-category" data-category="production"><span><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 21V10M8 14c-3.5 0-5-2-5-5 3.5 0 5 2 5 5M16 10c3.5 0 5-2 5-5-3.5 0-5 2-5 5"/></svg></span><span><strong>Production</strong><small>Cultures, matériel, stocks, pâturage</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-more-category" data-category="management"><span><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg></span><span><strong>Gestion</strong><small>Pilotage, clients, documents, rapports</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-more-category" data-category="planning"><span><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 5h14v16H5zM8 3v4M16 3v4M5 10h14"/></svg></span><span><strong>Planifier</strong><small>Calendrier, météo, tournée</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-more-category" data-category="tools"><span><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 2l1.3 3.7L17 7l-3.7 1.3L12 12l-1.3-3.7L7 7l3.7-1.3zM19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/></svg></span><span><strong>Outils</strong><small>Assistant, automatisations, intégrations</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-more-category" data-category="account"><span><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span><strong>Compte & application</strong><small>Équipe, données, paramètres, aide</small></span><b>›</b></button>
           </div>
           <p class="build-label" id="build-label"></p>
+        </div>
+      </section>
+
+      <section id="view-more-category" class="view" aria-labelledby="more-category-title">
+        <div class="page-container narrow">
+          <div class="detail-topbar"><button class="back-button" data-view="more"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M15 18l-6-6 6-6"/></svg>Plus</button></div>
+          <div class="category-hero"><h1 id="more-category-title" class="page-title">Catégorie</h1><p id="more-category-description"></p></div>
+          <div id="more-category-content" class="menu-list"></div>
         </div>
       </section>
     </main>
 
     <nav class="primary-nav" aria-label="Navigation principale">
-      <button class="nav-item is-active" data-view="today" aria-current="page"><span aria-hidden="true">⌂</span><small>Aujourd’hui</small></button>
-      <button class="nav-item" data-view="map"><span aria-hidden="true">⌖</span><small>Carte</small></button>
-      <button class="nav-item" data-view="parcels"><span aria-hidden="true">◇</span><small>Parcelles</small></button>
-      <button class="nav-item" data-view="work"><span aria-hidden="true">✓</span><small>Travaux</small></button>
-      <button class="nav-item" data-view="more"><span aria-hidden="true">•••</span><small>Plus</small></button>
+      <button class="nav-item is-active" data-view="today" aria-current="page"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8M9 21v-7h6v7"/></svg><small>Aujourd’hui</small></button>
+      <button class="nav-item" data-view="map"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20"/></svg><small>Carte</small></button>
+      <button class="nav-item" data-view="parcels"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 4h12l2 5-2 11H6L4 9zM4 9h16M9 4v16M15 4v16"/></svg><small>Parcelles</small></button>
+      <button class="nav-item" data-view="work"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 4h14v16H5zM8 7h6M9 12l2 2 4-5"/></svg><small>Travaux</small></button>
+      <button class="nav-item" data-view="more"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 12h.01M12 12h.01M18 12h.01"/></svg><small>Plus</small></button>
     </nav>
   </div>
 
   <div id="modal-root" class="modal-root" aria-live="polite"></div>
   <div id="toast-root" class="toast-region" aria-live="polite"></div>
-  <input id="import-file-input" hidden type="file" multiple accept=".csv,.xlsx,.xls,.xml,.json,.geojson,.zip,.shp,.dbf,.shx,.prj,.cpg">
+  <input id="import-file-input" hidden type="file" multiple accept=".csv,.xlsx,.xls,.xml,.json,.geojson,.zip,.shp,.dbf,.shx,.prj,.cpg,.gpx,.kml,.txt">
   <input id="restore-file-input" hidden type="file" accept=".zip,.json">
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
