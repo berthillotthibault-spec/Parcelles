@@ -75,3 +75,11 @@ html.compact-mode .panel{padding:14px}html.compact-mode .parcel-card,html.compac
 #document-category,#document-linked{min-height:46px;border:1px solid var(--border);border-radius:12px;background:var(--color-surface);color:var(--color-text);padding:0 10px;font-size:14px}
 #document-center-list .list-row>div:first-child{min-width:0;flex:1}#document-center-list .list-row>div:last-child{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:640px){#document-category,#document-linked{flex:1 1 140px}.modal-footer{scrollbar-width:none}#document-center-list .list-row{align-items:flex-start;flex-direction:column}#document-center-list .list-row>div:last-child{width:100%}}
+
+/* Parcelles 6.2 — verrouillage iPhone natif */
+#native-lock-screen{position:fixed;inset:0;z-index:100000;background:var(--surface,#fff);display:grid;place-items:center;padding:24px;padding-top:max(24px,env(safe-area-inset-top));padding-bottom:max(24px,env(safe-area-inset-bottom));}
+#native-lock-screen .native-lock-card{width:min(420px,100%);text-align:center;padding:28px 20px;border:1px solid var(--border,#d8ded9);border-radius:22px;background:var(--surface,#fff);box-shadow:0 18px 50px rgba(0,0,0,.12)}
+#native-lock-screen .native-lock-icon{font-size:44px;line-height:1;margin-bottom:12px}#native-lock-screen h1{margin:0 0 8px;font-size:24px}#native-lock-screen p{margin:0 0 18px;color:var(--muted,#647067)}
+html[data-native-locked="true"] body{overflow:hidden}
+.assistant-quick-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.assistant-quick-actions .small-button{min-height:38px}

@@ -38,6 +38,15 @@ export class StorageService{
     if(this.usingFallback){this.memory.set(key,value);localStorage.setItem(`parcelles:${key}`,JSON.stringify(value));return;}
     const tx=this.db.transaction('app','readwrite');tx.objectStore('app').put(value,key);await transactionDone(tx);
   }
+  async appKeys(){
+    if(this.usingFallback){
+      const keys=new Set(this.memory.keys());
+      for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith('parcelles:'))keys.add(k.slice('parcelles:'.length));}
+      return [...keys];
+    }
+    return requestAsPromise(this.db.transaction('app','readonly').objectStore('app').getAllKeys());
+  }
+
 
   async blobPut(id,blob){
     if(this.usingFallback)throw new Error('Les pièces jointes demandent IndexedDB.');
@@ -70,9 +79,10 @@ export class StorageService{
     const tx=this.db.transaction('backups','readwrite');tx.objectStore('backups').put(row);await transactionDone(tx);
     return row;
   }
-  async backupList(){
+  async backupList(workspaceId=null){
     if(this.usingFallback)return[];
-    const rows=await requestAsPromise(this.db.transaction('backups','readonly').objectStore('backups').getAll());
+    let rows=await requestAsPromise(this.db.transaction('backups','readonly').objectStore('backups').getAll());
+    if(workspaceId!==null)rows=rows.filter(row=>String(row.workspaceId||'local')===String(workspaceId||'local'));
     return rows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   }
   async backupGet(id){
@@ -89,29 +99,33 @@ export class StorageService{
     if(!this.usingFallback){const updated={...row,checksum:expected,verified:ok,verifiedAt:ok?Date.now():null};const tx=this.db.transaction('backups','readwrite');tx.objectStore('backups').put(updated);await transactionDone(tx);}
     return {ok,id,checksum:expected,verifiedAt:ok?Date.now():null};
   }
-  async backupVerifyAll(){
-    const rows=await this.backupList(),results=[];
+  async backupVerifyAll(workspaceId=null){
+    const rows=await this.backupList(workspaceId),results=[];
     for(const row of rows)results.push(await this.backupVerify(row.id));
     return results;
   }
 
   async breakdown(){
     if(this.usingFallback)return {fallback:true,appEntries:0,blobCount:0,blobBytes:0,backupCount:0,backupBytes:0};
-    const [blobs,backups]=await Promise.all([this.blobEntries(),this.backupList()]);
+    const [blobs,backups,appKeys]=await Promise.all([this.blobEntries(),this.backupList(),this.appKeys()]);
     const blobBytes=blobs.reduce((sum,item)=>sum+(item.blob?.size||0),0);
     const backupBytes=backups.reduce((sum,item)=>sum+new Blob([JSON.stringify(item.state||{})]).size,0);
-    return {fallback:false,appEntries:1,blobCount:blobs.length,blobBytes,backupCount:backups.length,backupBytes};
+    return {fallback:false,appEntries:appKeys.length,workspaceEntries:appKeys.filter(k=>String(k).startsWith('state:workspace:')).length,blobCount:blobs.length,blobBytes,backupCount:backups.length,backupBytes};
   }
 
 
   async pruneBackups(policy={daily:7,weekly:4,monthly:3}){
     const all=await this.backupList();
-    for(const [period,limit] of Object.entries(policy)){
-      const rows=all.filter(item=>item.period===period||String(item.id).startsWith(`auto_${period}_`)).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-      for(const extra of rows.slice(limit))await this.backupDelete(extra.id);
+    const workspaces=[...new Set(all.map(item=>String(item.workspaceId||'local')))];
+    for(const workspaceId of workspaces){
+      const scoped=all.filter(item=>String(item.workspaceId||'local')===workspaceId);
+      for(const [period,limit] of Object.entries(policy)){
+        const rows=scoped.filter(item=>item.period===period).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+        for(const extra of rows.slice(limit))await this.backupDelete(extra.id);
+      }
+      const legacy=scoped.filter(item=>String(item.id).match(/^auto_\d{4}-\d{2}-\d{2}$/)).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      for(const extra of legacy.slice(3))await this.backupDelete(extra.id);
     }
-    const legacy=all.filter(item=>String(item.id).match(/^auto_\d{4}-\d{2}-\d{2}$/)).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    for(const extra of legacy.slice(3))await this.backupDelete(extra.id);
   }
 
   async clearRuntimeCaches(){

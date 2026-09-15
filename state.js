@@ -9,15 +9,15 @@ export function emptyState(){
       createdAt:timestamp,updatedAt:timestamp
     },
     campagnes:[],
-    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],fieldSessions:[],chantiers:[],members:[],assistantMessages:[],devices:[],
+    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],fieldSessions:[],chantiers:[],members:[],assistantMessages:[],devices:[],automationRules:[],automationRuns:[],gpsTracks:[],integrationImports:[],weatherStations:[],platformJobs:[],platformEvents:[],
     preferences:{
       mapLayer:'osm',mapColorMode:'culture',theme:'system',gpsConsent:false,
-      autoBackup:true,syncEnabled:false,workspaceId:'',cloudRole:null,syncAttachments:true,weatherDays:7,
-      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeHaptics:true,biometricLock:false,biometricLockMinutes:5
+      autoBackup:true,syncEnabled:false,workspaceId:'',cloudRole:null,syncAttachments:true,syncWifiOnly:false,syncAttachmentsWifiOnly:false,syncRetryMax:5,syncRetryBaseSeconds:15,syncAutoMerge:true,weatherDays:7,
+      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,assistantLocalFirst:true,assistantVoiceReplies:false,assistantTerrainContext:true,integrationAutoMatch:true,stationWeatherEnabled:false,platformBackendEnabled:false,platformApiEndpoint:'',platformAutoJobs:false,platformIsolation:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeNotificationActions:true,nativeHaptics:true,nativeCameraEnabled:true,nativeStatusBar:true,biometricLock:false,biometricLockMinutes:5,automationEventTriggers:true,automationMaxActionsPerRun:25,securityAuditEnabled:true,encryptedExportIterations:250000
     },
     metadata:{
       createdAt:timestamp,updatedAt:timestamp,lastImportAt:null,lastSyncAt:null,lastWeatherAt:null,
-      revision:0,lastAutoBackupDay:null,lastBuildId:null,syncCursors:{},automationLastRunAt:null,nativeLastUnlockAt:null
+      revision:0,lastAutoBackupDay:null,lastBuildId:null,syncCursors:{},automationLastRunAt:null,nativeLastUnlockAt:null,nativeLastBackgroundAt:null,nativeLastPlatform:null,automationLastEventAt:null,lastSyncError:null,syncFailureCount:0,syncBackoffUntil:null,lastSecurityReviewAt:null,assistantLastIntent:null,assistantLastLocalAt:null,lastIntegrationAt:null,lastStationImportAt:null,lastPlatformHealthAt:null,lastPlatformStatus:null,lastWorkspaceSwitchAt:null
     },
     queue:[],journal:[]
   };
@@ -145,6 +145,97 @@ export function migrateData(input){
     data.version=10;
   }
 
+  if(data.version<11){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.preferences.nativeNotifications=data.preferences.nativeNotifications!==false;
+    data.preferences.nativeNotificationActions=data.preferences.nativeNotificationActions!==false;
+    data.preferences.nativeHaptics=data.preferences.nativeHaptics!==false;
+    data.preferences.nativeCameraEnabled=data.preferences.nativeCameraEnabled!==false;
+    data.preferences.nativeStatusBar=data.preferences.nativeStatusBar!==false;
+    data.preferences.biometricLock=Boolean(data.preferences.biometricLock);
+    data.preferences.biometricLockMinutes=Math.max(0,Number(data.preferences.biometricLockMinutes??5)||0);
+    data.metadata.nativeLastBackgroundAt=data.metadata.nativeLastBackgroundAt||null;
+    data.metadata.nativeLastPlatform=data.metadata.nativeLastPlatform||null;
+    data.version=11;
+  }
+
+
+  if(data.version<12){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.preferences.automationEventTriggers=data.preferences.automationEventTriggers!==false;
+    data.preferences.automationMaxActionsPerRun=Math.min(100,Math.max(1,Number(data.preferences.automationMaxActionsPerRun??25)||25));
+    data.automationRules=(data.automationRules||[]).map(item=>normalizeEntity('automationRules',{
+      kind:item.kind||'custom',target:item.target||null,trigger:item.trigger||'interval',triggerEntity:item.triggerEntity||item.target||null,
+      matchMode:item.matchMode==='any'?'any':'all',conditions:Array.isArray(item.conditions)?item.conditions:[],
+      actions:Array.isArray(item.actions)&&item.actions.length?item.actions:[{type:item.action||'notify'}],
+      maxMatches:Math.min(200,Math.max(1,Number(item.maxMatches??50)||50)),enabled:item.enabled!==false,
+      cooldownHours:Number(item.cooldownHours??12)||0,lastRunAt:item.lastRunAt||null,lastResult:item.lastResult||null,...item
+    },null,{preserveDeleted:true}));
+    data.automationRuns=(data.automationRuns||[]).map(item=>normalizeEntity('automationRuns',item,null,{preserveDeleted:true}));
+    data.metadata.automationLastEventAt=data.metadata.automationLastEventAt||null;
+    data.version=12;
+  }
+
+  if(data.version<13){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.preferences.syncWifiOnly=Boolean(data.preferences.syncWifiOnly);
+    data.preferences.syncAttachmentsWifiOnly=Boolean(data.preferences.syncAttachmentsWifiOnly);
+    data.preferences.syncRetryMax=Math.min(12,Math.max(1,Number(data.preferences.syncRetryMax??5)||5));
+    data.preferences.syncRetryBaseSeconds=Math.min(300,Math.max(5,Number(data.preferences.syncRetryBaseSeconds??15)||15));
+    data.preferences.syncAutoMerge=data.preferences.syncAutoMerge!==false;
+    data.preferences.securityAuditEnabled=data.preferences.securityAuditEnabled!==false;
+    data.preferences.encryptedExportIterations=Math.min(1000000,Math.max(100000,Number(data.preferences.encryptedExportIterations??250000)||250000));
+    data.metadata.lastSyncError=data.metadata.lastSyncError||null;
+    data.metadata.syncFailureCount=Number(data.metadata.syncFailureCount||0);
+    data.metadata.syncBackoffUntil=data.metadata.syncBackoffUntil||null;
+    data.metadata.lastSecurityReviewAt=data.metadata.lastSecurityReviewAt||null;
+    data.queue=(data.queue||[]).map(item=>({...item,attempts:Number(item.attempts||0),lastError:item.lastError||null,nextRetryAt:Number(item.nextRetryAt||0),firstQueuedAt:Number(item.firstQueuedAt||item.createdAt||Date.now())}));
+    data.version=13;
+  }
+
+  if(data.version<14){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.preferences.assistantLocalFirst=data.preferences.assistantLocalFirst!==false;
+    data.preferences.assistantVoiceReplies=Boolean(data.preferences.assistantVoiceReplies);
+    data.preferences.assistantTerrainContext=data.preferences.assistantTerrainContext!==false;
+    data.metadata.assistantLastIntent=data.metadata.assistantLastIntent||null;
+    data.metadata.assistantLastLocalAt=data.metadata.assistantLastLocalAt||null;
+    data.version=14;
+  }
+
+  if(data.version<15){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.preferences.integrationAutoMatch=data.preferences.integrationAutoMatch!==false;
+    data.preferences.stationWeatherEnabled=Boolean(data.preferences.stationWeatherEnabled);
+    data.gpsTracks=(data.gpsTracks||[]).map(item=>normalizeEntity('gpsTracks',{format:item.format||'GPS',points:Array.isArray(item.points)?item.points:[],matchedParcels:Array.isArray(item.matchedParcels)?item.matchedParcels:[],...item},null,{preserveDeleted:true}));
+    data.integrationImports=(data.integrationImports||[]).map(item=>normalizeEntity('integrationImports',item,null,{preserveDeleted:true}));
+    data.weatherStations=(data.weatherStations||[]).map(item=>normalizeEntity('weatherStations',{readings:Array.isArray(item.readings)?item.readings:[],...item},null,{preserveDeleted:true}));
+    data.metadata.lastIntegrationAt=data.metadata.lastIntegrationAt||null;
+    data.metadata.lastStationImportAt=data.metadata.lastStationImportAt||null;
+    data.version=15;
+  }
+
+
+  if(data.version<16){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.preferences.platformBackendEnabled=Boolean(data.preferences.platformBackendEnabled);
+    data.preferences.platformApiEndpoint=String(data.preferences.platformApiEndpoint||'').trim();
+    data.preferences.platformAutoJobs=Boolean(data.preferences.platformAutoJobs);
+    data.preferences.platformIsolation=data.preferences.platformIsolation!==false;
+    data.platformJobs=(data.platformJobs||[]).map(item=>normalizeEntity('platformJobs',{status:item.status||'local',type:item.type||'generic',attempts:Number(item.attempts||0),...item},null,{preserveDeleted:true}));
+    data.platformEvents=(data.platformEvents||[]).map(item=>normalizeEntity('platformEvents',item,null,{preserveDeleted:true}));
+    data.metadata.lastPlatformHealthAt=data.metadata.lastPlatformHealthAt||null;
+    data.metadata.lastPlatformStatus=data.metadata.lastPlatformStatus||null;
+    data.metadata.lastWorkspaceSwitchAt=data.metadata.lastWorkspaceSwitchAt||null;
+    data.version=16;
+  }
+
   data={...base,...data,
     version:APP_VERSION,
     exploitation:{...base.exploitation,...data.exploitation},
@@ -169,17 +260,44 @@ function validate(type,entity){
 }
 
 export class Store{
-  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;}
+  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';}
 
   setWriteGuard(fn){this.writeGuard=typeof fn==='function'?fn:null;}
+  workspaceStorageKey(id='local'){const value=String(id||'local').trim();return value&&value!=='local'?`state:workspace:${value.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';}
+  workspaceContext(){return {id:this.workspaceId,key:this.storageKey,isLocal:this.workspaceId==='local'};}
 
   async init(){
     await this.storage.init();
-    const saved=await this.storage.get('state');
+    const active=await this.storage.get('active-workspace');
+    this.workspaceId=String(active?.id||'local');
+    this.storageKey=this.workspaceStorageKey(this.workspaceId);
+    let saved=await this.storage.get(this.storageKey);
+    // Compatibilité : les données historiques vivent dans `state`.
+    if(!saved&&this.workspaceId==='local')saved=await this.storage.get('state');
     const savedVersion=saved?.version;
     this.state=migrateData(saved||emptyState());
+    if(this.workspaceId!=='local')this.state.preferences.workspaceId=this.workspaceId;
     if(saved && savedVersion!==this.state.version)this.log('migration',`Données mises à jour vers le format v${this.state.version}.`,{from:savedVersion,to:this.state.version});
     await this.persist();
+    return this.state;
+  }
+
+  async switchWorkspace(id,{seed=null,name=''}={}){
+    const nextId=String(id||'local').trim()||'local';
+    if(nextId===this.workspaceId)return this.state;
+    await this.persist();
+    const nextKey=this.workspaceStorageKey(nextId);
+    let saved=await this.storage.get(nextKey);
+    if(!saved&&seed){saved=clone(seed);saved.queue=[];saved.syncConflicts=[];saved.preferences={...(saved.preferences||{}),workspaceId:nextId,cloudRole:null,syncEnabled:true};saved.metadata={...(saved.metadata||{}),lastSyncAt:null,lastSyncError:null,syncFailureCount:0,syncBackoffUntil:null,syncCursors:{}};}
+    this.workspaceId=nextId;this.storageKey=nextKey;
+    this.state=migrateData(saved||emptyState());
+    this.state.preferences.workspaceId=nextId==='local'?'':nextId;
+    this.state.preferences.cloudRole=null;
+    this.state.metadata.lastWorkspaceSwitchAt=now();
+    if(name&&(!this.state.exploitation.nom||this.state.exploitation.nom==='Mon exploitation'))this.state.exploitation.nom=String(name);
+    await this.storage.set('active-workspace',{id:nextId,updatedAt:now()});
+    await this.persist();
+    this.notify({label:'Espace de travail changé.',kind:'workspace-switch',entity:'state',workspaceId:nextId});
     return this.state;
   }
 
@@ -189,7 +307,7 @@ export class Store{
 
   async persist(){
     this.state.metadata.updatedAt=now();
-    await this.storage.set('state',this.state);
+    await this.storage.set(this.storageKey,this.state);
     if(this.state.preferences.autoBackup){
       const day=new Date().toISOString().slice(0,10);
       if(this.state.metadata.lastAutoBackupDay!==day){
@@ -197,11 +315,11 @@ export class Store{
         const d=new Date(); const weekStart=new Date(d); weekStart.setDate(d.getDate()-((d.getDay()+6)%7));
         const week=weekStart.toISOString().slice(0,10); const month=day.slice(0,7);
         const snapshot=clone(this.state), createdAt=now();
-        await this.storage.backupPut({id:`auto_daily_${day}`,period:'daily',createdAt,state:snapshot});
-        await this.storage.backupPut({id:`auto_weekly_${week}`,period:'weekly',createdAt,state:snapshot});
-        await this.storage.backupPut({id:`auto_monthly_${month}`,period:'monthly',createdAt,state:snapshot});
+        await this.storage.backupPut({id:`auto_daily_${this.workspaceId}_${day}`,workspaceId:this.workspaceId,period:'daily',createdAt,state:snapshot});
+        await this.storage.backupPut({id:`auto_weekly_${this.workspaceId}_${week}`,workspaceId:this.workspaceId,period:'weekly',createdAt,state:snapshot});
+        await this.storage.backupPut({id:`auto_monthly_${this.workspaceId}_${month}`,workspaceId:this.workspaceId,period:'monthly',createdAt,state:snapshot});
         await this.storage.pruneBackups?.({daily:7,weekly:4,monthly:3});
-        await this.storage.set('state',this.state);
+        await this.storage.set(this.storageKey,this.state);
       }
     }
   }
@@ -213,8 +331,9 @@ export class Store{
 
   queue(operation){
     if(!this.state.preferences.syncEnabled)return;
-    const existingIndex=this.state.queue.findIndex(item=>item.status==='pending'&&item.entity===operation.entity&&item.entityId===operation.entityId);
-    const next={id:uid('op'),entity:operation.entity,entityId:operation.entityId,action:operation.action,payload:operation.payload,createdAt:now(),status:'pending'};
+    const existingIndex=this.state.queue.findIndex(item=>['pending','error','conflict'].includes(item.status)&&item.entity===operation.entity&&item.entityId===operation.entityId);
+    const existing=existingIndex>=0?this.state.queue[existingIndex]:null;
+    const next={id:existing?.id||uid('op'),entity:operation.entity,entityId:operation.entityId,action:operation.action,payload:operation.payload,createdAt:now(),firstQueuedAt:existing?.firstQueuedAt||existing?.createdAt||now(),status:'pending',attempts:Number(existing?.attempts||0),lastError:null,nextRetryAt:0};
     if(existingIndex>=0)this.state.queue[existingIndex]=next;else this.state.queue.push(next);
     if(this.state.queue.length>1000)this.state.queue=this.state.queue.slice(-1000);
   }
