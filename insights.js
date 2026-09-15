@@ -22,7 +22,7 @@ const TYPE_ALIASES=new Map([
   ['materiel','equipment'],['machine','equipment'],['tracteur','equipment'],
   ['client','client'],['clients','client'],['point','point'],['points','point'],
   ['observation','observation'],['observations','observation'],['stock','stock'],['stocks','stock'],
-  ['document','document'],['documents','document']
+  ['document','document'],['documents','document'],['chantier','chantier'],['chantiers','chantier']
 ]);
 
 function levenshtein(a,b){
@@ -67,7 +67,8 @@ export function searchEverything(state,query){
   (state.points||[]).filter(x=>!x.deletedAt).forEach(pt=>add('point',pt.id,pt.nom||pt.type,pt.type,[pt.nom,pt.type,pt.note].join(' ')));
   (state.observations||[]).filter(x=>!x.deletedAt).forEach(o=>{const p=(state.parcelles||[]).find(x=>x.id===o.parcelId);add('observation',o.id,o.title||o.type||'Observation',`${p?.nom||'Sans parcelle'} · ${localDate(o.date)}`,[o.title,o.type,o.note,p?.nom].join(' '))});
   (state.stockItems||[]).filter(x=>!x.deletedAt).forEach(x=>add('stock',x.id,x.name||'Stock',`${x.quantity??0} ${x.unit||''}`,[x.name,x.note,x.unit].join(' ')));
-  (state.documents||[]).filter(x=>!x.deletedAt).forEach(x=>add('document',x.id,x.name||'Document',x.mimeType||'Document',[x.name,x.note,x.mimeType].join(' ')));
+  (state.documents||[]).filter(x=>!x.deletedAt).forEach(x=>{const p=(state.parcelles||[]).find(p=>p.id===x.parcelId),w=(state.interventions||[]).find(w=>w.id===x.interventionId),m=(state.materiels||[]).find(m=>m.id===x.equipmentId),c=(state.clients||[]).find(c=>c.id===x.clientId);add('document',x.id,x.name||'Document',`${x.category||x.mimeType||'Document'}${p?` · ${p.nom}`:''}`,[x.name,x.note,x.mimeType,x.category,(x.tags||[]).join(' '),p?.nom,w?.type,m?.nom,c?.name].join(' '))});
+  (state.chantiers||[]).filter(x=>!x.deletedAt).forEach(c=>add('chantier',c.id,c.type||'Chantier',`${localDate(c.plannedDate||c.createdAt)} · ${c.status||'Planifié'}`,[c.type,c.note,c.operator,c.status].join(' ')));
   return out.sort((a,b)=>b.score-a.score||String(a.title).localeCompare(String(b.title),'fr')).slice(0,80).map(({score,...row})=>row);
 }
 

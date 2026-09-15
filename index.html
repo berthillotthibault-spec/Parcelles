@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17663f">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
+  <meta name="application-name" content="Parcelles 6.0">
+  <meta name="parcelles-build" content="2026.09.15-v6.0.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -88,7 +90,7 @@
 
       <section id="view-work" class="view" aria-labelledby="work-title">
         <div class="page-container">
-          <div class="view-heading"><div><p class="eyebrow">Journal agricole</p><h1 id="work-title">Travaux</h1></div><div class="heading-actions"><button class="button secondary" data-action="batch-work">Travail groupé</button><button class="button primary" data-action="new-work">＋ Travail</button></div></div>
+          <div class="view-heading"><div><p class="eyebrow">Journal agricole</p><h1 id="work-title">Travaux</h1></div><div class="heading-actions"><button class="button secondary" data-action="open-chantiers">Chantiers</button><button class="button secondary" data-action="batch-work">Travail groupé</button><button class="button primary" data-action="new-work">＋ Travail</button></div></div>
           <div class="segmented" id="work-tabs"><button class="is-active" data-work-tab="today">Aujourd’hui</button><button data-work-tab="upcoming">À venir</button><button data-work-tab="history">Historique</button></div>
           <div class="toolbar-panel compact-toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><input id="work-search" type="search" placeholder="Type, parcelle, produit…"></label><button class="button secondary" data-action="work-filters">Filtres</button></div>
           <div id="work-filter-summary" class="active-filters"></div>
@@ -104,21 +106,26 @@
             <button class="menu-row" data-action="open-equipment"><span>⚒</span><span><strong>Matériel</strong><small>Compteurs, coûts et entretiens</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-grazing"><span>♧</span><span><strong>Pâturage</strong><small>Animaux actuellement au pré</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-clients"><span>⌘</span><span><strong>Clients</strong><small>Parcelles et travaux de prestation</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-observations"><span>!</span><span><strong>Observations terrain</strong><small>Adventices, maladies, dégâts et notes datées</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-observations"><span>!</span><span><strong>Observations terrain</strong><small>Adventices, dégâts, GPS et suivi de résolution</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-chantiers"><span>⏱</span><span><strong>Chantiers</strong><small>Préparer, démarrer et suivre les travaux multi-parcelles</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-stock"><span>▦</span><span><strong>Stocks</strong><small>Valorisation, seuils et mouvements</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-documents"><span>▤</span><span><strong>Documents</strong><small>Classement, rattachements et recherche</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-traceability"><span>☷</span><span><strong>Traçabilité</strong><small>Registre de campagne et pièces justificatives</small></span><b>›</b></button>
           </div>
           <div class="settings-group"><h2>Outils</h2>
             <button class="menu-row" data-action="open-weather"><span>☁</span><span><strong>Météo</strong><small>Heure par heure et 7 jours</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-calendar"><span>□</span><span><strong>Calendrier & tâches</strong><small>Planning des travaux et échéances</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-field-mode"><span>◎</span><span><strong>Mode terrain</strong><small>GPS, parcelle proche et actions rapides</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-field-mode"><span>◎</span><span><strong>Mode terrain</strong><small>GPS, sessions chronométrées, observations et entrées</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-day-route"><span>↝</span><span><strong>Tournée du jour</strong><small>Parcelles à visiter et itinéraire</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-assistant"><span>✦</span><span><strong>Assistant</strong><small>Questions sur vos données</small></span><b>›</b></button>
             <button class="menu-row" data-action="voice-assistant"><span>◉</span><span><strong>Commande vocale</strong><small>Dicter une recherche ou un travail si le navigateur le permet</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-notifications"><span>◌</span><span><strong>Notifications</strong><small>Tâches, travaux et entretiens à surveiller</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-automations"><span>⚡</span><span><strong>Automatisations</strong><small>Règles locales, alertes et actions répétitives</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-statistics"><span>▥</span><span><strong>Pilotage</strong><small>Économie, marges, stocks et matériel</small></span><b>›</b></button>
-            <button class="menu-row" data-action="open-reports"><span>▤</span><span><strong>Rapports</strong><small>Exports CSV et GeoJSON</small></span><b>›</b></button>
+            <button class="menu-row" data-action="open-reports"><span>▤</span><span><strong>Rapports</strong><small>PDF, CSV, traçabilité et GeoJSON</small></span><b>›</b></button>
           </div>
           <div class="settings-group"><h2>Application</h2>
+            <button class="menu-row" data-action="open-native"><span>◈</span><span><strong>Application iPhone</strong><small>Mode natif, notifications, biométrie et partage</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-account"><span>☁</span><span><strong>Compte & équipe</strong><small>Multi-appareils, rôles et synchronisation</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-data-center"><span>⇅</span><span><strong>Mes données</strong><small>Import, sauvegardes, corbeille et diagnostic</small></span><b>›</b></button>
             <button class="menu-row" data-action="open-settings"><span>⚙</span><span><strong>Paramètres</strong><small>Exploitation, carte, confidentialité</small></span><b>›</b></button>
@@ -145,10 +152,10 @@
   <input id="restore-file-input" hidden type="file" accept=".zip,.json">
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
   <script src="https://unpkg.com/shpjs@6.2.0/dist/shp.min.js" defer></script>
   <script>window.addEventListener('error',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.message} — ${e.filename||''}:${e.lineno||''}`});window.addEventListener('unhandledrejection',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.reason?.message||e.reason}`});</script>
-  <script>setTimeout(function(){if(document.documentElement.dataset.appReady==='1')return;var e=document.getElementById('boot-error');if(e){e.className='boot-fallback';e.innerHTML="<strong>Parcelles n’a pas terminé son démarrage.</strong><br><button onclick='location.reload()'>Réessayer</button>";}},9000);</script>
+  <script>setTimeout(function(){if(document.documentElement.dataset.appReady==='1')return;var e=document.getElementById('boot-error');if(e){e.className='boot-fallback';e.innerHTML="<strong>Parcelles n’a pas terminé son démarrage.</strong><br><span>Vos données locales ne sont pas supprimées.</span><br><button onclick='location.reload()'>Réessayer</button> <button id='boot-reset'>Réinitialiser cache/PWA</button>";var b=document.getElementById('boot-reset');if(b)b.onclick=async function(){try{if('caches'in window){var ks=await caches.keys();await Promise.all(ks.filter(function(k){return k.indexOf('parcelles-')===0}).map(function(k){return caches.delete(k)}));}if('serviceWorker'in navigator){var rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(function(r){return r.unregister()}));}}finally{location.reload();}};}},9000);</script>
   <script src="./config.js"></script>
   <script type="module" src="./app.js"></script>
 </body>

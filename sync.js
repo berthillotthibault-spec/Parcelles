@@ -2,7 +2,7 @@ import {ENTITY_TYPES, clone, uid} from './utils.js';
 import {canMutate, roleCan, roleLabel} from './permissions.js';
 
 const FIREBASE_VERSION='10.14.1';
-const CLOUD_ENTITY_TYPES=ENTITY_TYPES.filter(type=>!['syncConflicts','devices','members','assistantMessages'].includes(type));
+const CLOUD_ENTITY_TYPES=ENTITY_TYPES.filter(type=>!['syncConflicts','devices','members','assistantMessages','automationRuns'].includes(type));
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const clean=value=>JSON.parse(JSON.stringify(value??null));
 const emailKey=value=>String(value||'').trim().toLocaleLowerCase('fr');

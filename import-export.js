@@ -4,6 +4,11 @@ import {parseShpDbf} from './shapefile-fallback.js';
 import {createZip, readZip} from './zip-lite.js';
 
 const IMPORT_ENGINE_BUILD=`import-${BUILD_ID}`;
+
+async function checksumBlob(blob){
+  const hash=await crypto.subtle.digest('SHA-256',await blob.arrayBuffer());
+  return [...new Uint8Array(hash)].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
 console.info('[Parcelles] importeur',IMPORT_ENGINE_BUILD);
 
 export const FIELD_ALIASES={
@@ -164,10 +169,12 @@ function normalizeSources(parsed,mapping={}){
 }
 
 export async function inspectFiles(files,state,mapping={}){
+  const started=performance?.now?.()??Date.now();const yieldMain=()=>new Promise(resolve=>setTimeout(resolve,0));
   const parsed=[],warnings=[],invalid=[];const list=[...files];const groups=groupLooseShapefiles(list),consumed=new Set();
-  for(const group of groups){Object.values(group.files).forEach(file=>consumed.add(file));try{const input=await looseShapefileContent(group);const rows=flattenGeoJson(input.value),headers=Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k));parsed.push({file:input.name,sheet:null,rows,headers,hasGeometry:true,type:'geojson',engine:input.engine,diagnostic:input.diagnostic});if(!group.files.prj)warnings.push(`${input.name} : aucun .prj fourni ; projection détectée automatiquement.`);}catch(error){invalid.push({file:`${group.base}.shp`,message:error.message});}}
+  for(const group of groups){Object.values(group.files).forEach(file=>consumed.add(file));await yieldMain();try{const input=await looseShapefileContent(group);const rows=flattenGeoJson(input.value),headers=Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k));parsed.push({file:input.name,sheet:null,rows,headers,hasGeometry:true,type:'geojson',engine:input.engine,diagnostic:input.diagnostic});if(!group.files.prj)warnings.push(`${input.name} : aucun .prj fourni ; projection détectée automatiquement.`);}catch(error){invalid.push({file:`${group.base}.shp`,message:error.message});}}
   for(const file of list){
     if(consumed.has(file))continue;
+    await yieldMain();
     try{
       const ext=extensionOf(file.name);let sources=[];
       if(ext==='.csv'){const sets=csvRows(await file.text());sources=sets.map(s=>({file:file.name,type:'csv',...s,hasGeometry:false,engine:'PapaParse'}));}
@@ -195,7 +202,7 @@ export async function inspectFiles(files,state,mapping={}){
   const surface=validParcels.reduce((sum,row)=>sum+(row.surfaceHa||0),0);
   return{
     engineBuild:IMPORT_ENGINE_BUILD,mapping,sources:parsed.map(s=>({file:s.file,sheet:s.sheet,rows:s.rows.length,type:s.type,hasGeometry:s.hasGeometry,headers:s.headers,engine:s.engine,diagnostic:s.diagnostic})),
-    rows:normalized,summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface,cultures:[...new Set(validParcels.map(r=>r.culture).filter(Boolean))],communes:[...new Set(validParcels.map(r=>r.commune).filter(Boolean))],geometryValid:normalized.filter(r=>r.geometry&&!validateGeometry(r.geometry).length).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(r=>!r.nom&&!r.type).length,...classification},warnings,invalid
+    rows:normalized,durationMs:Math.round((performance?.now?.()??Date.now())-started),summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface,cultures:[...new Set(validParcels.map(r=>r.culture).filter(Boolean))],communes:[...new Set(validParcels.map(r=>r.commune).filter(Boolean))],geometryValid:normalized.filter(r=>r.geometry&&!validateGeometry(r.geometry).length).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(r=>!r.nom&&!r.type).length,...classification},warnings,invalid
   };
 }
 
@@ -269,7 +276,7 @@ export async function createCompleteBackup(store){
       const blob=await store.storage.blobGet(item.id);if(!blob)continue;
       const ext=(item.name||'').match(/\.[a-z0-9]{1,8}$/i)?.[0]||'';const path=`attachments/${item.id}${ext}`;
       entries.push({name:path,data:blob});
-      attachments.push({id:item.id,type,path,name:item.name||'',mimeType:item.mimeType||blob.type||'',size:blob.size});
+      attachments.push({id:item.id,type,path,name:item.name||'',mimeType:item.mimeType||blob.type||'',size:blob.size,checksum:await checksumBlob(blob)});
     }
   }
   const manifest={format:'parcelles-backup-complete',formatVersion:APP_VERSION,buildId:BUILD_ID,createdAt:Date.now(),stateChecksum,attachments,counts:{parcelles:state.parcelles.filter(x=>!x.deletedAt).length,interventions:state.interventions.filter(x=>!x.deletedAt).length,photos:state.photos.filter(x=>!x.deletedAt).length,documents:state.documents.filter(x=>!x.deletedAt).length}};
@@ -282,8 +289,22 @@ export async function parseCompleteBackup(file){
   if(!manifestEntry||!stateEntry)throw new Error('Sauvegarde ZIP incomplète : manifest.json ou state.json absent.');
   const manifest=JSON.parse(await manifestEntry.text());if(manifest.format!=='parcelles-backup-complete')throw new Error('Format de sauvegarde ZIP non reconnu.');
   const rawState=JSON.parse(await stateEntry.text());if(manifest.stateChecksum&&manifest.stateChecksum!==await checksum(rawState))throw new Error('L’état de la sauvegarde a échoué au contrôle d’intégrité.');
-  const blobs=[];for(const meta of manifest.attachments||[]){const entry=byName.get(meta.path);if(entry)blobs.push({meta,blob:await entry.blob(meta.mimeType||'application/octet-stream')});}
-  return{data:migrateData(rawState),blobs,meta:{...manifest,complete:true}};
+  const blobs=[];const missing=[];const invalid=[];
+  for(const meta of manifest.attachments||[]){
+    const entry=byName.get(meta.path);if(!entry){missing.push(meta.path);continue;}
+    const blob=await entry.blob(meta.mimeType||'application/octet-stream');
+    if(meta.size!==undefined&&Number(meta.size)!==blob.size)invalid.push(`${meta.path} (taille)`);
+    if(meta.checksum&&meta.checksum!==await checksumBlob(blob))invalid.push(`${meta.path} (checksum)`);
+    blobs.push({meta,blob});
+  }
+  if(missing.length||invalid.length)throw new Error(`Sauvegarde incomplète ou altérée${missing.length?` — manquants : ${missing.join(', ')}`:''}${invalid.length?` — invalides : ${invalid.join(', ')}`:''}`);
+  return{data:migrateData(rawState),blobs,meta:{...manifest,complete:true,verified:true,verifiedAt:Date.now()}};
+}
+
+export async function verifyCompleteBackupBlob(blob){
+  const file=blob instanceof File?blob:new File([blob],'parcelles-backup.zip',{type:'application/zip'});
+  const parsed=await parseCompleteBackup(file);
+  return {ok:true,counts:parsed.meta.counts||{},attachments:parsed.meta.attachments?.length||0,stateChecksum:parsed.meta.stateChecksum,verifiedAt:parsed.meta.verifiedAt};
 }
 
 export async function restoreCompleteBackup(parsed,store){
@@ -304,5 +325,5 @@ export function exportGeoJson(state){return JSON.stringify({type:'FeatureCollect
 export function importPreviewHtml(preview){
   const s=preview.summary,sample=preview.rows.slice(0,10),changed=(s.duplicateDetails||[]).filter(x=>['culture','surfaceHa','commune','ilot'].some(k=>JSON.stringify(x.match?.[k]??null)!==JSON.stringify(x.row?.[k]??null))).slice(0,8);
   const diffs=changed.length?`<details class="notice info"><summary>Voir ${changed.length} différence(s) détectée(s)</summary>${changed.map(x=>{const pairs=[];for(const [k,label] of [['culture','Culture'],['surfaceHa','Surface'],['commune','Commune'],['ilot','Îlot']]){if(JSON.stringify(x.match?.[k]??null)!==JSON.stringify(x.row?.[k]??null))pairs.push(`${label} : ${escapeHtml(x.match?.[k]??'—')} → ${escapeHtml(x.row?.[k]??'—')}`);}return`<div style="margin-top:8px"><strong>${escapeHtml(x.row.nom||x.match?.nom||'Parcelle')}</strong><br><small>${pairs.join('<br>')}</small></div>`;}).join('')}</details>`:'';
-  return`<div class="preview-summary"><div class="preview-stat"><strong>${s.parcels}</strong><small>parcelles</small></div><div class="preview-stat"><strong>${s.surface.toLocaleString('fr-FR',{maximumFractionDigits:2})} ha</strong><small>surface</small></div><div class="preview-stat"><strong>${s.newRows}</strong><small>nouvelles</small></div><div class="preview-stat"><strong>${s.changed}</strong><small>modifiées</small></div><div class="preview-stat"><strong>${s.interventions}</strong><small>travaux</small></div><div class="preview-stat"><strong>${s.geometryValid}</strong><small>géométries valides</small></div></div>${diffs}${preview.invalid.length?`<div class="notice danger">${preview.invalid.map(i=>`${escapeHtml(i.file)} : ${escapeHtml(i.message)}`).join('<br>')}</div>`:''}${preview.warnings.length?`<details class="notice warning"><summary>${preview.warnings.length} avertissement(s)</summary>${preview.warnings.map(escapeHtml).join('<br>')}</details>`:''}<p class="form-note">Moteur ${escapeHtml(preview.engineBuild)} · ${preview.sources.map(s=>`${escapeHtml(s.file)}${s.sheet?` / ${escapeHtml(s.sheet)}`:''} (${s.rows})${s.engine?` · ${escapeHtml(s.engine)}`:''}`).join('<br>')}</p><div class="table-wrap"><table><thead><tr><th>Nom / travail</th><th>Culture</th><th>Surface</th><th>Commune</th><th>Géométrie</th></tr></thead><tbody>${sample.map(row=>`<tr><td>${escapeHtml(row.nom||row.type||'—')}</td><td>${escapeHtml(row.culture||'—')}</td><td>${row.surfaceHa!==null?`${row.surfaceHa} ha`:'—'}</td><td>${escapeHtml(row.commune||'—')}</td><td>${row.geometry?'Oui':'—'}</td></tr>`).join('')}</tbody></table></div>`;
+  return`<div class="preview-summary"><div class="preview-stat"><strong>${s.parcels}</strong><small>parcelles</small></div><div class="preview-stat"><strong>${s.surface.toLocaleString('fr-FR',{maximumFractionDigits:2})} ha</strong><small>surface</small></div><div class="preview-stat"><strong>${s.newRows}</strong><small>nouvelles</small></div><div class="preview-stat"><strong>${s.changed}</strong><small>modifiées</small></div><div class="preview-stat"><strong>${s.interventions}</strong><small>travaux</small></div><div class="preview-stat"><strong>${s.geometryValid}</strong><small>géométries valides</small></div></div>${diffs}${preview.invalid.length?`<div class="notice danger">${preview.invalid.map(i=>`${escapeHtml(i.file)} : ${escapeHtml(i.message)}`).join('<br>')}</div>`:''}${preview.warnings.length?`<details class="notice warning"><summary>${preview.warnings.length} avertissement(s)</summary>${preview.warnings.map(escapeHtml).join('<br>')}</details>`:''}<p class="form-note">Moteur ${escapeHtml(preview.engineBuild)} · analyse ${preview.durationMs??'—'} ms · ${preview.sources.map(s=>`${escapeHtml(s.file)}${s.sheet?` / ${escapeHtml(s.sheet)}`:''} (${s.rows})${s.engine?` · ${escapeHtml(s.engine)}`:''}`).join('<br>')}</p><div class="table-wrap"><table><thead><tr><th>Nom / travail</th><th>Culture</th><th>Surface</th><th>Commune</th><th>Géométrie</th></tr></thead><tbody>${sample.map(row=>`<tr><td>${escapeHtml(row.nom||row.type||'—')}</td><td>${escapeHtml(row.culture||'—')}</td><td>${row.surfaceHa!==null?`${row.surfaceHa} ha`:'—'}</td><td>${escapeHtml(row.commune||'—')}</td><td>${row.geometry?'Oui':'—'}</td></tr>`).join('')}</tbody></table></div>`;
 }
