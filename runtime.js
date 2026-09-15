@@ -4,26 +4,35 @@ const REQUIRED_ASSETS = [
   './index.html',
   './base.css','./components.css','./map.css','./responsive.css',
   './app.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
-  './shapefile-fallback.js','./zip-lite.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
+  './shapefile-fallback.js','./zip-lite.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
   './manifest.webmanifest','./parcelles.svg','./config.js'
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}
+function timeoutSignal(ms){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),ms);
+  return {signal:controller.signal,cancel:()=>clearTimeout(timer)};
+}
 
-export async function verifyDeployment({timeoutMs=7000}={}){
-  const controller = new AbortController();
-  const timer = setTimeout(()=>controller.abort(), timeoutMs);
-  const results=[];
-  try{
-    for(const path of REQUIRED_ASSETS){
+export async function verifyDeployment({timeoutMs=7000,parallel=6}={}){
+  const queue=[...REQUIRED_ASSETS],results=[];
+  async function worker(){
+    while(queue.length){
+      const path=queue.shift();if(!path)break;
+      const {signal,cancel}=timeoutSignal(timeoutMs);
+      const started=performance.now();
       try{
-        const response=await fetch(sameOriginUrl(path),{cache:'no-store',signal:controller.signal});
+        const response=await fetch(sameOriginUrl(path),{cache:'no-store',signal});
         const type=response.headers.get('content-type')||'';
-        results.push({path,ok:response.ok,status:response.status,type});
-      }catch(error){results.push({path,ok:false,status:0,error:error?.message||String(error)});}
+        results.push({path,ok:response.ok,status:response.status,type,durationMs:Math.round(performance.now()-started)});
+      }catch(error){results.push({path,ok:false,status:0,error:error?.name==='AbortError'?'Délai dépassé':error?.message||String(error),durationMs:Math.round(performance.now()-started)});}
+      finally{cancel();}
     }
-  }finally{clearTimeout(timer);}
-  return {buildId:BUILD_ID,ok:results.every(x=>x.ok),results,failed:results.filter(x=>!x.ok),checkedAt:Date.now()};
+  }
+  await Promise.all(Array.from({length:Math.max(1,Math.min(parallel,REQUIRED_ASSETS.length))},()=>worker()));
+  results.sort((a,b)=>REQUIRED_ASSETS.indexOf(a.path)-REQUIRED_ASSETS.indexOf(b.path));
+  return {buildId:BUILD_ID,ok:results.every(x=>x.ok),results,failed:results.filter(x=>!x.ok),slow:results.filter(x=>x.durationMs>1500),checkedAt:Date.now()};
 }
 
 export function installBootWatchdog({timeoutMs=9000,onTimeout}={}){
@@ -65,11 +74,39 @@ export async function registerAppServiceWorker({onUpdate,onMessage}={}){
   return {supported:true,registration};
 }
 
+export async function serviceWorkerStatus(){
+  if(!('serviceWorker'in navigator))return {supported:false};
+  const registration=await navigator.serviceWorker.getRegistration();
+  if(!registration)return {supported:true,registered:false};
+  const worker=registration.active||registration.waiting||registration.installing;
+  let reported=null;
+  if(worker&&'MessageChannel'in window){
+    reported=await new Promise(resolve=>{
+      const channel=new MessageChannel();
+      const timer=setTimeout(()=>resolve(null),1000);
+      channel.port1.onmessage=event=>{clearTimeout(timer);resolve(event.data||null);};
+      try{worker.postMessage({type:'GET_STATUS'},[channel.port2]);}catch{clearTimeout(timer);resolve(null);}
+    });
+  }
+  return {supported:true,registered:true,scope:registration.scope,controller:Boolean(navigator.serviceWorker.controller),state:worker?.state||null,reported};
+}
+
 export async function clearAppCaches(){
   if(!('caches'in window))return [];
   const keys=await caches.keys();
-  await Promise.all(keys.filter(key=>key.startsWith('parcelles-')).map(key=>caches.delete(key)));
-  return keys;
+  const targets=keys.filter(key=>key.startsWith('parcelles-'));
+  await Promise.all(targets.map(key=>caches.delete(key)));
+  return targets;
+}
+
+export async function resetRuntimeAndReload(){
+  await clearAppCaches().catch(()=>[]);
+  if('serviceWorker'in navigator){
+    const registrations=await navigator.serviceWorker.getRegistrations().catch(()=>[]);
+    await Promise.all(registrations.filter(r=>r.scope.startsWith(location.origin)).map(r=>r.unregister().catch(()=>false)));
+  }
+  sessionStorage.removeItem('parcelles:sw-reloading');
+  location.reload();
 }
 
 export async function storageHealth(){
@@ -81,6 +118,36 @@ export async function storageHealth(){
 export async function requestPersistentStorage(){
   if(!navigator.storage?.persist)return false;
   try{return await navigator.storage.persist();}catch{return false;}
+}
+
+export async function emergencyReadState(){
+  if(!('indexedDB'in window))return null;
+  return new Promise(resolve=>{
+    let settled=false;
+    const finish=value=>{if(settled)return;settled=true;resolve(value);};
+    try{
+      const request=indexedDB.open('parcelles-app');
+      request.onerror=()=>finish(null);
+      request.onsuccess=()=>{
+        const db=request.result;
+        if(!db.objectStoreNames.contains('app')){db.close();finish(null);return;}
+        const tx=db.transaction('app','readonly');
+        const get=tx.objectStore('app').get('state');
+        get.onsuccess=()=>{const value=get.result;db.close();finish(value||null);};
+        get.onerror=()=>{db.close();finish(null);};
+      };
+      setTimeout(()=>finish(null),2500);
+    }catch{finish(null);}
+  });
+}
+
+export async function downloadEmergencyState(){
+  const data=await emergencyReadState();
+  if(!data)throw new Error('Aucune donnée locale récupérable.');
+  const blob=new Blob([JSON.stringify({format:'parcelles-emergency-state',buildId:BUILD_ID,createdAt:Date.now(),data},null,2)],{type:'application/json;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`parcelles-secours-${new Date().toISOString().slice(0,10)}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+  return true;
 }
 
 export {REQUIRED_ASSETS};

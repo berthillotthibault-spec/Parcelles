@@ -4,6 +4,12 @@ const DB_VERSION=2;
 function requestAsPromise(request){return new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 function transactionDone(tx){return new Promise((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Transaction annulée'));});}
 
+async function jsonChecksum(value){
+  const bytes=new TextEncoder().encode(JSON.stringify(value));
+  const hash=await crypto.subtle.digest('SHA-256',bytes);
+  return [...new Uint8Array(hash)].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
 export class StorageService{
   constructor(){this.db=null;this.memory=new Map();this.usingFallback=false;}
 
@@ -58,7 +64,11 @@ export class StorageService{
 
   async backupPut(backup){
     if(this.usingFallback)return;
-    const tx=this.db.transaction('backups','readwrite');tx.objectStore('backups').put(backup);await transactionDone(tx);
+    const row={...backup};
+    if(row.state&&!row.checksum)row.checksum=await jsonChecksum(row.state);
+    if(row.state&&row.checksum){const current=await jsonChecksum(row.state);row.verified=current===row.checksum;row.verifiedAt=row.verified?Date.now():null;}
+    const tx=this.db.transaction('backups','readwrite');tx.objectStore('backups').put(row);await transactionDone(tx);
+    return row;
   }
   async backupList(){
     if(this.usingFallback)return[];
@@ -72,6 +82,25 @@ export class StorageService{
   async backupDelete(id){
     if(this.usingFallback)return;
     const tx=this.db.transaction('backups','readwrite');tx.objectStore('backups').delete(id);await transactionDone(tx);
+  }
+  async backupVerify(id){
+    const row=await this.backupGet(id);if(!row?.state)return {ok:false,reason:'Sauvegarde introuvable'};
+    const current=await jsonChecksum(row.state),expected=row.checksum||current,ok=current===expected;
+    if(!this.usingFallback){const updated={...row,checksum:expected,verified:ok,verifiedAt:ok?Date.now():null};const tx=this.db.transaction('backups','readwrite');tx.objectStore('backups').put(updated);await transactionDone(tx);}
+    return {ok,id,checksum:expected,verifiedAt:ok?Date.now():null};
+  }
+  async backupVerifyAll(){
+    const rows=await this.backupList(),results=[];
+    for(const row of rows)results.push(await this.backupVerify(row.id));
+    return results;
+  }
+
+  async breakdown(){
+    if(this.usingFallback)return {fallback:true,appEntries:0,blobCount:0,blobBytes:0,backupCount:0,backupBytes:0};
+    const [blobs,backups]=await Promise.all([this.blobEntries(),this.backupList()]);
+    const blobBytes=blobs.reduce((sum,item)=>sum+(item.blob?.size||0),0);
+    const backupBytes=backups.reduce((sum,item)=>sum+new Blob([JSON.stringify(item.state||{})]).size,0);
+    return {fallback:false,appEntries:1,blobCount:blobs.length,blobBytes,backupCount:backups.length,backupBytes};
   }
 
 

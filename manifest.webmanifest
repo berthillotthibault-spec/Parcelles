@@ -6,7 +6,7 @@
   "display": "standalone",
   "background_color": "#f5f7f5",
   "theme_color": "#17663f",
-  "description": "Gestion parcellaire agricole mobile et hors connexion.",
+  "description": "Gestion parcellaire agricole mobile, hors connexion, avec mode terrain et suivi de chantiers.",
   "icons": [
     {
       "src": "./icon-192.png",
@@ -49,5 +49,6 @@
       "short_name": "Parcelles",
       "url": "./#parcels"
     }
-  ]
+  ],
+  "id": "./"
 }

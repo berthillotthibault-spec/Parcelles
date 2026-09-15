@@ -1,4 +1,4 @@
-import {APP_VERSION, ENTITY_TYPES, campaignFor, clone, now, parseImportDate, toNumber, uid, validateIntervention, validateParcel} from './utils.js';
+import {APP_VERSION, ENTITY_TYPES, campaignFor, clone, isoDate, now, parseImportDate, toNumber, uid, validateIntervention, validateParcel} from './utils.js';
 
 export function emptyState(){
   const timestamp=now();
@@ -9,15 +9,15 @@ export function emptyState(){
       createdAt:timestamp,updatedAt:timestamp
     },
     campagnes:[],
-    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],members:[],assistantMessages:[],devices:[],
+    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],fieldSessions:[],chantiers:[],members:[],assistantMessages:[],devices:[],
     preferences:{
       mapLayer:'osm',mapColorMode:'culture',theme:'system',gpsConsent:false,
       autoBackup:true,syncEnabled:false,workspaceId:'',cloudRole:null,syncAttachments:true,weatherDays:7,
-      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true
+      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeHaptics:true,biometricLock:false,biometricLockMinutes:5
     },
     metadata:{
       createdAt:timestamp,updatedAt:timestamp,lastImportAt:null,lastSyncAt:null,lastWeatherAt:null,
-      revision:0,lastAutoBackupDay:null,lastBuildId:null,syncCursors:{}
+      revision:0,lastAutoBackupDay:null,lastBuildId:null,syncCursors:{},automationLastRunAt:null,nativeLastUnlockAt:null
     },
     queue:[],journal:[]
   };
@@ -47,6 +47,12 @@ export function normalizeEntity(type,entity,existing=null,{preserveDeleted=false
     normalized.ownershipType=normalized.ownershipType||'own';
     normalized.favorite=Boolean(normalized.favorite);
     normalized.notes=normalized.notes||'';
+  }
+  if(type==='documents'||type==='photos'){
+    normalized.category=normalized.category||(type==='photos'?'Photo / constat':'Autre');
+    normalized.tags=Array.isArray(normalized.tags)?normalized.tags.map(tag=>String(tag||'').trim()).filter(Boolean).slice(0,20):String(normalized.tags||'').split(/[;,]/).map(tag=>tag.trim()).filter(Boolean).slice(0,20);
+    normalized.documentDate=parseImportDate(normalized.documentDate)||isoDate(normalized.capturedAt||normalized.createdAt||timestamp);
+    for(const key of ['parcelId','interventionId','equipmentId','clientId','chantierId'])normalized[key]=normalized[key]||null;
   }
   return normalized;
 }
@@ -114,6 +120,29 @@ export function migrateData(input){
     data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
     ensureArrays(data);
     data.version=7;
+  }
+
+  if(data.version<8){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.observations=data.observations.map(item=>normalizeEntity('observations',{status:item.resolvedAt?'Résolu':'À surveiller',latitude:null,longitude:null,...item},null,{preserveDeleted:true}));
+    data.version=8;
+  }
+
+  if(data.version<9){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.documents=data.documents.map(item=>normalizeEntity('documents',{category:item.category||'Autre',tags:item.tags||[],documentDate:item.documentDate||isoDate(item.capturedAt||item.createdAt),equipmentId:item.equipmentId||null,clientId:item.clientId||null,chantierId:item.chantierId||null,...item},null,{preserveDeleted:true}));
+    data.photos=data.photos.map(item=>normalizeEntity('photos',{category:item.category||'Photo / constat',tags:item.tags||[],documentDate:item.documentDate||isoDate(item.capturedAt||item.createdAt),equipmentId:item.equipmentId||null,clientId:item.clientId||null,chantierId:item.chantierId||null,...item},null,{preserveDeleted:true}));
+    data.version=9;
+  }
+
+  if(data.version<10){
+    data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
+    ensureArrays(data);
+    data.automationRules=(data.automationRules||[]).map(item=>normalizeEntity('automationRules',{enabled:true,action:'notify',cooldownHours:12,threshold:1,lastRunAt:null,lastResult:null,...item},null,{preserveDeleted:true}));
+    data.automationRuns=(data.automationRuns||[]).map(item=>normalizeEntity('automationRuns',item,null,{preserveDeleted:true}));
+    data.version=10;
   }
 
   data={...base,...data,

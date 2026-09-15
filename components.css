@@ -58,3 +58,20 @@ html.compact-mode .panel{padding:14px}html.compact-mode .parcel-card,html.compac
 .status-badge{display:inline-flex;align-items:center;min-height:28px;padding:0 9px;border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:12px;font-weight:700}
 .list-row>.member-role-select{margin-left:auto}
 @media (max-width:640px){.list-row>.member-role-select{max-width:140px}.assistant-thread{max-height:42vh}}
+
+/* 5.1 — écran de récupération et santé */
+.recovery-screen{min-height:100dvh;display:grid;place-items:center;padding:24px;background:var(--color-bg,#f5f7f5);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--color-text,#18221c)}
+.recovery-card{width:min(620px,100%);background:var(--color-surface,#fff);border:1px solid var(--border-subtle,#dfe6e1);border-radius:22px;padding:clamp(22px,5vw,38px);box-shadow:0 14px 40px rgba(20,45,31,.12)}
+.recovery-card h1{margin:.25rem 0 .65rem;font-size:clamp(1.6rem,5vw,2.4rem);line-height:1.08}
+.recovery-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.health-card small{overflow-wrap:anywhere}
+.performance-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;background:var(--color-primary-soft,#e8f3ed);font-size:.78rem}
+
+/* Parcelles 5.2 — Terrain & Chantiers */
+.field-session-card{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 12px}.field-session-card.is-active{border-color:color-mix(in srgb,var(--color-primary) 55%,var(--border));background:linear-gradient(180deg,var(--color-surface),var(--color-primary-soft))}.field-chronometer{display:block;font-variant-numeric:tabular-nums;font-size:clamp(2rem,9vw,3.4rem);line-height:1;margin:.35rem 0;letter-spacing:.04em}.field-current-card{margin:12px 0;display:flex;align-items:center;justify-content:space-between;gap:14px}.session-summary{display:grid;place-items:center;gap:8px;padding:20px;border:1px solid var(--border);border-radius:16px;background:var(--color-surface-2);margin-bottom:14px}.session-summary strong{font-size:2.4rem;font-variant-numeric:tabular-nums}.session-summary span{color:var(--color-text-2)}.status-badge{display:inline-flex;align-items:center;min-height:28px;padding:4px 9px;border-radius:999px;background:var(--color-surface-2);border:1px solid var(--border);font-size:12px;font-weight:750}.status-badge.done{background:var(--color-primary-soft);color:var(--color-primary);border-color:transparent}.field-mode-overlay .field-quick-actions{grid-template-columns:repeat(3,1fr)}.field-mode-overlay .field-quick-actions button{min-height:88px}.field-mode-overlay .field-quick-actions button small{line-height:1.15;text-align:center}.field-mode-overlay .list-row>div:last-child{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:520px){.field-session-card,.field-current-card{align-items:stretch;flex-direction:column}.field-session-card .button,.field-current-card .button{width:100%}.field-mode-overlay .field-quick-actions{grid-template-columns:repeat(2,1fr)}}
+
+/* Parcelles 5.3 — Documents & Traçabilité */
+#document-category,#document-linked{min-height:46px;border:1px solid var(--border);border-radius:12px;background:var(--color-surface);color:var(--color-text);padding:0 10px;font-size:14px}
+#document-center-list .list-row>div:first-child{min-width:0;flex:1}#document-center-list .list-row>div:last-child{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:640px){#document-category,#document-linked{flex:1 1 140px}.modal-footer{scrollbar-width:none}#document-center-list .list-row{align-items:flex-start;flex-direction:column}#document-center-list .list-row>div:last-child{width:100%}}
