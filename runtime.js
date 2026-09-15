@@ -3,7 +3,7 @@ import {BUILD_ID} from './utils.js';
 const REQUIRED_ASSETS = [
   './index.html',
   './base.css','./components.css','./map.css','./responsive.css',
-  './app.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
+  './app.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
   './shapefile-fallback.js','./zip-lite.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
   './manifest.webmanifest','./parcelles.svg','./config.js'
 ];
@@ -131,10 +131,11 @@ export async function emergencyReadState(){
       request.onsuccess=()=>{
         const db=request.result;
         if(!db.objectStoreNames.contains('app')){db.close();finish(null);return;}
-        const tx=db.transaction('app','readonly');
-        const get=tx.objectStore('app').get('state');
-        get.onsuccess=()=>{const value=get.result;db.close();finish(value||null);};
-        get.onerror=()=>{db.close();finish(null);};
+        const tx=db.transaction('app','readonly'),store=tx.objectStore('app');
+        const keysReq=store.getAllKeys(),valuesReq=store.getAll();let keys=null,values=null;
+        const resolveState=()=>{if(!keys||!values)return;const map=new Map(keys.map((key,index)=>[String(key),values[index]]));const active=map.get('active-workspace');const id=String(active?.id||'local');const key=id&&id!=='local'?`state:workspace:${id.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';const value=map.get(key)||map.get('state')||null;db.close();finish(value);};
+        keysReq.onsuccess=()=>{keys=keysReq.result||[];resolveState();};valuesReq.onsuccess=()=>{values=valuesReq.result||[];resolveState();};
+        keysReq.onerror=valuesReq.onerror=()=>{db.close();finish(null);};
       };
       setTimeout(()=>finish(null),2500);
     }catch{finish(null);}

@@ -1,10 +1,10 @@
-const BUILD='2026.09.15-v6.0.0';
+const BUILD='2026.09.15-v7.0.0';
 const STATIC=`parcelles-static-${BUILD}`;
 const RUNTIME=`parcelles-runtime-${BUILD}`;
 const CORE=[
  './','./index.html','./manifest.webmanifest','./parcelles.svg','./config.js',
  './base.css','./components.css','./map.css','./responsive.css',
- './app.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',
+ './app.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',
  './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png'
 ];
 
