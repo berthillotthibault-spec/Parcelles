@@ -3,6 +3,8 @@ const DB_VERSION=2;
 
 function requestAsPromise(request){return new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 function transactionDone(tx){return new Promise((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Transaction annulée'));});}
+function safeLocalGet(key){try{return localStorage.getItem(key);}catch(error){console.warn(`[Parcelles] localStorage inaccessible : ${key}`,error);return null;}}
+function safeLocalSet(key,value){try{localStorage.setItem(key,value);return true;}catch(error){console.warn(`[Parcelles] écriture localStorage impossible : ${key}`,error);return false;}}
 
 async function jsonChecksum(value){
   const bytes=new TextEncoder().encode(JSON.stringify(value));
@@ -31,17 +33,21 @@ export class StorageService{
   }
 
   async get(key){
-    if(this.usingFallback)return this.memory.get(key)??JSON.parse(localStorage.getItem(`parcelles:${key}`)||'null');
+    if(this.usingFallback){
+      if(this.memory.has(key))return this.memory.get(key);
+      try{return JSON.parse(safeLocalGet(`parcelles:${key}`)||'null');}
+      catch(error){console.warn(`[Parcelles] donnée locale corrompue ignorée : ${key}`,error);return null;}
+    }
     return requestAsPromise(this.db.transaction('app','readonly').objectStore('app').get(key));
   }
   async set(key,value){
-    if(this.usingFallback){this.memory.set(key,value);localStorage.setItem(`parcelles:${key}`,JSON.stringify(value));return;}
+    if(this.usingFallback){this.memory.set(key,value);safeLocalSet(`parcelles:${key}`,JSON.stringify(value));return;}
     const tx=this.db.transaction('app','readwrite');tx.objectStore('app').put(value,key);await transactionDone(tx);
   }
   async appKeys(){
     if(this.usingFallback){
       const keys=new Set(this.memory.keys());
-      for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith('parcelles:'))keys.add(k.slice('parcelles:'.length));}
+      try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith('parcelles:'))keys.add(k.slice('parcelles:'.length));}}catch(error){console.warn('[Parcelles] liste localStorage inaccessible.',error);}
       return [...keys];
     }
     return requestAsPromise(this.db.transaction('app','readonly').objectStore('app').getAllKeys());

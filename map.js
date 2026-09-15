@@ -14,7 +14,7 @@ function bboxSquare(lat,lon,radiusKm){
 }
 
 export class ParcelMap{
-  constructor({onSelect,onToast,onPointPlaced}){
+  constructor({onSelect=null,onToast=null,onPointPlaced=null}={}){
     this.onSelect=onSelect;this.onToast=onToast;this.onPointPlaced=onPointPlaced;
     this.map=null;this.layers={};this.baseLayer=null;this.lastState={parcelles:[],points:[]};this.selectedId=null;this.watchId=null;this.gpsMarker=null;this.colorMode='culture';this.rpgVisible=false;this.rpgData=null;this.pointPlacementHandler=null;this.polygonDraw=null;this.measure=null;this.followGps=false;this.unavailable=false;
   }
@@ -59,7 +59,7 @@ export class ParcelMap{
       const selected=parcel.id===this.selectedId,color=this.colorFor(parcel);
       const layer=L.geoJSON(parcel.geometry,{style:()=>({color:selected?'#123f2c':color,weight:selected?4:2.2,fillColor:color,fillOpacity:selected?.42:.24}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{radius:8,color,fillColor:color,fillOpacity:.8})});
       layer.on('click',()=>this.select(parcel.id,{zoom:false}));
-      layer.bindPopup(`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><button type="button" data-map-open="${parcel.id}">Ouvrir la fiche</button></div>`);
+      layer.bindPopup(`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
       layer.addTo(this.layers.parcels);
     }catch(error){console.warn('[Parcelles] Géométrie ignorée',parcel.id,error);}
   }

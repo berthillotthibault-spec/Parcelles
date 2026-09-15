@@ -57,6 +57,27 @@ export function normalizeEntity(type,entity,existing=null,{preserveDeleted=false
   return normalized;
 }
 
+
+function stringArray(value){
+  if(Array.isArray(value))return value.map(item=>String(item??'').trim()).filter(Boolean);
+  if(value===null||value===undefined||value==='')return[];
+  return String(value).split(/[;,\n]/).map(item=>item.trim()).filter(Boolean);
+}
+
+function sanitizeCurrentShape(data){
+  // Harden nested collections even when the stored state already reports the current schema version.
+  // This prevents malformed/legacy restored data from crashing secondary modules.
+  data.routeSessions=data.routeSessions.map(item=>({...item,parcelIds:stringArray(item.parcelIds),completedParcelIds:stringArray(item.completedParcelIds)}));
+  data.chantiers=data.chantiers.map(item=>({...item,parcelIds:stringArray(item.parcelIds)}));
+  data.documents=data.documents.map(item=>({...item,tags:stringArray(item.tags)}));
+  data.photos=data.photos.map(item=>({...item,tags:stringArray(item.tags)}));
+  data.automationRules=data.automationRules.map(item=>({...item,conditions:Array.isArray(item.conditions)?item.conditions:[],actions:Array.isArray(item.actions)?item.actions:[]}));
+  data.automationRuns=data.automationRuns.map(item=>({...item,actions:Array.isArray(item.actions)?item.actions:[]}));
+  data.gpsTracks=data.gpsTracks.map(item=>({...item,points:Array.isArray(item.points)?item.points:[],matchedParcels:Array.isArray(item.matchedParcels)?item.matchedParcels:[]}));
+  data.weatherStations=data.weatherStations.map(item=>({...item,readings:Array.isArray(item.readings)?item.readings:[]}));
+  return data;
+}
+
 function ensureArrays(data){
   ENTITY_TYPES.forEach(type=>{if(!Array.isArray(data[type]))data[type]=[];});
   if(!Array.isArray(data.campagnes))data.campagnes=[];
@@ -243,6 +264,7 @@ export function migrateData(input){
     metadata:{...base.metadata,...data.metadata}
   };
   ensureArrays(data);
+  sanitizeCurrentShape(data);
   return data;
 }
 
