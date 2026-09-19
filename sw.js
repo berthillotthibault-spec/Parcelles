@@ -1,11 +1,15 @@
-const BUILD='2026.09.15-v7.1.2';
-const STATIC=`parcelles-static-${BUILD}`;
-const RUNTIME=`parcelles-runtime-${BUILD}`;
+const BUILD='2026.09.18-v7.1.3';
+// Separate installations on the same host must not evict each other's files.
+const SCOPE=new URL(self.registration.scope).pathname;
+const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
+const STATIC=`${PREFIX}static-${BUILD}`;
+const RUNTIME=`${PREFIX}runtime-${BUILD}`;
 const CORE=[
  './','./index.html','./manifest.webmanifest','./parcelles.svg','./config.js',
  './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css',
  './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',
- './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png'
+ './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png',
+ './vendor/leaflet.min.css','./vendor/leaflet.min.js','./vendor/marker-icon.png','./vendor/marker-icon-2x.png','./vendor/marker-shadow.png','./vendor/xlsx.full.min.js','./vendor/shp.min.js'
 ];
 
 async function fetchWithTimeout(request,ms=4500){
@@ -16,7 +20,7 @@ async function fetchWithTimeout(request,ms=4500){
 async function warmCore(){
  const cache=await caches.open(STATIC);
  const results=await Promise.all(CORE.map(async path=>{
-   try{const response=await fetch(new Request(path,{cache:'reload'}));if(!response.ok)throw new Error(`HTTP ${response.status}`);return {path,response};}
+   try{const response=await fetchWithTimeout(new Request(new URL(path,self.registration.scope)),10000);if(!response.ok)throw new Error(`HTTP ${response.status}`);return {path,response};}
    catch(error){return {path,error:error?.message||String(error)};}
  }));
  const failures=results.filter(x=>x.error);if(failures.length)throw new Error(`Cache incomplet : ${failures.map(x=>x.path).join(', ')}`);
@@ -26,7 +30,7 @@ async function warmCore(){
 self.addEventListener('install',event=>event.waitUntil(warmCore()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
  const keys=await caches.keys();
- await Promise.all(keys.filter(k=>k.startsWith('parcelles-')&&!([STATIC,RUNTIME].includes(k))).map(k=>caches.delete(k)));
+ await Promise.all(keys.filter(k=>k.startsWith(PREFIX)&&!([STATIC,RUNTIME].includes(k))).map(k=>caches.delete(k)));
  await self.clients.claim();
 })()));
 
@@ -39,27 +43,32 @@ self.addEventListener('message',event=>{
 });
 
 async function navigationResponse(request){
+ // HTML and modules must come from the same installed release. An update is
+ // installed atomically and activated through the application's update button.
+ const cache=await caches.open(STATIC);
+ const installed=await cache.match('./index.html');
+ if(installed)return installed;
  try{
    const network=await fetchWithTimeout(request,4500);
-   if(network?.ok){const cache=await caches.open(RUNTIME);cache.put('./index.html',network.clone()).catch(()=>{});return network;}
+   if(network?.ok)return network;
  }catch{}
- return (await caches.match('./index.html'))||(await caches.match('./'))||new Response('<h1>Parcelles hors connexion</h1><p>Le cache de l’application n’est pas disponible.</p>',{headers:{'content-type':'text/html;charset=utf-8'},status:503});
+ return new Response('<h1>Parcelles hors connexion</h1><p>Le cache de l’application n’est pas disponible.</p>',{headers:{'content-type':'text/html;charset=utf-8'},status:503});
 }
 
-async function staleWhileRevalidate(request){
- const cached=await caches.match(request);
- const refresh=fetch(request).then(async response=>{if(response?.ok){const cache=await caches.open(RUNTIME);await cache.put(request,response.clone());}return response;}).catch(()=>null);
+async function staleWhileRevalidate(request,event){
+ const cache=await caches.open(RUNTIME);
+ const cached=await cache.match(request);
+ const refresh=fetch(request).then(async response=>{if(response?.ok)await cache.put(request,response.clone()).catch(()=>{});return response;}).catch(()=>null);
+ event.waitUntil(refresh);
  return cached||await refresh||new Response('',{status:504,statusText:'Offline'});
 }
 
 async function coreAssetResponse(request){
- const cached=await caches.match(request);
- if(cached){
-   fetch(request,{cache:'no-store'}).then(async response=>{if(response?.ok){const cache=await caches.open(STATIC);await cache.put(request,response.clone());}}).catch(()=>{});
-   return cached;
- }
+ const cache=await caches.open(STATIC);
+ const cached=await cache.match(request,{ignoreSearch:true});
+ if(cached)return cached;
  const network=await fetch(request,{cache:'no-store'});
- if(network?.ok){const cache=await caches.open(STATIC);await cache.put(request,network.clone());}
+ if(network?.ok)await cache.put(request,network.clone()).catch(()=>{});
  return network;
 }
 
@@ -68,12 +77,10 @@ self.addEventListener('fetch',event=>{
  if(req.method!=='GET')return;
  if(req.mode==='navigate'){event.respondWith(navigationResponse(req));return;}
  if(url.origin===location.origin){
-   if(url.pathname.endsWith('/config.js')){event.respondWith(fetch(req,{cache:'no-store'}).catch(()=>caches.match(req)));return;}
-   const rel=`.${url.pathname.slice(self.registration.scope ? new URL(self.registration.scope).pathname.length-1 : 0)}`;
-   const isCore=CORE.some(path=>url.pathname.endsWith(path.replace('./','')));
-   event.respondWith(isCore?coreAssetResponse(req):staleWhileRevalidate(req));return;
+   const isCore=CORE.some(path=>url.pathname===new URL(path,self.registration.scope).pathname);
+   event.respondWith(isCore?coreAssetResponse(req):staleWhileRevalidate(req,event));return;
  }
  const dependencyHost=['cdnjs.cloudflare.com','unpkg.com','www.gstatic.com'].includes(url.hostname);
- if(dependencyHost){event.respondWith(staleWhileRevalidate(req));return;}
+ if(dependencyHost){event.respondWith(staleWhileRevalidate(req,event));return;}
  event.respondWith(fetch(req).catch(()=>caches.match(req)));
 });

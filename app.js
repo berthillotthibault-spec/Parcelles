@@ -37,6 +37,15 @@ let store,parcelMap,sync,nativeBridge,platform,automationEventTimer=null,current
 const pendingAssistantActions=new Map();
 const perf=new PerformanceMonitor(BUILD_ID);perf.startLongTaskObserver();
 const inputTimers=new Map();
+const reportedRejections=new WeakSet();
+function reportUnhandledActionError(event){
+  if(document.documentElement.dataset.appReady!=='1')return;
+  if(event.promise){if(reportedRejections.has(event.promise))return;reportedRejections.add(event.promise);}
+  const reason=event.reason;
+  const message=typeof reason?.message==='string'&&reason.message?reason.message:typeof reason==='string'&&reason?reason:'L’action n’a pas pu aboutir. Réessayez.';
+  // Keep the current form and the diagnostic listeners intact, including on save failure.
+  toast(message,'error');
+}
 function debounceInput(key,fn,delay=90){clearTimeout(inputTimers.get(key));inputTimers.set(key,setTimeout(()=>{inputTimers.delete(key);fn();},delay));}
 function readLocalText(key,fallback=''){try{return localStorage.getItem(key)??fallback;}catch(error){console.warn(`[Parcelles] stockage local inaccessible : ${key}`,error);return fallback;}}
 function writeLocalText(key,value){try{localStorage.setItem(key,String(value));return true;}catch(error){console.warn(`[Parcelles] écriture locale impossible : ${key}`,error);return false;}}
@@ -47,12 +56,23 @@ async function copyText(text){
   try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);return true;}}catch(error){console.warn('[Parcelles] presse-papiers moderne indisponible.',error);}
   try{const area=document.createElement('textarea');area.value=value;area.setAttribute('readonly','');area.style.position='fixed';area.style.opacity='0';area.style.pointerEvents='none';document.body.append(area);area.select();area.setSelectionRange(0,area.value.length);const ok=document.execCommand?.('copy')===true;area.remove();return ok;}catch(error){console.warn('[Parcelles] copie de secours impossible.',error);return false;}
 }
-weatherCache=readLocalJson('parcelles:weather',null);
+function normalizeWeatherData(value){
+  if(!value||typeof value!=='object'||!value.current||!Number.isFinite(Number(value.current.temperature_2m)))return null;
+  const daily=value.daily;
+  if(!daily||!Array.isArray(daily.time)||!daily.time.length||daily.time.some(day=>typeof day!=='string'||!Number.isFinite(Date.parse(day))))return null;
+  for(const key of ['temperature_2m_min','temperature_2m_max'])if(!Array.isArray(daily[key])||daily[key].length<daily.time.length)return null;
+  const next={...value,daily:{...daily},hourly:{...(value.hourly||{})}};
+  for(const key of ['precipitation_sum','precipitation_probability_max','wind_speed_10m_max','wind_gusts_10m_max'])if(!Array.isArray(next.daily[key]))next.daily[key]=[];
+  for(const key of ['time','temperature_2m','precipitation_probability','wind_speed_10m','wind_gusts_10m'])if(!Array.isArray(next.hourly[key]))next.hourly[key]=[];
+  return next;
+}
+weatherCache=normalizeWeatherData(readLocalJson('parcelles:weather',null));
 const recentParcelIds=Array.isArray(readLocalJson('parcelles:recent',[]))?readLocalJson('parcelles:recent',[]):[];
 
 async function init(){
   perf.mark('init-start');
   installErrorRecorder({buildId:BUILD_ID});
+  window.addEventListener('unhandledrejection',reportUnhandledActionError);
   store=new Store(new StorageService());await store.init();perf.mark('storage-ready');
   sync=new SyncService(store);await sync.init();perf.mark('sync-ready');
   nativeBridge=new NativeBridge();await nativeBridge.init();perf.mark('native-ready');
@@ -148,8 +168,10 @@ function switchView(view,{updateHash=true,historyMode='push',scroll=true}={}){
   $('#main')?.focus({preventScroll:true});
 }
 function applyHashRoute(){
+  if($('#modal-root')?.classList.contains('has-modal'))closeModal();
+  if(fieldModeOpen)closeFieldMode();
   const route=location.hash.replace(/^#/,'');
-  if(route.startsWith('parcel/')){const [,id,tab='summary']=route.split('/');if(parcelById(decodeURIComponent(id||''))){selectedParcelId=decodeURIComponent(id);currentParcelTab=['summary','activity','documents','economy'].includes(tab)?tab:'summary';renderParcelDetailPage(selectedParcelId,currentParcelTab);switchView('parcel',{updateHash:false});return;}}
+  if(route.startsWith('parcel/')){const [,encodedId,tab='summary']=route.split('/');let id='';try{id=decodeURIComponent(encodedId||'');}catch{}if(parcelById(id)){selectedParcelId=id;currentParcelTab=['summary','activity','documents','economy'].includes(tab)?tab:'summary';renderParcelDetailPage(selectedParcelId,currentParcelTab);switchView('parcel',{updateHash:false});return;}}
   if(route.startsWith('more/')){const category=route.split('/')[1]||'production';renderMoreCategory(category);switchView('more-category',{updateHash:false});return;}
   if(['map','parcels','work','more','today'].includes(route))switchView(route,{updateHash:false});else switchView('today',{updateHash:false});
 }
@@ -261,15 +283,15 @@ function renderMapSheet(data=state()){
 function weatherWarnings(data=weatherCache){if(!data?.daily)return[];const p=state().preferences,out=[];const wind=Number(p.weatherWindThreshold||0),rain=Number(p.weatherRainThreshold||0);(data.daily.time||[]).forEach((day,i)=>{const w=Number(data.daily.wind_gusts_10m_max?.[i]??data.daily.wind_speed_10m_max?.[i]??0),r=Number(data.daily.precipitation_sum?.[i]??0);if(wind&&w>=wind)out.push({day,type:'Vent',value:`${Math.round(w)} km/h`});if(rain&&r>=rain)out.push({day,type:'Pluie',value:`${formatNumber(r)} mm`});});return out;}
 async function openParcelWeather(id){const p=parcelById(id),c=geometryCentroid(p?.geometry);if(!p||!c)return toast('Cette parcelle n’a pas de position exploitable.','error');if(!navigator.onLine)return toast('La météo de parcelle demande une connexion réseau.','error');modal('Météo de la parcelle',p.nom,'<div class="empty-state">Chargement…</div>','','small');try{const url=`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_gusts_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max&timezone=auto&forecast_days=${state().preferences.weatherDays===14?14:7}`;const r=await fetch(url);if(!r.ok)throw new Error(`service météo ${r.status}`);const w=await r.json();modal('Météo de la parcelle',p.nom,`<div class="weather-main"><div class="weather-temp">${Math.round(w.current.temperature_2m)}°</div><div><strong>${escapeHtml(p.nom)}</strong><br><small>Humidité ${Math.round(w.current.relative_humidity_2m||0)} % · vent ${Math.round(w.current.wind_speed_10m||0)} km/h</small></div></div><div class="table-wrap"><table><thead><tr><th>Jour</th><th>Temp.</th><th>Pluie</th><th>Rafales</th></tr></thead><tbody>${w.daily.time.map((d,i)=>`<tr><td>${localDate(d)}</td><td>${Math.round(w.daily.temperature_2m_min[i])}° / ${Math.round(w.daily.temperature_2m_max[i])}°</td><td>${formatNumber(w.daily.precipitation_sum[i]||0)} mm · ${Math.round(w.daily.precipitation_probability_max[i]||0)} %</td><td>${Math.round(w.daily.wind_gusts_10m_max[i]||0)} km/h</td></tr>`).join('')}</tbody></table></div>`,`<button class="button primary" data-action="close-modal">Fermer</button>`,'large');}catch(error){closeModal();toast(`Météo indisponible : ${error.message}`,'error');}}
 function renderWeatherCard(data){
-  if(!data?.current)return;const rainNow=data.current.precipitation??0;const age=data.loadedAt?Math.max(0,Math.round((Date.now()-data.loadedAt)/60000)):null;const warnings=weatherWarnings(data);$('#weather-content').innerHTML=`<div class="weather-main"><div class="weather-temp">${Math.round(data.current.temperature_2m)}°</div><div><strong>${escapeHtml(data.place)}</strong><br><small>Vent ${Math.round(data.current.wind_speed_10m||0)} km/h · humidité ${Math.round(data.current.relative_humidity_2m||0)} % · pluie ${rainNow} mm${age!==null?` · actualisé il y a ${age} min`:''}</small></div></div>${warnings.length?`<div class="notice warning" style="margin:10px 0">${warnings.slice(0,2).map(w=>`${escapeHtml(w.type)} ${escapeHtml(localDate(w.day))} : ${escapeHtml(w.value)}`).join('<br>')}</div>`:''}<div class="weather-days">${data.daily.time.slice(0,4).map((day,i)=>`<div class="weather-day"><strong>${new Intl.DateTimeFormat('fr-FR',{weekday:'short'}).format(new Date(day))}</strong><br>${Math.round(data.daily.temperature_2m_max[i])}° / ${Math.round(data.daily.temperature_2m_min[i])}°<br><small>${Math.round(data.daily.precipitation_probability_max[i]||0)} % pluie</small></div>`).join('')}</div>`;
+  data=normalizeWeatherData(data);if(!data)return;const rainNow=data.current.precipitation??0;const age=data.loadedAt?Math.max(0,Math.round((Date.now()-data.loadedAt)/60000)):null;const warnings=weatherWarnings(data);$('#weather-content').innerHTML=`<div class="weather-main"><div class="weather-temp">${Math.round(data.current.temperature_2m)}°</div><div><strong>${escapeHtml(data.place)}</strong><br><small>Vent ${Math.round(data.current.wind_speed_10m||0)} km/h · humidité ${Math.round(data.current.relative_humidity_2m||0)} % · pluie ${rainNow} mm${age!==null?` · actualisé il y a ${age} min`:''}</small></div></div>${warnings.length?`<div class="notice warning" style="margin:10px 0">${warnings.slice(0,2).map(w=>`${escapeHtml(w.type)} ${escapeHtml(localDate(w.day))} : ${escapeHtml(w.value)}`).join('<br>')}</div>`:''}<div class="weather-days">${data.daily.time.slice(0,4).map((day,i)=>`<div class="weather-day"><strong>${new Intl.DateTimeFormat('fr-FR',{weekday:'short'}).format(new Date(day))}</strong><br>${Math.round(data.daily.temperature_2m_max[i])}° / ${Math.round(data.daily.temperature_2m_min[i])}°<br><small>${Math.round(data.daily.precipitation_probability_max[i]||0)} % pluie</small></div>`).join('')}</div>`;
 }
 async function refreshWeather({silent=false}={}){
   const farm=state().exploitation;try{
     if(!silent)toast('Actualisation de la météo…');let lat=toNullableNumber(farm.latitude),lon=toNullableNumber(farm.longitude),place=farm.commune||farm.nom;
     if(lat===null||lon===null){if(!farm.commune)throw new Error('Renseignez la commune ou les coordonnées de l’exploitation.');const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(farm.commune)}&count=1&language=fr&format=json`);if(!r.ok)throw new Error('Géocodage indisponible.');const hit=(await r.json()).results?.[0];if(!hit)throw new Error('Commune introuvable.');lat=hit.latitude;lon=hit.longitude;place=hit.name;}
     const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,wind_speed_10m,wind_gusts_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max&timezone=auto&forecast_days=${state().preferences.weatherDays===14?14:7}`;
-    const response=await fetch(url);if(!response.ok)throw new Error(`service météo ${response.status}`);weatherCache={...(await response.json()),place,latitude:lat,longitude:lon,loadedAt:Date.now()};writeLocalJson('parcelles:weather',weatherCache);renderToday(state());if(!silent)toast('Météo actualisée.');
-  }catch(error){const cached=readLocalJson('parcelles:weather',null);if(cached){weatherCache=cached;renderToday(state());if(!silent)toast('Météo réseau indisponible : prévisions en cache affichées.','error');}else if(!silent)toast(`Météo indisponible : ${error.message}`,'error');}
+    const response=await fetch(url);if(!response.ok)throw new Error(`service météo ${response.status}`);const fresh=normalizeWeatherData({...(await response.json()),place,latitude:lat,longitude:lon,loadedAt:Date.now()});if(!fresh)throw new Error('Prévisions météo incomplètes.');weatherCache=fresh;writeLocalJson('parcelles:weather',weatherCache);renderToday(state());if(!silent)toast('Météo actualisée.');
+  }catch(error){const cached=normalizeWeatherData(readLocalJson('parcelles:weather',null));if(cached){weatherCache=cached;renderToday(state());if(!silent)toast('Météo réseau indisponible : prévisions en cache affichées.','error');}else if(!silent)toast(`Météo indisponible : ${error.message}`,'error');}
 }
 
 function maybeOnboarding(){if(state().preferences.onboardingComplete||active('parcelles').length)return;openOnboardingWelcome();}
@@ -283,9 +305,17 @@ function openOnboardingData(){
 }
 
 function modal(title,description,body,footer='',size=''){
-  lastFocused=document.activeElement;const root=$('#modal-root');root.classList.add('has-modal');root.innerHTML=`<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${size}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-header"><div><h2 id="modal-title">${escapeHtml(title)}</h2>${description?`<p>${escapeHtml(description)}</p>`:''}</div><button class="modal-close" data-action="close-modal" aria-label="Fermer">${icon('close',{size:20})}</button></header><div class="modal-body">${body}</div>${footer?`<footer class="modal-footer">${footer}</footer>`:''}</section>`;setTimeout(()=>root.querySelector('[data-autofocus],input,select,button')?.focus(),0);
+  const root=$('#modal-root');if(!root.classList.contains('has-modal'))lastFocused=document.activeElement;root.classList.add('has-modal');root.innerHTML=`<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${size}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-header"><div><h2 id="modal-title">${escapeHtml(title)}</h2>${description?`<p>${escapeHtml(description)}</p>`:''}</div><button class="modal-close" data-action="close-modal" aria-label="Fermer">${icon('close',{size:20})}</button></header><div class="modal-body">${body}</div>${footer?`<footer class="modal-footer">${footer}</footer>`:''}</section>`;setTimeout(()=>{const target=root.querySelector('[data-autofocus]')||root.querySelector('.modal-close');target?.focus({preventScroll:true});},0);
 }
-function closeModal(){const root=$('#modal-root');root.classList.remove('has-modal');root.innerHTML='';lastFocused?.focus?.();}
+function closeModal(){const root=$('#modal-root');if(!root.classList.contains('has-modal'))return;root.classList.remove('has-modal');root.innerHTML='';if(lastFocused?.isConnected)lastFocused.focus?.({preventScroll:true});lastFocused=null;}
+function submitModalForm(event){
+  const form=event.target,root=form.closest?.('#modal-root');if(!root||event.defaultPrevented)return;
+  // External action buttons are used by these forms. Never navigate/reload on Enter.
+  event.preventDefault();if(event.submitter)return;
+  const adjacent=form.nextElementSibling;
+  const button=adjacent?.matches('button')?adjacent:root.querySelectorAll('form').length===1?root.querySelector('.modal-footer .button.primary'):null;
+  if(button&&!button.disabled&&button.dataset.action!=='close-modal')button.click();
+}
 
 function openParcel(id){const p=parcelById(id);if(!p)return;selectedParcelId=id;currentParcelTab='summary';rememberRecent(id);openParcelDetail(id,'summary');}
 function openParcelDetail(id,tab='summary',{historyMode='push'}={}){
@@ -996,6 +1026,7 @@ function openWorkFilters(){const data=state(),parcels=active('parcelles',data),t
 function openHelp(){modal('Aide','Les actions courantes sont accessibles en un ou deux niveaux.',`<h3>Commencer</h3><p>Importez vos parcelles depuis <strong>Plus → Mes données → Importer</strong>, ou créez une parcelle manuellement.</p><h3>Sur le terrain</h3><p>Le mode terrain utilise le GPS uniquement après votre action, trie les parcelles par distance et détecte la parcelle dans laquelle vous vous trouvez lorsque la géométrie est disponible.</p><h3>Hors connexion</h3><p>Les données métier sont enregistrées sur l’appareil. Les services réseau comme la météo, le RPG et la synchronisation peuvent être indisponibles sans bloquer la saisie.</p><h3>Sauvegardes</h3><p>La sauvegarde complète ZIP contient l’état structuré, les photos et les documents.</p><h3>Application iPhone</h3><p>La même base fonctionne sur le web et dans l’enveloppe Capacitor. Les fonctions natives ne sont activées que lorsqu’elles sont réellement disponibles.</p><h3>Automatisations</h3><p>Les règles sont évaluées localement et déclenchent uniquement les actions explicitement configurées.</p>`,`<button class="button primary" data-action="close-modal">Compris</button>`);}
 
 function bindEvents(){
+  document.addEventListener('submit',submitModalForm);
   document.addEventListener('click',async event=>{
     const control=event.target.closest('[data-action],[data-view],[data-work-tab],[data-parcel-filter],[data-map-open]');if(!control)return;
     if(control.dataset.view){closeModal();switchView(control.dataset.view);return;}

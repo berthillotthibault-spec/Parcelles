@@ -64,6 +64,8 @@ function stringArray(value){
   return String(value).split(/[;,\n]/).map(item=>item.trim()).filter(Boolean);
 }
 
+const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+
 function sanitizeCurrentShape(data){
   // Harden nested collections even when the stored state already reports the current schema version.
   // This prevents malformed/legacy restored data from crashing secondary modules.
@@ -75,24 +77,30 @@ function sanitizeCurrentShape(data){
   data.automationRuns=data.automationRuns.map(item=>({...item,actions:Array.isArray(item.actions)?item.actions:[]}));
   data.gpsTracks=data.gpsTracks.map(item=>({...item,points:Array.isArray(item.points)?item.points:[],matchedParcels:Array.isArray(item.matchedParcels)?item.matchedParcels:[]}));
   data.weatherStations=data.weatherStations.map(item=>({...item,readings:Array.isArray(item.readings)?item.readings:[]}));
+  const defaults=emptyState();
+  data.preferences.homeCards=Array.isArray(data.preferences.homeCards)?stringArray(data.preferences.homeCards):defaults.preferences.homeCards;
+  if(!isRecord(data.metadata.syncCursors))data.metadata.syncCursors={};
+  data.metadata.revision=Math.max(0,Number(data.metadata.revision)||0);
   return data;
 }
 
 function ensureArrays(data){
-  ENTITY_TYPES.forEach(type=>{if(!Array.isArray(data[type]))data[type]=[];});
+  ENTITY_TYPES.forEach(type=>{data[type]=Array.isArray(data[type])?data[type].filter(isRecord):[];});
   if(!Array.isArray(data.campagnes))data.campagnes=[];
-  if(!Array.isArray(data.queue))data.queue=[];
-  if(!Array.isArray(data.journal))data.journal=[];
+  data.queue=Array.isArray(data.queue)?data.queue.filter(isRecord):[];
+  data.journal=Array.isArray(data.journal)?data.journal.filter(isRecord):[];
 }
 
 export function migrateData(input){
-  let data=clone(input||{});
+  let data=clone(isRecord(input)?input:{});
   const base=emptyState();
+  ensureArrays(data);
+  for(const key of ['preferences','metadata','exploitation'])if(!isRecord(data[key]))data[key]={};
   if(!data.version)data.version=1;
 
   if(data.version<2){
     if(Array.isArray(data.parcelles))data.parcelles=data.parcelles.map(parcel=>({...parcel,nom:parcel.nom||parcel.name||parcel.Nom||'Sans nom',surfaceHa:toNumber(parcel.surfaceHa??parcel.surface??0)}));
-    const interventions=Array.isArray(data.interventions)&&data.interventions.length?data.interventions:(data.manualInterventions||[]);
+    const interventions=data.interventions.length?data.interventions:(Array.isArray(data.manualInterventions)?data.manualInterventions.filter(isRecord):[]);
     data.interventions=interventions.map(item=>({...item,parcelId:item.parcelId||item.parcelleId||item.parcel_id,date:item.date||new Date().toISOString(),type:item.type||item.operation||'Travail'}));
     data.version=2;
   }
@@ -282,7 +290,10 @@ function validate(type,entity){
 }
 
 export class Store{
-  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';}
+  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';this.writePromise=Promise.resolve();this.backupRetryAt=0;}
+
+  // A failed write must not restore a snapshot taken before another edit.
+  enqueueWrite(operation){const result=this.writePromise.then(operation);this.writePromise=result.catch(()=>{});return result;}
 
   setWriteGuard(fn){this.writeGuard=typeof fn==='function'?fn:null;}
   workspaceStorageKey(id='local'){const value=String(id||'local').trim();return value&&value!=='local'?`state:workspace:${value.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';}
@@ -304,44 +315,58 @@ export class Store{
     return this.state;
   }
 
-  async switchWorkspace(id,{seed=null,name=''}={}){
+  switchWorkspace(id,options={}){return this.enqueueWrite(()=>this._switchWorkspace(id,options));}
+  async _switchWorkspace(id,{seed=null,name=''}={}){
     const nextId=String(id||'local').trim()||'local';
     if(nextId===this.workspaceId)return this.state;
     await this.persist();
     const nextKey=this.workspaceStorageKey(nextId);
     let saved=await this.storage.get(nextKey);
     if(!saved&&seed){saved=clone(seed);saved.queue=[];saved.syncConflicts=[];saved.preferences={...(saved.preferences||{}),workspaceId:nextId,cloudRole:null,syncEnabled:true};saved.metadata={...(saved.metadata||{}),lastSyncAt:null,lastSyncError:null,syncFailureCount:0,syncBackoffUntil:null,syncCursors:{}};}
-    this.workspaceId=nextId;this.storageKey=nextKey;
-    this.state=migrateData(saved||emptyState());
-    this.state.preferences.workspaceId=nextId==='local'?'':nextId;
-    this.state.preferences.cloudRole=null;
-    this.state.metadata.lastWorkspaceSwitchAt=now();
-    if(name&&(!this.state.exploitation.nom||this.state.exploitation.nom==='Mon exploitation'))this.state.exploitation.nom=String(name);
-    await this.storage.set('active-workspace',{id:nextId,updatedAt:now()});
-    await this.persist();
+    const previous={workspaceId:this.workspaceId,storageKey:this.storageKey,state:this.state};
+    const next=migrateData(saved||emptyState());
+    next.preferences.workspaceId=nextId==='local'?'':nextId;
+    next.preferences.cloudRole=null;
+    next.metadata.lastWorkspaceSwitchAt=now();
+    if(name&&(!next.exploitation.nom||next.exploitation.nom==='Mon exploitation'))next.exploitation.nom=String(name);
+    try{
+      // Persist the destination before changing the startup pointer.
+      await this.storage.set(nextKey,next);
+      await this.storage.set('active-workspace',{id:nextId,updatedAt:now()});
+      this.workspaceId=nextId;this.storageKey=nextKey;this.state=next;this.backupRetryAt=0;
+    }catch(error){Object.assign(this,previous);throw error;}
     this.notify({label:'Espace de travail changé.',kind:'workspace-switch',entity:'state',workspaceId:nextId});
     return this.state;
   }
 
   snapshot(){return clone(this.state);}
   subscribe(listener){this.listeners.add(listener);return()=>this.listeners.delete(listener);}
-  notify(event){for(const listener of this.listeners)listener(this.snapshot(),event);}
+  notify(event){for(const listener of this.listeners){try{const result=listener(this.snapshot(),event);if(result?.catch)result.catch(error=>console.error('[Parcelles] Mise à jour de l’affichage impossible.',error));}catch(error){console.error('[Parcelles] Mise à jour de l’affichage impossible.',error);}}}
 
   async persist(){
     this.state.metadata.updatedAt=now();
     await this.storage.set(this.storageKey,this.state);
-    if(this.state.preferences.autoBackup){
+    if(this.state.preferences.autoBackup&&now()>=this.backupRetryAt){
       const day=new Date().toISOString().slice(0,10);
       if(this.state.metadata.lastAutoBackupDay!==day){
-        this.state.metadata.lastAutoBackupDay=day;
         const d=new Date(); const weekStart=new Date(d); weekStart.setDate(d.getDate()-((d.getDay()+6)%7));
         const week=weekStart.toISOString().slice(0,10); const month=day.slice(0,7);
         const snapshot=clone(this.state), createdAt=now();
-        await this.storage.backupPut({id:`auto_daily_${this.workspaceId}_${day}`,workspaceId:this.workspaceId,period:'daily',createdAt,state:snapshot});
-        await this.storage.backupPut({id:`auto_weekly_${this.workspaceId}_${week}`,workspaceId:this.workspaceId,period:'weekly',createdAt,state:snapshot});
-        await this.storage.backupPut({id:`auto_monthly_${this.workspaceId}_${month}`,workspaceId:this.workspaceId,period:'monthly',createdAt,state:snapshot});
-        await this.storage.pruneBackups?.({daily:7,weekly:4,monthly:3});
-        await this.storage.set(this.storageKey,this.state);
+        try{
+          await this.storage.backupPut({id:`auto_daily_${this.workspaceId}_${day}`,workspaceId:this.workspaceId,period:'daily',createdAt,state:snapshot});
+          await this.storage.backupPut({id:`auto_weekly_${this.workspaceId}_${week}`,workspaceId:this.workspaceId,period:'weekly',createdAt,state:snapshot});
+          await this.storage.backupPut({id:`auto_monthly_${this.workspaceId}_${month}`,workspaceId:this.workspaceId,period:'monthly',createdAt,state:snapshot});
+          await this.storage.pruneBackups?.({daily:7,weekly:4,monthly:3});
+          this.state.metadata.lastAutoBackupDay=day;
+          this.state.metadata.lastAutoBackupError=null;
+          await this.storage.set(this.storageKey,this.state);
+        }catch(error){
+          // The primary write above already succeeded. A secondary backup failure
+          // must neither block startup nor roll back that saved change in memory.
+          this.backupRetryAt=now()+5*60*1000;
+          this.state.metadata.lastAutoBackupError=String(error?.message||error);
+          console.warn('[Parcelles] Sauvegarde automatique différée ; les données sont enregistrées.',error);
+        }
       }
     }
   }
@@ -355,12 +380,13 @@ export class Store{
     if(!this.state.preferences.syncEnabled)return;
     const existingIndex=this.state.queue.findIndex(item=>['pending','error','conflict'].includes(item.status)&&item.entity===operation.entity&&item.entityId===operation.entityId);
     const existing=existingIndex>=0?this.state.queue[existingIndex]:null;
-    const next={id:existing?.id||uid('op'),entity:operation.entity,entityId:operation.entityId,action:operation.action,payload:operation.payload,createdAt:now(),firstQueuedAt:existing?.firstQueuedAt||existing?.createdAt||now(),status:'pending',attempts:Number(existing?.attempts||0),lastError:null,nextRetryAt:0};
+    const next={id:uid('op'),entity:operation.entity,entityId:operation.entityId,action:operation.action,payload:operation.payload,createdAt:now(),firstQueuedAt:existing?.firstQueuedAt||existing?.createdAt||now(),status:'pending',attempts:0,lastError:null,nextRetryAt:0};
     if(existingIndex>=0)this.state.queue[existingIndex]=next;else this.state.queue.push(next);
-    if(this.state.queue.length>1000)this.state.queue=this.state.queue.slice(-1000);
+    if(this.state.queue.length>1000)this.state.queue=this.state.queue.filter(item=>item.status!=='done');
   }
 
-  async mutate(label,fn,options={}){
+  mutate(label,fn,options={}){return this.enqueueWrite(()=>this._mutate(label,fn,options));}
+  async _mutate(label,fn,options={}){
     if(!options.bypassPermissions&&this.writeGuard&&!this.writeGuard(options))throw new Error('Votre rôle ne permet pas cette modification.');
     const previous=this.snapshot();
     try{
@@ -377,7 +403,8 @@ export class Store{
   get(type,id,{includeDeleted=false}={}){return(this.state[type]||[]).find(item=>item.id===id&&(includeDeleted||!item.deletedAt));}
   list(type,{includeDeleted=false}={}){return(this.state[type]||[]).filter(item=>includeDeleted||!item.deletedAt);}
 
-  async upsert(type,entity,{label,queue=true}={}){
+  upsert(type,entity,options={}){return this.enqueueWrite(()=>this._upsert(type,entity,options));}
+  async _upsert(type,entity,{label,queue=true}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     const existing=entity.id?this.get(type,entity.id,{includeDeleted:true}):null;
     const normalized=normalizeEntity(type,entity,existing);
@@ -386,14 +413,15 @@ export class Store{
       const duplicate=this.state.rotations.find(item=>!item.deletedAt&&item.id!==normalized.id&&item.parcelId===normalized.parcelId&&item.campaignId===normalized.campaignId);
       if(duplicate)throw new Error('Une rotation existe déjà pour cette parcelle et cette campagne.');
     }
-    await this.mutate(label||`${existing?'Modification':'Création'} ${type}`,state=>{
+    await this._mutate(label||`${existing?'Modification':'Création'} ${type}`,state=>{
       const index=state[type].findIndex(item=>item.id===normalized.id);
       if(index>=0)state[type][index]=normalized;else state[type].push(normalized);
     },{entity:type,entityId:normalized.id,action:existing?'update':'create',payload:normalized,queue});
     return normalized;
   }
 
-  async upsertMany(type,entities,{label='Mise à jour groupée'}={}){
+  upsertMany(type,entities,options={}){return this.enqueueWrite(()=>this._upsertMany(type,entities,options));}
+  async _upsertMany(type,entities,{label='Mise à jour groupée'}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     if(this.writeGuard&&!this.writeGuard({entity:type,action:'update'}))throw new Error('Votre rôle ne permet pas cette modification.');
     const previous=this.snapshot();
@@ -442,21 +470,27 @@ export class Store{
     return normalized;
   }
 
-  async applyRemote(type,entity){
+  async applyRemote(type,entity,{expectedQueueId}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     const incoming=clone(entity);
     const errors=validate(type,incoming);if(errors.length&&!incoming.deletedAt)throw new Error(errors.join(' — '));
-    await this.mutate(`Synchronisation distante : ${type}`,state=>{
+    const applied=await this.mutate(`Synchronisation distante : ${type}`,state=>{
+      if(expectedQueueId!==undefined){
+        const pending=state.queue.find(item=>item.entity===type&&item.entityId===incoming.id&&['pending','error','conflict'].includes(item.status));
+        if((pending?.id||null)!==expectedQueueId)return false;
+      }
       const index=state[type].findIndex(item=>item.id===incoming.id);
       if(index>=0)state[type][index]=incoming;else state[type].push(incoming);
+      return true;
     },{entity:type,entityId:incoming.id,action:'remote',queue:false,log:false,bypassPermissions:true});
-    return incoming;
+    return applied?incoming:null;
   }
 
   async setPreferences(patch){return this.mutate('Préférences mises à jour.',state=>Object.assign(state.preferences,patch),{queue:false,kind:'settings',entity:'preferences',action:'update'});}
   async setExploitation(patch){return this.mutate('Informations de l’exploitation mises à jour.',state=>Object.assign(state.exploitation,patch,{updatedAt:now()}),{queue:false,kind:'settings',entity:'exploitation',action:'update'});}
 
-  async replaceState(next,label='Données remplacées',{kind='restore',log=true,bypassPermissions=false}={}){
+  replaceState(next,label='Données remplacées',options={}){return this.enqueueWrite(()=>this._replaceState(next,label,options));}
+  async _replaceState(next,label='Données remplacées',{kind='restore',log=true,bypassPermissions=false}={}){
     if(!bypassPermissions&&this.writeGuard&&!this.writeGuard({entity:'state',action:'restore'}))throw new Error('Votre rôle ne permet pas de restaurer les données.');
     const migrated=migrateData(next);
     const previous=this.snapshot();

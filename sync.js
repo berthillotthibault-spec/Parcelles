@@ -95,7 +95,7 @@ export class SyncService{
       try{
         if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}if(!this.canWriteEntity(operation.entity,operation.action)){await this.markQueueDone(operation.id);continue;}
         const localEntity=this.store.get(operation.entity,operation.entityId,{includeDeleted:true});const localPayload=localEntity||operation.payload||{id:operation.entityId,deletedAt:Date.now()};const remote=await this.remoteRef(operation.entity,operation.entityId).get(),remoteData=remote.exists?remote.data():null;
-        if(remoteData?.payload&&Number(remoteData.updatedAt||0)>Number(snapshot.metadata.lastSyncAt||0)&&JSON.stringify(remoteData.payload)!==JSON.stringify(clean(localPayload))){const suggestion=safeMergeEntity(localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.store.applyRemote(operation.entity,suggestion.merged);await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload);await this.markQueueConflict(operation.id);conflicts++;continue;}
+        if(remoteData?.payload&&Number(remoteData.updatedAt||0)>Number(snapshot.metadata.lastSyncAt||0)&&JSON.stringify(remoteData.payload)!==JSON.stringify(clean(localPayload))){const suggestion=safeMergeEntity(localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.store.applyRemote(operation.entity,suggestion.merged,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload);await this.markQueueConflict(operation.id);conflicts++;continue;}
         await this.writeRemoteEntity(operation.entity,operation.entityId,localPayload,operation.action);await this.markQueueDone(operation.id);await this.audit(operation.action,operation.entity,operation.entityId);sent++;
       }catch(error){await this.markQueueFailure(operation.id,error);errors++;}
     }
@@ -103,9 +103,36 @@ export class SyncService{
   }
 
   async pullRemote(){
-    const last=this.syncCursor,since=Math.max(0,last-5000),query=this.db.collection('workspaces').doc(this.workspaceId).collection('data').where('updatedAt','>',since).orderBy('updatedAt','asc').limit(500),snap=await query.get();let pulled=0,conflicts=0,merged=0;const pending=this.store.snapshot().queue.filter(q=>q.status==='pending');
-    for(const doc of snap.docs){const remote=doc.data();if(!CLOUD_ENTITY_TYPES.includes(remote.entityType)||!remote.payload?.id)continue;const p=pending.find(q=>q.entity===remote.entityType&&q.entityId===remote.entityId),local=this.store.get(remote.entityType,remote.entityId,{includeDeleted:true}),differs=JSON.stringify(clean(local||p?.payload))!==JSON.stringify(clean(remote.payload));if((p&&differs)||(last===0&&local&&differs)){const suggestion=safeMergeEntity(local||p?.payload,remote.payload);if(this.store.snapshot().preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.store.applyRemote(remote.entityType,suggestion.merged);if(this.can('write'))await this.writeRemoteEntity(remote.entityType,remote.entityId,suggestion.merged,'auto-merge');merged++;pulled++;continue;}await this.createConflict(remote.entityType,remote.entityId,local||p?.payload,remote.payload);conflicts++;continue;}if(!local||Number(remote.updatedAt||0)>=Number(local.updatedAt||0)){await this.store.applyRemote(remote.entityType,remote.payload);pulled++;}}
-    return{pulled,conflicts,merged};
+    const last=this.syncCursor,since=Math.max(0,last-5000);
+    const query=this.db.collection('workspaces').doc(this.workspaceId).collection('data').where('updatedAt','>',since).orderBy('updatedAt','asc').limit(500);
+    let pulled=0,conflicts=0,merged=0,cursor=last,lastDocument=null;
+    while(true){
+      const snap=await (lastDocument?query.startAfter(lastDocument):query).get();
+      for(const doc of snap.docs){
+        const remote=doc.data();
+        cursor=Math.max(cursor,Number(remote.updatedAt)||0);
+        if(!CLOUD_ENTITY_TYPES.includes(remote.entityType)||!remote.payload?.id)continue;
+        // Retry failures and unresolved conflicts are still unsent local edits.
+        const p=this.store.snapshot().queue.find(q=>['pending','error','conflict'].includes(q.status)&&q.entity===remote.entityType&&q.entityId===remote.entityId);
+        const local=this.store.get(remote.entityType,remote.entityId,{includeDeleted:true});
+        const differs=JSON.stringify(clean(local||p?.payload))!==JSON.stringify(clean(remote.payload));
+        if((p&&differs)||(last===0&&local&&differs)){
+          const suggestion=safeMergeEntity(local||p?.payload,remote.payload);
+          if(this.store.snapshot().preferences.syncAutoMerge!==false&&suggestion.canMerge){
+            const applied=await this.store.applyRemote(remote.entityType,suggestion.merged,{expectedQueueId:p?.id||null});
+            if(applied){if(this.can('write'))await this.writeRemoteEntity(remote.entityType,remote.entityId,suggestion.merged,'auto-merge');merged++;pulled++;}
+            continue;
+          }
+          await this.createConflict(remote.entityType,remote.entityId,local||p?.payload,remote.payload);conflicts++;continue;
+        }
+        if(!local||Number(remote.updatedAt||0)>=Number(local.updatedAt||0)){
+          if(await this.store.applyRemote(remote.entityType,remote.payload,{expectedQueueId:p?.id||null}))pulled++;
+        }
+      }
+      if(snap.docs.length<500)break;
+      lastDocument=snap.docs[snap.docs.length-1];
+    }
+    return{pulled,conflicts,merged,cursor};
   }
 
   async syncAttachmentBlobs(){
@@ -120,7 +147,7 @@ export class SyncService{
     await this.refreshMembership();if(!this.member)throw new Error('Vous n’êtes plus membre de cette exploitation.');await this.heartbeat();
     try{
       const bootstrap=await this.bootstrapWorkspace(),pushed=await this.pushPending(),pulled=await this.pullRemote(),attachments=await this.syncAttachmentBlobs(),completedAt=Date.now();
-      await this.store.mutate('Synchronisation terminée.',state=>{state.metadata.lastSyncAt=completedAt;state.metadata.lastSyncError=null;state.metadata.syncFailureCount=0;state.metadata.syncBackoffUntil=null;state.metadata.syncCursors=state.metadata.syncCursors||{};state.metadata.syncCursors[this.workspaceId]=completedAt;state.queue=state.queue.filter(item=>item.status!=='done').slice(-1000);},{queue:false,log:false,bypassPermissions:true});
+      await this.store.mutate('Synchronisation terminée.',state=>{state.metadata.lastSyncAt=completedAt;state.metadata.lastSyncError=null;state.metadata.syncFailureCount=0;state.metadata.syncBackoffUntil=null;state.metadata.syncCursors=state.metadata.syncCursors||{};state.metadata.syncCursors[this.workspaceId]=pulled.cursor;state.queue=state.queue.filter(item=>item.status!=='done');},{queue:false,log:false,bypassPermissions:true});
       this.lastResult={...bootstrap,...pushed,...pulled,...attachments,at:completedAt,queue:this.queueSummary()};return this.lastResult;
     }catch(error){const message=sanitizeCloudError(error);await this.store.mutate('Synchronisation interrompue.',state=>{state.metadata.lastSyncError=message;state.metadata.syncFailureCount=Number(state.metadata.syncFailureCount||0)+1;state.metadata.syncBackoffUntil=Date.now()+syncRetryDelay(Math.min(8,state.metadata.syncFailureCount),15);},{queue:false,log:false,bypassPermissions:true});await this.audit('sync-error','sync',this.workspaceId,{message});throw new Error(message);}
   }

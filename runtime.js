@@ -6,6 +6,7 @@ const REQUIRED_ASSETS = [
   './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
   './shapefile-fallback.js','./zip-lite.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
   './manifest.webmanifest','./parcelles.svg','./config.js'
+  ,'./vendor/leaflet.min.css','./vendor/leaflet.min.js','./vendor/xlsx.full.min.js','./vendor/shp.min.js'
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}
@@ -48,32 +49,40 @@ export function installBootWatchdog({timeoutMs=9000,onTimeout}={}){
 
 export function markAppReady(){
   document.documentElement.dataset.appReady='1';
+  const bootError=document.querySelector('#boot-error');
+  if(bootError){bootError.className='sr-only';bootError.textContent='';}
   window.dispatchEvent(new CustomEvent('parcelles:ready',{detail:{buildId:BUILD_ID}}));
 }
 
 export async function registerAppServiceWorker({onUpdate,onMessage}={}){
   if(!('serviceWorker'in navigator))return {supported:false};
+  const hadController=Boolean(navigator.serviceWorker.controller);
+  let reloading=false,activationRequested=false;
+  // Observe before registration/update: a fast cached install can activate immediately.
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(reloading||(!hadController&&!activationRequested))return;
+    reloading=true;
+    location.reload();
+  });
+  navigator.serviceWorker.addEventListener('message',event=>onMessage?.(event.data));
   const registration=await navigator.serviceWorker.register(`./sw.js?build=${encodeURIComponent(BUILD_ID)}`,{updateViaCache:'none'});
-  try{await registration.update();}catch{}
 
   const announceWaiting=worker=>{
     if(!worker)return;
-    onUpdate?.({registration,worker,buildId:BUILD_ID,activate:()=>worker.postMessage({type:'SKIP_WAITING'})});
+    onUpdate?.({registration,worker,buildId:BUILD_ID,activate:()=>{activationRequested=true;worker.postMessage({type:'SKIP_WAITING'});}});
   };
-  if(registration.waiting)announceWaiting(registration.waiting);
-  registration.addEventListener('updatefound',()=>{
+  const observeInstalling=()=>{
     const worker=registration.installing;
     if(!worker)return;
     worker.addEventListener('statechange',()=>{
       if(worker.state==='installed'&&navigator.serviceWorker.controller)announceWaiting(worker);
     });
-  });
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(sessionGet('parcelles:sw-reloading')==='1')return;
-    sessionSet('parcelles:sw-reloading','1');
-    location.reload();
-  });
-  navigator.serviceWorker.addEventListener('message',event=>onMessage?.(event.data));
+  };
+  registration.addEventListener('updatefound',observeInstalling);
+  observeInstalling();
+  if(registration.waiting)announceWaiting(registration.waiting);
+  // Checking for an update must not delay readiness or lose updatefound events.
+  registration.update().catch(()=>{});
   return {supported:true,registration};
 }
 
@@ -97,7 +106,8 @@ export async function serviceWorkerStatus(){
 export async function clearAppCaches(){
   if(!('caches'in window))return [];
   const keys=await caches.keys();
-  const targets=keys.filter(key=>key.startsWith('parcelles-'));
+  const prefix=`parcelles-${encodeURIComponent(new URL('./',location.href).pathname)}-`;
+  const targets=keys.filter(key=>key.startsWith(prefix)||/^parcelles-(static|runtime)-/.test(key));
   await Promise.all(targets.map(key=>caches.delete(key)));
   return targets;
 }
@@ -106,7 +116,8 @@ export async function resetRuntimeAndReload(){
   await clearAppCaches().catch(()=>[]);
   if('serviceWorker'in navigator){
     const registrations=await navigator.serviceWorker.getRegistrations().catch(()=>[]);
-    await Promise.all(registrations.filter(r=>r.scope.startsWith(location.origin)).map(r=>r.unregister().catch(()=>false)));
+    const appScope=new URL('./',location.href).href;
+    await Promise.all(registrations.filter(r=>r.scope===appScope).map(r=>r.unregister().catch(()=>false)));
   }
   sessionRemove('parcelles:sw-reloading');
   location.reload();
