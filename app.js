@@ -1047,7 +1047,9 @@ function openHelp(){modal('Aide','Les actions courantes sont accessibles en un o
 function bindEvents(){
   document.addEventListener('submit',submitModalForm);
   document.addEventListener('click',async event=>{
-    const control=event.target.closest('[data-action],[data-view],[data-work-tab],[data-parcel-filter],[data-map-open]');if(!control)return;
+    // html[data-view] describes the current screen for CSS; it is not a link.
+    // Only explicit navigation controls may close a form and switch screens.
+    const control=event.target.closest('[data-action],button[data-view],a[data-view],[data-work-tab],[data-parcel-filter],[data-map-open]');if(!control)return;
     if(control.dataset.view){closeModal();switchView(control.dataset.view);return;}
     if(control.dataset.workTab){workTab=control.dataset.workTab;$$('[data-work-tab]').forEach(b=>b.classList.toggle('is-active',b===control));renderWork(state());return;}
     if(control.dataset.parcelFilter){parcelFilter=control.dataset.parcelFilter;$$('[data-parcel-filter]').forEach(b=>b.classList.toggle('is-active',b===control));renderParcels(state());return;}

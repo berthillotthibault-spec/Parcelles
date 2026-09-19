@@ -1,6 +1,6 @@
-# Mettre à jour Parcelles 7.1.4 sur iPhone
+# Mettre à jour Parcelles 7.1.5 sur iPhone
 
-Build attendu : `2026.09.19-v7.1.4`. Format de données conservé : v16.
+Build attendu : `2026.09.19-v7.1.5`. Format de données conservé : v16.
 
 ## Publier la nouvelle version
 
@@ -9,7 +9,7 @@ ne suffit pas : il faut publier les fichiers sur l’hébergement de cette appli
 
 1. Depuis l’application actuelle, exporter une **Sauvegarde complète** dans
    **Plus → Compte & application → Mes données**.
-2. Extraire `Parcelles_7_1_4_Pret_a_deployer.zip` et publier **tous les fichiers
+2. Extraire `Parcelles_7_1_5_Pret_a_deployer.zip` et publier **tous les fichiers
    extraits**, ensemble, à l’emplacement actuel de l’application. Ce ZIP est
    entièrement à plat : `index.html`, `sw.js`, `leaflet.min.js`,
    `leaflet.min.css`, `xlsx.full.min.js` et `shp.min.js` sont à la racine.
@@ -19,7 +19,7 @@ ne suffit pas : il faut publier les fichiers sur l’hébergement de cette appli
    reprend ceux du projet fourni.
 4. Ouvrir Parcelles depuis son icône, avec Internet. Accepter **Mettre à jour**
    si proposé, puis fermer complètement l’application et la rouvrir si nécessaire.
-5. Vérifier le build `2026.09.19-v7.1.4` dans **Plus**, puis ouvrir **Mes données →
+5. Vérifier le build `2026.09.19-v7.1.5` dans **Plus**, puis ouvrir **Mes données →
    Diagnostic** et vérifier l’absence de ressources manquantes.
 
 Ne pas supprimer les données du site ni réinstaller l’icône : les données de
@@ -27,6 +27,16 @@ l’exploitation sont stockées sur cet appareil. Si l’ancien build persiste,
 utiliser **Mise à jour** dans le diagnostic après la publication ; au besoin,
 **Nettoyer cache** permet de recharger les fichiers applicatifs. Conserver la
 sauvegarde exportée tant que la mise à jour et les données ne sont pas vérifiées.
+
+## Vérifier la correction des formulaires
+
+Après publication, ouvrir **Travaux → Nouveau travail**, puis toucher les listes
+**Parcelle**, **Modèle** et **Statut**. La fenêtre doit rester ouverte pendant la
+sélection et conserver la saisie. Le bouton **Enregistrer** valide le travail ;
+**Annuler** ou la croix permettent de quitter le formulaire.
+
+Cette correction ne nécessite aucune réimportation et ne modifie pas les données
+déjà enregistrées. Le nouveau build force la mise à jour des fichiers applicatifs.
 
 ## Réparer les accents déjà enregistrés
 
