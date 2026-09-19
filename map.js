@@ -16,7 +16,7 @@ function bboxSquare(lat,lon,radiusKm){
 export class ParcelMap{
   constructor({onSelect=null,onToast=null,onPointPlaced=null}={}){
     this.onSelect=onSelect;this.onToast=onToast;this.onPointPlaced=onPointPlaced;
-    this.map=null;this.layers={};this.baseLayer=null;this.lastState={parcelles:[],points:[]};this.selectedId=null;this.watchId=null;this.gpsMarker=null;this.colorMode='culture';this.rpgVisible=false;this.rpgData=null;this.pointPlacementHandler=null;this.polygonDraw=null;this.measure=null;this.followGps=false;this.unavailable=false;
+    this.map=null;this.layers={};this.baseLayer=null;this.baseLayerName=null;this.lastState={parcelles:[],points:[]};this.selectedId=null;this.watchId=null;this.gpsMarker=null;this.colorMode='culture';this.rpgVisible=false;this.rpgData=null;this.pointPlacementHandler=null;this.polygonDraw=null;this.measure=null;this.followGps=false;this.unavailable=false;
   }
 
   init(){
@@ -25,26 +25,28 @@ export class ParcelMap{
     this.unavailable=false;const el=document.querySelector('#map');if(el)el.innerHTML='';
     this.map=L.map('map',{zoomControl:false,preferCanvas:true}).setView(DEFAULT_CENTER,12);
     L.control.zoom({position:'bottomright'}).addTo(this.map);
-    this.layers.parcels=L.layerGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);
+    this.layers.parcels=L.featureGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);
     this.setBaseLayer('osm');
   }
 
   setBaseLayer(name='osm'){
     this.init();if(!this.map)return;
+    name=name==='satellite'?'satellite':'osm';
+    if(this.baseLayer&&this.baseLayerName===name)return;
     if(this.baseLayer)this.map.removeLayer(this.baseLayer);
     if(name==='satellite'){
       this.baseLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,attribution:'Tiles © Esri — Sources Esri, Maxar, Earthstar Geographics'});
     }else{
       this.baseLayer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors'});
     }
-    this.baseLayer.addTo(this.map);
+    this.baseLayer.addTo(this.map);this.baseLayerName=name;
   }
 
-  setColorMode(mode){this.colorMode=mode==='status'?'status':'culture';this.render(this.lastState);}
+  setColorMode(mode){const next=mode==='status'?'status':'culture';if(this.colorMode===next)return;this.colorMode=next;this.render(this.lastState);}
   colorFor(parcel){return this.colorMode==='status'?statusColor(parcel.status):cultureColor(parcel.culture||'Sans culture');}
 
   render(state){
-    this.init();if(!this.map)return;this.lastState=state;
+    this.lastState=state;this.init();if(!this.map)return;
     const parcels=(state.parcelles||[]).filter(item=>!item.deletedAt),points=(state.points||[]).filter(item=>!item.deletedAt);this.layers.parcels.clearLayers();this.layers.points.clearLayers();
     parcels.filter(parcel=>parcel.geometry).forEach(parcel=>this.addParcel(parcel));
     points.filter(point=>Number.isFinite(Number(point.latitude))&&Number.isFinite(Number(point.longitude))).forEach(point=>{

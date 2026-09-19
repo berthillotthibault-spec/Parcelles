@@ -1,5 +1,5 @@
 export const APP_VERSION = 16;
-export const BUILD_ID = '2026.09.15-v7.1.2';
+export const BUILD_ID = '2026.09.18-v7.1.3';
 export const ENTITY_TYPES = [
   'parcelles','interventions','tasks','rotations','grazingSessions','materiels',
   'products','clients','documents','photos','points','templates','importSessions','syncConflicts','notifications','observations','stockItems','stockMovements','maintenanceRecords','routeSessions','fieldSessions','chantiers','members','assistantMessages','devices','automationRules','automationRuns','gpsTracks','integrationImports','weatherStations','platformJobs','platformEvents'

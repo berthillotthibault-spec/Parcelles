@@ -38,12 +38,12 @@ export class NativeBridge{
     document.documentElement.dataset.nativePlatform=nativePlatform();
     const app=plugin('App');
     if(app?.addListener){
-      this.listeners.push(await app.addListener('appUrlOpen',event=>window.dispatchEvent(new CustomEvent('parcelles:deep-link',{detail:event}))));
-      this.listeners.push(await app.addListener('appStateChange',event=>{
+      try{this.listeners.push(await app.addListener('appUrlOpen',event=>window.dispatchEvent(new CustomEvent('parcelles:deep-link',{detail:event}))));}catch{}
+      try{this.listeners.push(await app.addListener('appStateChange',event=>{
         this.lastState=event;
         if(event?.isActive===false)this.lastBackgroundAt=Date.now();
         window.dispatchEvent(new CustomEvent('parcelles:native-state',{detail:{...event,backgroundAt:this.lastBackgroundAt}}));
-      }));
+      }));}catch{}
     }
     await this.initNotifications();
     await this.initKeyboard();
@@ -73,7 +73,11 @@ export class NativeBridge{
   }
   async configureStatusBar(){
     const s=plugin('StatusBar');if(!s)return false;
-    try{await s.setOverlaysWebView?.({overlay:false});await s.setStyle?.({style:'DARK'});return true;}catch{return false;}
+    // Un réglage non pris en charge ne doit pas empêcher les suivants ni bloquer le démarrage.
+    let configured=false;
+    try{if(s.setOverlaysWebView){await s.setOverlaysWebView({overlay:false});configured=true;}}catch{}
+    try{if(s.setStyle){await s.setStyle({style:'DARK'});configured=true;}}catch{}
+    return configured;
   }
   async destroy(){for(const listener of this.listeners){try{await listener.remove?.();}catch{}}this.listeners=[];this.initialized=false;}
   async haptic(style='medium'){

@@ -8,6 +8,7 @@
   --r-sm:10px;--r-control:12px;--r-card:16px;--r-large:20px;--r-sheet:24px;
   --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:20px;--s6:24px;--s7:32px;--s8:40px;
   --header-h:62px;--nav-h:72px;--sidebar-w:268px;
+  --safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);
   --color-bg:var(--bg);--color-surface:var(--surface);--color-surface-2:var(--surface-secondary);
   --color-text:var(--text-primary);--color-text-2:var(--text-secondary);--color-primary:var(--brand);--color-primary-pressed:var(--brand-hover);--color-primary-soft:var(--brand-soft);
   --color-success:var(--success);--color-warning:var(--warning);--color-danger:var(--danger);--color-info:var(--info);--border:var(--border-subtle);
