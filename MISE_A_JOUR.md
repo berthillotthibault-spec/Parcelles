@@ -1,37 +1,60 @@
-# Mettre à jour Parcelles 7.1.3
+# Mettre à jour Parcelles 7.1.4 sur iPhone
 
-Build attendu : `2026.09.18-v7.1.3`. Format de données conservé : v16.
+Build attendu : `2026.09.19-v7.1.4`. Format de données conservé : v16.
 
-## Application iPhone ajoutée à l’écran d’accueil
+## Publier la nouvelle version
 
-L’icône ouvre le site installé. Ouvrir ce ZIP sur l’iPhone ne met pas
-l’application à jour : les fichiers corrigés doivent être publiés sur son
-hébergement actuel.
+L’icône sur l’écran d’accueil ouvre le site installé. Ouvrir le ZIP sur l’iPhone
+ne suffit pas : il faut publier les fichiers sur l’hébergement de cette application.
 
-1. Exporter une sauvegarde depuis l’application avant la mise en production.
-2. Publier **tout le contenu** de `dist-github-root/` dans le répertoire qui
-   héberge déjà l’application, ou utiliser le ZIP prêt à déployer. `index.html`,
-   `sw.js`, les fichiers JS/CSS et le dossier `vendor/` doivent rester ensemble.
-3. Conserver le domaine, le chemin d’accès, le manifeste et le `config.js` de
-   l’installation existante si celui-ci a été personnalisé. Le fichier fourni
-   reprend celui du projet transmis.
-4. Ouvrir Parcelles depuis son icône avec Internet. Appuyer sur **Mettre à jour**
-   si le message apparaît. Au besoin, fermer complètement l’application puis
-   la rouvrir après publication.
-5. Vérifier en bas de **Plus** le build `2026.09.18-v7.1.3`, puis essayer
-   Recherche, Notifications, Carte/Couches et une fenêtre en portrait/paysage.
+1. Depuis l’application actuelle, exporter une **Sauvegarde complète** dans
+   **Plus → Compte & application → Mes données**.
+2. Extraire `Parcelles_7_1_4_Pret_a_deployer.zip` et publier **tous les fichiers
+   extraits**, ensemble, à l’emplacement actuel de l’application. Ce ZIP est
+   entièrement à plat : `index.html`, `sw.js`, `leaflet.min.js`,
+   `leaflet.min.css`, `xlsx.full.min.js` et `shp.min.js` sont à la racine.
+   Ne pas publier le ZIP lui-même comme s’il s’agissait du site.
+3. Conserver le domaine et le chemin de l’application. Si `config.js` a été
+   personnalisé sur l’hébergement, conserver ses paramètres. La livraison
+   reprend ceux du projet fourni.
+4. Ouvrir Parcelles depuis son icône, avec Internet. Accepter **Mettre à jour**
+   si proposé, puis fermer complètement l’application et la rouvrir si nécessaire.
+5. Vérifier le build `2026.09.19-v7.1.4` dans **Plus**, puis ouvrir **Mes données →
+   Diagnostic** et vérifier l’absence de ressources manquantes.
 
-La mise à jour remplace les fichiers applicatifs ; elle ne supprime pas la base
-IndexedDB des parcelles. Ne pas effacer les données du site ou réinstaller
-l’icône pour cette mise à jour, car les données sont stockées sur cet appareil.
-Si le build reste ancien, ouvrir le diagnostic depuis les outils avancés de
-l’application pour vérifier le déploiement et réinitialiser le cache applicatif.
+Ne pas supprimer les données du site ni réinstaller l’icône : les données de
+l’exploitation sont stockées sur cet appareil. Si l’ancien build persiste,
+utiliser **Mise à jour** dans le diagnostic après la publication ; au besoin,
+**Nettoyer cache** permet de recharger les fichiers applicatifs. Conserver la
+sauvegarde exportée tant que la mise à jour et les données ne sont pas vérifiées.
 
-Après un premier chargement complet connecté, l’interface, les données locales,
-les géométries et les bibliothèques carte/import fonctionnent hors connexion.
-Le fond cartographique distant, la météo et le cloud demandent encore du réseau.
+## Réparer les accents déjà enregistrés
+
+La correction de l’import empêche les nouvelles pertes de caractères. Les textes
+déjà stockés avec `�` ou `?` demandent une réparation distincte :
+
+1. Aller dans **Plus → Compte & application → Mes données → Réparer les accents**.
+2. Vérifier l’aperçu : par exemple `Ma�s grain` devient `Maïs grain` et
+   `Prairie perm. p�t fauch�e` devient `Prairie perm. pât fauchée`.
+3. Appuyer sur **Sauvegarder et réparer**. Une sauvegarde locale confirmée est
+   obligatoire avant l’écriture. Les identifiants, surfaces, contours, notes,
+   pièces jointes et travaux sont conservés.
+4. Si des valeurs restent sans correspondance certaine, sélectionner le fichier
+   d’origine dans cette même fenêtre. Pour un SHP, sélectionner le ZIP complet
+   ou les fichiers associés, notamment SHP et DBF, ainsi que le CPG s’il existe.
+   Le fichier sert à proposer les corrections des textes ; il ne réimporte pas
+   les parcelles. Seuls les identifiants source uniques peuvent être rapprochés.
+
+Les caractères perdus ne sont pas toujours déductibles. Un texte non reconnu ou
+une correspondance ambiguë reste inchangé. La réparation ne devine pas les noms
+et n’a pas besoin de réimporter l’exploitation entière.
+
+La sauvegarde préalable se retrouve dans **Mes données → Sauvegardes automatiques**,
+sous le libellé **Avant correction des accents**.
 
 ## Reconstruire les distributions
+
+Dans le projet complet, avec Node.js et npm disponibles :
 
 ```sh
 npm test
@@ -41,14 +64,22 @@ npm run build:ios
 npm run native:doctor
 ```
 
-`vendor/` est déjà inclus. Le test navigateur facultatif se lance avec
-`npm run test:browser` après installation de Playwright et de ses navigateurs.
-Variables optionnelles : `BROWSER_TYPE=webkit`, `BROWSER_CHANNEL=msedge`,
-`SITE_PATH=/dist-github-root/` et `SCREENSHOT_DIR`. Par défaut : Chromium, sources.
+Les bibliothèques sont incluses dans le dossier source `vendor/` et copiées à
+la racine des distributions. `node scripts/preflight.mjs dist-github-root --flat`
+vérifie aussi la distribution à publier.
 
-## Enveloppe native et services facultatifs
+Le test navigateur se lance avec `npm run test:browser` si Playwright et un
+navigateur sont installés. Variables optionnelles : `PLAYWRIGHT_MODULE`,
+`BROWSER_TYPE=webkit`, `BROWSER_CHANNEL=msedge`,
+`SITE_PATH=/dist-github-root/` et `SCREENSHOT_DIR`.
 
-`dist-ios/` est fourni pour Capacitor. Compiler et signer une application native
-exige Xcode sur Mac ; cela n’a pas été réalisé ici. Les fichiers Firebase et le
-serveur d’exemple sont conservés. Aucun hébergement ni service cloud de
-production n’a été modifié par cette livraison.
+Après un chargement complet connecté, l’interface, les données locales, les
+géométries et les bibliothèques carte/import sont disponibles hors connexion.
+Les fonds cartographiques distants, la météo et le cloud nécessitent du réseau.
+
+## Limites de livraison
+
+Aucun hébergement de production n’a été modifié. La validation navigateur utilise
+des dimensions et marges iPhone simulées, sans test sur un iPhone physique.
+`dist-ios/` est fourni pour Capacitor ; compilation et signature natives
+nécessitent Xcode sur Mac et n’ont pas été effectuées.

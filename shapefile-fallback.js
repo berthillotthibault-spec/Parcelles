@@ -4,15 +4,36 @@
  * Il est utilisé uniquement si shpjs est absent ou échoue.
  */
 
-function decoderFor(cpg=''){
-  const value=String(cpg||'').trim().toLowerCase();
-  const encoding=value.includes('utf')?'utf-8':value.includes('850')?'ibm850':'windows-1252';
-  try{return new TextDecoder(encoding);}catch{return new TextDecoder('windows-1252');}
+import {normalizeTextEncoding} from './text-encoding.js';
+
+export function dbfEncoding(buffer,{cpg=''}={}){
+  const explicit=normalizeTextEncoding(cpg);if(explicit)return explicit;
+  const bytes=new Uint8Array(buffer),view=new DataView(buffer);
+  if(bytes.length<32)throw new Error('DBF trop court.');
+  // The language driver is present in DBF exports even when .cpg is absent.
+  const languageEncodings={0x03:'windows-1252',0x57:'windows-1252',0x58:'windows-1252',0x59:'windows-1252',0xc8:'windows-1250',0xc9:'windows-1251',0xca:'windows-1254',0xcb:'windows-1253',0xcc:'windows-1257'};
+  if(languageEncodings[bytes[29]])return languageEncodings[bytes[29]];
+  const count=view.getUint32(4,true),header=view.getUint16(8,true),length=view.getUint16(10,true);
+  if(header<33||header>bytes.length||length<2)throw new Error('En-tête DBF invalide.');
+  // Inspect character fields only: binary headers/numbers are not text samples.
+  const fields=[];let fieldOffset=1;
+  for(let offset=32;offset+32<=header&&bytes[offset]!==0x0d;offset+=32){
+    const size=bytes[offset+16];if(bytes[offset+11]===0x43)fields.push({offset:fieldOffset,size});fieldOffset+=size;
+  }
+  const utf8=new TextDecoder('utf-8',{fatal:true});
+  try{
+    for(let i=0;i<count;i++){
+      const start=header+i*length;if(start+length>bytes.length)break;
+      if(bytes[start]===0x2a)continue;
+      for(const field of fields)utf8.decode(bytes.subarray(start+field.offset,start+field.offset+field.size));
+    }
+    return'utf-8';
+  }catch{return'windows-1252';}
 }
 const ascii=new TextDecoder('ascii');
 
 export function parseDbf(buffer,{cpg=''}={}){
-  const view=new DataView(buffer);const bytes=new Uint8Array(buffer);const decoder=decoderFor(cpg);
+  const view=new DataView(buffer);const bytes=new Uint8Array(buffer);const encoding=dbfEncoding(buffer,{cpg});const decoder=new TextDecoder(encoding,{fatal:true});
   if(bytes.length<32)throw new Error('DBF trop court.');
   const recordCount=view.getUint32(4,true),headerLength=view.getUint16(8,true),recordLength=view.getUint16(10,true);
   if(headerLength<33||recordLength<2||headerLength>bytes.length)throw new Error('En-tête DBF invalide.');
@@ -43,7 +64,7 @@ export function parseDbf(buffer,{cpg=''}={}){
     }
     records.push(row);
   }
-  return{records,fields,recordCount,headerLength,recordLength};
+  return{records,fields,recordCount,headerLength,recordLength,encoding};
 }
 
 function closeRing(ring){
@@ -142,5 +163,5 @@ export function combineShpDbf(shpResult,dbfResult){
 
 export function parseShpDbf({shp,dbf,prj='',cpg=''}){
   const shpResult=parseShp(shp,{prj});const dbfResult=parseDbf(dbf,{cpg});
-  return{geojson:combineShpDbf(shpResult,dbfResult),diagnostic:{shapeType:shpResult.shapeType,projection:shpResult.projection,shapeCount:shpResult.shapes.length,recordCount:dbfResult.records.length,fields:dbfResult.fields.map(f=>f.name)}};
+  return{geojson:combineShpDbf(shpResult,dbfResult),diagnostic:{shapeType:shpResult.shapeType,projection:shpResult.projection,shapeCount:shpResult.shapes.length,recordCount:dbfResult.records.length,fields:dbfResult.fields.map(f=>f.name),encoding:dbfResult.encoding}};
 }
