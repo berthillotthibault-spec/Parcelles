@@ -46,5 +46,5 @@ export async function requestNotificationPermission(){
 
 export function showBrowserNotification(title,options={}){
   if(!('Notification'in window)||Notification.permission!=='granted')return false;
-  try{new Notification(title,{icon:'./icons/icon-192.png',badge:'./icons/icon-192.png',...options});return true;}catch{return false;}
+  try{new Notification(title,{icon:'./icon-192.png',badge:'./icon-192.png',...options});return true;}catch{return false;}
 }

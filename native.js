@@ -107,7 +107,7 @@ export class NativeBridge{
       const numericId=Math.max(1,Math.abs(Number(id)||hashCode(String(id||title)))%2147483647);
       await p.schedule({notifications:[{id:numericId,title,body,schedule:at?{at:new Date(at)}:undefined,extra,actionTypeId}]});return true;
     }
-    if(!at&&'Notification'in window&&Notification.permission==='granted'){new Notification(title,{body,icon:'./icons/icon-192.png',data:extra});return true;}
+    if(!at&&'Notification'in window&&Notification.permission==='granted'){new Notification(title,{body,icon:'./icon-192.png',data:extra});return true;}
     return false;
   }
   async pendingNotifications(){

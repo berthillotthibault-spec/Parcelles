@@ -1,6 +1,7 @@
 import {APP_VERSION, BUILD_ID, ENTITY_TYPES, campaignFor, checksum, clone, escapeHtml, geometryAreaHa, normalize, parseImportDate, toNullableNumber, uid, validateGeometry, validateIntervention, validateParcel} from './utils.js';
 import {migrateData, normalizeEntity} from './state.js';
-import {parseShpDbf} from './shapefile-fallback.js';
+import {dbfEncoding, parseDbf, parseShpDbf} from './shapefile-fallback.js';
+import {readImportText} from './text-encoding.js';
 import {createZip, readZip} from './zip-lite.js';
 
 const IMPORT_ENGINE_BUILD=`import-${BUILD_ID}`;
@@ -104,7 +105,11 @@ async function tryShpJs(payload){
   catch(error){console.warn('[Parcelles] shpjs a échoué, bascule vers le lecteur interne.',error);return null;}
 }
 async function parseShapefileParts({name,shp,dbf,prj='',cpg=''}){
-  let result=await tryShpJs({shp,dbf,prj,cpg});let engine='shpjs';let diagnostic=null;
+  cpg=dbfEncoding(dbf,{cpg});
+  // shpjs defaults to non-fatal UTF-8 and otherwise silently produces U+FFFD.
+  // Validate the declared encoding before handing the same label to either engine.
+  parseDbf(dbf,{cpg});
+  let result=await tryShpJs({shp,dbf,prj,cpg});let engine='shpjs';let diagnostic={encoding:cpg};
   if(!result){const fallback=parseShpDbf({shp,dbf,prj,cpg});result=fallback.geojson;diagnostic=fallback.diagnostic;engine='interne';}
   const rows=flattenGeoJson(result);if(!rows.length)throw new Error('Aucune géométrie n’a été produite.');
   return{name,type:'geojson',value:result,engine,diagnostic};
@@ -127,8 +132,8 @@ async function readZipEntries(file){
 }
 async function zipContent(file){
   const entries=await readZipEntries(file);
-  const geo=entries.find(entry=>/\.(geo)?json$/i.test(entry.name));if(geo)return[{name:geo.name,type:'geojson',value:JSON.parse(await geo.text()),engine:'json'}];
-  const csv=entries.find(entry=>/\.csv$/i.test(entry.name));if(csv)return[{name:csv.name,type:'csv',value:await csv.text(),engine:'csv'}];
+  const geo=entries.find(entry=>/\.(geo)?json$/i.test(entry.name));if(geo)return[{name:geo.name,type:'geojson',value:JSON.parse(await readImportText(geo)),engine:'json'}];
+  const csv=entries.find(entry=>/\.csv$/i.test(entry.name));if(csv)return[{name:csv.name,type:'csv',value:await readImportText(csv),engine:'csv'}];
   const groups=new Map();
   for(const entry of entries){const ext=extensionOf(entry.name);if(!['.shp','.shx','.dbf','.prj','.cpg'].includes(ext))continue;const base=baseNameOf(entry.name.split('/').pop()),key=normalize(base);if(!groups.has(key))groups.set(key,{base,parts:{}});groups.get(key).parts[ext.slice(1)]=entry;}
   if(!groups.size)throw new Error('Aucun jeu SHP, GeoJSON ou CSV reconnu dans le ZIP.');
@@ -149,10 +154,8 @@ async function looseShapefileContent(group){
 function classifyRows(rows,state){
   const existing=state.parcelles.filter(item=>!item.deletedAt);let duplicates=0,newRows=0,changed=0;const duplicateDetails=[];
   rows.filter(row=>row.nom&&!row.type).forEach(row=>{
-    const idMatch=row.sourceId&&existing.find(item=>item.sourceId&&item.sourceId===row.sourceId);
-    const labelMatch=existing.find(item=>normalize(item.nom)===normalize(row.nom)&&(!row.commune||normalize(item.commune)===normalize(row.commune)));
-    const match=idMatch||labelMatch;
-    if(match){duplicates++;const differs=['culture','surfaceHa','commune','ilot','geometry'].some(key=>JSON.stringify(match[key]??null)!==JSON.stringify(row[key]??null));if(differs)changed++;duplicateDetails.push({row,match,reason:idMatch?'Identifiant source':'Nom + commune'});}else newRows++;
+    const match=parcelMatch(row,existing);
+    if(match){duplicates++;const differs=['culture','surfaceHa','commune','ilot','geometry'].some(key=>JSON.stringify(match[key]??null)!==JSON.stringify(row[key]??null));if(differs)changed++;duplicateDetails.push({row,match,reason:row.sourceId&&match.sourceId===row.sourceId?'Identifiant source':'Nom + commune'});}else newRows++;
   });
   return{duplicates,newRows,changed,duplicateDetails};
 }
@@ -177,10 +180,10 @@ export async function inspectFiles(files,state,mapping={}){
     await yieldMain();
     try{
       const ext=extensionOf(file.name);let sources=[];
-      if(ext==='.csv'){const sets=csvRows(await file.text());sources=sets.map(s=>({file:file.name,type:'csv',...s,hasGeometry:false,engine:'PapaParse'}));}
+      if(ext==='.csv'){const sets=csvRows(await readImportText(file));sources=sets.map(s=>({file:file.name,type:'csv',...s,hasGeometry:false,engine:'PapaParse'}));}
       else if(['.xlsx','.xls'].includes(ext)){const sets=await spreadsheetRows(await file.arrayBuffer());sources=sets.map(s=>({file:file.name,type:'sheet',...s,hasGeometry:false,engine:'SheetJS'}));}
-      else if(['.json','.geojson'].includes(ext)){const value=JSON.parse(await file.text()),rows=flattenGeoJson(value);sources=[{file:file.name,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:rows.some(r=>r.geometry),engine:'JSON'}];}
-      else if(ext==='.xml'){const sets=xmlRows(await file.text());sources=sets.map(s=>({file:file.name,type:'xml',...s,hasGeometry:false,engine:'DOMParser'}));}
+      else if(['.json','.geojson'].includes(ext)){const value=JSON.parse(await readImportText(file)),rows=flattenGeoJson(value);sources=[{file:file.name,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:rows.some(r=>r.geometry),engine:'JSON'}];}
+      else if(ext==='.xml'){const sets=xmlRows(await readImportText(file));sources=sets.map(s=>({file:file.name,type:'xml',...s,hasGeometry:false,engine:'DOMParser'}));}
       else if(ext==='.zip'){const inputs=await zipContent(file);for(const input of inputs){if(input.type==='csv'){const sets=csvRows(input.value);sources.push(...sets.map(s=>({file:`${file.name}/${input.name}`,type:'csv',...s,hasGeometry:false,engine:'PapaParse'})));}else{const rows=flattenGeoJson(input.value);sources.push({file:`${file.name}/${input.name}`,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:true,engine:input.engine,diagnostic:input.diagnostic});}}}
       else throw new Error(`Format ${ext||'sans extension'} non pris en charge.`);
       parsed.push(...sources);
@@ -210,7 +213,15 @@ export function previewNeedsMapping(preview){return preview.sources.length>0&&pr
 export function mappingOptions(preview){return[...new Set(preview.sources.flatMap(s=>s.headers||[]))].sort((a,b)=>a.localeCompare(b,'fr'));}
 
 function parcelMatch(row,parcels){
-  return(row.sourceId&&parcels.find(item=>!item.deletedAt&&item.sourceId===row.sourceId))||parcels.find(item=>!item.deletedAt&&normalize(item.nom)===normalize(row.nom)&&(!row.commune||normalize(item.commune)===normalize(row.commune)));
+  const active=parcels.filter(item=>!item.deletedAt);
+  if(row.sourceId){
+    const byId=active.filter(item=>item.sourceId===row.sourceId);
+    if(byId.length)return byId.length===1?byId[0]:null;
+  }
+  // Homonymous parcels are distinct when their source identifiers differ.
+  // A label-only match is safe only when it identifies exactly one candidate.
+  const byLabel=active.filter(item=>(!row.sourceId||!item.sourceId)&&normalize(item.nom)===normalize(row.nom)&&(!row.commune||normalize(item.commune)===normalize(row.commune)));
+  return byLabel.length===1?byLabel[0]:null;
 }
 
 export async function applyImport(preview,store,strategy='merge'){
@@ -233,11 +244,9 @@ export async function applyImport(preview,store,strategy='merge'){
       entity=normalizeEntity('parcelles',entity);dynamicParcels.push(entity);created++;
     }
   }
-  // Rebuild dynamic indexes AFTER parcels have been staged, so interventions from the same import can resolve them.
-  const bySource=new Map(dynamicParcels.filter(p=>!p.deletedAt&&p.sourceId).map(p=>[p.sourceId,p]));
-  const byName=new Map(dynamicParcels.filter(p=>!p.deletedAt).map(p=>[normalize(p.nom),p]));
+  // Resolve against all staged parcels, using the same unambiguous match as the preview.
   for(const row of workRows){
-    const parcel=(row.sourceId&&bySource.get(row.sourceId))||byName.get(normalize(row.nom));if(!parcel){skipped++;continue;}
+    const parcel=parcelMatch(row,dynamicParcels);if(!parcel){skipped++;continue;}
     const date=parseImportDate(row.date);if(!date){skipped++;continue;}
     const raw={parcelId:parcel.id,date,type:row.type,product:row.product,dose:row.dose,doseUnit:row.doseUnit,cost:row.cost??0,campaignId:campaignFor(date),source:'import',status:'Terminé'};
     if(validateIntervention(raw).length){skipped++;continue;}

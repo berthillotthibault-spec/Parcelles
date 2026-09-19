@@ -1,4 +1,4 @@
-const BUILD='2026.09.18-v7.1.3';
+const BUILD='2026.09.19-v7.1.4';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
@@ -8,8 +8,9 @@ const CORE=[
  './','./index.html','./manifest.webmanifest','./parcelles.svg','./config.js',
  './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css',
  './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',
+ './text-encoding.js','./text-repair.js',
  './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png',
- './vendor/leaflet.min.css','./vendor/leaflet.min.js','./vendor/marker-icon.png','./vendor/marker-icon-2x.png','./vendor/marker-shadow.png','./vendor/xlsx.full.min.js','./vendor/shp.min.js'
+ './leaflet.min.css','./leaflet.min.js','./marker-icon.png','./marker-icon-2x.png','./marker-shadow.png','./layers.png','./layers-2x.png','./xlsx.full.min.js','./shp.min.js'
 ];
 
 async function fetchWithTimeout(request,ms=4500){

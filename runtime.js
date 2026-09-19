@@ -5,8 +5,9 @@ const REQUIRED_ASSETS = [
   './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css',
   './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
   './shapefile-fallback.js','./zip-lite.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
+  './text-encoding.js','./text-repair.js',
   './manifest.webmanifest','./parcelles.svg','./config.js'
-  ,'./vendor/leaflet.min.css','./vendor/leaflet.min.js','./vendor/xlsx.full.min.js','./vendor/shp.min.js'
+  ,'./leaflet.min.css','./leaflet.min.js','./xlsx.full.min.js','./shp.min.js'
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}
