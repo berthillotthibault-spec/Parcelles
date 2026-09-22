@@ -1,0 +1,18 @@
+.grazing-group{padding:14px 0;border-bottom:1px solid var(--border);overflow-wrap:anywhere}
+.grazing-group:last-child{border-bottom:0}
+.grazing-group p{margin:6px 0}
+.grazing-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.grazing-heading>div{min-width:0}
+.grazing-heading .badge{flex-shrink:0}
+.grazing-animals{list-style:none;padding:0;margin:10px 0;display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow:auto;overscroll-behavior:contain}
+.grazing-animals li{background:var(--surface-secondary,var(--color-surface-2));padding:7px 10px;border-radius:10px;font-size:14px}
+.grazing-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.grazing-actions button{min-height:44px}
+.grazing-map-summary{display:grid;gap:4px;margin-top:8px;overflow-wrap:anywhere}
+.grazing-map-summary small{color:var(--text-secondary);font-size:13px;max-height:56px;overflow:auto}
+.grazing-map-summary .text-button{justify-self:start;padding-left:0;font-size:14px}
+.parcel-grazing .panel-heading{flex-wrap:wrap}
+.parcel-grazing h2{font-size:20px}
+.grazing-count{color:var(--color-primary);font-weight:700}
+.leaflet-popup .grazing-map-summary strong{color:#18251e}
+.leaflet-popup .grazing-map-summary small{color:#526158}

@@ -1,4 +1,4 @@
-const BUILD='2026.09.19-v7.1.5';
+const BUILD='2026.09.22-v7.1.7';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
@@ -6,9 +6,9 @@ const STATIC=`${PREFIX}static-${BUILD}`;
 const RUNTIME=`${PREFIX}runtime-${BUILD}`;
 const CORE=[
  './','./index.html','./manifest.webmanifest','./parcelles.svg','./config.js',
- './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css',
+ './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css','./assistant-launcher.css','./grazing.css','./public-works.css',
  './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',
- './text-encoding.js','./text-repair.js',
+ './text-encoding.js','./text-repair.js','./rpg.js','./map-records.js','./grazing.js','./grazing-ui.js','./grazing-records.js','./public-works.js','./public-works-ui.js',
  './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png',
  './leaflet.min.css','./leaflet.min.js','./marker-icon.png','./marker-icon-2x.png','./marker-shadow.png','./layers.png','./layers-2x.png','./xlsx.full.min.js','./shp.min.js'
 ];
