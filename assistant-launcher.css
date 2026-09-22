@@ -1,0 +1,30 @@
+/* Keep the assistant within the iPhone safe area, above the navigation. */
+.assistant-launcher{
+  position:fixed;z-index:36;
+  right:calc(max(12px,var(--safe-right)) + 4px);
+  bottom:calc(64px + max(8px,var(--safe-bottom)) + 12px);
+  width:60px;height:60px;padding:7px;border:2px solid var(--surface);
+  border-radius:50%;background:#286a4a;color:#fff;box-shadow:var(--shadow-float);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  touch-action:manipulation;
+}
+.assistant-launcher span{font-size:11px;font-weight:800;line-height:1}
+.assistant-launcher:hover{background:#20583d}
+.assistant-launcher:focus-visible{outline:3px solid var(--brand);outline-offset:4px}
+/* Scrolling to the end leaves the final list actions clear of the bubble. */
+.view:not(.map-view) .page-container{padding-bottom:110px}
+/* Focus remains in the active dialog or map task. The bubble returns on close. */
+.modal-root.has-modal ~ .assistant-launcher,
+body:has(.field-mode-overlay) .assistant-launcher,
+html[data-native-locked="true"] .assistant-launcher,
+body:has(#view-map.is-active .map-bottom-sheet:not(.is-empty)) .assistant-launcher,
+body:has(#view-map.is-active .map-draw-panel:not(.hidden)) .assistant-launcher,
+body:has(#view-map.is-active .leaflet-popup) .assistant-launcher,
+body:has(#view-map.is-active .map-search-results:not(.hidden)) .assistant-launcher{display:none}
+@media(orientation:landscape) and (max-height:540px){
+  .assistant-launcher{bottom:calc(58px + max(4px,var(--safe-bottom)) + 10px);width:54px;height:54px}
+}
+@media(min-width:1024px){
+  .assistant-launcher{right:24px;bottom:24px}
+}
+@media print{.assistant-launcher{display:none}}

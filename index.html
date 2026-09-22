@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#286a4a">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="application-name" content="Parcelles 7.1">
-  <meta name="parcelles-build" content="2026.09.19-v7.1.5">
+  <meta name="parcelles-build" content="2026.09.22-v7.1.7">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -20,6 +20,9 @@
   <link rel="stylesheet" href="./screens.css">
   <link rel="stylesheet" href="./responsive.css">
   <link rel="stylesheet" href="./accessibility.css">
+  <link rel="stylesheet" href="./assistant-launcher.css">
+  <link rel="stylesheet" href="./grazing.css">
+  <link rel="stylesheet" href="./public-works.css">
   <title>Parcelles</title>
 </head>
 <body>
@@ -106,6 +109,7 @@
           <div id="map-legend" class="map-legend"></div>
           <div id="map-draw-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong>Dessiner la parcelle</strong><small id="map-draw-count">Touchez la carte pour placer les sommets.</small></div><button class="small-button" data-action="undo-draw-point">Annuler le point</button><button class="small-button" data-action="cancel-parcel-draw">Quitter</button><button class="button primary" data-action="finish-parcel-draw">Terminer</button></div>
           <div id="map-measure-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong id="measure-title">Mesure</strong><small id="measure-value">Touchez la carte.</small></div><button class="small-button" data-action="undo-measure-point">Annuler le point</button><button class="small-button" data-action="cancel-measure">Quitter</button><button class="button primary" data-action="finish-measure">Terminer</button></div>
+          <div id="map-point-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong id="point-placement-title">Placer un point</strong><small>Touchez le nouvel emplacement sur la carte, puis confirmez.</small></div><button class="button secondary" data-action="cancel-map-point">Annuler</button></div>
           <aside id="map-parcel-sheet" class="map-bottom-sheet is-empty" aria-live="polite"></aside>
         </div>
       </section>
@@ -118,7 +122,7 @@
             <button class="button secondary icon-only" data-action="parcel-filters" aria-label="Filtrer et trier"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M7 12h10M10 19h4"/></svg></button>
             <label class="compact-select sr-only">Trier <select id="parcel-sort"><option value="name">Nom</option><option value="surface-desc">Surface ↓</option><option value="surface-asc">Surface ↑</option><option value="culture">Culture</option><option value="commune">Commune</option><option value="recent">Dernier travail</option><option value="distance">Distance</option></select></label>
           </div>
-          <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button><button class="filter-chip" data-parcel-filter="archived">Archivées</button></div>
+          <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button><button class="filter-chip" data-parcel-filter="grazing">Animaux au pré</button><button class="filter-chip" data-parcel-filter="empty-pasture">Sans animaux</button><button class="filter-chip" data-parcel-filter="archived">Archivées</button></div>
           <div id="recent-parcels" class="recent-strip"></div>
           <div id="parcel-list" class="parcel-list" aria-live="polite"></div>
         </div>
@@ -187,6 +191,10 @@
 
   <div id="modal-root" class="modal-root" aria-live="polite"></div>
   <div id="toast-root" class="toast-region" aria-live="polite"></div>
+  <button id="assistant-launcher" class="assistant-launcher" type="button" data-action="open-assistant" aria-label="Assistant IA" aria-haspopup="dialog" title="Ouvrir l’assistant IA">
+    <svg class="ui-icon" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4zM20 2v4M18 4h4"/></svg>
+    <span aria-hidden="true">IA</span>
+  </button>
   <input id="import-file-input" hidden type="file" multiple accept=".csv,.xlsx,.xls,.xml,.json,.geojson,.zip,.shp,.dbf,.shx,.prj,.cpg,.gpx,.kml,.txt">
   <input id="restore-file-input" hidden type="file" accept=".zip,.json">
 

@@ -6,3 +6,39 @@
 @media(min-width:1024px){.map-view{height:100dvh}.map-topbar{left:20px;right:20px;top:18px}.map-controls{right:20px;top:80px}.map-bottom-sheet{left:auto;right:20px;bottom:20px;width:430px}.map-legend{left:20px;bottom:20px}}
 
 @media(max-width:1023px){html[data-view="map"] .map-view{height:calc(100dvh - var(--nav-h) - var(--safe-bottom))}}
+
+/* Map actions remain readable and finger-sized above every tile background. */
+.parcel-popup,.rpg-popup,.map-point-popup{display:grid;gap:8px;min-width:180px;max-width:min(280px,calc(100vw - 100px));color:#18251e;overflow-wrap:anywhere}
+.rpg-popup small,.map-point-popup small{color:#526158}
+.map-point-popup p{margin:0;max-height:100px;overflow:auto;white-space:pre-wrap}
+.parcel-popup button,.rpg-popup button,.map-popup-actions button{min-height:44px;padding:10px 12px;border:0;border-radius:10px;background:#17663f;color:#fff;font-family:inherit;font-size:14px;font-weight:600;line-height:1.3;cursor:pointer;touch-action:manipulation}
+.map-popup-actions{display:grid;grid-template-columns:1fr;gap:7px}
+.map-popup-actions button.danger{background:#b3342e}
+.parcel-popup button:focus-visible,.rpg-popup button:focus-visible,.map-popup-actions button:focus-visible{outline:3px solid #e6a924;outline-offset:2px}
+.legend-swatch.rpg{border:2px dashed #805000;background:#f6ce59}
+#map.is-point-placement,#map.is-measuring{cursor:crosshair}
+.map-draw-panel{top:calc(72px + var(--map-top-inset,0px));max-height:calc(100% - 90px - var(--map-top-inset,0px));overflow:auto;overscroll-behavior:contain}
+.map-draw-panel>div{min-width:0;overflow-wrap:anywhere}
+.map-draw-panel .button{min-height:44px}
+@media(max-width:720px){.map-draw-panel{top:auto;bottom:10px;left:max(10px,var(--safe-left));right:max(10px,var(--safe-right));width:auto;transform:none}}
+@media(orientation:landscape) and (max-height:540px){.map-draw-panel{top:auto;bottom:10px;left:max(10px,var(--safe-left));right:calc(max(10px,var(--safe-right)) + 58px);width:auto;transform:none;max-height:calc(100% - 80px - var(--map-top-inset,0px))}}
+
+.map-sheet-head>div:first-child{min-width:0;overflow-wrap:anywhere}
+.map-sheet-tools{display:flex;align-items:flex-start;gap:8px;flex:none}
+.map-sheet-close{display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--surface);color:var(--text-primary);cursor:pointer;touch-action:manipulation}
+.map-sheet-close:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+/* Editing panels precede the sheet in the DOM, on every screen orientation. */
+.map-draw-panel:not(.hidden) ~ .map-bottom-sheet{display:none}
+
+/* Informational toasts may overlap the map on short screens; only their
+   explicit actions (such as Undo) should receive pointer events. */
+.toast{pointer-events:none}
+.toast button{pointer-events:auto}
+
+/* Keep the title and all three actions below the search field on short screens. */
+@media(orientation:landscape) and (max-height:540px){
+  .map-point-popup{min-width:260px;gap:6px}
+  .map-point-popup p{max-height:48px}
+  .map-popup-actions{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .map-popup-actions button{padding:6px;min-height:44px;font-size:14px}
+}
