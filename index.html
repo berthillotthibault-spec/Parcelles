@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#286a4a">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="application-name" content="Parcelles 7.1">
-  <meta name="parcelles-build" content="2026.09.22-v7.1.7">
+  <meta name="parcelles-build" content="2026.10.03-v7.1.8">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -23,12 +23,31 @@
   <link rel="stylesheet" href="./assistant-launcher.css">
   <link rel="stylesheet" href="./grazing.css">
   <link rel="stylesheet" href="./public-works.css">
+  <link rel="stylesheet" href="./motion.css">
   <title>Parcelles</title>
 </head>
 <body>
   <a class="skip-link" href="#main">Aller au contenu</a>
   <div id="boot-error" class="sr-only" role="alert"></div>
   <div id="live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <div id="app-boot" class="app-boot" hidden>
+    <div class="boot-identity">
+      <div class="boot-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg></div>
+      <h1>Parcelles</h1>
+      <p data-boot-label role="status">Préparation de votre exploitation…</p>
+      <div class="motion-track" role="progressbar" aria-label="Ouverture de Parcelles" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0"><span></span></div>
+    </div>
+  </div>
+  <script>
+    // Works before module download, and releases the recovery UI even if modules fail.
+    document.getElementById('app-boot').hidden=false;
+    setTimeout(function(){document.getElementById('app-boot')?.remove();},9000);
+  </script>
+  <div id="activity-progress" class="activity-progress" hidden>
+    <div class="activity-progress-copy"><span class="motion-spinner" aria-hidden="true"></span><span><span data-progress-label role="status" aria-live="polite"></span><small data-progress-count></small></span></div>
+    <div class="motion-track is-indeterminate" role="progressbar" aria-label="Opération en cours" aria-valuemin="0" aria-valuemax="100"><span></span></div>
+  </div>
 
   <div id="app" class="app-shell">
     <header class="app-header">

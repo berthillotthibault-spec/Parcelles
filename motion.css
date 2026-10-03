@@ -1,0 +1,49 @@
+/* Short, quiet motion; all long-running animation belongs to active work. */
+:root{--motion-ease:cubic-bezier(.2,.7,.2,1)}
+.app-boot{position:fixed;inset:0;z-index:45;display:grid;place-items:center;background:var(--bg);padding:24px}
+.app-boot[hidden],.activity-progress[hidden]{display:none}
+.boot-identity{width:min(290px,100%);text-align:center;animation:motion-rise .45s var(--motion-ease) both}
+.boot-mark{display:grid;place-items:center;width:88px;height:88px;margin:0 auto 24px;border:1px solid var(--border-subtle);border-radius:28px;background:var(--brand-soft);color:var(--brand);box-shadow:0 12px 36px color-mix(in srgb,var(--brand) 10%,transparent)}
+.boot-mark svg{width:46px;height:46px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.boot-mark path{stroke-dasharray:90;stroke-dashoffset:0;animation:motion-draw .85s var(--motion-ease) both}
+.boot-mark path+path{animation-delay:120ms}
+.boot-identity h1{font-size:32px;letter-spacing:-.04em;margin:0 0 8px}
+.boot-identity p{color:var(--text-secondary);font-size:14px;min-height:2.5em;margin:0 0 20px;line-height:1.5}
+.motion-track{height:4px;overflow:hidden;border-radius:999px;background:var(--surface-tertiary)}
+.motion-track>span{display:block;width:100%;height:100%;background:var(--brand);transform:scaleX(0);transform-origin:left;transition:transform .26s var(--motion-ease);border-radius:inherit}
+.activity-progress{position:fixed;z-index:65;top:calc(var(--safe-top) + 10px);left:50%;transform:translateX(-50%);width:min(360px,calc(100% - 24px));padding:12px 16px;background:var(--surface);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:14px;box-shadow:var(--shadow-float);pointer-events:none;animation:motion-fade .18s ease-out both}
+.activity-progress-copy{display:flex;gap:10px;align-items:center;margin-bottom:9px;font-size:13px;font-weight:650;line-height:1.4}
+.activity-progress-copy>span:nth-child(2){min-width:0;overflow-wrap:anywhere}
+.activity-progress small{display:block;color:var(--text-secondary);font-size:11px;font-weight:400}
+.activity-progress small:empty{display:none}
+.motion-spinner{width:15px;height:15px;flex:none;border:2px solid var(--border-strong);border-top-color:var(--brand);border-radius:50%;animation:motion-spin .8s linear infinite}
+.motion-track.is-indeterminate>span{width:42%;transform:translateX(-110%);animation:motion-progress 1.3s ease-in-out infinite}
+.activity-progress.is-complete .motion-spinner{animation:none;border-color:var(--brand);background:var(--brand-soft)}
+.button[aria-busy="true"]{display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.button[aria-busy="true"]::before{content:"";width:13px;height:13px;flex:none;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:motion-spin .8s linear infinite}
+.modal-root.has-modal .modal{animation:motion-dialog .25s var(--motion-ease) both}
+.modal-root.has-modal .modal-backdrop{animation:motion-fade .2s ease-out both}
+.toast{animation:motion-rise .24s var(--motion-ease) both}
+.quality-progress>span,.culture-bar-fill{transform-origin:left;animation:motion-fill .5s var(--motion-ease) both;transition:width .35s var(--motion-ease)}
+.skeleton-line{position:relative;overflow:hidden;background:var(--surface-tertiary)}
+.skeleton-line::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--surface) 75%,transparent),transparent);animation:motion-shimmer 1.4s ease-in-out infinite}
+@media(hover:hover) and (pointer:fine){.menu-row:hover,.parcel-row:hover,.work-row:hover{background:var(--brand-soft)}.button:not(:disabled):hover,.tool-shortcut:hover{translate:0 -1px}}
+.button,.icon-button,.tool-shortcut,.nav-item,.filter-chip,.segmented button{transition:background-color .16s ease,color .16s ease,box-shadow .16s ease,translate .16s ease,scale .16s ease}
+.button:not(:disabled):active,.icon-button:not(:disabled):active,.tool-shortcut:active,.nav-item:active,.filter-chip:active{scale:.97;translate:0 0}
+.nav-item.is-active .ui-icon{animation:motion-nav .25s var(--motion-ease)}
+@keyframes motion-fade{from{opacity:0}to{opacity:1}}
+@keyframes motion-rise{from{opacity:0;translate:0 9px}to{opacity:1;translate:0 0}}
+@keyframes motion-dialog{from{opacity:0;translate:0 12px;scale:.98}to{opacity:1;translate:0 0;scale:1}}
+@keyframes motion-nav{from{scale:.85}to{scale:1}}
+@keyframes motion-fill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes motion-draw{from{stroke-dashoffset:90}to{stroke-dashoffset:0}}
+@keyframes motion-spin{to{transform:rotate(360deg)}}
+@keyframes motion-progress{0%{transform:translateX(-110%)}100%{transform:translateX(345%)}}
+@keyframes motion-shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+@media(prefers-reduced-motion:reduce){
+  .app-boot *,.activity-progress *,.motion-spinner,.modal,.modal-backdrop,.toast,.quality-progress>span,.culture-bar-fill,.nav-item .ui-icon,.skeleton-line::after,.button::before{animation:none!important;transition:none!important}
+  .motion-track.is-indeterminate>span{width:100%;transform:none;opacity:.55}
+  .button,.icon-button,.tool-shortcut,.nav-item,.filter-chip{translate:none!important;scale:none!important}
+  .skeleton-line::after{display:none}
+}
+@media(forced-colors:active){.motion-track{border:1px solid CanvasText}.motion-track>span{background:Highlight}.motion-spinner{border-color:CanvasText;border-top-color:Highlight}}

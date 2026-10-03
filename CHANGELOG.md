@@ -1,5 +1,14 @@
 # Changelog
 
+## 7.1.8 — 2026-10-03
+
+- ouverture animée avec le symbole Parcelles et suivi des quatre étapes réelles du démarrage, sans attente artificielle ;
+- apparitions progressives des écrans, fenêtres, notifications et indicateurs métier ; retours visuels sur les boutons et la navigation ;
+- indicateur commun pour les imports, la météo, les sauvegardes, la synchronisation manuelle et l’assistant distant ; progression mesurée du chargement RPG lorsque le total est connu ;
+- gestion des opérations simultanées, des erreurs et de l’annulation RPG ; délai maximal de 15 secondes pour la météo ;
+- respect de la réduction des mouvements, y compris si la préférence change pendant une animation ; ressources incluses dans le cache hors connexion ;
+- dix tests ciblés exécutables à la racine publiée : `node test-motion.mjs` ou `npm run test:motion`. Les anciens scripts de test ciblent l’arborescence source `tests/` et `js/`, absente de cette publication à plat.
+
 ## 4.0.0 — 2026-09-14
 
 - architecture de publication canonique et diagnostic de déploiement ;
