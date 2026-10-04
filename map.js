@@ -40,6 +40,18 @@ export class ParcelMap{
     this.setBaseLayer('osm');
   }
 
+  clearSatelliteOverlay(){const hadOverlay=!!this.satelliteOverlay;this.satelliteOverlay?.remove();this.satelliteControl?.remove();this.satelliteOverlay=null;this.satelliteControl=null;this.satelliteLabel='';if(hadOverlay&&this.map)this.render(this.lastState);}
+  setSatelliteOpacity(value){this.satelliteOpacity=value;this.satelliteImage?.setOpacity(value);}
+  setSatelliteOverlay({url,bounds,geometry,zones=[],label}){
+    this.init();if(!this.map)return;this.clearSatelliteOverlay();
+    if(!this.map.getPane('satelliteDataPane')){const pane=this.map.createPane('satelliteDataPane');pane.style.zIndex='420';pane.style.pointerEvents='none';}
+    this.satelliteParcelId=this.selectedId;this.satelliteOverlay=L.layerGroup().addTo(this.map);this.satelliteOpacity=.7;this.satelliteLabel=label;
+    this.satelliteImage=url?L.imageOverlay(url,[[bounds[1],bounds[0]],[bounds[3],bounds[2]]],{pane:'satelliteDataPane',opacity:.7,interactive:false}).addTo(this.satelliteOverlay):null;
+    if(!url)L.geoJSON(geometry,{pane:'satelliteDataPane',interactive:false,style:{color:'#d89821',weight:3,fill:false,dashArray:'5 4'}}).addTo(this.satelliteOverlay);
+    for(const zone of zones)L.geoJSON(zone.geometry,{pointToLayer:(_,latlng)=>L.circleMarker(latlng,{pane:'satelliteDataPane',radius:3,color:'#d36d14',fillOpacity:.7,interactive:false})}).addTo(this.satelliteOverlay);
+    const control=L.control({position:'topleft'});control.onAdd=()=>{const div=L.DomUtil.create('div','satellite-map-label');const text=document.createElement('span');text.textContent=label+(zones.length?' · points : secteurs de faible NDVI':'');div.append(text);const legend=document.createElement('small');legend.textContent=url?' · indice : brun = faible, vert/bleu = élevé':'';div.append(legend);const button=document.createElement('button');button.type='button';button.className='button secondary';button.textContent='Désactiver';button.onclick=()=>this.clearSatelliteOverlay();div.append(button);L.DomEvent.disableClickPropagation(div);return div;};control.addTo(this.map);this.satelliteControl=control;this.render(this.lastState);
+  }
+
   setBaseLayer(name='osm'){
     this.init();if(!this.map)return;
     name=name==='satellite'?'satellite':'osm';
@@ -123,7 +135,7 @@ export class ParcelMap{
       const selected=this.multiple?this.selectedIds.has(parcel.id):parcel.id===this.selectedId,color=this.colorFor(parcel);
       const pane=selected?'selectedParcelPane':'parcelPane';
       if(selected)L.geoJSON(parcel.geometry,{pane,interactive:false,style:{color:'#fff',weight:9,opacity:1,fill:false}}).addTo(this.layers.parcels);
-      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>({color:selected?'#092c1c':color,weight:selected?5:3,opacity:1,fillColor:color,fillOpacity:selected?.52:.3}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
+      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>({color:selected?'#092c1c':color,weight:selected?5:3,opacity:1,fillColor:color,fillOpacity:this.satelliteOverlay&&this.satelliteParcelId===parcel.id?0:(selected?.52:.3)}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
       layer.on('click',()=>{if(this.pointPlacementHandler||this.polygonDraw||this.measure)return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
       this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(this.colorInfo(parcel).label)}</small>${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
       layer.addTo(this.layers.parcels);
@@ -138,6 +150,7 @@ export class ParcelMap{
   }
 
   select(id,{zoom=true}={}){
+    if(this.satelliteOverlay&&this.satelliteParcelId!==id)this.clearSatelliteOverlay();
     this.selectedId=id;const parcel=(this.lastState.parcelles||[]).find(item=>item.id===id&&!item.deletedAt);if(!parcel)return;
     this.render(this.lastState);
     if(zoom&&parcel.geometry){try{const bounds=L.geoJSON(parcel.geometry).getBounds();if(bounds.isValid())this.map.fitBounds(bounds.pad(.18),{maxZoom:17});}catch{}}

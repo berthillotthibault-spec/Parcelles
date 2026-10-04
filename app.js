@@ -1,3 +1,4 @@
+import {createSatelliteUI} from './satellite-ui.js';
 import {HOME_SHORTCUTS,normalizePersonalization,filterMapParcels} from './personalization.js';
 import {openPersonalization} from './personalization-ui.js';
 import {getHomeAgenda,getParcelWorkContext,matchesWorkTab,isPending,agendaDate,dailySituation,parcelSituation,weatherOpportunity,localDay} from './home-priorities.js';
@@ -44,7 +45,7 @@ import {
 } from './utils.js';
 
 const $=selector=>document.querySelector(selector);const $$=selector=>[...document.querySelectorAll(selector)];
-let store,parcelMap,sync,nativeBridge,platform,automationEventTimer=null,currentView='today',workTab='today',parcelFilter='all',selectedParcelId=null,weatherCache=null,lastGps=null,pendingImportFiles=[],fieldModeOpen=false,lastFocused=null,workFilters={parcel:'',type:''},documentFilters={query:'',category:'',linked:'all'},drawingParcelId=null,shortcutPrefix=null,fieldTimerId=null,fieldWakeLock=null,currentParcelTab='summary',currentMoreCategory='production';
+let satelliteUI,store,parcelMap,sync,nativeBridge,platform,automationEventTimer=null,currentView='today',workTab='today',parcelFilter='all',selectedParcelId=null,weatherCache=null,lastGps=null,pendingImportFiles=[],fieldModeOpen=false,lastFocused=null,workFilters={parcel:'',type:''},documentFilters={query:'',category:'',linked:'all'},drawingParcelId=null,shortcutPrefix=null,fieldTimerId=null,fieldWakeLock=null,currentParcelTab='summary',currentMoreCategory='production';
 let grazingUI,publicWorksUI;
 const pendingAssistantActions=new Map();
 const perf=new PerformanceMonitor(BUILD_ID);perf.startLongTaskObserver();
@@ -97,6 +98,7 @@ async function init(){
   if(state().preferences.biometricLock&&nativeBridge.capabilities.native)await ensureNativeUnlocked({force:true});
   store.setWriteGuard(operation=>sync.canWriteEntity(operation.entity,operation.action));
   parcelMap=new ParcelMap({onSelect:parcel=>{selectedParcelId=parcel.id;rememberRecent(parcel.id);renderMapSheet();},onToast:toast});
+  satelliteUI=createSatelliteUI({store,sync,map:parcelMap,openParcel:openParcelDetail,showMap:id=>{switchView('map');parcelMap.select(id);},observe:(id,note)=>{openObservationForm(null,{parcelId:id});$('#observation-form [name=title]').value='Signal satellite à vérifier';$('#observation-form [name=note]').value=note;$('#observation-form [name=useGps]').checked=false;},modal,closeModal});
   // Dock visibility, orientation and editing tools all change the usable map area.
   if(globalThis.ResizeObserver)new ResizeObserver(()=>parcelMap.map?.invalidateSize({pan:false})).observe(document.querySelector('.map-stage'));
   bindEvents();store.subscribe((data,event)=>{renderAfterStoreChange(data,event);scheduleAutomationEvent(event);});perf.mark('events-ready');
@@ -187,6 +189,7 @@ function toast(message,type='success',action=null){
 function routeHashForView(view){let hash=`#${view}`;if(view==='parcel'&&selectedParcelId)hash=`#parcel/${encodeURIComponent(selectedParcelId)}/${currentParcelTab}`;if(view==='more-category')hash=`#more/${currentMoreCategory}`;return hash;}
 function updateRoute(hash,mode='push'){if(location.hash===hash)return;const method=mode==='replace'?'replaceState':'pushState';history[method]({parcellesRoute:true},'',hash);}
 function switchView(view,{updateHash=true,historyMode='push',scroll=true}={}){
+  if(view!=='parcel')satelliteUI?.cancel();
   if(view!=='map')parcelMap?.cancelPointPlacement();
   const allowed=['today','map','parcels','parcel','work','more','more-category'];if(!allowed.includes(view))view='today';const previous=currentView;currentView=view;document.documentElement.dataset.view=view;
   $$('.view').forEach(el=>el.classList.toggle('is-active',el.id===`view-${view}`));
@@ -202,7 +205,7 @@ function applyHashRoute(){
   if($('#modal-root')?.classList.contains('has-modal'))closeModal();
   if(fieldModeOpen)closeFieldMode();
   const route=location.hash.replace(/^#/,'');
-  if(route.startsWith('parcel/')){const [,encodedId,tab='summary']=route.split('/');let id='';try{id=decodeURIComponent(encodedId||'');}catch{}if(parcelById(id)){selectedParcelId=id;currentParcelTab=['summary','activity','documents','economy'].includes(tab)?tab:'summary';renderParcelDetailPage(selectedParcelId,currentParcelTab);switchView('parcel',{updateHash:false});return;}}
+  if(route.startsWith('parcel/')){const [,encodedId,tab='summary']=route.split('/');let id='';try{id=decodeURIComponent(encodedId||'');}catch{}if(parcelById(id)){selectedParcelId=id;currentParcelTab=['summary','activity','documents','economy','satellite'].includes(tab)?tab:'summary';renderParcelDetailPage(selectedParcelId,currentParcelTab);switchView('parcel',{updateHash:false});return;}}
   if(route.startsWith('more/')){const category=route.split('/')[1]||'production';renderMoreCategory(category);switchView('more-category',{updateHash:false});return;}
   if(['map','parcels','work','more','today'].includes(route))switchView(route,{updateHash:false});else switchView('today',{updateHash:false});
 }
@@ -262,6 +265,7 @@ function parcelTimelineHtml(data,id){
 }
 
 function renderToday(data){
+  satelliteUI?.today();
   const parcels=active('parcelles',data),works=active('interventions',data),today=todayIso(),own=parcels.filter(p=>(p.ownershipType||'own')==='own');
   const layout=normalizePersonalization(data.preferences),visibleCards=new Set(layout.homeCards);
   for(const id of layout.homeCardOrder){const card=document.querySelector(`[data-home-card="${id}"]`);if(card){card.classList.toggle('hidden',!visibleCards.has(id));card.parentElement.append(card);}}
@@ -397,14 +401,15 @@ function submitModalForm(event){
 
 function openParcel(id){const p=parcelById(id);if(!p)return;selectedParcelId=id;currentParcelTab='summary';rememberRecent(id);openParcelDetail(id,'summary');}
 function openParcelDetail(id,tab='summary',{historyMode='push'}={}){
-  const p=parcelById(id);if(!p)return;selectedParcelId=id;currentParcelTab=['summary','activity','documents','economy'].includes(tab)?tab:'summary';renderParcelDetailPage(id,currentParcelTab);switchView('parcel',{updateHash:true,historyMode,scroll:currentView!=='parcel'});
+  const p=parcelById(id);if(!p)return;selectedParcelId=id;currentParcelTab=['summary','activity','documents','economy','satellite'].includes(tab)?tab:'summary';renderParcelDetailPage(id,currentParcelTab);switchView('parcel',{updateHash:true,historyMode,scroll:currentView!=='parcel'});
 }
 function renderParcelDetailPage(id,tab='summary',data=state()){
   const p=parcelById(id,data);if(!p)return;const works=active('interventions',data).filter(w=>w.parcelId===id).sort((a,b)=>new Date(workDate(b))-new Date(workDate(a))),photos=active('photos',data).filter(x=>x.parcelId===id),docs=active('documents',data).filter(x=>x.parcelId===id),observations=active('observations',data).filter(x=>x.parcelId===id&&x.status!=='Résolu');
   setText('#parcel-detail-title',p.nom);setText('#parcel-detail-subtitle',`${p.culture||'Culture non renseignée'} · ${formatNumber(p.surfaceHa)} ha${p.commune?` · ${p.commune}`:''}`);
   $('#parcel-detail-top-actions').innerHTML=`<button class="icon-button" data-action="toggle-favorite" data-id="${id}" aria-label="${p.favorite?'Retirer des favoris':'Ajouter aux favoris'}">${icon('star',{size:21})}</button><button class="icon-button" data-action="parcel-actions" data-id="${id}" aria-label="Plus d’actions">${icon('ellipsis',{size:21})}</button>`;
   $('#parcel-detail-actions').innerHTML=`<button class="button primary" data-action="new-work" data-parcel-id="${id}">${icon('plus',{size:18})}<span>Travail</span></button><button class="button secondary" data-action="new-observation" data-id="${id}">${icon('alert',{size:18})}<span>Observation</span></button><button class="button secondary" data-action="add-photo" data-id="${id}">${icon('camera',{size:18})}<span>Photo</span></button><button class="button secondary" data-action="open-grazing-parcel" data-id="${id}">${icon('production',{size:18})}<span>Animaux</span></button><button class="button secondary" data-action="parcel-actions" data-id="${id}">${icon('ellipsis',{size:18})}<span>Plus</span></button>`;
-  const tabs=[['summary','Résumé'],['activity','Activité'],['documents','Documents'],['economy','Économie']];$('#parcel-detail-tabs').innerHTML=tabs.map(([key,label])=>`<button class="${tab===key?'is-active':''}" data-action="parcel-tab" data-id="${id}" data-tab="${key}">${label}</button>`).join('');
+  const tabs=[['summary','Résumé'],['activity','Activité'],['documents','Documents'],['economy','Économie'],['satellite','Satellite']];$('#parcel-detail-tabs').innerHTML=tabs.map(([key,label])=>`<button class="${tab===key?'is-active':''}" data-action="parcel-tab" data-id="${id}" data-tab="${key}">${label}</button>`).join('');
+  if(tab==='satellite')requestAnimationFrame(()=>{const tabs=$('#parcel-detail-tabs'),active=tabs.querySelector('.is-active');if(active)tabs.scrollLeft=active.offsetLeft-tabs.offsetLeft;});
   let body='';
   if(tab==='summary'){
     const context=getParcelWorkContext(works,todayIso()),next=context.next?.item,last=context.last;
@@ -414,7 +419,9 @@ function renderParcelDetailPage(id,tab='summary',data=state()){
   }else if(tab==='documents'){
     body=`<section class="panel"><div class="panel-heading"><h2>Photos</h2><button class="text-button" data-action="add-photo" data-id="${id}">Ajouter</button></div><div id="parcel-photo-gallery" class="photo-grid"><div class="empty-state">Chargement…</div></div></section><section class="panel"><div class="panel-heading"><h2>Documents</h2><button class="text-button" data-action="attach-file" data-id="${id}">Ajouter</button></div>${docs.length?`<div class="stack-list">${docs.map(d=>`<button class="list-row" data-action="view-attachment" data-type="documents" data-id="${d.id}"><div><strong>${escapeHtml(d.name)}</strong><small>${escapeHtml(d.category||'Autre')} · ${localDate(d.documentDate||d.createdAt)}</small></div>${icon('chevron',{size:18})}</button>`).join('')}</div>`:'<div class="empty-state">Aucun document rattaché.</div>'}</section>`;
   }else if(tab==='economy')body=parcelEconomyHtml(p,works);
-  $('#parcel-detail-body').innerHTML=body;if(tab==='documents')renderPhotoGallery(id,photos);
+  if(tab==='satellite')body='<div id="satellite-panel"></div>';
+  else satelliteUI?.cancel();
+  $('#parcel-detail-body').innerHTML=body;if(tab==='satellite')satelliteUI?.mount(p);if(tab==='documents')renderPhotoGallery(id,photos);
 }
 function parcelHeaderActions(p){return `<div class="detail-actions"><button class="button primary" data-action="new-work" data-parcel-id="${p.id}">${icon('plus',{size:18})} Travail</button><button class="button secondary" data-action="route-parcel" data-id="${p.id}">${icon('route',{size:18})} Itinéraire</button><button class="button secondary" data-action="parcel-actions" data-id="${p.id}">${icon('ellipsis',{size:18})} Plus</button></div>`;}
 function parcelSummaryHtml(p,works,data){
@@ -553,6 +560,7 @@ function openMapLayers(){
   const economicRows=[...mapEconomics(state()).values()];
   const colorModes=[['culture','Culture'],['status','État'],...(active('interventions').length?[['work','Travaux'],['last','Dernière intervention']]:[]),...(active('grazingSessions').length?[['animals','Animaux']]:[]),...(active('clients').length?[['client','Client']]:[]),...(economicRows.some(r=>r.costHa!==null)?[['cost','Coût/ha · campagne actuelle']]:[]),...(economicRows.some(r=>r.marginHa!==null)?[['margin','Marge/ha estimée · campagne actuelle']]:[])];
   modal('Couches de la carte','Économie : campagne actuelle, travaux réalisés et charges saisies. Les montants manquants restent inconnus. RPG : autour du centre de la carte.',`<form id="map-layer-form"><div class="form-grid"><label>Colorer par<select name="mapColorMode">${colorModes.map(([key,label])=>`<option value="${key}" ${prefs.mapColorMode===key?'selected':''}>${label}</option>`).join('')}</select></label><label>Fond de carte<select name="mapLayer"><option value="osm" ${prefs.mapLayer==='osm'?'selected':''}>Standard</option><option value="satellite" ${prefs.mapLayer==='satellite'?'selected':''}>Satellite</option></select></label><label><input type="checkbox" name="rpg" ${parcelMap.rpgVisible?'checked':''}> Parcelles PAC/RPG 2024</label><label>Rayon autour de la carte<select name="radius"><option value="5">5 km</option><option value="10" ${prefs.rpgRadiusKm===10?'selected':''}>10 km</option></select></label></div><p class="form-note">Touchez ensuite une parcelle RPG pour l’ajouter à votre exploitation, à un client ou à une prestation.</p><p id="rpg-load-progress" class="form-note" role="status" aria-live="polite"></p></form>`,`<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="apply-map-layers">Appliquer</button>`,'small');
+  $('#map-layer-form').insertAdjacentHTML('beforeend',satelliteUI.mapControls());
   const form=$('#map-layer-form'),button=$('#apply-map-layers'),progress=$('#rpg-load-progress');
   button.onclick=async()=>{
     if(button.disabled)return;
@@ -1142,7 +1150,7 @@ async function openDiagnostic(){
 
 function openSettings(){
   const data=state(),farm=data.exploitation,p=data.preferences,cards=new Set(p.homeCards||['weather','today','tasks','alerts','recent']);
-  modal('Paramètres','Recherchez un réglage ou parcourez les sections.',`<label class="search-field" style="margin-bottom:14px"><span>⌕</span><input id="settings-search" placeholder="Rechercher un réglage…"></label><form id="settings-form">
+  modal('Paramètres','Recherchez un réglage ou parcourez les sections.',`<label class="search-field" style="margin-bottom:14px"><span>⌕</span><input id="settings-search" placeholder="Rechercher un réglage…"></label><div class="form-section"><h3>Connexions</h3><button type="button" class="button secondary" data-sat="connection">Satellite · configuration et état</button></div><form id="settings-form">
   <section class="form-section settings-searchable" data-keywords="exploitation nom commune latitude longitude siège opérateur carburant" style="border-top:0;margin-top:0;padding-top:0"><h3>Exploitation</h3><div class="form-grid"><label>Nom<input name="nom" value="${escapeHtml(farm.nom)}"></label><label>Commune<input name="commune" value="${escapeHtml(farm.commune||'')}"></label><label>Latitude<input name="latitude" inputmode="decimal" value="${farm.latitude??''}"></label><label>Longitude<input name="longitude" inputmode="decimal" value="${farm.longitude??''}"></label><label>Opérateur par défaut<input name="defaultOperator" value="${escapeHtml(p.defaultOperator||'')}"></label><label>Prix carburant (€/L)<input name="fuelPrice" type="number" min="0" step=".01" value="${p.fuelPrice??1.7}"></label></div></section>
   <section class="form-section settings-searchable" data-keywords="accueil cartes météo travaux tâches alertes récent"><h3>Accueil</h3><div class="check-grid">${[['weather','Météo'],['today','Travaux du jour'],['tasks','Tâches'],['alerts','Alertes'],['recent','Récent']].map(([key,label])=>`<label class="check-row"><input type="checkbox" name="homeCard" value="${key}" ${cards.has(key)?'checked':''}><span><strong>${label}</strong></span></label>`).join('')}</div></section>
   <section class="form-section settings-searchable" data-keywords="carte fond satellite culture statut apparence thème sombre contraste itinéraire plans google densité"><h3>Carte et apparence</h3><div class="form-grid"><label>Fond de carte<select name="mapLayer"><option value="osm" ${p.mapLayer==='osm'?'selected':''}>Standard</option><option value="satellite" ${p.mapLayer==='satellite'?'selected':''}>Satellite</option></select></label><label>Couleur parcelles<select name="mapColorMode"><option value="culture" ${p.mapColorMode==='culture'?'selected':''}>Culture</option><option value="status" ${p.mapColorMode==='status'?'selected':''}>Statut</option></select></label><label>Apparence<select name="theme"><option value="system" ${p.theme==='system'?'selected':''}>Système</option><option value="light" ${p.theme==='light'?'selected':''}>Clair</option><option value="dark" ${p.theme==='dark'?'selected':''}>Sombre</option></select></label><label>Itinéraire<select name="routeProvider"><option value="apple" ${p.routeProvider==='apple'?'selected':''}>Plans Apple</option><option value="google" ${p.routeProvider==='google'?'selected':''}>Google Maps</option></select></label><label><input type="checkbox" name="highContrast" ${p.highContrast?'checked':''}> Contraste renforcé</label><label><input type="checkbox" name="compactMode" ${p.compactMode?'checked':''}> Mode compact sur ordinateur</label></div></section>

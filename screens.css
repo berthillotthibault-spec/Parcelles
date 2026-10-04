@@ -57,3 +57,19 @@ button.list-row{width:100%;border-left:0;border-right:0;border-top:0;background:
  html[data-view="parcel"] .assistant-dock{bottom:calc(162px + max(8px,var(--safe-bottom)))}
 }
 .field-parcel-picker{display:grid;gap:8px;margin:16px 0;font-weight:700}.field-parcel-picker select{width:100%;min-height:54px;font:inherit;color:var(--text-primary);background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;padding:12px}
+
+/* Satellite V9: scoped components, existing theme and mobile spacing. */
+.satellite-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.satellite-actions .button{min-height:44px;white-space:normal}
+.satellite-panel{min-width:0}.satellite-panel select{width:100%;min-height:44px}
+.satellite-history{margin:16px 0;color:var(--text,inherit)}
+.satellite-history svg{display:block;width:100%;max-height:180px;color:var(--primary,#27864e)}
+.satellite-history summary{padding:12px 0;cursor:pointer}.satellite-table{overflow:auto;max-height:260px}
+.satellite-table table{width:100%;font-size:.85rem}.satellite-table th,.satellite-table td{padding:8px;text-align:left}
+.satellite-signal{border-left:3px solid #d89821;padding:12px;margin-top:16px}
+.satellite-map-label{max-width:210px;background:var(--surface,#fff);color:var(--text,#163a28);padding:8px;border-radius:8px;font-size:12px;box-shadow:0 2px 8px #0002}
+.satellite-map-label button{display:block;min-height:44px;margin-top:4px}
+#satellite-today[hidden]{display:none}
+
+.leaflet-top .satellite-map-label{margin-top:calc(72px + var(--map-top-inset,0px));max-width:min(210px,calc(100vw - 90px));color:var(--text-primary)}
+.satellite-map-label small{display:block;margin-top:4px}

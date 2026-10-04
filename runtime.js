@@ -1,7 +1,7 @@
 import {BUILD_ID} from './utils.js';
 
 const REQUIRED_ASSETS = [
-  './motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css',
+  './satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css',
   './index.html',
   './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css','./assistant-launcher.css','./grazing.css','./public-works.css',
   './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
