@@ -19,15 +19,20 @@
 @media(max-width:600px){#work-list .row-trailing{flex-direction:column;align-items:flex-end;gap:4px}#work-list .row-trailing .badge{display:inline-flex;font-size:10px;max-width:96px;white-space:normal}}
 .map-view.is-active{display:flex;flex-direction:column}
 .map-view .map-stage{flex:1;min-height:0;height:auto}
-.map-workbench{flex:none;background:var(--surface);border-bottom:1px solid var(--border-subtle);padding:calc(8px + var(--map-top-inset,0px)) 12px 8px}
-.map-workbench .context-tools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:0 0 6px;margin:0;overflow:visible}
-.map-workbench .context-tools .small-button{display:flex;flex-direction:column;gap:4px;min-width:0;min-height:52px;padding:5px 2px;font-size:11px;font-weight:650;white-space:normal;line-height:1.2}
-.map-filter-line{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:39px;font-size:12px;color:var(--text-secondary)}
-.map-filter-line label{display:flex;align-items:center;gap:8px;flex:none;font-weight:650}
-.map-filter-line select{max-width:150px;min-height:36px;border:1px solid var(--border-subtle);border-radius:9px;background:var(--surface);padding:0 26px 0 8px;font-size:13px}
-.map-filter-line p{margin:0;text-align:right;line-height:1.35}
-.map-workbench~.map-stage{--map-top-inset:0px}
-.map-view:has(.map-draw-panel:not(.hidden)) .map-workbench{display:none}
+.map-tools-launcher{display:flex;flex-direction:column;justify-content:center;gap:2px;background:var(--brand);color:white;border-color:var(--brand)}
+.map-tools-launcher span{font-size:10px;font-weight:750;line-height:1}
+.map-tools-launcher:hover{background:var(--brand-hover)}
+.map-filter-chip{position:absolute;z-index:10;top:calc(72px + var(--map-top-inset,0px));left:max(12px,var(--safe-left));max-width:calc(100% - 85px);min-height:36px;padding:7px 12px;border:1px solid var(--border-subtle);border-radius:18px;background:var(--surface);box-shadow:var(--shadow-float);font-size:12px;font-weight:700;color:var(--brand)}
+.map-quick-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.map-quick-tool{display:flex;align-items:center;gap:10px;min-height:54px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:13px;background:var(--surface-secondary);font-size:13px;font-weight:700;text-align:left}
+.map-quick-tool .ui-icon{color:var(--brand)}
+.map-quick-tool:hover{background:var(--brand-soft);border-color:var(--brand)}
+.map-menu-filter{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle)}
+.map-menu-filter label{font-size:13px;font-weight:700}
+.map-menu-filter select{min-width:0;min-height:44px;padding:0 9px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
+.map-menu-filter p{grid-column:1/-1;margin:0 0 12px;font-size:12px;color:var(--text-secondary)}
+.map-follow-button{display:flex;align-items:center;gap:8px;width:100%;justify-content:center}
+.map-tools-menu .modal-footer>.button{width:100%}
 .personalization-form{display:grid;gap:24px}
 .personalization-form fieldset{border:0;padding:0;margin:0;min-width:0}
 .personalization-form legend{font-size:16px;font-weight:750;padding:0;margin-bottom:9px}
@@ -52,15 +57,13 @@
 .startup-choice{display:grid;gap:8px;font-size:14px;font-weight:650;margin:18px 0 10px}
 .startup-choice select{min-height:44px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);padding:8px;max-width:100%}
 .home-custom-empty{padding:26px;border:1px dashed var(--border-strong);border-radius:18px;color:var(--text-secondary);text-align:center;line-height:1.6}
-.boot-skip{margin-top:22px;animation:motion-fade .3s ease both}
-.boot-skip[hidden]{display:none}
+.boot-note{display:block;margin-top:20px;font-size:12px;color:var(--text-secondary)}
 .boot-mark{animation:boot-settle 1.5s var(--motion-ease) both}
 .boot-mark path{animation-duration:1.35s}
 @keyframes boot-settle{from{transform:translateY(10px) scale(.88);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
-@media(max-width:600px){.today-welcome{flex-wrap:wrap}.today-primary-action{width:100%;justify-content:space-between}.context-tools{margin-bottom:8px}.map-filter-line label>span{display:none}.map-filter-line select{max-width:138px}.map-filter-line p{font-size:11px}.quick-action-strip .quick-action{flex-basis:100px}}
-@media(min-width:760px){.map-workbench .context-tools{grid-template-columns:repeat(8,minmax(0,1fr))}}
-@media(min-width:1024px){.map-workbench{padding:12px 20px 8px}.map-filter-line{justify-content:flex-start;gap:18px}.today-grid [data-home-card="weather"]{grid-column:auto}}
+@media(max-width:600px){.today-welcome{flex-wrap:wrap}.today-primary-action{width:100%;justify-content:space-between}.context-tools{margin-bottom:8px}.quick-action-strip .quick-action{flex-basis:100px}}
+@media(min-width:1024px){.today-grid [data-home-card="weather"]{grid-column:auto}.map-filter-chip{left:20px;top:80px}}
 @media(max-width:600px){.view:not(.map-view) .context-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.view:not(.map-view) .context-tools button{justify-content:flex-start;padding:0 10px;font-size:12px}.work-priority-notice{flex-wrap:wrap;gap:4px}#work-tabs button{font-size:12px;min-height:44px}}
 @media(max-width:720px){.map-draw-panel>div{flex:1 0 100%;overflow-wrap:normal}.map-draw-panel button{flex:1;min-height:44px;padding:0 8px;font-size:12px}}
-@media(orientation:landscape) and (max-height:540px) and (max-width:1023px){:root{--assistant-space:0px}.assistant-dock{display:none}.map-workbench{padding-top:4px}.map-workbench .context-tools{padding-bottom:0}.map-controls{display:flex;top:72px}.map-stage .leaflet-control-zoom{margin-right:134px}}
-@media(prefers-reduced-motion:reduce){.boot-mark,.boot-mark path,.boot-skip{animation:none}}
+@media(orientation:landscape) and (max-height:540px) and (max-width:1023px){.map-controls{display:flex;top:72px}.map-stage .leaflet-control-zoom{margin-right:134px}.map-tools-menu .map-quick-tools{grid-template-columns:repeat(4,minmax(0,1fr))}.map-tools-menu .map-quick-tool{flex-direction:column;text-align:center;gap:4px;padding:8px 4px;font-size:12px}}
+@media(prefers-reduced-motion:reduce){.boot-mark,.boot-mark path{animation:none}}

@@ -143,7 +143,14 @@ function renderCommon(data){
   const notifications=computeNotifications(data);const badge=$('#notification-button');if(badge)badge.dataset.count=String(Math.min(99,notifications.length));
   renderNetwork();applyTheme();
 }
-function mapRenderState(data){const filter=$('#map-parcel-filter')?.value||'all',parcelles=filterMapParcels(data,filter),mapped=parcelles.filter(p=>p.geometry).length;setText('#map-filter-count',`${parcelles.length} parcelle${parcelles.length!==1?'s':''} · ${mapped} sur la carte${parcelles.length!==mapped?' · contours manquants':''}`);return {...data,parcelles};}
+const MAP_FILTER_LABELS={all:'Toutes',favorites:'Favoris',todo:'À faire',clients:'Clients'};
+let mapParcelFilter='all';
+function mapRenderState(data){
+  const parcelles=filterMapParcels(data,mapParcelFilter),mapped=parcelles.filter(p=>p.geometry).length;
+  setText('#map-filter-count',`${parcelles.length} parcelle${parcelles.length!==1?'s':''} · ${mapped} sur la carte${parcelles.length!==mapped?' · contours manquants':''}`);
+  const chip=$('#map-filter-chip');chip.classList.toggle('hidden',mapParcelFilter==='all');chip.textContent=`${MAP_FILTER_LABELS[mapParcelFilter]} · ${parcelles.length}`;chip.setAttribute('aria-label',`Modifier le filtre de carte : ${MAP_FILTER_LABELS[mapParcelFilter]}`);
+  return {...data,parcelles};
+}
 function renderMapData(data){const mapData=currentView==='map'?mapRenderState(data):data;renderMapSheet(mapData);if(currentView==='map'){parcelMap.setBaseLayer(data.preferences.mapLayer||'osm');parcelMap.setColorMode(data.preferences.mapColorMode||'culture');parcelMap.render(mapData);setTimeout(()=>parcelMap.map?.invalidateSize(),20);}}
 function renderAfterStoreChange(data,event={}){
   const entity=event?.entity,kind=event?.kind;
@@ -501,7 +508,20 @@ function confirmDelete(type,id,label='cet élément'){
 }
 
 
-function openMapTools(){modal('Outils de carte','Les outils moins fréquents sont regroupés ici.',`<div class="stack-list"><button class="menu-row" data-action="fit-parcels"><span>${icon('parcels',{size:19})}</span><span><strong>Cadrer mes parcelles</strong><small>Revenir sur l’exploitation</small></span><b>›</b></button><button class="menu-row" data-action="add-point"><span>${icon('plus',{size:19})}</span><span><strong>Ajouter un point</strong><small>Entrée, zone humide, équipement…</small></span><b>›</b></button><button class="menu-row" data-action="measure-distance"><span>${icon('route',{size:19})}</span><span><strong>Mesurer une distance</strong><small>Posez plusieurs points sur la carte</small></span><b>›</b></button><button class="menu-row" data-action="measure-area"><span>${icon('parcels',{size:19})}</span><span><strong>Mesurer une surface</strong><small>Fermez un polygone pour obtenir des hectares</small></span><b>›</b></button><button class="menu-row" data-action="track-position"><span>${icon('locate',{size:19})}</span><span><strong>Suivre ma position</strong><small>GPS avec recentrage continu</small></span><b>›</b></button></div>`,`<button class="button secondary" data-action="close-modal">Fermer</button>`,'small');}
+function openMapTools(){
+  const tools=[
+    ['open-field-mode','locate','Terrain'],['new-observation','alert','Observation'],
+    ['add-point','plus','Repère'],['measure-distance','route','Distance'],
+    ['measure-area','parcels','Surface'],['open-day-route','map','Tournée'],
+    ['open-weather','weather','Météo'],['fit-parcels','parcels','Tout cadrer']
+  ];
+  modal('Outils de carte','Choisissez une action, puis retrouvez toute la carte.',`
+    <nav class="map-quick-tools" aria-label="Actions sur la carte">${tools.map(([action,glyph,label])=>`<button class="map-quick-tool" data-action="${action}">${icon(glyph,{size:22})}<span>${label}</span></button>`).join('')}</nav>
+    <div class="map-menu-filter"><label for="map-parcel-filter">Parcelles affichées</label><select id="map-parcel-filter" aria-label="Filtrer les parcelles sur la carte">${Object.entries(MAP_FILTER_LABELS).map(([value,label])=>`<option value="${value}" ${value===mapParcelFilter?'selected':''}>${label}</option>`).join('')}</select><p id="map-filter-count" role="status"></p></div>
+    <button class="map-follow-button small-button" data-action="track-position">${icon('locate',{size:18})}Suivre ma position</button>`,
+    '<button class="button primary" data-action="close-modal">Revenir à la carte</button>','small map-tools-menu');
+  mapRenderState(state());
+}
 function startMapMeasurement(kind){closeModal();switchView('map');const panel=$('#map-measure-panel'),title=$('#measure-title'),value=$('#measure-value');if(!panel)return;panel.classList.remove('hidden');title.textContent=kind==='area'?'Mesurer une surface':'Mesurer une distance';value.textContent='Touchez la carte pour placer les points.';parcelMap.startMeasurement(kind,{onCancel:()=>panel.classList.add("hidden"),onUpdate:detail=>{value.textContent=detail.points.length<2?`${detail.points.length} point${detail.points.length!==1?'s':''}`:kind==='area'?`${detail.points.length} points · ${formatNumber(detail.value)} ha`:`${detail.points.length} points · ${detail.value<1000?`${Math.round(detail.value)} m`:`${(detail.value/1000).toFixed(2)} km`}`;},onComplete:detail=>{panel.classList.add('hidden');toast(kind==='area'?`Surface mesurée : ${formatNumber(detail.value)} ha`:`Distance mesurée : ${detail.value<1000?`${Math.round(detail.value)} m`:`${(detail.value/1000).toFixed(2)} km`}`);}});}
 function openMapLayers(){
   const prefs=state().preferences;
@@ -1177,7 +1197,12 @@ function openHelp(){modal('Aide','Les actions courantes sont accessibles en un o
 function bindEvents(){
   const toolIcons={'open-field-mode':'locate','new-observation':'alert','add-point':'plus','measure-distance':'route','measure-area':'parcels','open-day-route':'route','open-weather':'weather','fit-parcels':'map','choose-import':'entry','open-rotations':'production','open-grazing':'sun','open-documents':'files','open-calendar':'calendar','open-tasks':'work','open-chantiers':'plan','open-equipment':'tractor','batch-work':'layers'};
   $$('.context-tools [data-action]').forEach(button=>{const label=button.textContent;button.innerHTML=`${icon(toolIcons[button.dataset.action]||'tools',{size:18})}<span>${escapeHtml(label)}</span>`;});
-  $('#map-parcel-filter').addEventListener('change',()=>{selectedParcelId=null;parcelMap.selectedId=null;parcelMap.map?.closePopup();renderMapData(state());renderMapSearch($('#map-search-input').value);parcelMap.fitParcels();});
+  document.addEventListener('change',event=>{
+    if(!event.target.matches('#map-parcel-filter'))return;
+    mapParcelFilter=Object.hasOwn(MAP_FILTER_LABELS,event.target.value)?event.target.value:'all';
+    selectedParcelId=null;parcelMap.selectedId=null;parcelMap.map?.closePopup();
+    renderMapData(state());renderMapSearch($('#map-search-input').value);parcelMap.fitParcels();
+  });
   document.addEventListener('submit',submitModalForm);
   document.addEventListener('click',async event=>{
     // html[data-view] describes the current screen for CSS; it is not a link.
@@ -1396,6 +1421,6 @@ function bindEvents(){
   $('#import-file-input').addEventListener('change',handleImportFiles);$('#restore-file-input').addEventListener('change',handleRestoreFile);
 }
 
-function renderMapSearch(value){const root=$('#map-search-results');if(!root)return;const q=normalize(value);if(!q){root.classList.add('hidden');root.innerHTML='';return;}const rows=filterMapParcels(state(),$('#map-parcel-filter')?.value||'all').filter(p=>normalize([p.nom,p.culture,p.commune].join(' ')).includes(q)).slice(0,8);root.innerHTML=rows.map(p=>`<button class="map-search-result" data-action="map-search-open" data-id="${escapeHtml(p.id)}"><strong>${escapeHtml(p.nom)}</strong><small>${escapeHtml(p.culture||'')} · ${formatNumber(p.surfaceHa)} ha</small></button>`).join('')||'<div class="empty-state">Aucun résultat.</div>';root.classList.remove('hidden');}
+function renderMapSearch(value){const root=$('#map-search-results');if(!root)return;const q=normalize(value);if(!q){root.classList.add('hidden');root.innerHTML='';return;}const rows=filterMapParcels(state(),mapParcelFilter).filter(p=>normalize([p.nom,p.culture,p.commune].join(' ')).includes(q)).slice(0,8);root.innerHTML=rows.map(p=>`<button class="map-search-result" data-action="map-search-open" data-id="${escapeHtml(p.id)}"><strong>${escapeHtml(p.nom)}</strong><small>${escapeHtml(p.culture||'')} · ${formatNumber(p.surfaceHa)} ha</small></button>`).join('')||'<div class="empty-state">Aucun résultat.</div>';root.classList.remove('hidden');}
 
 init().catch(error=>{console.error(error);document.body.innerHTML=`<main class="recovery-screen"><section class="recovery-card"><p class="eyebrow">Mode récupération</p><h1>Parcelles n’a pas pu démarrer</h1><p>${escapeHtml(error.message)}</p><p class="form-note">Build ${escapeHtml(BUILD_ID)} · vos données IndexedDB ne sont pas supprimées.</p><div class="recovery-actions"><button class="button primary" id="recovery-retry">Réessayer</button><button class="button secondary" id="recovery-export">Exporter mes données</button><button class="button danger" id="recovery-reset">Réinitialiser cache/PWA</button></div></section></main>`;document.querySelector('#recovery-retry').onclick=()=>location.reload();document.querySelector('#recovery-export').onclick=()=>downloadEmergencyState().catch(e=>alert(e.message));document.querySelector('#recovery-reset').onclick=()=>resetRuntimeAndReload();});

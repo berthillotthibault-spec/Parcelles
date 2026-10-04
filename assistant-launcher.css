@@ -1,22 +1,22 @@
-/* Reserve space so the assistant never covers map controls or final list actions. */
-:root{--assistant-space:64px}
-html[data-assistant-dock="hidden"]{--assistant-space:0px}
-.assistant-dock{position:fixed;z-index:34;left:0;right:0;bottom:calc(72px + max(8px,var(--safe-bottom)));height:var(--assistant-space);padding:6px max(12px,var(--safe-left));display:flex;align-items:center;gap:10px;background:var(--surface);border-top:1px solid var(--border-subtle)}
-.assistant-launcher{width:46px;height:46px;flex:none;padding:6px;border:0;border-radius:50%;background:var(--brand);color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;touch-action:manipulation}
-.assistant-launcher .ui-icon{width:21px;height:21px}
+/* The assistant is a single floating circle; the map keeps its full height. */
+:root{--assistant-clearance:64px}
+html[data-assistant-dock="hidden"]{--assistant-clearance:0px}
+.assistant-dock{position:fixed;z-index:34;left:max(12px,var(--safe-left));bottom:calc(88px + max(8px,var(--safe-bottom)));width:50px;height:50px;padding:0;background:none;border:0}
+.assistant-launcher{width:50px;height:50px;padding:6px;border:0;border-radius:50%;background:var(--brand);color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;touch-action:manipulation;box-shadow:0 3px 14px #173e2926}
+.assistant-launcher .ui-icon{width:22px;height:22px}
 .assistant-launcher span{font-size:10px;line-height:1;font-weight:800}
 .assistant-launcher:hover{background:var(--brand-hover)}
-.assistant-dock-copy{flex:1;min-width:0;font-size:12px;color:var(--text-secondary)}
-.assistant-dock-copy strong{display:block;font-size:13px;color:var(--text-primary);margin-bottom:2px}
-.assistant-dock .dock-hide{width:44px;height:44px;flex:none;border:0;border-radius:12px;background:transparent;color:var(--text-secondary);font-size:22px}
-.assistant-dock .dock-hide:hover{background:var(--surface-secondary)}
 html[data-assistant-dock="hidden"] .assistant-dock{display:none}
-main{padding-bottom:calc(80px + max(8px,var(--safe-bottom)) + var(--assistant-space))}
+/* Lists can scroll their final action above the circle, without a visible rail. */
+main{padding-bottom:calc(80px + max(8px,var(--safe-bottom)) + var(--assistant-clearance))}
+html[data-view="map"] main{padding-bottom:calc(80px + max(8px,var(--safe-bottom)))}
 .modal-root.has-modal~.assistant-dock,body:has(.field-mode-overlay) .assistant-dock,html[data-native-locked="true"] .assistant-dock{visibility:hidden}
+html[data-view="map"]:has(.map-draw-panel:not(.hidden)) .assistant-dock,html[data-view="map"]:has(#map-parcel-sheet:not(.is-empty)) .assistant-dock{visibility:hidden}
+@media(max-width:1023px){html:not([data-assistant-dock="hidden"]) .map-legend{left:calc(74px + var(--safe-left))}}
+@media(orientation:landscape) and (max-height:540px) and (max-width:1023px){.assistant-dock{bottom:calc(74px + var(--safe-bottom))}html[data-view="map"] main{padding-bottom:calc(70px + var(--safe-bottom))}}
 @media(min-width:1024px){
- .assistant-dock{left:14px;right:auto;bottom:12px;width:calc(var(--sidebar-w) - 28px);padding:7px 0;border-top:1px solid var(--border-subtle);height:64px}
- .assistant-dock-copy{font-size:11px}.assistant-dock-copy strong{font-size:12px}.assistant-dock .dock-hide{width:34px}
- .desktop-sidebar{padding-bottom:calc(18px + var(--assistant-space));overflow-y:auto}
- main{padding-bottom:0}
+ .assistant-dock{left:14px;bottom:14px}
+ .desktop-sidebar{padding-bottom:calc(18px + var(--assistant-clearance));overflow-y:auto}
+ main,html[data-view="map"] main{padding-bottom:0}
 }
 @media print{.assistant-dock{display:none}main{padding-bottom:0}}

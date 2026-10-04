@@ -24,7 +24,7 @@ export const PERSONALIZATION_DEFAULTS = {
   homeCards:HOME_CARDS.map(item=>item.id),
   homeCardOrder:HOME_CARDS.map(item=>item.id),
   homeShortcuts:['new-work','open-field-mode','new-observation'],
-  homeSummary:true,homeNextAction:true,assistantDock:true,startupDuration:2200
+  homeSummary:true,homeNextAction:true,assistantDock:true,startupDuration:3500,startupDurationVersion:2
 };
 function knownUnique(value,allowed,fallback){
   return Array.isArray(value)?[...new Set(value.filter(key=>allowed.includes(key)))]:[...fallback];
@@ -39,7 +39,8 @@ export function normalizePersonalization(preferences={}){
     homeSummary:preferences.homeSummary!==false,
     homeNextAction:preferences.homeNextAction!==false,
     assistantDock:preferences.assistantDock!==false,
-    startupDuration:[0,1200,2200,3500].includes(preferences.startupDuration)?preferences.startupDuration:2200
+    startupDuration:[0,1200,2200,3500].includes(preferences.startupDuration)&&(preferences.startupDurationVersion===2||preferences.startupDuration!==2200)?preferences.startupDuration:3500,
+    startupDurationVersion:2
   };
 }
 export function moveHomeCard(order,id,direction){

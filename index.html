@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#286a4a">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="application-name" content="Parcelles 7.2.0">
-  <meta name="parcelles-build" content="2026.10.04-v7.2.0-r3">
+  <meta name="parcelles-build" content="2026.10.04-v7.2.0-r4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -38,7 +38,7 @@
       <h1>Parcelles</h1>
       <p data-boot-label role="status">Préparation de votre exploitation…</p>
       <div class="motion-track" role="progressbar" aria-label="Ouverture de Parcelles" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0"><span></span></div>
-      <button type="button" class="button secondary boot-skip" data-boot-skip hidden>Ouvrir maintenant</button>
+      <small class="boot-note">Ouverture automatique…</small>
     </div>
   </div>
   <script>
@@ -119,7 +119,6 @@
 
       <section id="view-map" class="view map-view" aria-labelledby="map-title">
         <h1 id="map-title" class="sr-only">Carte</h1>
-        <div class="map-workbench"><nav class="context-tools" aria-label="Outils de terrain"><button class="small-button" data-action="open-field-mode">Terrain</button><button class="small-button" data-action="new-observation">Observation</button><button class="small-button" data-action="add-point">Repère</button><button class="small-button" data-action="measure-distance">Distance</button><button class="small-button" data-action="measure-area">Surface</button><button class="small-button" data-action="open-day-route">Tournée</button><button class="small-button" data-action="open-weather">Météo</button><button class="small-button" data-action="fit-parcels">Tout cadrer</button></nav><div class="map-filter-line"><label for="map-parcel-filter"><span>Afficher</span><select id="map-parcel-filter" aria-label="Filtrer les parcelles sur la carte"><option value="all">Toutes</option><option value="favorites">Favoris</option><option value="todo">À faire</option><option value="clients">Clients</option></select></label><p id="map-filter-count" role="status"></p></div></div>
         <div class="map-stage">
           <div id="map" aria-label="Carte des parcelles"></div>
           <div class="map-topbar">
@@ -127,9 +126,10 @@
             <button class="map-circle-button" data-action="open-map-layers" aria-label="Couches de la carte" title="Couches"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 2 3 7l9 5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg></button>
           </div>
           <div id="map-search-results" class="map-search-results hidden"></div>
+          <button id="map-filter-chip" class="map-filter-chip hidden" data-action="map-tools" aria-haspopup="dialog"></button>
           <div class="map-controls">
             <button class="map-circle-button" data-action="locate" aria-label="Me localiser"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="5"/></svg></button>
-            <button class="map-circle-button" data-action="map-tools" aria-label="Outils de carte"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3z"/></svg></button>
+            <button class="map-circle-button map-tools-launcher" data-action="map-tools" aria-label="Outils de carte" aria-haspopup="dialog"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3z"/></svg><span>Outils</span></button>
           </div>
           <div id="map-legend" class="map-legend"></div>
           <div id="map-draw-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong>Dessiner la parcelle</strong><small id="map-draw-count">Touchez la carte pour placer les sommets.</small></div><button class="small-button" data-action="undo-draw-point">Annuler le point</button><button class="small-button" data-action="cancel-parcel-draw">Quitter</button><button class="button primary" data-action="finish-parcel-draw">Terminer</button></div>
@@ -220,12 +220,12 @@
 
   <div id="modal-root" class="modal-root" aria-live="polite"></div>
   <div id="toast-root" class="toast-region" aria-live="polite"></div>
-  <aside id="assistant-dock" class="assistant-dock" aria-label="Assistant IA et affichage">
+  <aside id="assistant-dock" class="assistant-dock" aria-label="Assistant IA">
   <button id="assistant-launcher" class="assistant-launcher" type="button" data-action="open-assistant" aria-label="Assistant IA" aria-haspopup="dialog" title="Ouvrir l’assistant IA">
     <svg class="ui-icon" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4zM20 2v4M18 4h4"/></svg>
     <span aria-hidden="true">IA</span>
   </button>
-  <div class="assistant-dock-copy"><strong>Votre assistant terrain</strong><span>Une question, une action</span></div><button class="dock-hide" type="button" data-action="hide-assistant" aria-label="Masquer l’assistant" title="Masquer · réactiver dans Personnaliser">×</button>
+
   </aside>
   <script>document.getElementById('assistant-dock').setAttribute('inert','');</script>
   <input id="import-file-input" hidden type="file" multiple accept=".csv,.xlsx,.xls,.xml,.json,.geojson,.zip,.shp,.dbf,.shx,.prj,.cpg,.gpx,.kml,.txt">

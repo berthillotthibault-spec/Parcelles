@@ -9,14 +9,21 @@ test('legacy preferences retain visible cards and receive safe new defaults',()=
   const old=emptyState();old.preferences={homeCards:['tasks','today'],theme:'dark'};
   const migrated=migrateData(old);
   assert.deepEqual(migrated.preferences.homeCards,['tasks','today']);
-  assert.equal(migrated.preferences.startupDuration,2200);
+  assert.equal(migrated.preferences.startupDuration,3500);
   assert.equal(migrated.preferences.assistantDock,true);
   assert.equal(migrated.preferences.theme,'dark');
 });
 test('malformed imported preferences cannot add unknown actions or drop card ordering',()=>{
   const p=normalizePersonalization({homeCards:['tasks','bad','tasks'],homeCardOrder:['tasks','bad'],homeShortcuts:['javascript:alert(1)','open-calendar','open-calendar'],startupDuration:Infinity});
   assert.deepEqual(p.homeCards,['tasks']);assert.deepEqual(p.homeShortcuts,['open-calendar']);
-  assert.equal(p.homeCardOrder.length,HOME_CARDS.length);assert.equal(p.homeCardOrder[0],'tasks');assert.equal(p.startupDuration,2200);
+  assert.equal(p.homeCardOrder.length,HOME_CARDS.length);assert.equal(p.homeCardOrder[0],'tasks');assert.equal(p.startupDuration,3500);
+});
+
+test('the old 2.2 second default migrates once and subsequent explicit choices survive reload',()=>{
+  const data=emptyState();data.preferences={startupDuration:2200};
+  const upgraded=migrateData(data);assert.equal(upgraded.preferences.startupDuration,3500);assert.equal(upgraded.preferences.startupDurationVersion,2);
+  upgraded.preferences.startupDuration=2200;assert.equal(migrateData(upgraded).preferences.startupDuration,2200);
+  for(const duration of [0,1200,3500]){data.preferences={startupDuration:duration};assert.equal(migrateData(data).preferences.startupDuration,duration);}
 });
 test('an intentionally empty home and hidden assistant survive migration',()=>{
   const data=emptyState();Object.assign(data.preferences,{homeCards:[],homeShortcuts:[],homeSummary:false,homeNextAction:false,assistantDock:false,startupDuration:0});

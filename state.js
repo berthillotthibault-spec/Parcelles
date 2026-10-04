@@ -96,6 +96,8 @@ export function migrateData(input){
   const base=emptyState();
   ensureArrays(data);
   for(const key of ['preferences','metadata','exploitation'])if(!isRecord(data[key]))data[key]={};
+  // Normalize before merging defaults so old 2.2 s defaults migrate only once.
+  Object.assign(data.preferences,normalizePersonalization(data.preferences));
   if(!data.version)data.version=1;
 
   if(data.version<2){

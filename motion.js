@@ -45,21 +45,20 @@ export function bootRemaining(duration, startedAt, now, reduce = false) {
   return reduce ? 0 : Math.max(0, Math.min(3500, Number(duration) || 0) - Math.max(0, now - startedAt));
 }
 
-export async function finishBoot({duration = 2200} = {}) {
+export async function finishBoot({duration = 3500} = {}) {
   const root = document.getElementById('app-boot');
   if (root) {
     updateBoot(4, 'Votre exploitation est prête');
     const remaining = bootRemaining(duration, Number(root.dataset.startedAt) || 0, performance.now(), reducedMotion?.matches);
-    const skip = root.querySelector('[data-boot-skip]');
-    if (remaining > 0) await new Promise(resolve => {
-      const finish = () => {clearTimeout(timer);skip?.removeEventListener('click', finish);reducedMotion?.removeEventListener?.('change', onChange);resolve();};
+    const fadeDuration = Math.min(220, remaining);
+    if (remaining > fadeDuration) await new Promise(resolve => {
+      const finish = () => {clearTimeout(timer);reducedMotion?.removeEventListener?.('change', onChange);resolve();};
       const onChange = event => {if (event.matches) finish();};
-      const timer = setTimeout(finish, remaining);
-      if (skip) {skip.hidden = false;skip.addEventListener('click', finish);}
+      const timer = setTimeout(finish, remaining - fadeDuration);
       reducedMotion?.addEventListener?.('change', onChange);
     });
     const returnFocus = root.contains(document.activeElement);
-    await animateElement(root, [{opacity: 1}, {opacity: 0}], {duration: 300});
+    if (fadeDuration > 0) await animateElement(root, [{opacity: 1}, {opacity: 0}], {duration: fadeDuration});
     root.remove();
     document.getElementById('app')?.removeAttribute('inert');
     document.getElementById('assistant-dock')?.removeAttribute('inert');
