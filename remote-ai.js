@@ -1,4 +1,4 @@
-import {campaignFor, toNumber} from './utils.js';
+import {campaignFor, toNumber, normalize} from './utils.js';
 
 const ALLOWED_ACTIONS=new Set([
   'create_work','create_task','open_parcel','open_work','open_task','open_equipment',
@@ -12,6 +12,18 @@ function sanitizeAction(action){
 }
 
 export function buildAssistantContext(state,context={}){
+  const q=normalize(context.question||'');
+  if(q){
+    const parcels=(state.parcelles||[]).filter(p=>!p.deletedAt),named=parcels.filter(p=>normalize(p.nom)&&q.includes(normalize(p.nom)));
+    const ids=new Set(named.map(p=>p.id));if(!ids.size&&/cette parcelle/.test(q)&&context.currentParcelId)ids.add(context.currentParcelId);
+    const byParcel=rows=>(rows||[]).filter(row=>!ids.size||ids.has(row.parcelId));
+    const needWorks=/trav|intervention|sem|fait|historique|bilan/.test(q),needTasks=/tache|retard|aujourd/.test(q),needParcels=ids.size||needWorks||/parcelle|culture|hectare|surface/.test(q);
+    state={...state,parcelles:needParcels?(ids.size?parcels.filter(p=>ids.has(p.id)):parcels):[],
+      interventions:needWorks?byParcel(state.interventions):[],tasks:needTasks?byParcel(state.tasks):[],
+      materiels:/materiel|machine|tracteur|entretien|maintenance/.test(q)?state.materiels:[],
+      observations:/observation|anomalie|alerte/.test(q)?byParcel(state.observations):[],
+      stockItems:/stock|produit|intrant/.test(q)?state.stockItems:[],chantiers:/chantier/.test(q)?state.chantiers:[],assistantMessages:[]};
+  }
   const active=t=>(state[t]||[]).filter(x=>!x.deletedAt),limit=(rows,n)=>rows.slice(Math.max(0,rows.length-n));
   const parcels=active('parcelles').map(p=>({id:p.id,name:p.nom,culture:p.culture||'',surfaceHa:toNumber(p.surfaceHa),commune:p.commune||'',ownershipType:p.ownershipType||'own'}));
   const parcelNames=new Map(parcels.map(p=>[p.id,p.name]));
@@ -36,7 +48,7 @@ export async function askRemoteAssistant({endpoint,question,state,context={},tim
   const url=new URL(endpoint,location.href);if(!/^https:$/.test(url.protocol)&&url.hostname!=='localhost')throw new Error('L’endpoint IA doit utiliser HTTPS.');
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
-    const response=await fetch(url.href,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:String(question).slice(0,1200),context:buildAssistantContext(state,context),client:'Parcelles',mode:'assistant-v7.0',allowedActions:[...ALLOWED_ACTIONS]}),signal:controller.signal});
+    const response=await fetch(url.href,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:String(question).slice(0,1200),context:buildAssistantContext(state,{...context,question:String(question)}),client:'Parcelles',mode:'assistant-v7.0',allowedActions:[...ALLOWED_ACTIONS]}),signal:controller.signal});
     if(!response.ok)throw new Error(`Service IA ${response.status}`);
     const data=await response.json(),answer=data.answer||data.text||data.response;
     if(!String(answer||'').trim())throw new Error('Le service IA n’a retourné aucune réponse.');

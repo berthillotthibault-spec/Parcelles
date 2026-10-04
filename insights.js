@@ -18,7 +18,7 @@ export function farmInsights(state){
 const TYPE_ALIASES=new Map([
   ['parcelle','parcel'],['parcelles','parcel'],['champ','parcel'],['champs','parcel'],
   ['travail','work'],['travaux','work'],['intervention','work'],['interventions','work'],
-  ['tache','task'],['taches','task'],['rappel','task'],
+  ['modele','template'],['modeles','template'],['tache','task'],['taches','task'],['rappel','task'],
   ['materiel','equipment'],['machine','equipment'],['tracteur','equipment'],
   ['client','client'],['clients','client'],['point','point'],['points','point'],
   ['observation','observation'],['observations','observation'],['stock','stock'],['stocks','stock'],
@@ -69,12 +69,15 @@ export function searchEverything(state,query){
   (state.stockItems||[]).filter(x=>!x.deletedAt).forEach(x=>add('stock',x.id,x.name||'Stock',`${x.quantity??0} ${x.unit||''}`,[x.name,x.note,x.unit].join(' ')));
   (state.documents||[]).filter(x=>!x.deletedAt).forEach(x=>{const p=(state.parcelles||[]).find(p=>p.id===x.parcelId),w=(state.interventions||[]).find(w=>w.id===x.interventionId),m=(state.materiels||[]).find(m=>m.id===x.equipmentId),c=(state.clients||[]).find(c=>c.id===x.clientId);add('document',x.id,x.name||'Document',`${x.category||x.mimeType||'Document'}${p?` · ${p.nom}`:''}`,[x.name,x.note,x.mimeType,x.category,(x.tags||[]).join(' '),p?.nom,w?.type,m?.nom,c?.name].join(' '))});
   (state.chantiers||[]).filter(x=>!x.deletedAt).forEach(c=>add('chantier',c.id,c.type||'Chantier',`${localDate(c.plannedDate||c.createdAt)} · ${c.status||'Planifié'}`,[c.type,c.note,c.operator,c.status].join(' ')));
+  (state.templates||[]).filter(x=>!x.deletedAt).forEach(t=>add('template',t.id,t.name||t.type||'Modèle','Préremplir un travail',[t.name,t.type,t.culture,t.product].join(' ')));
   return out.sort((a,b)=>b.score-a.score||String(a.title).localeCompare(String(b.title),'fr')).slice(0,80).map(({score,...row})=>row);
 }
 
 export function recentWorkSuggestions(state,limit=4){
-  const works=(state.interventions||[]).filter(x=>!x.deletedAt&&x.type).sort((a,b)=>(b.updatedAt||new Date(b.date||0).getTime())-(a.updatedAt||new Date(a.date||0).getTime()));
-  const seen=new Set(),out=[];
-  for(const work of works){const key=normalize(`${work.type}|${work.product||''}|${work.equipmentId||''}`);if(seen.has(key))continue;seen.add(key);out.push(work);if(out.length>=limit)break;}
-  return out;
+  const groups=new Map();
+  for(const work of (state.interventions||[]).filter(w=>!w.deletedAt&&w.type&&(!w.status||['Terminé','Terminée'].includes(w.status)))){
+    const key=normalize(`${work.type}|${work.culture||''}|${work.product||''}|${work.equipmentId||''}|${work.dose??''}|${work.doseUnit||''}`),previous=groups.get(key),date=Number(work.updatedAt)||new Date(work.date||0).getTime();
+    groups.set(key,{count:(previous?.count||0)+1,date:Math.max(previous?.date||0,date),work:!previous||date>=previous.date?work:previous.work});
+  }
+  return [...groups.values()].sort((a,b)=>b.count-a.count||b.date-a.date).slice(0,limit).map(g=>g.work);
 }

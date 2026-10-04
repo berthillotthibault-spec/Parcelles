@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#286a4a">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
-  <meta name="application-name" content="Parcelles 7.2.0">
-  <meta name="parcelles-build" content="2026.10.04-v7.2.0-r4">
+  <meta name="application-name" content="Parcelles 8.0">
+  <meta name="parcelles-build" content="2026.10.05-v8.0.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -104,16 +104,18 @@
             <div class="today-primary-action"><button class="button secondary personalize-button" data-action="personalize">Personnaliser</button><button class="button primary" data-action="new-work"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span class="action-label">Travail</span></button></div>
           </div>
           <div id="next-action" class="next-action"></div>
-          <div id="today-summary" class="today-summary" aria-label="Repères de l’exploitation"></div>
+          <div id="today-summary" class="today-summary" aria-label="Résumé du jour"></div>
+          <section id="morning-brief" class="morning-brief" aria-label="Briefing du matin"></section>
           <div id="today-quick-actions" class="quick-action-strip" aria-label="Actions rapides"></div>
           <div id="home-custom-empty" class="home-custom-empty hidden">Votre accueil est épuré. Retrouvez vos outils dans les onglets ou ajoutez des blocs avec <button class="text-button" data-action="personalize">Personnaliser</button>.</div>
           <div class="today-grid">
             <article class="panel weather-card" data-home-card="weather"><div class="panel-heading"><h2>Météo</h2><button class="text-button" data-action="open-weather">Voir</button></div><div id="weather-content" class="weather-content"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></article>
-            <article class="panel" data-home-card="today"><div class="panel-heading"><h2>À faire aujourd’hui</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="today-work-list" class="stack-list"></div></article>
-            <article class="panel" data-home-card="tasks"><div class="panel-heading"><h2>Tâches</h2><button class="text-button" data-action="open-tasks">Tout voir</button></div><div id="today-task-list" class="stack-list"></div></article>
+            <article class="panel" data-home-card="today"><div class="panel-heading"><h2>À faire maintenant</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="today-work-list" class="stack-list"></div></article>
+            <article class="panel" data-home-card="tasks"><div class="panel-heading"><h2>Autres tâches</h2><button class="text-button" data-action="open-tasks">Tout voir</button></div><div id="today-task-list" class="stack-list"></div></article>
             <article class="panel" data-home-card="alerts"><div class="panel-heading"><h2>À surveiller</h2><button class="text-button" data-action="open-notifications">Voir</button></div><div id="alerts-list" class="stack-list"></div></article>
             <article class="panel" data-home-card="recent"><div class="panel-heading"><h2>Activité récente</h2><button class="text-button" data-view="work">Historique</button></div><div id="recent-list" class="stack-list"></div></article>
           </div>
+          <section id="day-review" class="day-review" aria-label="Bilan de journée"></section>
         </div>
       </section>
 
@@ -127,7 +129,7 @@
           </div>
           <div id="map-search-results" class="map-search-results hidden"></div>
           <button id="map-filter-chip" class="map-filter-chip hidden" data-action="map-tools" aria-haspopup="dialog"></button>
-          <div class="map-controls">
+          <div class="map-controls"><button id="map-multiple-toggle" class="map-circle-button" data-action="map-multiple" aria-pressed="false" aria-label="Sélection multiple">✓+</button>
             <button class="map-circle-button" data-action="locate" aria-label="Me localiser"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="5"/></svg></button>
             <button class="map-circle-button map-tools-launcher" data-action="map-tools" aria-label="Outils de carte" aria-haspopup="dialog"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3z"/></svg><span>Outils</span></button>
           </div>
@@ -135,6 +137,7 @@
           <div id="map-draw-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong>Dessiner la parcelle</strong><small id="map-draw-count">Touchez la carte pour placer les sommets.</small></div><button class="small-button" data-action="undo-draw-point">Annuler le point</button><button class="small-button" data-action="cancel-parcel-draw">Quitter</button><button class="button primary" data-action="finish-parcel-draw">Terminer</button></div>
           <div id="map-measure-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong id="measure-title">Mesure</strong><small id="measure-value">Touchez la carte.</small></div><button class="small-button" data-action="undo-measure-point">Annuler le point</button><button class="small-button" data-action="cancel-measure">Quitter</button><button class="button primary" data-action="finish-measure">Terminer</button></div>
           <div id="map-point-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong id="point-placement-title">Placer un point</strong><small>Touchez le nouvel emplacement sur la carte, puis confirmez.</small></div><button class="button secondary" data-action="cancel-map-point">Annuler</button></div>
+          <aside id="map-selection" class="map-selection hidden" aria-live="polite"></aside>
           <aside id="map-parcel-sheet" class="map-bottom-sheet is-empty" aria-live="polite"></aside>
         </div>
       </section>
@@ -158,9 +161,9 @@
         <div class="page-container parcel-detail-page">
           <div class="detail-topbar"><button class="back-button" data-view="parcels"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M15 18l-6-6 6-6"/></svg>Parcelles</button><div id="parcel-detail-top-actions" class="detail-top-actions"></div></div>
           <div class="detail-hero"><h1 id="parcel-detail-title">Parcelle</h1><p id="parcel-detail-subtitle" class="detail-subtitle"></p></div>
-          <div id="parcel-detail-actions" class="detail-actions"></div>
           <div id="parcel-detail-tabs" class="detail-tabs"></div>
           <div id="parcel-detail-body" class="detail-body"></div>
+          <div id="parcel-detail-actions" class="detail-actions" aria-label="Actions de la parcelle"></div>
         </div>
       </section>
 

@@ -27,3 +27,33 @@
 @media(max-width:600px){.today-welcome{align-items:flex-start;flex-wrap:wrap}.today-primary-action{margin-left:auto}.today-primary-action .button{width:auto;min-width:108px;padding:0 14px}.next-action-card{min-height:126px}.next-action-card strong{font-size:22px}.quick-action{justify-content:flex-start}.detail-grid{grid-template-columns:1fr}.detail-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible;padding-bottom:18px}.detail-actions .button{min-width:0;padding-left:8px;padding-right:8px;font-size:13px}.detail-actions .button.primary{grid-column:1/-1;font-size:15px}.toolbar-panel{align-items:stretch}.toolbar-panel>.button{min-width:48px}.compact-select{width:100%;justify-content:space-between}.compact-select select{flex:1}.parcel-row,.work-row{min-height:76px;padding-left:13px;padding-right:10px}.row-trailing .badge{display:none}}
 
 button.list-row{width:100%;border-left:0;border-right:0;border-top:0;background:transparent;text-align:left;color:inherit}.work-row>button.row-main{border:0;background:transparent;text-align:left;padding:0;color:inherit}.work-row>button.row-main:focus-visible{border-radius:10px}.stack-list>.work-row{border-radius:0}.list-row>.ui-icon{color:var(--text-tertiary)}
+
+/* V8: a prominent decision, compact indicators and quiet supporting sections. */
+.today-summary{grid-template-columns:repeat(4,minmax(0,1fr))}
+.summary-card strong{font-size:clamp(17px,4.5vw,26px);white-space:normal}
+.next-action-card{gap:20px;flex-wrap:wrap;min-height:170px}
+.next-action-card>span{min-width:0;overflow-wrap:anywhere}
+.cockpit-actions{display:flex;flex-wrap:wrap;gap:8px}
+.next-action-card .button.secondary{background:#fff;color:#174b32;border:0}
+.next-action-card .button.primary{background:#143e2a;color:#fff;border:1px solid #c5dfcf}
+.morning-brief{border-inline-start:3px solid var(--brand);padding:0 14px}
+.morning-brief p{margin:4px 0;line-height:1.6}
+.today-grid [data-home-card="recent"],.today-grid [data-home-card="tasks"]{background:transparent;border:0;box-shadow:none}
+.today-grid [data-home-card="today"]{border:0}
+.day-review{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--border-subtle);padding:24px 0;flex-wrap:wrap}
+.day-review h2{margin:0;font-size:18px}.day-review p{line-height:1.6}.day-review small{color:var(--text-secondary)}
+.parcel-situation{padding:8px 0 24px}.parcel-situation h2{font-size:22px}.parcel-situation .list-row{width:100%;text-align:left;gap:10px}
+.map-selection{position:absolute;z-index:650;bottom:12px;left:12px;right:12px;max-height:45%;overflow:auto;background:var(--surface);color:var(--text-primary);padding:16px;border-radius:18px;box-shadow:var(--shadow-float)}
+.map-selection strong{display:block;margin-bottom:12px}.map-selection .button{min-height:44px}
+.map-legend .legend-content{max-height:35vh;overflow:auto}
+.field-quick-actions button{min-height:90px;font-size:22px}.field-quick-actions button small{font-size:17px}
+.field-secondary{margin-top:18px}.field-secondary summary{padding:16px;cursor:pointer}
+@media(max-width:600px){.next-action-card .cockpit-actions{width:100%}.next-action-card .button{flex:1;min-height:48px}.today-grid{gap:18px}.summary-card{padding-right:5px;margin-right:5px}.field-quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.field-quick-actions button:first-child{grid-column:1/-1}.map-selection .cockpit-actions{display:grid;grid-template-columns:1fr 1fr}.map-selection .button{padding:8px;font-size:13px}}
+.today-page .summary-card{min-width:0;border:0;border-inline-end:1px solid var(--border-subtle);margin-right:5px;padding:8px 5px 8px 0;background:none}.today-page .summary-card:last-child{border:0}
+@media(max-width:1023px){
+ #parcel-detail-actions{position:fixed;z-index:33;bottom:calc(84px + max(8px,var(--safe-bottom)));left:max(8px,var(--safe-left));right:max(8px,var(--safe-right));display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:6px;background:var(--surface);border-radius:16px;box-shadow:var(--shadow-float)}
+ #parcel-detail-actions .button{grid-column:auto;display:flex;flex-direction:column;gap:3px;min-height:54px;padding:5px 1px;font-size:10px;border:0;min-width:0}
+ .parcel-detail-page{padding-bottom:110px}
+ html[data-view="parcel"] .assistant-dock{bottom:calc(162px + max(8px,var(--safe-bottom)))}
+}
+.field-parcel-picker{display:grid;gap:8px;margin:16px 0;font-weight:700}.field-parcel-picker select{width:100%;min-height:54px;font:inherit;color:var(--text-primary);background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;padding:12px}

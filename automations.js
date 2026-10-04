@@ -1,6 +1,8 @@
+import {agendaDate,isPending,localDay,grazingWatch,maintenanceRemaining,isLowStock} from './home-priorities.js';
 import {isoDate,normalize,toNumber,uid} from './utils.js';
 
 export const AUTOMATION_KINDS={
+  grazing_duration:{label:'Durée au pâturage',description:'Signaler les lots présents depuis le nombre de jours défini, sans les déplacer.'},
   task_overdue:{label:'Tâches en retard',description:'Alerter lorsqu’une tâche dépasse son échéance.'},
   work_today:{label:'Travaux du jour',description:'Alerter lorsqu’un travail planifié arrive aujourd’hui.'},
   stock_low:{label:'Stock faible',description:'Alerter lorsqu’un article atteint son seuil.'},
@@ -52,6 +54,7 @@ export const AUTOMATION_FIELDS={
 };
 
 export function automationTemplates(){return [
+  {kind:'grazing_duration',name:'Durée au pâturage',threshold:7,cooldownHours:24,trigger:'daily',actions:[{type:'notify'}]},
   {kind:'task_overdue',name:'Tâches en retard',threshold:1,cooldownHours:12,trigger:'interval',actions:[{type:'notify'}]},
   {kind:'stock_low',name:'Stocks faibles',threshold:1,cooldownHours:12,trigger:'entity_change',triggerEntity:'stockItems',actions:[{type:'notify'}]},
   {kind:'maintenance_due',name:'Entretien matériel',threshold:20,cooldownHours:24,trigger:'interval',actions:[{type:'notify'}]},
@@ -111,11 +114,12 @@ export function genericAutomationMatches(rule,state,nowMs=Date.now()){
 export function automationMatches(rule,state,nowMs=Date.now()){
   if(!rule?.enabled)return[];
   if(rule.target)return genericAutomationMatches(rule,state,nowMs);
-  const today=isoDate(nowMs),threshold=toNumber(rule.threshold);
-  if(rule.kind==='task_overdue')return active(state,'tasks').filter(x=>x.status!=='Terminé'&&x.dueDate&&x.dueDate<today).map(x=>({entity:'tasks',entityId:x.id,title:'Tâche en retard',message:x.title||'Tâche',label:x.title||'Tâche',data:x}));
-  if(rule.kind==='work_today')return active(state,'interventions').filter(x=>!['Terminé','Annulé'].includes(x.status)&&((x.plannedDate||x.date)===today)).map(x=>({entity:'interventions',entityId:x.id,title:'Travail prévu aujourd’hui',message:x.type||'Travail',label:x.type||'Travail',data:x}));
-  if(rule.kind==='stock_low')return active(state,'stockItems').filter(x=>x.alertBelow!==null&&x.alertBelow!==undefined&&Number(x.quantity)<=Number(x.alertBelow)).map(x=>({entity:'stockItems',entityId:x.id,title:Number(x.quantity)<=0?'Stock épuisé':'Stock faible',message:`${x.name||'Article'} · ${x.quantity??0} ${x.unit||''}`,label:x.name||'Article',data:x}));
-  if(rule.kind==='maintenance_due')return active(state,'materiels').filter(x=>Number.isFinite(Number(x.currentMeter))&&Number.isFinite(Number(x.maintenanceDue))&&(Number(x.maintenanceDue)-Number(x.currentMeter))<=threshold).map(x=>({entity:'materiels',entityId:x.id,title:'Entretien matériel',message:`${x.nom||'Matériel'} · ${Math.round(Number(x.maintenanceDue)-Number(x.currentMeter))} h restantes`,label:x.nom||'Matériel',data:x}));
+  const today=localDay(new Date(nowMs)),threshold=toNumber(rule.threshold);
+  if(rule.kind==='grazing_duration')return grazingWatch(state,today,threshold).map(row=>({entity:'grazingSessions',entityId:row.id,title:'Pâturage à surveiller',message:row.label,label:row.label,data:row}));
+  if(rule.kind==='task_overdue')return active(state,'tasks').filter(x=>isPending(x,'task')&&agendaDate(x,'task')&&agendaDate(x,'task')<today).map(x=>({entity:'tasks',entityId:x.id,title:'Tâche en retard',message:x.title||'Tâche',label:x.title||'Tâche',data:x}));
+  if(rule.kind==='work_today')return active(state,'interventions').filter(x=>isPending(x)&&agendaDate(x)===today).map(x=>({entity:'interventions',entityId:x.id,title:'Travail prévu aujourd’hui',message:x.type||'Travail',label:x.type||'Travail',data:x}));
+  if(rule.kind==='stock_low')return active(state,'stockItems').filter(isLowStock).map(x=>({entity:'stockItems',entityId:x.id,title:Number(x.quantity)<=0?'Stock épuisé':'Stock faible',message:`${x.name||'Article'} · ${x.quantity??0} ${x.unit||''}`,label:x.name||'Article',data:x}));
+  if(rule.kind==='maintenance_due')return active(state,'materiels').filter(x=>maintenanceRemaining(x)!==null&&maintenanceRemaining(x)<=threshold).map(x=>({entity:'materiels',entityId:x.id,title:'Entretien matériel',message:`${x.nom||'Matériel'} · ${Math.round(maintenanceRemaining(x))} h restantes`,label:x.nom||'Matériel',data:x}));
   if(rule.kind==='urgent_observation')return active(state,'observations').filter(x=>x.status!=='Résolu'&&x.severity==='urgent').map(x=>({entity:'observations',entityId:x.id,title:'Observation terrain urgente',message:x.title||x.type||'Observation',label:x.title||x.type||'Observation',data:x}));
   if(rule.kind==='backup_old'){const last=state.metadata?.lastAutoBackupDay;if(!last)return[{entity:'backup',entityId:'',title:'Sauvegarde à vérifier',message:'Aucune sauvegarde automatique datée.',label:'Sauvegarde',data:{}}];const age=(nowMs-new Date(`${last}T12:00:00`).getTime())/86400000;return age>threshold?[{entity:'backup',entityId:'',title:'Sauvegarde ancienne',message:`Dernière sauvegarde il y a ${Math.floor(age)} jours.`,label:'Sauvegarde',data:{age}}]:[];}
   if(rule.kind==='sync_pending'){const count=(state.queue||[]).filter(x=>x.status==='pending').length;return count>=threshold?[{entity:'sync',entityId:'',title:'Synchronisation en attente',message:`${count} modifications attendent la synchronisation.`,label:'Synchronisation',data:{count}}]:[];}

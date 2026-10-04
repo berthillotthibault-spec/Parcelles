@@ -77,3 +77,25 @@ export function stockSummary(state){
   }).sort((a,b)=>b.value-a.value||String(a.name).localeCompare(String(b.name),'fr'));
   return{rows,movements,totalValue:rows.reduce((s,x)=>s+x.value,0),low:rows.filter(x=>x.alertBelow!==null&&x.alertBelow!==undefined&&toNumber(x.quantity)<=toNumber(x.alertBelow))};
 }
+
+// Map projections are campaign-scoped; unknown amounts never become zero euros.
+export function mapEconomics(state,{campaign=campaignFor()}={}){
+  const groups=new Map();
+  for(const work of active(state,'interventions')){
+    if(!['Terminé','Terminée'].includes(work.status||'Terminé')||!(work.date||work.plannedDate)||(work.campaignId||campaignFor(work.date||work.plannedDate))!==campaign)continue;
+    if(!groups.has(work.parcelId))groups.set(work.parcelId,[]);groups.get(work.parcelId).push(work);
+  }
+  const known=value=>value!==null&&value!==undefined&&String(value).trim()!==''&&Number.isFinite(Number(value));
+  return new Map(active(state,'parcelles').map(parcel=>{
+    const works=groups.get(parcel.id)||[],econ=parcel.economicsByCampaign?.[campaign]||{};
+    const costKnown=works.some(w=>known(w.cost)&&Number(w.cost)>0)||['inputCostHa','operatorCostHa','otherCostHa'].some(key=>known(econ[key])&&Number(econ[key])>0);
+    const productKnown=known(econ.productHa)||(known(econ.yield)&&known(econ.salePrice));
+    const values=parcelEconomics({interventions:works},{...parcel,economics:{},economicsByCampaign:{[campaign]:econ}},{campaign});
+    return [parcel.id,{campaign,costHa:values.area>0&&costKnown?values.costHa:null,marginHa:values.area>0&&costKnown&&productKnown&&works.every(w=>known(w.cost)&&Number(w.cost)>0)?values.marginHa:null}];
+  }));
+}
+export function economicColor(value,mode){
+  if(value===null||value===undefined||!Number.isFinite(value))return {color:'#7c8580',label:'Données insuffisantes'};
+  const color=mode==='margin'?value<0?'#bf4944':value<250?'#b88722':value<750?'#548e61':'#22643f':value<100?'#3a8060':value<300?'#658b85':value<600?'#b88722':'#b65b47';
+  return {color,label:`${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(value)} €/ha · ${mode==='margin'?'marge estimée':'coûts enregistrés'}`};
+}

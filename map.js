@@ -1,3 +1,5 @@
+import {mapEconomics,economicColor} from './pilotage.js';
+import {parcelSituation,localDay} from './home-priorities.js';
 import {parcelGrazingHtml} from './grazing-ui.js';
 import {escapeHtml, formatNumber, geometryCentroid, geometryAreaHa, haversineMeters, normalize} from './utils.js';
 import {fetchRpgFeatures, rpgFeatureId} from './rpg.js';
@@ -18,7 +20,7 @@ function bboxSquare(lat,lon,radiusKm){
 
 export class ParcelMap{
   constructor({onSelect=null,onToast=null,onPointPlaced=null}={}){
-    this.onSelect=onSelect;this.onToast=onToast;this.onPointPlaced=onPointPlaced;
+    this.multiple=false;this.selectedIds=new Set();this.situations=new Map();this.onSelect=onSelect;this.onToast=onToast;this.onPointPlaced=onPointPlaced;
     this.map=null;this.layers={};this.baseLayer=null;this.baseLayerName=null;this.lastState={parcelles:[],points:[]};this.selectedId=null;this.watchId=null;this.gpsMarker=null;this.colorMode='culture';this.rpgVisible=false;this.rpgData=null;this.pointPlacementHandler=null;this.polygonDraw=null;this.measure=null;this.followGps=false;this.unavailable=false;
     this.suspendedPopups=new Map();this.pointMarkers=new Map();this.pointPlacementCancel=null;this.rpgFeatures=new Map();this.rpgLoadController=null;this.rpgLoadSequence=0;
   }
@@ -51,12 +53,32 @@ export class ParcelMap{
     this.baseLayer.addTo(this.map);this.baseLayerName=name;
   }
 
-  setColorMode(mode){const next=mode==='status'?'status':'culture';if(this.colorMode===next)return;this.colorMode=next;this.render(this.lastState);}
-  colorFor(parcel){return this.colorMode==='status'?statusColor(parcel.status):cultureColor(parcel.culture||'Sans culture');}
+  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.render(this.lastState);}
+  colorInfo(parcel){
+    if(['cost','margin'].includes(this.colorMode)){const row=this.economics?.get(parcel.id);return economicColor(row?.[this.colorMode==='cost'?'costHa':'marginHa'],this.colorMode);}
+    const context=this.situations.get(parcel.id),status=context?.status;
+    if(this.colorMode==='status')return {label:status?.label||'Rien d’urgent signalé',color:status?.color||'#2f8054'};
+    if(this.colorMode==='animals')return {label:context?.grazing.length?'Animaux présents':'Sans animaux',color:context?.grazing.length?'#3178c6':'#778579'};
+    const label=this.colorMode==='client'?(this.lastState.clients||[]).find(c=>!c.deletedAt&&c.id===parcel.clientId)?.name||'Sans client':
+      this.colorMode==='work'?context?.next?.item.type||context?.next?.item.title||'Aucun travail prévu':
+      this.colorMode==='last'?context?.last?.date?.slice(0,10)||'Aucune intervention réalisée':parcel.culture||'Sans culture';
+    return {label,color:cultureColor(label)};
+  }
+  colorFor(parcel){return this.colorInfo(parcel).color;}
+  toggleMultiple(enabled=!this.multiple){
+    this.cancelPointPlacement();this.cancelPolygonDrawing();this.cancelMeasurement();this.multiple=enabled;
+    if(!enabled){this.selectedIds.clear();this.restorePopups();}this.map?.closePopup();this.render(this.lastState);this.notifySelection();
+  }
+  notifySelection(){document.dispatchEvent(new CustomEvent('parcelles:selection',{detail:{enabled:this.multiple,ids:[...this.selectedIds]}}));}
 
   render(state){
-    this.lastState=state;this.init();if(!this.map)return;
-    const parcels=(state.parcelles||[]).filter(item=>!item.deletedAt),points=(state.points||[]).filter(item=>!item.deletedAt);this.layers.parcels.clearLayers();this.layers.points.clearLayers();this.pointMarkers.clear();
+    this.lastState=state;this.economics=['cost','margin'].includes(this.colorMode)?mapEconomics(state):null;
+    const grouped=new Map((state.parcelles||[]).filter(p=>!p.deletedAt).map(p=>[p.id,{}]));
+    for(const type of ['interventions','tasks','grazingSessions','observations'])for(const row of state[type]||[]){const group=grouped.get(row.parcelId);if(group)(group[type]??=[]).push(row);}
+    this.situations=new Map([...grouped].map(([id,group])=>[id,parcelSituation(group,id,localDay())]));
+    for(const id of this.selectedIds)if(!grouped.has(id))this.selectedIds.delete(id);
+    this.init();if(!this.map)return;
+    const parcels=(state.parcelles||[]).filter(item=>!item.deletedAt),points=(state.points||[]).filter(item=>!item.deletedAt);const forget=layer=>{this.suspendedPopups.delete(layer);layer.eachLayer?.(forget);};forget(this.layers.parcels);forget(this.layers.points);this.layers.parcels.clearLayers();this.layers.points.clearLayers();this.pointMarkers.clear();
     parcels.filter(parcel=>parcel.geometry).forEach(parcel=>this.addParcel(parcel));
     points.filter(point=>point.latitude!==null&&point.latitude!==undefined&&point.latitude!==''&&point.longitude!==null&&point.longitude!==undefined&&point.longitude!==''&&Number.isFinite(Number(point.latitude))&&Number.isFinite(Number(point.longitude))).forEach(point=>{
       const marker=L.circleMarker([Number(point.latitude),Number(point.longitude)],{pane:'mapPointPane',radius:9,color:'#fff',weight:3,fillColor:'#824510',fillOpacity:1}).addTo(this.layers.points),id=escapeHtml(point.id),note=point.note??point.notes;
@@ -88,7 +110,7 @@ export class ParcelMap{
   bindMapPopup(layer,content,options){
     // Update before Leaflet opens the popup, including after a screen rotation.
     layer.on('click',()=>{const popup=layer.getPopup?.();if(popup)Object.assign(popup.options,this.mapPopupPadding());});
-    layer.bindPopup(content,{...this.mapPopupPadding(),...options});if(this.mapToolActive())this.suspendPopups(layer);return layer;
+    layer.bindPopup(content,{...this.mapPopupPadding(),...options});if(this.mapToolActive()||this.multiple)this.suspendPopups(layer);return layer;
   }
 
   focusPoint(id,{openPopup=true}={}){
@@ -98,12 +120,12 @@ export class ParcelMap{
 
   addParcel(parcel){
     try{
-      const selected=parcel.id===this.selectedId,color=this.colorFor(parcel);
+      const selected=this.multiple?this.selectedIds.has(parcel.id):parcel.id===this.selectedId,color=this.colorFor(parcel);
       const pane=selected?'selectedParcelPane':'parcelPane';
       if(selected)L.geoJSON(parcel.geometry,{pane,interactive:false,style:{color:'#fff',weight:9,opacity:1,fill:false}}).addTo(this.layers.parcels);
       const layer=L.geoJSON(parcel.geometry,{pane,style:()=>({color:selected?'#092c1c':color,weight:selected?5:3,opacity:1,fillColor:color,fillOpacity:selected?.52:.3}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
-      layer.on('click',()=>{if(!this.pointPlacementHandler&&!this.polygonDraw&&!this.measure)this.select(parcel.id,{zoom:false});});
-      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small>${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
+      layer.on('click',()=>{if(this.pointPlacementHandler||this.polygonDraw||this.measure)return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
+      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(this.colorInfo(parcel).label)}</small>${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
       layer.addTo(this.layers.parcels);
     }catch(error){console.warn('[Parcelles] Géométrie ignorée',parcel.id,error);}
   }
@@ -111,8 +133,8 @@ export class ParcelMap{
   setLegend(){
     const legend=document.querySelector('#map-legend');if(!legend)return;
     const parcels=(this.lastState.parcelles||[]).filter(p=>!p.deletedAt&&p.geometry);
-    const values=this.colorMode==='status'?[...new Set(parcels.map(p=>p.status||'À jour'))]:[...new Set(parcels.map(p=>p.culture||'Sans culture'))];
-    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende</button><div class="legend-content">${values.slice(0,10).map(value=>`<div class="legend-item"><span class="legend-dot" style="background:${this.colorMode==='status'?statusColor(value):cultureColor(value)}"></span>${escapeHtml(value)}</div>`).join('')}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
+    const values=[...new Map(parcels.map(p=>{const info=this.colorInfo(p);return[info.label,info];})).values()];
+    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha'}[this.colorMode]}${['cost','margin'].includes(this.colorMode)?` · ${this.economics?.values().next().value?.campaign||''}`:''}</button><div class="legend-content">${values.map(info=>`<div class="legend-item"><span class="legend-dot" style="background:${info.color}"></span>${escapeHtml(info.label)}</div>`).join('')}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
   }
 
   select(id,{zoom=true}={}){
@@ -194,6 +216,7 @@ export class ParcelMap{
   setRpgVisible(value){this.rpgVisible=Boolean(value);if(!this.rpgVisible){this.cancelRpgLoad();this.layers.rpg?.clearLayers();}else if(this.rpgData)this.renderRpg();this.setLegend();}
 
   startPointPlacement(callback,{onCancel=null}={}){
+    if(this.multiple)this.toggleMultiple(false);
     this.init();if(!this.map){this.onToast?.('La carte doit être disponible pour placer un point.','error');onCancel?.();return false;}
     this.cancelPointPlacement();this.cancelPolygonDrawing();this.cancelMeasurement();this.map.closePopup();
     this.pointPlacementCancel=onCancel;this.pointPlacementHandler=event=>{this.cancelPointPlacement(false);callback?.({latitude:event.latlng.lat,longitude:event.latlng.lng});};
@@ -205,6 +228,7 @@ export class ParcelMap{
   }
 
   startPolygonDrawing({onUpdate,onComplete,onCancel}={}){
+    if(this.multiple)this.toggleMultiple(false);
     this.init();if(!this.map){this.onToast?.('La carte doit être disponible pour dessiner une parcelle.','error');onCancel?.();return;}this.cancelPolygonDrawing(false);this.cancelPointPlacement();this.cancelMeasurement();this.map.closePopup();
     const points=[];const click=event=>{points.push([event.latlng.lng,event.latlng.lat]);this.layers.drawing.clearLayers();const latlngs=points.map(([lng,lat])=>[lat,lng]);if(points.length>=3)L.polygon(latlngs,{pane:'editingPane',color:'#17663f',weight:3,fillColor:'#61b985',fillOpacity:.2,dashArray:'6 5'}).addTo(this.layers.drawing);else if(points.length>=2)L.polyline(latlngs,{pane:'editingPane',color:'#17663f',weight:3,dashArray:'6 5'}).addTo(this.layers.drawing);points.forEach(([lng,lat],index)=>L.circleMarker([lat,lng],{pane:'editingPane',radius:5,color:'#fff',weight:2,fillColor:'#17663f',fillOpacity:1}).bindTooltip(String(index+1),{permanent:false}).addTo(this.layers.drawing));onUpdate?.(points.length);};
     this.polygonDraw={points,click,onUpdate,onComplete,onCancel};this.suspendPopups();this.map.on('click',click);this.map.getContainer().classList.add('is-drawing');onUpdate?.(0);
@@ -218,6 +242,7 @@ export class ParcelMap{
   undoPolygonPoint(){if(!this.polygonDraw?.points.length)return 0;this.polygonDraw.points.pop();const pts=[...this.polygonDraw.points],cfg={...this.polygonDraw};this.cancelPolygonDrawing(false);this.startPolygonDrawing({onUpdate:cfg.onUpdate,onComplete:cfg.onComplete,onCancel:cfg.onCancel});for(const [lng,lat] of pts){const event={latlng:{lng,lat}};this.polygonDraw.click(event);}return pts.length;}
 
   startMeasurement(kind='distance',{onUpdate,onComplete,onCancel}={}){
+    if(this.multiple)this.toggleMultiple(false);
     this.init();if(!this.map){this.onToast?.('La carte doit être disponible pour mesurer.','error');return;}this.cancelMeasurement(false);this.cancelPointPlacement();this.cancelPolygonDrawing();this.map.closePopup();const points=[];const render=()=>{this.layers.measure.clearLayers();const latlngs=points.map(p=>[p.latitude,p.longitude]);if(kind==='area'&&points.length>=3)L.polygon(latlngs,{pane:'editingPane',color:'#6d4fd3',weight:3,fillColor:'#8c78da',fillOpacity:.16,dashArray:'6 5'}).addTo(this.layers.measure);else if(points.length>=2)L.polyline(latlngs,{pane:'editingPane',color:'#6d4fd3',weight:3,dashArray:'6 5'}).addTo(this.layers.measure);points.forEach((p,i)=>L.circleMarker([p.latitude,p.longitude],{pane:'editingPane',radius:5,color:'#fff',weight:2,fillColor:'#6d4fd3',fillOpacity:1}).bindTooltip(String(i+1)).addTo(this.layers.measure));let value=0;if(kind==='distance'&&points.length>1)for(let i=1;i<points.length;i++)value+=haversineMeters(points[i-1],points[i]);if(kind==='area'&&points.length>=3){const ring=points.map(p=>[p.longitude,p.latitude]);ring.push(ring[0]);value=geometryAreaHa({type:'Polygon',coordinates:[ring]});}onUpdate?.({kind,points:[...points],value});};const click=e=>{points.push({latitude:e.latlng.lat,longitude:e.latlng.lng});render();};this.measure={kind,points,click,onUpdate,onComplete,onCancel};this.suspendPopups();this.map.on('click',click);this.map.getContainer().classList.add('is-measuring');render();
   }
   finishMeasurement(){if(!this.measure)return null;const {kind,points,onComplete}=this.measure;let value=0;if(kind==='distance'){if(points.length<2)throw new Error('Ajoutez au moins deux points.');for(let i=1;i<points.length;i++)value+=haversineMeters(points[i-1],points[i]);}else{if(points.length<3)throw new Error('Ajoutez au moins trois points.');const ring=points.map(p=>[p.longitude,p.latitude]);ring.push(ring[0]);value=geometryAreaHa({type:'Polygon',coordinates:[ring]});}this.map.off('click',this.measure.click);this.map.getContainer().classList.remove('is-measuring');this.measure=null;this.restorePopups();onComplete?.({kind,points,value});return value;}

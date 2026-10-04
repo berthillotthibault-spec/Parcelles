@@ -16,12 +16,24 @@ export function formatElapsed(ms){
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
+function distanceToBoundary(position,geometry){
+  const rings=geometry?.type==='Polygon'?geometry.coordinates:geometry?.type==='MultiPolygon'?geometry.coordinates.flat():[];
+  const lat=Number(position.latitude),lon=Number(position.longitude),scaleX=111320*Math.cos(lat*Math.PI/180),scaleY=111320;
+  let best=Infinity;
+  for(const ring of rings)for(let i=1;i<ring.length;i++){
+    const a=ring[i-1],b=ring[i],ax=(a[0]-lon)*scaleX,ay=(a[1]-lat)*scaleY,bx=(b[0]-lon)*scaleX,by=(b[1]-lat)*scaleY;
+    const dx=bx-ax,dy=by-ay,length=dx*dx+dy*dy,t=length?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/length)):0;
+    best=Math.min(best,Math.hypot(ax+t*dx,ay+t*dy));
+  }
+  return best;
+}
+
 export function locateParcels(position,parcels=[]){
   if(!Number.isFinite(Number(position?.latitude))||!Number.isFinite(Number(position?.longitude)))return[];
   return parcels.filter(p=>p&&!p.deletedAt&&p.geometry).map(parcel=>{
     const inside=pointInGeometry(Number(position.longitude),Number(position.latitude),parcel.geometry);
     const center=geometryCentroid(parcel.geometry);
-    return{parcel,inside,distance:inside?0:haversineMeters(position,center)};
+    return{parcel,inside,distance:inside?0:Math.min(distanceToBoundary(position,parcel.geometry),haversineMeters(position,center))};
   }).sort((a,b)=>a.distance-b.distance);
 }
 
