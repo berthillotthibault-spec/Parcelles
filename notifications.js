@@ -1,16 +1,18 @@
 import {toNumber, localDate} from './utils.js';
+import {agendaDate,isPending} from './home-priorities.js';
 
 export function computeNotifications(state){
   const today=new Date().toISOString().slice(0,10); const rows=[];
   const active=t=>(state[t]||[]).filter(x=>!x.deletedAt);
   for(const task of active('tasks')){
-    if(task.status==='Terminé'||!task.dueDate)continue;
-    if(task.dueDate<today)rows.push({id:`task-overdue-${task.id}`,level:'urgent',title:'Tâche en retard',message:task.title,entity:'tasks',entityId:task.id,date:task.dueDate});
-    else if(task.dueDate===today)rows.push({id:`task-today-${task.id}`,level:'warning',title:'Tâche prévue aujourd’hui',message:task.title,entity:'tasks',entityId:task.id,date:task.dueDate});
+    const date=agendaDate(task,'task');
+    if(!isPending(task,'task')||!date)continue;
+    if(date<today)rows.push({id:`task-overdue-${task.id}`,level:'urgent',title:'Tâche en retard',message:task.title,entity:'tasks',entityId:task.id,date});
+    else if(date===today)rows.push({id:`task-today-${task.id}`,level:'warning',title:'Tâche prévue aujourd’hui',message:task.title,entity:'tasks',entityId:task.id,date});
   }
   for(const work of active('interventions')){
-    const date=work.plannedDate||work.date;
-    if(['Terminé','Annulé'].includes(work.status)||!date)continue;
+    const date=agendaDate(work);
+    if(!isPending(work)||!date)continue;
     if(date<today)rows.push({id:`work-overdue-${work.id}`,level:'urgent',title:'Travail en retard',message:work.type,entity:'interventions',entityId:work.id,date});
     else if(date===today)rows.push({id:`work-today-${work.id}`,level:'info',title:'Travail prévu aujourd’hui',message:work.type,entity:'interventions',entityId:work.id,date});
   }

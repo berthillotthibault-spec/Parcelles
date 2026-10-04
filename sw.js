@@ -1,11 +1,11 @@
-const BUILD='2026.10.03-v7.1.8';
+const BUILD='2026.10.04-v7.2.0-r3';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
 const STATIC=`${PREFIX}static-${BUILD}`;
 const RUNTIME=`${PREFIX}runtime-${BUILD}`;
 const CORE=[
- './motion.css','./motion.js',
+ './motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css',
  './','./index.html','./manifest.webmanifest','./parcelles.svg','./config.js',
  './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css','./assistant-launcher.css','./grazing.css','./public-works.css',
  './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',

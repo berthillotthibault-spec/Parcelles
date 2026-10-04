@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#286a4a">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
-  <meta name="application-name" content="Parcelles 7.1">
-  <meta name="parcelles-build" content="2026.10.03-v7.1.8">
+  <meta name="application-name" content="Parcelles 7.2.0">
+  <meta name="parcelles-build" content="2026.10.04-v7.2.0-r3">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="./grazing.css">
   <link rel="stylesheet" href="./public-works.css">
   <link rel="stylesheet" href="./motion.css">
+  <link rel="stylesheet" href="./personalization.css">
   <title>Parcelles</title>
 </head>
 <body>
@@ -37,12 +38,14 @@
       <h1>Parcelles</h1>
       <p data-boot-label role="status">Préparation de votre exploitation…</p>
       <div class="motion-track" role="progressbar" aria-label="Ouverture de Parcelles" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0"><span></span></div>
+      <button type="button" class="button secondary boot-skip" data-boot-skip hidden>Ouvrir maintenant</button>
     </div>
   </div>
   <script>
     // Works before module download, and releases the recovery UI even if modules fail.
     document.getElementById('app-boot').hidden=false;
-    setTimeout(function(){document.getElementById('app-boot')?.remove();},9000);
+    document.getElementById('app-boot').dataset.startedAt=String(performance.now());
+    setTimeout(function(){document.getElementById('app-boot')?.remove();document.getElementById('app')?.removeAttribute('inert');document.getElementById('assistant-dock')?.removeAttribute('inert');},9000);
   </script>
   <div id="activity-progress" class="activity-progress" hidden>
     <div class="activity-progress-copy"><span class="motion-spinner" aria-hidden="true"></span><span><span data-progress-label role="status" aria-live="polite"></span><small data-progress-count></small></span></div>
@@ -50,6 +53,7 @@
   </div>
 
   <div id="app" class="app-shell">
+    <script>document.getElementById('app').setAttribute('inert','');</script>
     <header class="app-header">
       <button class="brand" data-view="today" aria-label="Ouvrir Aujourd’hui">
         <span class="brand-mark" aria-hidden="true">
@@ -97,11 +101,12 @@
         <div class="page-container today-page">
           <div class="today-welcome">
             <div><p class="eyebrow" id="today-label">Aujourd’hui</p><h1 id="today-title">Bonjour</h1><p id="today-subtitle">Votre journée, sans le bruit.</p></div>
-            <div class="today-primary-action"><button class="button primary" data-action="new-work"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span class="action-label">Travail</span></button></div>
+            <div class="today-primary-action"><button class="button secondary personalize-button" data-action="personalize">Personnaliser</button><button class="button primary" data-action="new-work"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span class="action-label">Travail</span></button></div>
           </div>
           <div id="next-action" class="next-action"></div>
           <div id="today-summary" class="today-summary" aria-label="Repères de l’exploitation"></div>
           <div id="today-quick-actions" class="quick-action-strip" aria-label="Actions rapides"></div>
+          <div id="home-custom-empty" class="home-custom-empty hidden">Votre accueil est épuré. Retrouvez vos outils dans les onglets ou ajoutez des blocs avec <button class="text-button" data-action="personalize">Personnaliser</button>.</div>
           <div class="today-grid">
             <article class="panel weather-card" data-home-card="weather"><div class="panel-heading"><h2>Météo</h2><button class="text-button" data-action="open-weather">Voir</button></div><div id="weather-content" class="weather-content"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></article>
             <article class="panel" data-home-card="today"><div class="panel-heading"><h2>À faire aujourd’hui</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="today-work-list" class="stack-list"></div></article>
@@ -114,6 +119,7 @@
 
       <section id="view-map" class="view map-view" aria-labelledby="map-title">
         <h1 id="map-title" class="sr-only">Carte</h1>
+        <div class="map-workbench"><nav class="context-tools" aria-label="Outils de terrain"><button class="small-button" data-action="open-field-mode">Terrain</button><button class="small-button" data-action="new-observation">Observation</button><button class="small-button" data-action="add-point">Repère</button><button class="small-button" data-action="measure-distance">Distance</button><button class="small-button" data-action="measure-area">Surface</button><button class="small-button" data-action="open-day-route">Tournée</button><button class="small-button" data-action="open-weather">Météo</button><button class="small-button" data-action="fit-parcels">Tout cadrer</button></nav><div class="map-filter-line"><label for="map-parcel-filter"><span>Afficher</span><select id="map-parcel-filter" aria-label="Filtrer les parcelles sur la carte"><option value="all">Toutes</option><option value="favorites">Favoris</option><option value="todo">À faire</option><option value="clients">Clients</option></select></label><p id="map-filter-count" role="status"></p></div></div>
         <div class="map-stage">
           <div id="map" aria-label="Carte des parcelles"></div>
           <div class="map-topbar">
@@ -141,6 +147,7 @@
             <button class="button secondary icon-only" data-action="parcel-filters" aria-label="Filtrer et trier"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M7 12h10M10 19h4"/></svg></button>
             <label class="compact-select sr-only">Trier <select id="parcel-sort"><option value="name">Nom</option><option value="surface-desc">Surface ↓</option><option value="surface-asc">Surface ↑</option><option value="culture">Culture</option><option value="commune">Commune</option><option value="recent">Dernier travail</option><option value="distance">Distance</option></select></label>
           </div>
+          <nav class="context-tools" aria-label="Outils des parcelles"><button class="small-button" data-action="choose-import">Importer</button><button class="small-button" data-action="open-rotations">Assolement</button><button class="small-button" data-action="open-grazing">Pâturage</button><button class="small-button" data-action="open-documents">Documents</button></nav>
           <div class="filter-row" id="parcel-filters"><button class="filter-chip is-active" data-parcel-filter="all">Toutes</button><button class="filter-chip" data-parcel-filter="todo">À faire</button><button class="filter-chip" data-parcel-filter="favorites">Favoris</button><button class="filter-chip" data-parcel-filter="clients">Clients</button><button class="filter-chip" data-parcel-filter="grazing">Animaux au pré</button><button class="filter-chip" data-parcel-filter="empty-pasture">Sans animaux</button><button class="filter-chip" data-parcel-filter="archived">Archivées</button></div>
           <div id="recent-parcels" class="recent-strip"></div>
           <div id="parcel-list" class="parcel-list" aria-live="polite"></div>
@@ -160,7 +167,9 @@
       <section id="view-work" class="view" aria-labelledby="work-title">
         <div class="page-container">
           <div class="view-heading"><div><h1 id="work-title">Travaux</h1><p class="lead">Planifier, réaliser, retrouver.</p></div><button class="button primary icon-only" data-action="new-work" aria-label="Nouveau travail"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
-          <div class="segmented" id="work-tabs"><button class="is-active" data-work-tab="today">Aujourd’hui</button><button data-work-tab="upcoming">Planifiés</button><button data-work-tab="history">Historique</button></div>
+          <nav class="context-tools" aria-label="Organisation des travaux"><button class="small-button" data-action="open-calendar">Calendrier</button><button class="small-button" data-action="open-tasks">Tâches</button><button class="small-button" data-action="open-chantiers">Chantiers</button><button class="small-button" data-action="open-equipment">Matériel</button><button class="small-button" data-action="batch-work">Travail groupé</button></nav>
+          <div id="work-priority-notice" class="work-priority-notice hidden" role="status"></div>
+          <div class="segmented" id="work-tabs" aria-label="Période des travaux"><button class="is-active" data-work-tab="today">Aujourd’hui</button><button data-work-tab="upcoming">Planifiés</button><button data-work-tab="overdue">En retard <span id="work-overdue-count" class="work-tab-count"></span></button><button data-work-tab="history">Historique</button></div>
           <div class="toolbar-panel compact-toolbar"><label class="search-field"><svg class="ui-icon" width="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="work-search" type="search" placeholder="Type, parcelle, produit…"></label><button class="button secondary icon-only" data-action="work-filters" aria-label="Filtres"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M7 12h10M10 19h4"/></svg></button></div>
           <div id="work-filter-summary" class="active-filters"></div>
           <div id="work-list" class="work-list"></div>
@@ -172,6 +181,7 @@
           <div class="view-heading"><div><h1 id="more-title">Plus</h1><p class="lead">Les outils utiles, rangés par usage.</p></div></div>
           <label class="search-field more-search"><svg class="ui-icon" width="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="more-search" type="search" placeholder="Rechercher un outil"></label>
           <p class="group-label">Favoris</p>
+          <button class="button secondary personalize-button" data-action="personalize">Personnaliser mon espace</button>
           <div class="more-favorites">
             <button class="tool-shortcut" data-action="open-equipment"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 15h7l2-7h4l2 4h2v3"/><circle cx="7" cy="16" r="3"/><circle cx="18" cy="16" r="2"/></svg><strong>Matériel</strong></button>
             <button class="tool-shortcut" data-action="open-stock"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7l8-4 8 4-8 4zM4 7v10l8 4 8-4V7M12 11v10"/></svg><strong>Stocks</strong></button>
@@ -210,10 +220,14 @@
 
   <div id="modal-root" class="modal-root" aria-live="polite"></div>
   <div id="toast-root" class="toast-region" aria-live="polite"></div>
+  <aside id="assistant-dock" class="assistant-dock" aria-label="Assistant IA et affichage">
   <button id="assistant-launcher" class="assistant-launcher" type="button" data-action="open-assistant" aria-label="Assistant IA" aria-haspopup="dialog" title="Ouvrir l’assistant IA">
     <svg class="ui-icon" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4zM20 2v4M18 4h4"/></svg>
     <span aria-hidden="true">IA</span>
   </button>
+  <div class="assistant-dock-copy"><strong>Votre assistant terrain</strong><span>Une question, une action</span></div><button class="dock-hide" type="button" data-action="hide-assistant" aria-label="Masquer l’assistant" title="Masquer · réactiver dans Personnaliser">×</button>
+  </aside>
+  <script>document.getElementById('assistant-dock').setAttribute('inert','');</script>
   <input id="import-file-input" hidden type="file" multiple accept=".csv,.xlsx,.xls,.xml,.json,.geojson,.zip,.shp,.dbf,.shx,.prj,.cpg,.gpx,.kml,.txt">
   <input id="restore-file-input" hidden type="file" accept=".zip,.json">
 

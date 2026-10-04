@@ -1,3 +1,4 @@
+import {PERSONALIZATION_DEFAULTS,normalizePersonalization} from './personalization.js';
 import {APP_VERSION, ENTITY_TYPES, campaignFor, clone, isoDate, now, parseImportDate, toNumber, uid, validateIntervention, validateParcel} from './utils.js';
 
 export function emptyState(){
@@ -11,7 +12,7 @@ export function emptyState(){
     campagnes:[],
     parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],fieldSessions:[],chantiers:[],members:[],assistantMessages:[],devices:[],automationRules:[],automationRuns:[],gpsTracks:[],integrationImports:[],weatherStations:[],platformJobs:[],platformEvents:[],
     preferences:{
-      mapLayer:'osm',mapColorMode:'culture',theme:'system',gpsConsent:false,
+      ...PERSONALIZATION_DEFAULTS,mapLayer:'osm',mapColorMode:'culture',theme:'system',gpsConsent:false,
       autoBackup:true,syncEnabled:false,workspaceId:'',cloudRole:null,syncAttachments:true,syncWifiOnly:false,syncAttachmentsWifiOnly:false,syncRetryMax:5,syncRetryBaseSeconds:15,syncAutoMerge:true,weatherDays:7,
       routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,assistantLocalFirst:true,assistantVoiceReplies:false,assistantTerrainContext:true,integrationAutoMatch:true,stationWeatherEnabled:false,platformBackendEnabled:false,platformApiEndpoint:'',platformAutoJobs:false,platformIsolation:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeNotificationActions:true,nativeHaptics:true,nativeCameraEnabled:true,nativeStatusBar:true,biometricLock:false,biometricLockMinutes:5,automationEventTriggers:true,automationMaxActionsPerRun:25,securityAuditEnabled:true,encryptedExportIterations:250000
     },
@@ -77,8 +78,7 @@ function sanitizeCurrentShape(data){
   data.automationRuns=data.automationRuns.map(item=>({...item,actions:Array.isArray(item.actions)?item.actions:[]}));
   data.gpsTracks=data.gpsTracks.map(item=>({...item,points:Array.isArray(item.points)?item.points:[],matchedParcels:Array.isArray(item.matchedParcels)?item.matchedParcels:[]}));
   data.weatherStations=data.weatherStations.map(item=>({...item,readings:Array.isArray(item.readings)?item.readings:[]}));
-  const defaults=emptyState();
-  data.preferences.homeCards=Array.isArray(data.preferences.homeCards)?stringArray(data.preferences.homeCards):defaults.preferences.homeCards;
+  Object.assign(data.preferences,normalizePersonalization(data.preferences));
   if(!isRecord(data.metadata.syncCursors))data.metadata.syncCursors={};
   data.metadata.revision=Math.max(0,Number(data.metadata.revision)||0);
   return data;
