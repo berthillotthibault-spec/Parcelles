@@ -1,3 +1,4 @@
+import {answerFarmQuestion} from './farm-agent.js';
 import {agendaDate,isPending,localDay,maintenanceRemaining,isLowStock} from './home-priorities.js';
 import {campaignFor, isoDate, normalize, toNumber} from './utils.js';
 
@@ -125,6 +126,7 @@ function extractWorkType(question,parcel){
 export function assistantActionRequiresConfirmation(action){return ['create_work','create_task','create_observation','finish_work','resolve_observation'].includes(action?.type);}
 
 export function answerLocalIntelligence(question,state,context={}){
+  const farm=answerFarmQuestion(question,state,context);if(farm)return farm;
   const raw=String(question||'').trim(),q=norm(raw),parcels=active(state,'parcelles'),works=active(state,'interventions');
   if(!q)return{recognized:false,answer:'',actions:[],intent:'empty'};
   const parcel=findParcelFromQuestion(raw,state,context);

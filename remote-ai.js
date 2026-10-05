@@ -2,12 +2,13 @@ import {campaignFor, toNumber, normalize} from './utils.js';
 
 const ALLOWED_ACTIONS=new Set([
   'create_work','create_task','open_parcel','open_work','open_task','open_equipment',
-  'open_stock','open_observation','open_chantier','open_map','search'
+  'open_farm','open_stock','open_observation','open_chantier','open_map','search'
 ]);
 
 function sanitizeAction(action){
   if(!action||!ALLOWED_ACTIONS.has(action.type))return null;
   const payload=action.payload&&typeof action.payload==='object'?action.payload:{};
+  if(action.type==='open_farm'&&!['plan','memory','observations','results','zones','economics','decisions','team','machines','sensors','progress','weather'].includes(payload.section))return null;
   return{type:action.type,label:String(action.label||'Action proposée').slice(0,120),payload:JSON.parse(JSON.stringify(payload)),requiresConfirmation:['create_work','create_task'].includes(action.type)};
 }
 
@@ -39,6 +40,7 @@ export function buildAssistantContext(state,context={}){
     farm:{name:state.exploitation?.nom||'',commune:state.exploitation?.commune||''},campaign:campaignFor(),
     current:{parcel:currentParcel,view:context.view||'',fieldMode:Boolean(context.fieldModeOpen),gpsAccuracy:context.lastGps?.accuracy??null},
     parcels,works,tasks,equipment,observations,stocks,chantiers,conversation,
+    farmSignals:/satellite|ndvi|anomal|visiter|aller voir|surveiller/.test(q)?(context.farmSignals||[]).slice(0,12):[],
     policy:{localFirst:true,writeActionsRequireConfirmation:true,noAgronomicRecommendationWithoutExplicitSource:true}
   };
 }

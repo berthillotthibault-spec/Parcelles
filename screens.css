@@ -73,3 +73,10 @@ button.list-row{width:100%;border-left:0;border-right:0;border-top:0;background:
 
 .leaflet-top .satellite-map-label{margin-top:calc(72px + var(--map-top-inset,0px));max-width:min(210px,calc(100vw - 90px));color:var(--text-primary)}
 .satellite-map-label small{display:block;margin-top:4px}
+
+.yield-import{padding:14px 0;border-bottom:1px solid var(--border-subtle)}.yield-import strong{overflow-wrap:anywhere}.yield-import small{display:block;margin-top:5px}.yield-map-label details{max-height:200px;overflow:auto}.yield-map-label summary{min-height:36px;padding-top:8px}.yield-map-label{max-height:calc(100dvh - 260px);overflow:auto}#yield-form select,#yield-form input:not([type=checkbox]){width:100%;min-width:0}#yield-panel details>summary{padding:12px 0;cursor:pointer}
+
+/* Pilotage: existing modal and mobile controls. */
+#farm-panel details{margin:16px 0}#farm-panel summary{min-height:44px;cursor:pointer;font-weight:650}#farm-panel select,#farm-panel input{max-width:100%;min-height:44px}#farm-panel .check-row{min-height:48px}#farm-panel article{overflow-wrap:anywhere}#farm-panel .table-wrap{overflow-x:auto}.farm-json{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.satellite-map-label{max-height:35dvh;overflow-y:auto;max-width:min(290px,70vw)}#farm-panel .satellite-actions{flex-wrap:wrap}
+
+#farm-gps-active{position:fixed;top:calc(env(safe-area-inset-top) + 65px);right:12px;z-index:900;box-shadow:0 3px 12px #0003;max-width:230px}body:has(.has-modal) #farm-gps-active{display:none}

@@ -336,3 +336,23 @@ export function importPreviewHtml(preview){
   const diffs=changed.length?`<details class="notice info"><summary>Voir ${changed.length} différence(s) détectée(s)</summary>${changed.map(x=>{const pairs=[];for(const [k,label] of [['culture','Culture'],['surfaceHa','Surface'],['commune','Commune'],['ilot','Îlot']]){if(JSON.stringify(x.match?.[k]??null)!==JSON.stringify(x.row?.[k]??null))pairs.push(`${label} : ${escapeHtml(x.match?.[k]??'—')} → ${escapeHtml(x.row?.[k]??'—')}`);}return`<div style="margin-top:8px"><strong>${escapeHtml(x.row.nom||x.match?.nom||'Parcelle')}</strong><br><small>${pairs.join('<br>')}</small></div>`;}).join('')}</details>`:'';
   return`<div class="preview-summary"><div class="preview-stat"><strong>${s.parcels}</strong><small>parcelles</small></div><div class="preview-stat"><strong>${s.surface.toLocaleString('fr-FR',{maximumFractionDigits:2})} ha</strong><small>surface</small></div><div class="preview-stat"><strong>${s.newRows}</strong><small>nouvelles</small></div><div class="preview-stat"><strong>${s.changed}</strong><small>modifiées</small></div><div class="preview-stat"><strong>${s.interventions}</strong><small>travaux</small></div><div class="preview-stat"><strong>${s.geometryValid}</strong><small>géométries valides</small></div></div>${diffs}${preview.invalid.length?`<div class="notice danger">${preview.invalid.map(i=>`${escapeHtml(i.file)} : ${escapeHtml(i.message)}`).join('<br>')}</div>`:''}${preview.warnings.length?`<details class="notice warning"><summary>${preview.warnings.length} avertissement(s)</summary>${preview.warnings.map(escapeHtml).join('<br>')}</details>`:''}<p class="form-note">Moteur ${escapeHtml(preview.engineBuild)} · analyse ${preview.durationMs??'—'} ms · ${preview.sources.map(s=>`${escapeHtml(s.file)}${s.sheet?` / ${escapeHtml(s.sheet)}`:''} (${s.rows})${s.engine?` · ${escapeHtml(s.engine)}`:''}`).join('<br>')}</p><div class="table-wrap"><table><thead><tr><th>Nom / travail</th><th>Culture</th><th>Surface</th><th>Commune</th><th>Géométrie</th></tr></thead><tbody>${sample.map(row=>`<tr><td>${escapeHtml(row.nom||row.type||'—')}</td><td>${escapeHtml(row.culture||'—')}</td><td>${row.surfaceHa!==null?`${row.surfaceHa} ha`:'—'}</td><td>${escapeHtml(row.commune||'—')}</td><td>${row.geometry?'Oui':'—'}</td></tr>`).join('')}</tbody></table></div>`;
 }
+
+// Yield imports reuse the proven SHP reader without creating parcel records.
+export async function readYieldShapefile(files){
+  const groups=groupLooseShapefiles(files);
+  if(groups.length!==1||Object.keys(groups[0].files).length!==files.length)throw new Error('Sélectionnez un seul jeu SHP (.shp, .dbf, .prj et fichiers associés).');
+  if(!groups[0].files.prj)throw new Error('Le fichier .prj est obligatoire pour localiser les points de rendement.');
+  const parts=groups[0].files,prj=await parts.prj.text();
+  if(!(/(?:2154|LAMBERT[_ -]?93|RGF_1993_LAMBERT)/i.test(prj)||(!/PROJCS/i.test(prj)&&/WGS[ _]?84|WGS_1984/i.test(prj))))throw new Error('Projection rendement non validée : utilisez WGS84 ou Lambert-93.');
+  if(!parts.shp||!parts.dbf)throw new Error('Fichiers .shp et .dbf obligatoires.');
+  const shp=await parts.shp.arrayBuffer(),dbf=await parts.dbf.arrayBuffer();
+  if(shp.byteLength<100||dbf.byteLength<33)throw new Error('SHP ou DBF tronqué.');
+  const sv=new DataView(shp),dv=new DataView(dbf);let count=0;
+  if(sv.getInt32(0)!==9994||sv.getInt32(24)*2!==shp.byteLength||sv.getInt32(32,true)!==1)throw new Error('SHP invalide : seuls les points 2D (type 1) sont validés.');
+  for(let offset=100;offset<shp.byteLength;offset+=28){if(offset+28>shp.byteLength||sv.getInt32(offset+4)!==10||sv.getInt32(offset+8,true)!==1)throw new Error('Enregistrement SHP invalide ou point vide.');count++;}
+  const rows=dv.getUint32(4,true),header=dv.getUint16(8,true),length=dv.getUint16(10,true);
+  if(rows!==count||header<33||length<2||header+rows*length>dbf.byteLength)throw new Error('SHP et DBF incomplets ou nombres de points différents.');
+  for(let i=0;i<rows;i++)if(dv.getUint8(header+i*length)===42)throw new Error('DBF contenant des lignes supprimées : réexportez le jeu complet pour éviter un décalage des mesures.');
+  const input=await parseShapefileParts({name:parts.shp.name,shp,dbf,prj,cpg:parts.cpg?await parts.cpg.text():''});
+  return flattenGeoJson(input.value).map(row=>({properties:row._feature?.properties||Object.fromEntries(Object.entries(row).filter(([key])=>!['_feature','geometry'].includes(key))),geometry:row.geometry}));
+}
