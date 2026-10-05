@@ -1,11 +1,11 @@
-const BUILD='2026.10.05-v10.10.0';
+const BUILD='2026.10.05-v10.10.1';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
 const STATIC=`${PREFIX}static-${BUILD}`;
 const RUNTIME=`${PREFIX}runtime-${BUILD}`;
 const CORE=[
- './farm-context.js','./weather-decision.js','./farm-memory.js','./farm-planner.js','./farm-ui.js','./farm-extension-ui.js','./management-zones.js','./prescriptions.js','./farm-records.js','./advanced-economics.js','./connections.js','./scanner.js','./precision-ui.js','./application-map.js','./application-ui.js','./operations-ui.js','./connections-ui.js','./farm-agent.js','./economic-ui.js','./harvest-traceability.js','./harvest-ui.js','./yield.js','./yield-ui.js','./satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css',
+ './machine-export.js','./application-coverage.js','./spatial-analysis.js','./spatial-ui.js','./work-effects.js','./work-effects-ui.js','./farm-context.js','./weather-decision.js','./farm-memory.js','./farm-planner.js','./farm-ui.js','./farm-extension-ui.js','./management-zones.js','./prescriptions.js','./farm-records.js','./advanced-economics.js','./connections.js','./scanner.js','./precision-ui.js','./application-map.js','./application-ui.js','./operations-ui.js','./connections-ui.js','./farm-agent.js','./economic-ui.js','./harvest-traceability.js','./harvest-ui.js','./yield.js','./yield-ui.js','./satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css',
  './','./index.html','./manifest.webmanifest','./parcelles.svg','./config.js',
  './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css','./assistant-launcher.css','./grazing.css','./public-works.css',
  './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',
