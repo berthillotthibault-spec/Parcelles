@@ -40,7 +40,7 @@ export function pruneCache(entries,now=Date.now()){
   let bytes=0;return entries.filter(e=>e&&e.savedAt>now-MAX_AGE).sort((a,b)=>b.savedAt-a.savedAt).filter((e,i)=>{bytes+=JSON.stringify(e).length;return i<MAX_CACHE&&bytes<6000000;});
 }
 export class SatelliteService{
-  constructor({storage,scope,endpoint,token,fetcher=(...args)=>globalThis.fetch(...args)}){Object.assign(this,{storage,scope,endpoint,token,fetcher});this.entries=[];this.loaded=false;this.writes=Promise.resolve();}
+  constructor({storage,scope,endpoint,token,fetcher=globalThis.fetch}){Object.assign(this,{storage,scope,endpoint,token,fetcher});this.entries=[];this.loaded=false;this.writes=Promise.resolve();}
   async init(){if(!this.loaded){this.entries=pruneCache(await this.storage.get(SATELLITE_CACHE)||[]);this.loaded=true;}}
   identity(parcel){return JSON.stringify([this.scope(),endpointUrl(this.endpoint()),parcel.id,parcel.geometry]);}
   peek(parcel,period){const candidates=this.entries.filter(e=>e.parcelId===parcel.id&&(!period||e.period===period)&&e.savedAt>Date.now()-MAX_AGE);if(!candidates.length)return;const key=this.identity(parcel);return candidates.find(e=>e.key===key);}
