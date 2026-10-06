@@ -275,13 +275,15 @@ function renderToday(data){
   const parcels=active('parcelles',data),works=active('interventions',data),today=todayIso(),own=parcels.filter(p=>(p.ownershipType||'own')==='own');
   const layout=normalizePersonalization(data.preferences),visibleCards=new Set(layout.homeCards);
   for(const id of layout.homeCardOrder){const card=document.querySelector(`[data-home-card="${id}"]`);if(card){card.classList.toggle('hidden',!visibleCards.has(id));card.parentElement.append(card);}}
-  $('#morning-brief').classList.toggle('hidden',!layout.homeSummary);$('#day-review').classList.toggle('hidden',!layout.homeSummary);$('#today-summary').classList.toggle('hidden',!layout.homeSummary);$('#next-action').classList.toggle('hidden',!layout.homeNextAction);$('#today-quick-actions').classList.toggle('hidden',!layout.homeShortcuts.length);$('#home-custom-empty').classList.toggle('hidden',Boolean(layout.homeCards.length||layout.homeShortcuts.length||layout.homeSummary||layout.homeNextAction));
+  $('#morning-brief').classList.toggle('hidden',!layout.homeSummary);$('#day-review').classList.toggle('hidden',!layout.homeSummary);$('#today-summary').classList.toggle('hidden',!layout.homeSummary);$('#next-action').classList.toggle('hidden',!layout.homeNextAction);$('#today-quick-actions').classList.remove('hidden');$('#home-custom-empty').classList.toggle('hidden',Boolean(layout.homeCards.length||layout.homeShortcuts.length||layout.homeSummary||layout.homeNextAction));
   const cockpit=dailySituation(data,today),todayWorks=cockpit.planned,agenda=cockpit,notifications=computeNotifications(data).filter(n=>!n.id.startsWith('work-today-')&&!n.id.startsWith('task-today-'));
   const animalsOut=parcels.reduce((s,p)=>s+(summarizeParcelGrazing(data.grazingSessions,p.id).total||0),0);
   $('#today-summary').innerHTML=[
     [String(todayWorks.length+cockpit.tasks.length),'à faire',''],[String(agenda.overdueCount||0),'en retard',agenda.overdueCount?'is-late':''],[String(animalsOut),'animaux au pré','is-brand']
   ].map(([v,l,c])=>`<div class="summary-card ${c}"><strong>${escapeHtml(v)}</strong><span>${escapeHtml(l)}</span></div>`).join('');
-  setText('#today-subtitle',agenda.overdueCount?`${agenda.overdueCount} action${agenda.overdueCount>1?'s':''} en retard à reprendre.`:todayWorks.length?`${todayWorks.length} ${todayWorks.length>1?'travaux':'travail'} prévu${todayWorks.length>1?'s':''} aujourd’hui.`:'Aucun travail planifié aujourd’hui.');
+  {const n=todayWorks.length+cockpit.tasks.length,late=agenda.overdueCount||0;const parts=[n?`${n} tâche${n>1?'s':''} aujourd’hui`:'Aucune tâche aujourd’hui'];if(late)parts.push(`${late} en retard`);setText('#today-subtitle',parts.join(' · ')+'.');
+  const lbl=$('#today-label');if(lbl)lbl.textContent=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const who=(data.preferences?.userName||data.preferences?.firstName||data.profile?.firstName||'').trim();setText('#today-title',who?`Bonjour ${who}`:'Bonjour');}
   const runningSession=activeFieldSession(data),next=agenda.next;
   const nextRoot=$('#next-action');if(nextRoot){
     if(runningSession){const p=parcelById(runningSession.parcelId,data);nextRoot.innerHTML=`<button class="next-action-card" data-action="open-field-mode"><span><small>TRAVAIL EN COURS</small><strong>${escapeHtml(runningSession.type||'Session terrain')}</strong><em>${escapeHtml(p?.nom||'Parcelle')} · ${formatElapsed(sessionElapsedMs(runningSession))}</em></span><b aria-hidden="true"></b></button>`;}
@@ -294,9 +296,13 @@ function renderToday(data){
     }
     else nextRoot.innerHTML=`<button class="next-action-card" data-action="new-work"><span><small>VOTRE JOURNÉE</small><strong>Aucune action planifiée</strong><em>Ajouter un travail quand vous en avez besoin</em></span><b aria-hidden="true"></b></button>`;
   }
-  const quickRoot=$('#today-quick-actions');if(quickRoot)quickRoot.innerHTML=layout.homeShortcuts.map(id=>HOME_SHORTCUTS.find(item=>item.id===id)).map(item=>`<button class="quick-action" data-action="${item.id}">${icon(item.icon,{size:18})}<strong>${item.label}</strong></button>`).join('');
+  const FIXED_CHIPS=[{id:'palette-map',label:'Carte',icon:'map'},{id:'open-grazing',label:'Pâturage',icon:'sun'},{id:'open-stock',label:'Stocks',icon:'package'},{id:'open-weather',label:'Météo',icon:'weather'}];
+  const quickRoot=$('#today-quick-actions');if(quickRoot)quickRoot.innerHTML=FIXED_CHIPS.map(item=>`<button class="quick-action" data-action="${item.id}">${icon(item.icon,{size:18})}<strong>${item.label}</strong></button>`).join('')+layout.homeShortcuts.filter(id=>!FIXED_CHIPS.some(c=>c.id===id)).map(id=>HOME_SHORTCUTS.find(item=>item.id===id)).map(item=>`<button class="quick-action" data-action="${item.id}">${icon(item.icon,{size:18})}<strong>${item.label}</strong></button>`).join('');
   const parcelNames=new Map(parcels.map(p=>[p.id,p.nom]));
-  $('#today-work-list').innerHTML=cockpit.actions.length?cockpit.actions.slice(0,5).map(e=>e.kind==='work'?workRow(e.item,parcelNames,{today:e.date===today}):`<article class="work-row"><button class="row-main" data-action="edit-task" data-id="${escapeHtml(e.item.id)}"><strong>${escapeHtml(e.item.title||'Tâche')}</strong><small>${e.overdue?'En retard':e.date?'Aujourd’hui':'Sans échéance'}</small></button><span class="row-trailing"><button class="row-check" data-action="finish-task" data-id="${escapeHtml(e.item.id)}" aria-label="Marquer terminé"></button></span></article>`).join(''):`<div class="empty-state">Aucun travail aujourd’hui.<br><button class="text-button" data-action="new-work">Planifier une intervention</button></div>`;
+  const doneToday=[...works.filter(w=>w.status==='Terminé'&&workDate(w)===today).map(item=>({kind:'work',item,date:today,done:true})),...active('tasks',data).filter(t=>t.status==='Terminé'&&String(t.dueDate||'').slice(0,10)===today).map(item=>({kind:'task',item,date:today,done:true}))];
+  const todayRows=[...cockpit.actions.slice(0,5),...doneToday.filter(d=>!cockpit.actions.some(a=>a.item.id===d.item.id))];
+  const pill=(cls,txt)=>`<span class="when-pill ${cls}">${txt}</span>`;
+  $('#today-work-list').innerHTML=todayRows.length?todayRows.map(e=>e.kind==='work'?workRow(e.item,parcelNames,{today:e.date===today,overdue:e.overdue}):(e.done?`<article class="work-row is-done"><button class="row-main" data-action="edit-task" data-id="${escapeHtml(e.item.id)}"><strong>${escapeHtml(e.item.title||'Tâche')}</strong><small>Tâche</small></button><span class="row-trailing">${pill('is-done','Fait')}<button class="row-check" disabled aria-pressed="true" aria-label="Terminé">✓</button></span></article>`:`<article class="work-row"><button class="row-main" data-action="edit-task" data-id="${escapeHtml(e.item.id)}"><strong>${escapeHtml(e.item.title||'Tâche')}</strong><small>Tâche</small></button><span class="row-trailing">${e.overdue?pill('is-late','En retard'):e.date?pill('is-today','Aujourd’hui'):pill('','Sans échéance')}<button class="row-check" data-action="finish-task" data-id="${escapeHtml(e.item.id)}" aria-label="Marquer terminé"></button></span></article>`)).join(''):`<div class="empty-state">Aucun travail aujourd’hui.<br><button class="text-button" data-action="new-work">Planifier une intervention</button></div>`;
   const tasks=active('tasks',data).filter(t=>isPending(t,'task')).sort((a,b)=>String(a.dueDate||'9999').localeCompare(String(b.dueDate||'9999'))),dueTasks=tasks.filter(t=>!cockpit.actions.slice(0,5).some(e=>e.kind==='task'&&e.item.id===t.id));
   $('#today-task-list').innerHTML=dueTasks.length?dueTasks.slice(0,4).map(t=>`<div class="list-row"><div><strong>${escapeHtml(t.title||'Tâche')}</strong><small>${t.parcelId?`${escapeHtml(parcelNames.get(t.parcelId)||'Parcelle')} · `:''}${t.dueDate?(t.dueDate<today?'En retard':t.dueDate===today?'Aujourd’hui':localDate(t.dueDate)):'Sans échéance'}</small></div><button class="small-button" data-action="finish-task" data-id="${t.id}">Terminer</button></div>`).join(''):'<div class="empty-state">Aucune autre tâche à afficher.</div>';
   const alerts=notifications.slice(0,4).map(n=>({label:`${n.title} · ${n.message}`,action:'open-notifications'}));
@@ -304,8 +310,9 @@ function renderToday(data){
   const recent=works.filter(w=>!isPending(w)&&!['Annulé','Annulée'].includes(w.status)).sort((a,b)=>new Date(workDate(b))-new Date(workDate(a))).slice(0,4);$('#recent-list').innerHTML=recent.length?recent.map(w=>workRow(w,parcelNames)).join(''):'<div class="empty-state">Aucune activité récente.</div>';
   renderDailyBrief(cockpit,notifications);if(weatherCache)renderWeatherCard(weatherCache);else $('#weather-content').innerHTML=data.exploitation.commune||data.exploitation.latitude?'<div class="empty-state">Prévisions non chargées.<br><button class="text-button" data-action="refresh-weather">Actualiser</button></div>':'<div class="empty-state">Ajoutez la localisation de l’exploitation dans les paramètres.</div>';
 }
-function workRow(item,parcelNames,{today=false}={}){
-  const badge=item.status&&item.status!=='Terminé'?`<span class="badge ${item.status==='En retard'?'danger':'info'}">${escapeHtml(item.status)}</span>`:'';
+function workRow(item,parcelNames,{today=false,overdue=false}={}){
+  const late=overdue||item.status==='En retard'||(item.status!=='Terminé'&&workDate(item)&&workDate(item)<todayIso());
+  const badge=item.status==='Terminé'?'<span class="when-pill is-done">Fait</span>':late?'<span class="when-pill is-late">En retard</span>':today?'<span class="when-pill is-today">Aujourd’hui</span>':item.status==='En cours'?'<span class="when-pill is-today">En cours</span>':'<span class="when-pill">Planifié</span>';
   const done=item.status==='Terminé';
   return `<article class="work-row${done?' is-done':''}"><button class="row-main" data-action="edit-work" data-id="${item.id}"><strong>${escapeHtml(item.type||'Travail')}</strong><small>${escapeHtml(parcelNames.get(item.parcelId)||'Parcelle supprimée')} · ${today?'Aujourd’hui':localDate(workDate(item))}</small></button><span class="row-trailing">${badge}<button class="row-check" ${done?'disabled aria-pressed="true"':''} data-action="finish-work" data-id="${item.id}" aria-label="Marquer terminé">${done?'✓':''}</button></span></article>`;
 }
@@ -325,7 +332,8 @@ function renderParcels(data){
   $('#parcel-list').innerHTML=list.length?list.map(p=>{const grazing=summarizeParcelGrazing(data.grazingSessions,p.id),client=p.clientId?clients.get(p.clientId)?.name:'',ctx=contextFor(p),center=lastGps&&p.geometry?geometryCentroid(p.geometry):null,distance=center?haversineMeters(lastGps,center):null;const context=contextLabel(ctx);const stateBadge=normalize(p.status).includes('faire')?'<span class="badge todo">À faire</span>':p.favorite?'<span class="badge success">Favori</span>':'';return `<button class="parcel-row" data-action="open-parcel" data-id="${p.id}"><span class="crop-dot" style="background:${cultureAccent(p.culture)};box-shadow:0 0 0 4px color-mix(in srgb,${cultureAccent(p.culture)} 15%,transparent)"></span><span class="row-main"><strong>${escapeHtml(p.nom)}</strong><small>${escapeHtml(p.culture||'Culture non renseignée')} · ${formatNumber(p.surfaceHa)} ha${p.commune?` · ${escapeHtml(p.commune)}`:''}${client?` · ${escapeHtml(client)}`:''}</small><span class="row-context">${escapeHtml(context)}</span>${grazing.total?`<span class="grazing-count">${grazing.total} animaux au pré</span>`:''}</span><span class="row-trailing">${distance!==null?`<span class="row-context">${distance<1000?`${Math.round(distance)} m`:`${(distance/1000).toFixed(1)} km`}</span>`:''}${stateBadge}${icon('chevron',{size:18})}</span></button>`;}).join(''):(active('parcelles',data).length?'<div class="empty-state">Aucune parcelle ne correspond aux filtres.</div>':'<div class="empty-state"><strong>Votre première parcelle</strong><br>Ajoutez une parcelle ou importez votre parcellaire pour commencer.<br><button class="text-button" data-action="new-parcel">Créer une parcelle</button><button class="text-button" data-action="choose-import">Importer des parcelles</button></div>');
   const all=active('parcelles',data).filter(p=>!p.archived),byCulture=new Map();all.forEach(p=>{const c=p.culture||'Non renseignée';byCulture.set(c,(byCulture.get(c)||0)+toNumber(p.surfaceHa));});const totalHa=[...byCulture.values()].reduce((a,b)=>a+b,0),cults=[...byCulture.entries()].sort((a,b)=>b[1]-a[1]);
   const campaign=data.preferences?.campaignId||String(new Date().getFullYear());
-  const rot=totalHa?`<button class="crop-overview" data-action="open-rotations"><span class="crop-overview-head"><strong>Assolement ${escapeHtml(campaign)}</strong><small>${formatNumber(totalHa)} ha</small></span><span class="crop-overview-bar">${cults.map(([c,a])=>`<i style="flex:${a};background:${cultureAccent(c)}" title="${escapeHtml(c)} · ${formatNumber(a)} ha"></i>`).join('')}</span><span class="crop-overview-legend">${cults.map(([c])=>`<span><i style="background:${cultureAccent(c)}"></i>${escapeHtml(c)}</span>`).join('')}</span></button>`:'';
+  const sortEl=document.getElementById('parcel-sort'),sortLabel=sortEl?.selectedOptions?.[0]?.textContent||'Nom';
+  const rot=totalHa?`<div class="crop-overview"><span class="crop-overview-head"><button class="crop-overview-title" data-action="open-rotations">Assolement ${escapeHtml(campaign)}</button><button class="crop-overview-sort" data-action="cycle-parcel-sort">Tri : ${escapeHtml(sortLabel)}</button></span><button class="crop-overview-body" data-action="open-rotations" aria-label="Ouvrir l’assolement"><span class="crop-overview-bar">${cults.map(([c,a])=>`<i style="flex:${a};background:${cultureAccent(c)}" title="${escapeHtml(c)} · ${formatNumber(a)} ha"></i>`).join('')}</span><span class="crop-overview-legend">${cults.map(([c])=>`<span><i style="background:${cultureAccent(c)}"></i>${escapeHtml(c)}</span>`).join('')}</span></button></div>`:'';
   const recent=recentParcelIds.map(id=>parcelById(id,data)).filter(Boolean);$('#recent-parcels').innerHTML=rot+(recent.length?`<p class="recent-title">Consultées récemment</p><div class="recent-cards">${recent.map(p=>`<button class="recent-card" data-action="open-parcel" data-id="${p.id}"><i style="background:${cultureAccent(p.culture)}"></i><strong>${escapeHtml(p.nom)}</strong><small>${formatNumber(p.surfaceHa)} ha</small></button>`).join('')}</div>`:'');
 }
 function filteredParcels(data=state()){
@@ -572,34 +580,46 @@ function startMapMeasurement(kind){closeModal();switchView('map');const panel=$(
 function openMapLayers(){
   const prefs=state().preferences;
   const economicRows=[...mapEconomics(state()).values()];
-  const colorModes=[['culture','Culture'],['status','État'],...(active('interventions').length?[['work','Travaux'],['last','Dernière intervention']]:[]),...(active('grazingSessions').length?[['animals','Animaux']]:[]),...(active('clients').length?[['client','Client']]:[]),...(economicRows.some(r=>r.costHa!==null)?[['cost','Coût/ha · campagne actuelle']]:[]),...(economicRows.some(r=>r.marginHa!==null)?[['margin','Marge/ha estimée · campagne actuelle']]:[])];
-  modal('Couches de la carte','Économie : campagne actuelle, travaux réalisés et charges saisies. Les montants manquants restent inconnus. RPG : autour du centre de la carte.',`<form id="map-layer-form"><div class="form-grid"><label>Colorer par<select name="mapColorMode">${colorModes.map(([key,label])=>`<option value="${key}" ${prefs.mapColorMode===key?'selected':''}>${label}</option>`).join('')}</select></label><label>Fond de carte<select name="mapLayer"><option value="osm" ${prefs.mapLayer==='osm'?'selected':''}>Standard</option><option value="satellite" ${prefs.mapLayer==='satellite'?'selected':''}>Satellite</option></select></label><label><input type="checkbox" name="rpg" ${parcelMap.rpgVisible?'checked':''}> Parcelles PAC/RPG 2024</label><label>Rayon autour de la carte<select name="radius"><option value="5">5 km</option><option value="10" ${prefs.rpgRadiusKm===10?'selected':''}>10 km</option></select></label></div><p class="form-note">Touchez ensuite une parcelle RPG pour l’ajouter à votre exploitation, à un client ou à une prestation.</p><p id="rpg-load-progress" class="form-note" role="status" aria-live="polite"></p></form>`,`<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="apply-map-layers">Appliquer</button>`,'small');
-  $('#map-layer-form').insertAdjacentHTML('beforeend',satelliteUI.mapControls()+`<section class="form-section"><h3>Rendement</h3>${parcelMap.selectedId?`<button type="button" class="button secondary" data-action="parcel-tab" data-id="${escapeHtml(parcelMap.selectedId)}" data-tab="yield">Ouvrir les cartes de rendement</button>`:'<p>Sélectionnez une parcelle.</p>'}</section>`);
-  const form=$('#map-layer-form'),button=$('#apply-map-layers'),progress=$('#rpg-load-progress');
-  button.onclick=async()=>{
-    if(button.disabled)return;
-    const v=Object.fromEntries(new FormData(form)),showRpg=form.elements.rpg.checked;
-    button.disabled=true;button.textContent=showRpg?'Chargement…':'Application…';
-    try{
-      await store.setPreferences({mapColorMode:v.mapColorMode,mapLayer:v.mapLayer,rpgRadiusKm:Number(v.radius)});
-      if(!form.isConnected)return;
-      parcelMap.setColorMode(v.mapColorMode);parcelMap.setBaseLayer(v.mapLayer);
-      if(showRpg){
-        const center=parcelMap.map?.getCenter();
-        if(!center||!Number.isFinite(center.lat)||!Number.isFinite(center.lng))throw new Error('Ouvrez la carte avant de charger les parcelles RPG.');
-        progress.textContent='Chargement des parcelles RPG…';
-        const count=await withProgress('Chargement des parcelles RPG…',activity=>parcelMap.loadRpgNearby({latitude:center.lat,longitude:center.lng,radiusKm:Number(v.radius),year:2024,onProgress:detail=>{
-          if(form.isConnected){const label=detail.loaded?`${formatNumber(detail.loaded)}${detail.total!=null?` / ${formatNumber(detail.total)}`:''} parcelles chargées`:'Recherche des parcelles RPG…';progress.textContent=label;activity.update({label,completed:detail.loaded,total:detail.total});}
-        }}),{button});
-        if(!form.isConnected)return;
-        closeModal();toast(`${formatNumber(count)} parcelle${count!==1?'s':''} RPG chargée${count!==1?'s':''}. Touchez un contour pour l’ajouter.`);
-      }else{parcelMap.setRpgVisible(false);closeModal();}
-    }catch(error){
-      if(form.isConnected&&error.name!=='AbortError'){progress.textContent=error.message;toast(error.message,'error');}
-    }finally{button.disabled=false;button.textContent='Appliquer';}
+  const colorModes=[['culture','Culture'],['status','État'],...(active('interventions').length?[['work','Travaux'],['last','Dernière intervention']]:[]),...(active('grazingSessions').length?[['animals','Animaux']]:[]),...(active('clients').length?[['client','Client']]:[]),...(economicRows.some(r=>r.costHa!==null)?[['cost','Coût/ha']]:[]),...(economicRows.some(r=>r.marginHa!==null)?[['margin','Marge/ha']]:[])];
+  const mode=prefs.mapColorMode||'culture',base=prefs.mapLayer||'osm',radius=prefs.rpgRadiusKm===10?10:5,labelsOn=!prefs.mapHideLabels;
+  const chip=(group,value,label,on)=>`<button type="button" class="ly-chip${on?' is-on':''}" data-ly="${group}" data-value="${value}">${escapeHtml(label)}</button>`;
+  const sw=(name,on)=>`<button type="button" class="ly-switch${on?' is-on':''}" data-ly="${name}" role="switch" aria-checked="${on}"><i></i></button>`;
+  const body=`<div id="map-layer-form" class="ly-sheet">
+    <p class="ly-label">Colorer par</p><div class="ly-chips">${colorModes.map(([k,l])=>chip('color',k,l,mode===k)).join('')}</div>
+    <div class="ly-rpg"><div class="ly-rpg-head"><span class="ly-rpg-icon"></span><span class="ly-rpg-text"><strong>Parcelles PAC/RPG 2024</strong><small>Registre parcellaire IGN autour du centre de la carte</small></span>${sw('rpg',!!parcelMap.rpgVisible)}</div>
+      <div class="ly-rpg-radius"><span>Rayon</span><span class="ly-chips">${chip('radius','5','5 km',radius===5)}${chip('radius','10','10 km',radius===10)}</span></div>
+      <p id="rpg-load-progress" class="ly-progress" role="status" aria-live="polite"></p></div>
+    <p class="ly-label">Fond de carte</p><div class="ly-bases">
+      <button type="button" class="ly-base${base==='satellite'?' is-on':''}" data-ly="base" data-value="satellite"><i class="ly-thumb is-sat"></i><strong>Satellite</strong></button>
+      <button type="button" class="ly-base${base!=='satellite'?' is-on':''}" data-ly="base" data-value="osm"><i class="ly-thumb is-plan"></i><strong>Plan</strong></button></div>
+    <div class="ly-row"><span><strong>Noms des parcelles</strong><small>Étiquettes sur la carte</small></span>${sw('labels',labelsOn)}</div>
+    <details class="ly-more"><summary>Satellite agricole et rendement</summary>${satelliteUI.mapControls()}<section class="form-section"><h3>Rendement</h3>${parcelMap.selectedId?`<button type="button" class="button secondary" data-action="parcel-tab" data-id="${escapeHtml(parcelMap.selectedId)}" data-tab="yield">Ouvrir les cartes de rendement</button>`:'<p>Sélectionnez une parcelle.</p>'}</section></details>
+  </div>`;
+  modal('Couches','',body,'','small');
+  $('#modal-root')?.classList.add('is-layers');
+  const root=$('#map-layer-form'),progress=$('#rpg-load-progress');
+  const setOn=(group,value)=>root.querySelectorAll(`[data-ly="${group}"]`).forEach(b=>b.classList.toggle('is-on',b.dataset.value===value));
+  const loadRpg=async(r)=>{
+    const center=parcelMap.map?.getCenter();
+    if(!center||!Number.isFinite(center.lat)||!Number.isFinite(center.lng))throw new Error('Ouvrez la carte avant de charger les parcelles RPG.');
+    progress.textContent='Chargement des parcelles RPG…';
+    const count=await withProgress('Chargement des parcelles RPG…',activity=>parcelMap.loadRpgNearby({latitude:center.lat,longitude:center.lng,radiusKm:r,year:2024,onProgress:detail=>{
+      if(root.isConnected){const label=detail.loaded?`${formatNumber(detail.loaded)}${detail.total!=null?` / ${formatNumber(detail.total)}`:''} parcelles chargées`:'Recherche des parcelles RPG…';progress.textContent=label;activity.update({label,completed:detail.loaded,total:detail.total});}
+    }}));
+    if(root.isConnected)progress.textContent='';
+    toast(`${formatNumber(count)} parcelle${count!==1?'s':''} RPG chargée${count!==1?'s':''}. Touchez un contour pour l’ajouter.`);
   };
+  root.addEventListener('click',async ev=>{
+    const b=ev.target.closest('[data-ly]');if(!b)return;const g=b.dataset.ly,v=b.dataset.value;
+    try{
+      if(g==='color'){setOn('color',v);parcelMap.setColorMode(v);await store.setPreferences({mapColorMode:v});}
+      else if(g==='base'){setOn('base',v);parcelMap.setBaseLayer(v);await store.setPreferences({mapLayer:v});}
+      else if(g==='radius'){setOn('radius',v);await store.setPreferences({rpgRadiusKm:Number(v)});if(parcelMap.rpgVisible)await loadRpg(Number(v));}
+      else if(g==='labels'){const on=!b.classList.contains('is-on');b.classList.toggle('is-on',on);b.setAttribute('aria-checked',String(on));document.documentElement.classList.toggle('hide-parcel-labels',!on);await store.setPreferences({mapHideLabels:!on});}
+      else if(g==='rpg'){const on=!b.classList.contains('is-on');b.classList.toggle('is-on',on);b.setAttribute('aria-checked',String(on));if(on){const r=Number(root.querySelector('[data-ly="radius"].is-on')?.dataset.value||5);await loadRpg(r);}else parcelMap.setRpgVisible(false);}
+    }catch(error){if(error.name!=='AbortError'){if(root.isConnected)progress.textContent=error.message;toast(error.message,'error');if(g==='rpg'){b.classList.remove('is-on');b.setAttribute('aria-checked','false');}}}
+  });
 }
-
 function openRpgParcelForm(id){
   const feature=parcelMap.getRpgFeature(id);if(!feature)return toast('Rechargez la couche RPG pour retrouver cette parcelle.','error');
   const year=parcelMap.rpgYear||2024,parcel=rpgFeatureToParcel(feature,{year}),clients=active('clients');
@@ -1303,6 +1323,7 @@ function bindEvents(){
       else if(action==='add-photo'){closeModal();openAttachmentForm(id,{photoOnly:true});}
       else if(action==='attach-file'){closeModal();openAttachmentForm(id);}
       else if(action==='view-attachment'){await viewAttachment(control.dataset.type,id);}
+      else if(action==='cycle-parcel-sort'){const s=$('#parcel-sort');if(s){s.selectedIndex=(s.selectedIndex+1)%s.options.length;s.dispatchEvent(new Event('change',{bubbles:true}));s.dispatchEvent(new Event('input',{bubbles:true}));if(typeof renderParcels==='function')renderParcels(state());}}
       else if(action==='parcel-on-map'){closeModal();switchView('map');setTimeout(()=>parcelMap.select(id),250);}
       else if(action==='show-point'){const point=store.get('points',id);if(point){closeModal();switchView('map');parcelMap.focusPoint(id);}}
       else if(action==='add-rpg-parcel')openRpgParcelForm(id);
@@ -1490,9 +1511,11 @@ function renderMapSearch(value){const root=$('#map-search-results');if(!root)ret
 
 init().catch(error=>{console.error(error);document.body.innerHTML=`<main class="recovery-screen"><section class="recovery-card"><p class="eyebrow">Mode récupération</p><h1>Parcelles n’a pas pu démarrer</h1><p>${escapeHtml(error.message)}</p><p class="form-note">Build ${escapeHtml(BUILD_ID)} · vos données IndexedDB ne sont pas supprimées.</p><div class="recovery-actions"><button class="button primary" id="recovery-retry">Réessayer</button><button class="button secondary" id="recovery-export">Exporter mes données</button><button class="button danger" id="recovery-reset">Réinitialiser cache/PWA</button></div></section></main>`;document.querySelector('#recovery-retry').onclick=()=>location.reload();document.querySelector('#recovery-export').onclick=()=>downloadEmergencyState().catch(e=>alert(e.message));document.querySelector('#recovery-reset').onclick=()=>resetRuntimeAndReload();});
 
+document.documentElement.classList.toggle('hide-parcel-labels',!!(()=>{try{return state().preferences?.mapHideLabels}catch{return false}})());
 function renderMapSelection(event){
   const {enabled,ids}=event.detail,root=$('#map-selection');root.classList.toggle('hidden',!enabled);$('#map-parcel-sheet').classList.toggle('hidden',enabled);$('#map-multiple-toggle')?.setAttribute('aria-pressed',String(enabled));
-  root.innerHTML=`<strong>${ids.length} parcelles sélectionnées · ${formatNumber(ids.reduce((sum,id)=>sum+toNumber(parcelById(id)?.surfaceHa),0))} ha</strong><div class="cockpit-actions"><button class="button primary" data-action="map-multiple-work" ${ids.length?'':'disabled'}>Créer un travail</button><button class="button secondary" data-action="map-multiple-task" ${ids.length?'':'disabled'}>Ajouter une tâche</button><button class="button secondary" data-action="map-multiple-info" ${ids.length?'':'disabled'}>Informations</button><button class="button secondary" data-action="map-multiple-cancel">Annuler</button></div>`;
+  const ha=formatNumber(ids.reduce((sum,id)=>sum+toNumber(parcelById(id)?.surfaceHa),0)),dis=ids.length?'':'disabled';
+  root.innerHTML=`<div class="msel-text"><strong>${ids.length} parcelle${ids.length>1?'s':''} · ${ha} ha</strong><small>${ids.length?'Touchez d’autres parcelles':'Touchez des parcelles pour les sélectionner'}</small></div><div class="msel-actions"><button class="msel-btn" data-action="map-multiple-info" ${dis}>Infos</button><button class="msel-btn" data-action="map-multiple-task" ${dis}>Tâche</button><button class="msel-btn is-primary" data-action="map-multiple-work" ${dis}>Travail</button><button class="msel-close" data-action="map-multiple-cancel" aria-label="Quitter la sélection">×</button></div>`;
 }
 
 function openVoiceJournal(text=''){
