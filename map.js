@@ -6,11 +6,13 @@ import {fetchRpgFeatures, rpgFeatureId} from './rpg.js';
 
 const DEFAULT_CENTER=[46.31,4.95];
 const CULTURE_PALETTE=['#287a4a','#4b8f6a','#7a9d44','#b08a32','#7f6bb2','#3f83a8','#bd6f4a','#699b8a','#9a6d3f','#557a9c','#8c7a3f','#a36d8e'];
+// Couleurs de culture de la maquette v3 (table CULT), avant la palette de repli.
+const DESIGN_CULTURE_COLORS=[['prairie temp','#9ccb83'],['prairie','#6fb37a'],['ble','#d9a441'],['colza','#e3d34a'],['mais','#e0873a'],['orge','#c7b06a'],['tournesol','#f0b429'],['jachere','#b3aa9b']];
 const STATUS_COLORS={'a faire':'#d89821','en cours':'#3178c6','termine':'#2f8a57','en retard':'#c33b36','a jour':'#4d8f67'};
 const RPG_STYLE={color:'#805000',weight:2.5,opacity:1,fillColor:'#f6ce59',fillOpacity:.34,dashArray:'6 3'};
 
 function cultureColor(culture=''){
-  const key=normalize(culture);let hash=0;for(let i=0;i<key.length;i++)hash=(hash*31+key.charCodeAt(i))>>>0;return CULTURE_PALETTE[hash%CULTURE_PALETTE.length];
+  const key=normalize(culture);const known=DESIGN_CULTURE_COLORS.find(([prefix])=>key.startsWith(prefix));if(known)return known[1];let hash=0;for(let i=0;i<key.length;i++)hash=(hash*31+key.charCodeAt(i))>>>0;return CULTURE_PALETTE[hash%CULTURE_PALETTE.length];
 }
 function statusColor(status=''){const key=normalize(status);return Object.entries(STATUS_COLORS).find(([k])=>key.includes(k))?.[1]||'#4d8f67';}
 function bboxSquare(lat,lon,radiusKm){

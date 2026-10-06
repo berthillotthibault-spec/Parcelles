@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.10.8 · design v3.7 — 2026-10-06
+
+- conformité à la maquette v3 (voir `AUDIT_MAQUETTE.md`) : Aujourd’hui (cases à gauche, résumé cliquable, météo détaillée, activité, bilan), carte (couleurs de culture, fiche, sélection multiple, outil Dessiner), parcelles (initiales, surface, campagne), fiche (barre Voir sur la carte / Nouveau travail, lot au pré), travaux (fait conservé le jour même, recocher pour rouvrir), matériel (nouvel entretien), Plus (carte Assistant IA, pied de version) ;
+- nouvelle mission machine : export `TASKDATA.XML` ISO 11783 multi-parcelles ;
+- mode sombre lisible sur les nouveaux composants ; build aligné dans `sw.js`, `index.html` et `utils.js`.
+
 ## 10.10.1 · design v3 — 2026-10-06
 
 - refonte visuelle mobile selon `design_handoff_parcelles_mobile` : nouvelle feuille `design-v3.css`, chargée en dernier, sans changement de logique ;

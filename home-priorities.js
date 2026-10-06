@@ -20,7 +20,8 @@ export function matchesWorkTab(item,tab,today){
   if(tab==='today')return date===today&&!['Annulé','Annulée'].includes(item.status);
   if(tab==='overdue')return pending&&Boolean(date)&&date<today;
   if(tab==='upcoming')return pending&&(!date||date>today);
-  if(tab==='history')return !pending;
+  // Un travail terminé aujourd’hui reste visible (barré) dans « Aujourd’hui » ; il passe dans l’historique le lendemain.
+  if(tab==='history')return !pending&&date!==today;
   return true;
 }
 export function getHomeAgenda(data,today){

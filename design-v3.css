@@ -611,3 +611,181 @@ html.hide-parcel-labels #map .leaflet-tooltip{display:none!important}
 #today-quick-actions .quick-action>span,#today-quick-actions .quick-action .ui-icon{grid-row:auto;font-size:inherit;color:#286a4a;width:18px;height:18px}
 #today-quick-actions .quick-action strong{font-size:14px;font-weight:600;line-height:1;white-space:nowrap}
 #today-quick-actions .quick-action small{display:none}
+
+/* v3.7 — Aujourd'hui : « + Travail » avant « Personnaliser », boutons de la prochaine action sur une ligne */
+.today-primary-action{flex-direction:row;justify-content:flex-start}
+.next-action-card .cockpit-actions .next-done{flex:1 1 auto;white-space:nowrap}
+.next-action-card .cockpit-actions .button.secondary{flex:0 0 auto;width:auto;padding:0 16px}
+/* Aujourd'hui — case à cocher à gauche (maquette), autres tâches avec bloc date, activité sobre, bilan avec progression */
+#today-work-list .work-row{display:flex;align-items:center;gap:14px}
+#today-work-list .work-row>.row-trailing{display:contents}
+#today-work-list .work-row .row-check{order:-1;flex:none;width:28px;height:28px;border:2px solid #c9c4b9;position:relative}
+#today-work-list .work-row .row-check::before,.task-date-row .row-check::before{content:'';position:absolute;inset:-8px}
+#today-work-list .work-row .row-check:hover{border-color:var(--brand)}
+#today-work-list .work-row.is-done .row-check{border-color:var(--brand)}
+#today-work-list .work-row>.row-main{flex:1;min-width:0;background:none;border:0;padding:0;text-align:left;display:flex;flex-direction:column;gap:2px;color:inherit;font:inherit}
+#today-work-list .work-row .when-pill{flex:none}
+.today-grid [data-home-card="tasks"] .stack-list{background:transparent;border:0;border-radius:0;display:flex;flex-direction:column;gap:8px;overflow:visible}
+.today-grid [data-home-card="tasks"] .stack-list>.task-date-row{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:18px}
+.task-date-row .date-block{width:44px;flex:none;text-align:center;display:flex;flex-direction:column}
+.task-date-row .date-block small{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase}
+.task-date-row .date-block b{font-size:20px;font-weight:600;line-height:1.2}
+.task-date-row .row-main{flex:1;min-width:0;background:none;border:0;padding:0;text-align:left;display:flex;flex-direction:column;gap:2px;color:inherit;font:inherit;cursor:pointer}
+.task-date-row .row-main strong{font-size:15px;font-weight:600}
+.task-date-row .row-check{position:relative;flex:none;width:28px;height:28px;min-height:28px;padding:0;border-radius:14px;border:2px solid #c9c4b9;background:var(--surface);cursor:pointer}
+.task-date-row .row-check:hover{border-color:var(--brand)}
+.today-grid [data-home-card="recent"] .stack-list>.activity-row{display:flex;gap:14px;align-items:baseline;width:100%;padding:10px 0;background:none;border:0;border-bottom:1px solid var(--border-subtle);border-radius:0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.activity-row .activity-when{width:52px;flex:none;font-size:13px;color:var(--text-secondary)}
+.activity-row .activity-what{font-size:14px;text-wrap:pretty}
+.activity-row .activity-what b{font-weight:600}
+.day-review{display:block}
+.day-review .review-head{display:flex;justify-content:space-between;align-items:baseline}
+.day-review .review-head h2{margin:0}
+.day-review .review-head b{font-size:14px;font-weight:700;color:var(--brand)}
+.day-review .review-bar{height:8px;border-radius:4px;background:var(--surface-tertiary);margin:12px 0 10px;overflow:hidden}
+.day-review .review-bar i{display:block;height:100%;background:var(--brand);border-radius:4px;transition:width .3s}
+.day-review p{font-size:13px;color:var(--text-secondary)}
+.day-review>.text-button{margin-top:8px;padding:0;min-height:32px}
+/* Mode sombre : la carte « Prochaine action » reste une surface sombre lisible */
+.theme-dark .next-action-card{background:#252e28;color:#f2f5f3;border:1px solid #323c35}
+.theme-dark .next-action-card small{color:#8fd1a8}
+.theme-dark .next-action-card.is-overdue small{color:#f2b8a8}
+.theme-dark .next-action-card .cockpit-actions .next-done{background:#8fd1a8;border-color:#8fd1a8;color:#10261a}
+.theme-dark .next-action-card .cockpit-actions .button.secondary{color:#f2f5f3;border-color:rgba(255,255,255,.3)}
+.today-summary button.summary-card{font:inherit;color:inherit;text-align:left;cursor:pointer;width:100%}
+.today-summary button.summary-card:hover{border-color:#c9c4b9}
+.today-grid [data-home-card="recent"] .stack-list>.activity-row{justify-content:flex-start}
+.activity-row .activity-what{flex:1;min-width:0;text-align:left}
+
+/* v3.7 — Carte : barre de sélection multiple sur deux lignes à 390 px, boutons dégagés */
+@media(max-width:480px){
+  .map-selection{flex-wrap:wrap;row-gap:10px;padding:14px 14px 12px 16px}
+  .map-selection .msel-text{flex:1 1 0;min-width:0}
+  .map-selection .msel-text strong,.map-selection .msel-text small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .map-selection .msel-actions{flex:1 1 100%;order:2}
+  .map-selection .msel-actions .msel-btn{flex:1}
+  .map-selection .msel-close{position:absolute;top:12px;right:12px}
+  html[data-view="map"]:has(#map-selection:not(.hidden)) .map-controls{--map-sheet-clearance:136px}
+}
+#modal-root.is-layers .modal-header h2{font-size:20px;font-weight:700}
+/* Carte — fiche bas d'écran : pastille culture, dernier travail, Ouvrir la fiche / Nouveau travail */
+.map-sheet-head{display:flex;gap:14px;align-items:flex-start}
+.map-sheet-head>div:nth-child(2){flex:1;min-width:0}
+.map-sheet-swatch{flex:none;width:48px;height:48px;border-radius:14px}
+.map-sheet-head p{color:var(--text-secondary)}
+.map-sheet-context{color:var(--text-secondary);line-height:1.5}
+.map-sheet-actions .button.primary,.map-sheet-actions .button.secondary:not(.icon-only){flex:1 1 0;min-width:0;white-space:nowrap}
+
+/* v3.7 — Parcelles : tuiles sans césure, pastille aux initiales, surface à droite */
+.context-tools .small-button>span,.context-tools .small-button{hyphens:none;overflow-wrap:normal;word-break:normal}
+#view-parcels .context-tools .small-button{white-space:nowrap;font-size:12px;letter-spacing:-.01em}
+.parcel-row{align-items:center}
+.parcel-row .crop-dot{width:44px;height:44px;border-radius:14px;flex:none;display:grid;place-items:center;color:rgba(0,0,0,.55);font-size:12px;font-weight:700;letter-spacing:.02em}
+.parcel-row .row-main strong{font-size:17px;font-weight:600}
+.parcel-row .fav-star{color:#b7791f;font-size:13px}
+.parcel-row .row-trailing{display:flex;align-items:center;gap:10px;color:inherit}
+.parcel-row .row-surface{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;min-width:40px}
+.parcel-row .row-surface b{font-size:16px;font-weight:600;color:var(--text-primary)}
+.parcel-row .row-surface small{font-size:12px;color:var(--text-tertiary)}
+
+/* v3.7 — Fiche parcelle : barre fixe « Voir sur la carte » + « Nouveau travail » */
+@media(max-width:1023px){
+  #parcel-detail-actions{display:flex;flex-wrap:nowrap;grid-template-columns:none}
+  #parcel-detail-actions .button,#parcel-detail-actions .button.primary{order:0;flex:1 1 0;grid-column:auto;height:48px;min-height:48px;border-radius:24px;font-size:15px;font-weight:600}
+  #parcel-detail-actions .button.secondary{border:1px solid var(--border-strong);background:var(--surface);color:var(--text-primary)}
+  #view-parcel .parcel-detail-page{padding-bottom:120px}
+}
+/* Fiche parcelle — lot au pré en carte verte avec Déplacer / Sortir */
+.parcel-grazing .grazing-lot{margin-top:10px;padding:18px;border-radius:20px;background:var(--brand-soft);border:0;display:flex;flex-direction:column;gap:4px}
+.grazing-lot-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.grazing-lot .eyebrow{font-size:12px;letter-spacing:.05em;color:var(--brand)}
+.grazing-lot-head strong{display:block;font-size:18px;font-weight:600;margin-top:6px}
+.grazing-days{font-family:var(--font-serif);font-size:40px;line-height:1;color:var(--brand);white-space:nowrap}
+.grazing-lot small{font-size:13px;color:var(--muted-text)}
+.grazing-lot-actions{display:flex;gap:8px;margin-top:12px}
+.grazing-lot-actions .button{flex:1;height:42px;min-height:42px;border-radius:21px}
+.grazing-lot-actions .button.secondary{border-color:#b9d3c2}
+
+/* v3.7 — Travaux : case à droite, état porté par la colonne heure et la bordure */
+#work-list>.work-row.has-time{align-items:center}
+#work-list>.work-row.has-time>.row-trailing{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:4px;flex:none}
+#work-list>.work-row.has-time .row-trailing .badge{display:none}
+#work-list>.work-row.has-time .row-check{position:relative;width:28px;height:28px;border:2px solid #c9c4b9}
+#work-list>.work-row.has-time .row-check::before{content:'';position:absolute;inset:-8px}
+#work-list>.work-row.has-time.is-done .row-check{border-color:var(--brand)}
+#work-list>.work-row.has-time .row-more{width:28px;height:28px;min-height:28px;color:var(--text-tertiary)}
+#work-list>.work-row.has-time.is-late>.row-main{border-left-color:var(--danger)}
+#work-list>.work-row.has-time.is-done>.row-main{border-left-color:#c9c4b9}
+#work-list>.work-row.has-time.is-done .row-time small{color:var(--text-tertiary)}
+#work-list>.work-row.has-time>.row-main small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* v3.7 — Formulaires : pastilles à choix unique, message « Champ obligatoire » */
+.chip-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+.choice-chip{height:36px;min-height:36px;padding:0 14px;border-radius:18px;border:1px solid var(--chip-border);background:var(--surface);color:var(--text-primary);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.choice-chip.is-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+.form-error{margin:0;padding:10px 14px;border-radius:14px;background:var(--danger-soft);color:var(--danger);font-size:13px;font-weight:600}
+.form-error.hidden{display:none}
+/* Matériel : toucher un engin = nouvel entretien */
+.equipment-row{display:flex;align-items:center;gap:10px}
+.equipment-row .row-main{flex:1;min-width:0;background:none;border:0;padding:0;text-align:left;font:inherit;color:inherit;display:flex;flex-direction:column;gap:2px;cursor:pointer}
+.equipment-row .row-main strong{font-size:16px;font-weight:600}
+.equipment-row .when-pill{flex:none}
+.equipment-row .small-button{flex:none;min-height:32px;height:32px;padding:0 12px}
+
+/* v3.7 — Plus : carte Assistant IA, en-tête Favoris, tuiles avec sous-titre, pied de version */
+#view-more .group-label{padding-right:0}
+#view-more .section-heading{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 10px}
+#view-more .section-heading .group-label{margin:0}
+#view-more .section-heading .text-button{min-height:32px;padding:0}
+.assistant-card{display:flex;align-items:center;gap:12px;width:100%;margin-top:16px;padding:16px;border:0;border-radius:22px;background:#1d2420;color:#fff;font:inherit;text-align:left;cursor:pointer}
+.assistant-card:hover{filter:brightness(1.12)}
+.assistant-card-icon{flex:none;width:40px;height:40px;border-radius:20px;background:#8fd1a8;color:#10261a;display:grid;place-items:center}
+.assistant-card>span:nth-child(2){flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.assistant-card strong{font-size:16px;font-weight:600}
+.assistant-card small{font-size:13px;opacity:.7}
+.assistant-card>b{font-size:20px;opacity:.6;font-weight:400}
+.theme-dark .assistant-card{background:#252e28;border:1px solid #323c35}
+.tool-shortcut>span{display:flex;flex-direction:column;gap:2px;text-align:left}
+.tool-shortcut small{font-size:13px;color:var(--text-secondary);font-weight:400}
+.build-label{text-align:center}
+/* Nouvelle mission machine */
+.mission-parcels{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:0;max-height:220px;overflow:auto;border-radius:14px;border:1px solid var(--border-subtle)}
+.mission-parcels legend{font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;padding:0}
+.mission-parcels .check-row{display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:15px;color:var(--text-primary);font-weight:500}
+.mission-parcels .check-row small{margin-left:auto;color:var(--text-secondary)}
+
+/* v3.7 — Carte météo verte (maquette) : lieu · ciel, température, faits, créneaux, fenêtre de traitement */
+.today-grid .weather-card>.panel-heading{display:none}
+.weather-card .weather-v3{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.weather-v3 .weather-left{display:flex;flex-direction:column}
+.weather-v3 .weather-left small{font-size:13px;opacity:.8}
+.weather-v3 .weather-temp{margin-top:4px}
+.weather-v3 .weather-facts{display:grid;grid-template-columns:auto auto;gap:4px 12px;font-size:13px;margin-top:4px}
+.weather-v3 .weather-facts span{opacity:.75}
+.weather-v3 .weather-facts b{font-weight:600;text-align:right;white-space:nowrap}
+.weather-card .weather-hours{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:16px}
+.weather-hours>span{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;border-radius:12px}
+.weather-hours>span.is-now{background:rgba(255,255,255,.14)}
+.weather-hours small{font-size:11px;opacity:.75}
+.weather-hours b{font-size:15px;font-weight:600}
+.weather-card .weather-window{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.18);font-size:13px}
+.weather-card .weather-window b{font-weight:700;white-space:nowrap}
+.weather-card .weather-window+.form-note{border-top:0;padding-top:0;margin-top:8px}
+.weather-v3 .weather-facts span{white-space:nowrap}
+.weather-v3 .weather-left{min-width:0}
+
+/* v3.7 — Mode sombre : surfaces codées en blanc dans les sections v3.2–v3.6 */
+.theme-dark .today-primary-action .button.secondary,.theme-dark .today-summary .summary-card,.theme-dark #today-quick-actions .quick-action,.theme-dark .quick-action-strip .quick-action,.theme-dark .ly-chip,.theme-dark .ly-base{background:var(--surface);border-color:var(--border-strong);color:var(--text-primary)}
+.theme-dark .today-summary .summary-card strong{color:var(--text-primary)}
+.theme-dark .today-summary .summary-card.is-late strong{color:var(--danger)}
+.theme-dark .today-summary .summary-card.is-brand strong{color:var(--brand)}
+.theme-dark .ly-chip.is-on{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+.theme-dark .ly-base.is-on{border-color:var(--brand)}
+.theme-dark .ly-base strong,.theme-dark .ly-row strong,.theme-dark .ly-rpg-text strong{color:var(--text-primary)}
+.theme-dark .ly-rpg{background:var(--warning-soft);border-color:#5a4718}
+.theme-dark .ly-rpg-text small,.theme-dark .ly-rpg-radius,.theme-dark .ly-progress{color:#d9c59a}
+.theme-dark .when-pill{background:var(--surface-tertiary);color:var(--text-secondary)}
+.theme-dark .when-pill.is-today{background:var(--brand-soft);color:var(--brand)}
+.theme-dark .when-pill.is-late{background:var(--danger-soft);color:var(--danger)}
+.theme-dark .when-pill.is-done{background:var(--surface-secondary);color:var(--text-tertiary)}
+.theme-dark .parcel-row .crop-dot{color:rgba(0,0,0,.6)}

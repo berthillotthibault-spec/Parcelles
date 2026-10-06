@@ -17,3 +17,21 @@ export function prescriptionIsoxml(zones,plan){const geometry=JSON.parse(zones.g
  const xml=`<?xml version="1.0" encoding="UTF-8"?><ISO11783_TaskData VersionMajor="4" VersionMinor="3" ManagementSoftwareManufacturer="Parcelles" ManagementSoftwareVersion="10.10" DataTransferOrigin="1"><PFD A="PFD1" C="Parcelle" D="${Math.round(geometryAreaHa(geometry)*10000)}">${boundary}</PFD><VPN A="VPN1" B="0" C="${scale}" D="2" E="${xmlEscape(plan.unit)}"/><TSK A="TSK1" B="${xmlEscape(String(plan.type).slice(0,100))}" E="PFD1" G="1" H="0" I="0" J="0"><TZN A="0" B="Hors prescription - dose nulle"><PDV A="${ddi}" B="0" E="VPN1"/></TZN>${groups.map(g=>`<TZN A="${codes.get(g)}" B="Zone ${xmlEscape(g)}"><PDV A="${ddi}" B="${raw(plan.rates[g])}" E="VPN1"/></TZN>`).join('')}<GRD A="${box[1].toFixed(10)}" B="${box[0].toFixed(10)}" C="${dy}" D="${dx}" E="${columns}" F="${rows}" G="GRD00001" H="${grid.length}" I="1"/></TSK></ISO11783_TaskData>`;return{xml,grid,columns,rows,codes:Object.fromEntries(codes),ddi};
 }
 export async function isoxmlZip(zones,plan){const {xml,grid}=prescriptionIsoxml(zones,plan);return createZip([{name:'TASKDATA/TASKDATA.XML',data:new Blob([xml])},{name:'TASKDATA/GRD00001.bin',data:new Blob([grid])}]);}
+
+// Mission machine multi-parcelles, dose uniforme : une PFD (contour) par parcelle et une TSK (ISO 11783-10).
+// La TSK référence la première parcelle ; les autres PFD accompagnent la tâche dans le même TASKDATA.
+export function missionIsoxml({parcels=[],operation='Travail',product='',dose=null,unit='kg/ha'}={}){
+ if(!parcels.length)throw Error('Au moins une parcelle est nécessaire.');
+ const spec={'kg/ha':['0006',100,.01],'L/ha':['0001',10000,.0001],'graines/ha':['000B',.1,10]}[unit];if(!spec)throw Error('Unité ISOXML non prise en charge.');
+ const [ddi,factor,scale]=spec,xmlEscape=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+ const pfds=parcels.map((parcel,index)=>{const geometry=parcel.geometry,polygons=geometry?.type==='Polygon'?[geometry.coordinates]:geometry?.type==='MultiPolygon'?geometry.coordinates:null;if(!polygons)throw Error(`Contour manquant : ${parcel.nom||parcel.id}`);
+  const boundary=polygons.map(poly=>`<PLN A="1">${poly.map((ring,i)=>`<LSG A="${i===0?1:2}">${ring.map(([lon,lat])=>`<PNT A="2" C="${Number(lat).toFixed(10)}" D="${Number(lon).toFixed(10)}"/>`).join('')}</LSG>`).join('')}</PLN>`).join('');
+  return `<PFD A="PFD${index+1}" C="${xmlEscape(String(parcel.nom||'Parcelle').slice(0,32))}" D="${Math.round(geometryAreaHa(geometry)*10000)}">${boundary}</PFD>`;}).join('');
+ const hasDose=dose!==null&&dose!==''&&Number.isFinite(Number(dose));let rate=null;
+ if(hasDose){rate=Math.round(Number(dose)*factor);if(Number(dose)<0||rate>2147483647)throw Error('Dose non représentable dans cette unité ISOXML.');}
+ const pdt=product?`<PDT A="PDT1" B="${xmlEscape(String(product).slice(0,32))}"/>`:'';
+ const zone=rate!==null?`<TZN A="1" B="Dose uniforme"><PDV A="${ddi}" B="${rate}"${product?' C="PDT1"':''} E="VPN1"/></TZN>`:'';
+ const xml=`<?xml version="1.0" encoding="UTF-8"?><ISO11783_TaskData VersionMajor="4" VersionMinor="3" ManagementSoftwareManufacturer="Parcelles" ManagementSoftwareVersion="10.10" DataTransferOrigin="1">${pfds}${pdt}${rate!==null?`<VPN A="VPN1" B="0" C="${scale}" D="2" E="${xmlEscape(unit)}"/>`:''}<TSK A="TSK1" B="${xmlEscape(String(operation).slice(0,32))}" E="PFD1" G="1"${rate!==null?' H="1"':''}>${zone}</TSK></ISO11783_TaskData>`;
+ return {xml,parcelCount:parcels.length,ddi:rate!==null?ddi:null};
+}
+
