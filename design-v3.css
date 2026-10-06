@@ -487,3 +487,47 @@ html[data-view="map"] .toast-region,html[data-view="parcel"] .toast-region{botto
   .assistant-dock{right:20px;left:auto;bottom:20px}
   .today-page{max-width:760px}
 }
+
+/* ---------- Travaux : heure + case à cocher (v3.1) ---------- */
+.work-list>.work-row.has-time{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:20px}
+.work-row .row-time{flex:0 0 76px;display:flex;flex-direction:column;gap:2px;padding-top:2px}
+.work-row .row-time b{font-size:15px;font-weight:700;color:var(--text-primary)}
+.work-row .row-time small{font-size:12px;font-weight:600;color:var(--brand)}
+.work-row .row-time small.is-late{color:var(--danger)}
+.work-list>.work-row.has-time>.row-main{flex:1;min-width:0;border-left:2px solid var(--brand);padding-left:12px;background:none;border-top:0;border-right:0;border-bottom:0;text-align:left;color:inherit;display:flex;flex-direction:column;gap:2px}
+.work-list>.work-row.has-time>.row-main strong{font-size:16px;font-weight:600}
+.work-list>.work-row.has-time>.row-main small{font-size:13px;color:var(--text-secondary)}
+.work-row.has-time .row-trailing{display:flex;align-items:center;gap:4px}
+.work-row.has-time .row-trailing .badge{display:none}
+.work-row .row-check{width:28px;height:28px;min-height:28px;border-radius:14px;border:1.5px solid var(--border-strong);background:var(--surface);color:#fff;font-size:15px;font-weight:700;display:grid;place-items:center;padding:0;cursor:pointer}
+.work-row .row-check:hover{border-color:var(--brand)}
+.work-row.is-done .row-check{background:var(--brand);border-color:var(--brand)}
+.work-row.is-done .row-main strong{text-decoration:line-through;color:var(--text-secondary)}
+
+/* v3.2 — alignement sur la maquette */
+.today-summary .summary-card strong{display:block;font-family:"Instrument Serif",Georgia,serif;font-weight:400;font-size:30px;line-height:1;color:var(--text-primary)}
+.today-summary .summary-card span{display:block;margin-top:8px;font-size:12px;color:var(--text-secondary);line-height:1.3}
+.today-summary .summary-card.is-late strong{color:#b4432c}
+.today-summary .summary-card.is-brand strong{color:#286a4a}
+.next-action-card{flex-direction:column;align-items:stretch}
+.next-action-card .cockpit-actions{display:flex;gap:8px;width:100%}
+.next-action-card .cockpit-actions .button{height:44px;min-height:44px;border-radius:22px;font-weight:600}
+.next-action-card .cockpit-actions .next-done{flex:1;background:#8fd1a8;border-color:#8fd1a8;color:#10261a}
+.next-action-card .cockpit-actions .button.secondary{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.3)}
+.recent-strip{display:flex;flex-direction:column;align-items:stretch;gap:0;margin:16px 0 8px}
+.crop-overview{display:flex;flex-direction:column;gap:8px;width:100%;padding:0;margin:0 0 18px;border:0;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.crop-overview-head{display:flex;justify-content:space-between;align-items:baseline}
+.crop-overview-head strong,.crop-overview-head small{font-size:13px;font-weight:600;color:var(--text-secondary)}
+.crop-overview-bar{display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden}
+.crop-overview-bar i{display:block;min-width:3px}
+.crop-overview-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--text-secondary)}
+.crop-overview-legend span{display:inline-flex;align-items:center;gap:5px}
+.crop-overview-legend i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.recent-title{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--text-secondary)}
+.recent-cards{display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px 4px;scrollbar-width:none}
+.recent-cards::-webkit-scrollbar,.filter-row::-webkit-scrollbar{display:none}
+.filter-row{scrollbar-width:none}
+.recent-card{flex:none;width:132px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:12px 13px;border-radius:16px;border:1px solid var(--border-subtle);background:var(--surface);text-align:left;font:inherit;color:inherit;cursor:pointer}
+.recent-card i{display:block;width:100%;height:5px;border-radius:3px;margin-bottom:10px}
+.recent-card strong{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.recent-card small{font-size:11px;color:var(--text-secondary)}
