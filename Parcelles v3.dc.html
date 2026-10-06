@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+html,body{margin:0;padding:0;background:#e8e5de;font-family:'Instrument Sans',system-ui,sans-serif;color:#1d2420;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:#286a4a;text-decoration:none}a:hover{color:#1d4f37;text-decoration:underline}
+input,button{font-family:inherit}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 16px">
+<div style="width:390px;height:844px;border-radius:52px;background:#111;padding:10px;box-shadow:0 40px 80px -30px rgba(30,40,30,.45),0 0 0 1px rgba(0,0,0,.2);flex:none">
+<div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#f7f5f0;display:flex;flex-direction:column">
+
+<div style="height:46px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 28px 0 34px;font-size:15px;font-weight:600;position:relative;z-index:30;background:{{ statusBg }}">
+<span>9:41</span>
+<div style="width:110px;height:30px;border-radius:20px;background:#111;position:absolute;left:50%;top:8px;transform:translateX(-50%)"></div>
+<div style="display:flex;gap:6px;align-items:center"><div style="width:17px;height:10px;border-radius:2px;background:#1d2420;opacity:.85"></div><div style="width:24px;height:11px;border-radius:3px;border:1.5px solid #1d2420;padding:1px"><div style="width:70%;height:100%;background:#1d2420;border-radius:1px"></div></div></div>
+</div>
+
+<sc-if value="{{ showHeader }}" hint-placeholder-val="{{ true }}">
+<div style="height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 20px;background:#f7f5f0">
+<button onClick="{{ goToday }}" style="display:flex;align-items:center;gap:10px;border:0;background:transparent;padding:0;cursor:pointer;text-align:left">
+<div style="width:36px;height:36px;border-radius:11px;background:#286a4a;color:#fff;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20"></path></svg></div>
+<div><div style="font-size:15px;font-weight:700;line-height:1.1;color:#1d2420">Parcelles</div><div style="font-size:12px;color:#5f6862;margin-top:1px">EARL du Sougey</div></div>
+</button>
+<div style="display:flex;gap:6px;align-items:center">
+<button onClick="{{ syncNow }}" title="Synchroniser" style="display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:14px;border:0;background:{{ syncBg }};color:{{ syncFg }};font-size:12px;font-weight:600;margin-right:2px;cursor:pointer;white-space:nowrap"><div style="width:6px;height:6px;border-radius:3px;background:{{ syncFg }}"></div>{{ syncLabel }}</button>
+<button onClick="{{ openSearch }}" aria-label="Rechercher partout" style="width:40px;height:40px;border-radius:20px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1d2420" style-hover="background:#ebe8e1"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4"></path></svg></button>
+<button onClick="{{ openNotif }}" aria-label="Notifications" style="position:relative;width:40px;height:40px;border-radius:20px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1d2420" style-hover="background:#ebe8e1"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"></path></svg><span style="position:absolute;top:6px;right:6px;min-width:16px;height:16px;border-radius:8px;background:#b4432c;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;border:2px solid #f7f5f0">3</span></button>
+</div>
+</div>
+</sc-if>
+
+<div style="flex:1;position:relative;overflow:hidden">
+
+<div data-screen-label="Carte" style="position:absolute;inset:0;display:{{ mapDisplay }}">
+<div ref="{{ mapRef }}" style="position:absolute;inset:0;background:#cfd6c8"></div>
+<div style="position:absolute;top:8px;left:12px;right:12px;z-index:500;display:flex;flex-direction:column;gap:8px">
+<sc-if value="{{ noTool }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:8px">
+<div style="flex:1;height:46px;border-radius:23px;background:rgba(255,255,255,.96);box-shadow:0 4px 16px rgba(0,0,0,.15);display:flex;align-items:center;gap:10px;padding:0 16px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6862" stroke-width="2" stroke-linecap="round"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4"></path></svg>
+<input value="{{ mq }}" onChange="{{ onMq }}" placeholder="Rechercher une parcelle" style="flex:1;border:0;outline:0;background:transparent;font-size:15px;color:#1d2420;min-width:0"></input>
+</div>
+<button onClick="{{ openLayers }}" aria-label="Couches" style="width:46px;height:46px;border-radius:23px;border:0;background:rgba(255,255,255,.96);box-shadow:0 4px 16px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1d2420"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 2 3 7l9 5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"></path></svg></button>
+</div>
+</sc-if>
+<sc-if value="{{ hasMqResults }}">
+<div style="background:#fff;border-radius:18px;box-shadow:0 8px 24px rgba(0,0,0,.18);overflow:hidden">
+<sc-for list="{{ mqResults }}" as="r">
+<div onClick="{{ r.go }}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #efece6;cursor:pointer" style-hover="background:#f4f2ec">
+<div style="width:12px;height:12px;border-radius:4px;background:{{ r.color }}"></div>
+<div style="flex:1;font-size:15px;font-weight:500">{{ r.name }}</div>
+<div style="font-size:13px;color:#5f6862">{{ r.haLabel }}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ hasTool }}">
+<div style="background:#1d2420;color:#fff;border-radius:20px;padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+<div><div style="font-size:15px;font-weight:600">{{ toolTitle }}</div><div style="font-size:13px;opacity:.7;margin-top:2px">{{ toolHint }}</div></div>
+<div style="font-family:'Instrument Serif',serif;font-size:28px;line-height:1;white-space:nowrap">{{ toolReadout }}</div>
+</div>
+<div style="display:flex;gap:8px">
+<button onClick="{{ undoPt }}" style="flex:1;height:38px;border-radius:19px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap">Annuler le point</button>
+<button onClick="{{ quitTool }}" style="height:38px;padding:0 14px;border-radius:19px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:500;cursor:pointer">Quitter</button>
+<button onClick="{{ finishTool }}" style="height:38px;padding:0 16px;border-radius:19px;border:0;background:#8fd1a8;color:#10261a;font-size:13px;font-weight:700;cursor:pointer">Terminer</button>
+</div>
+</div>
+</sc-if>
+</div>
+
+<div style="position:absolute;right:12px;bottom:{{ fabBottom }};z-index:500;display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+<button onClick="{{ toggleMulti }}" aria-label="Sélection multiple" style="width:46px;height:46px;border-radius:23px;border:0;background:{{ multiBg }};color:{{ multiFg }};box-shadow:0 4px 16px rgba(0,0,0,.18);font-size:14px;font-weight:700;cursor:pointer">✓+</button>
+<button onClick="{{ locate }}" aria-label="Me localiser" style="width:46px;height:46px;border-radius:23px;border:0;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1d2420"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 2v3M12 19v3M2 12h3M19 12h3M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10"></path></svg></button>
+<button onClick="{{ openTools }}" style="height:46px;padding:0 18px 0 14px;border-radius:23px;border:0;background:#286a4a;color:#fff;box-shadow:0 6px 18px rgba(40,106,74,.4);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3z"></path></svg>Outils</button>
+</div>
+
+<sc-if value="{{ showMapSheet }}">
+<div style="position:absolute;left:10px;right:10px;bottom:10px;z-index:500;background:#fff;border-radius:24px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.2)">
+<div style="display:flex;gap:14px;align-items:flex-start">
+<div style="width:48px;height:48px;border-radius:14px;background:{{ selP.color }};flex:none"></div>
+<div style="flex:1;min-width:0">
+<div style="font-size:18px;font-weight:600">{{ selP.name }}</div>
+<div style="font-size:14px;color:#5f6862;margin-top:2px">{{ selP.culture }} · {{ selP.haLabel }} · {{ selP.commune }}</div>
+</div>
+<button onClick="{{ clearSel }}" style="width:32px;height:32px;border-radius:16px;border:0;background:#f1efe9;font-size:16px;color:#5f6862;cursor:pointer">×</button>
+</div>
+<div style="font-size:13px;color:#5f6862;margin-top:12px;padding-top:12px;border-top:1px solid #efece6">Dernier travail · <span style="color:#1d2420;font-weight:500">{{ selP.last }}</span></div>
+<div style="display:flex;gap:8px;margin-top:12px">
+<button onClick="{{ openSelDetail }}" style="flex:1;height:44px;border-radius:22px;border:0;background:#286a4a;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Ouvrir la fiche</button>
+<button onClick="{{ planSel }}" style="flex:1;height:44px;border-radius:22px;border:1px solid #d9d5cc;background:#fff;color:#1d2420;font-size:14px;font-weight:600;cursor:pointer">Nouveau travail</button>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ showMultiBar }}">
+<div style="position:absolute;left:10px;right:10px;bottom:10px;z-index:500;background:#1d2420;color:#fff;border-radius:24px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.25);display:flex;align-items:center;gap:12px">
+<div style="flex:1"><div style="font-size:16px;font-weight:600">{{ multiLabel }}</div><div style="font-size:13px;opacity:.7;margin-top:2px">Touchez d’autres parcelles</div></div>
+<div style="display:flex;gap:6px">
+<button onClick="{{ multiInfo }}" style="height:40px;padding:0 12px;border-radius:20px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Infos</button>
+<button onClick="{{ multiTask }}" style="height:40px;padding:0 12px;border-radius:20px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Tâche</button>
+<button onClick="{{ batchWork }}" style="height:40px;padding:0 14px;border-radius:20px;border:0;background:#8fd1a8;color:#10261a;font-size:13px;font-weight:700;cursor:pointer">Travail</button>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ showMapLegend }}">
+<div style="position:absolute;left:12px;bottom:12px;z-index:500;background:rgba(255,255,255,.96);border-radius:16px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,.15);font-size:13px">
+<div onClick="{{ toggleLegend }}" style="font-weight:600;cursor:pointer;display:flex;gap:6px;align-items:center">Légende · {{ colorModeLabel }} <span style="color:#5f6862">{{ legendArrow }}</span></div>
+<sc-if value="{{ legendOpen }}">
+<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;max-width:200px">
+<sc-for list="{{ legend }}" as="l"><div style="display:flex;align-items:center;gap:8px;color:#3d4540"><span style="width:10px;height:10px;border-radius:3px;background:{{ l.color }};border:{{ l.border }};flex:none"></span>{{ l.label }}</div></sc-for>
+</div>
+</sc-if>
+<div style="color:#5f6862;margin-top:4px">{{ legendHint }}</div>
+</div>
+</sc-if>
+</div>
+
+<sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+<div data-screen-label="Aujourd’hui" style="position:absolute;inset:0;overflow-y:auto;padding:4px 20px 100px">
+<div style="font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#5f6862">Mardi 6 octobre</div>
+<h1 style="font-family:'Instrument Serif',serif;font-weight:400;font-size:44px;line-height:1.05;margin:8px 0 6px;letter-spacing:-.01em">Bonjour Thibault</h1>
+<p style="margin:0;font-size:16px;color:#5f6862;text-wrap:pretty">{{ daySummary }}</p>
+<div style="display:flex;gap:8px;margin-top:16px">
+<button onClick="{{ newWork }}" style="height:42px;padding:0 18px 0 14px;border-radius:21px;border:0;background:#286a4a;color:#fff;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>Travail</button>
+<button onClick="{{ personalize }}" style="height:42px;padding:0 16px;border-radius:21px;border:1px solid #d9d5cc;background:#fff;color:#1d2420;font-size:14px;font-weight:600;cursor:pointer">Personnaliser</button>
+</div>
+
+<sc-if value="{{ hNext }}" hint-placeholder-val="{{ true }}">
+<div style="margin-top:20px;background:#1d2420;color:#fff;border-radius:26px;padding:18px">
+<div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8fd1a8">Prochaine action · {{ nextT.time }}</div>
+<div style="font-size:22px;font-weight:600;margin-top:8px">{{ nextT.title }}</div>
+<div style="font-size:14px;opacity:.72;margin-top:4px">{{ nextT.parcel }} · {{ nextT.meta }}</div>
+<div style="display:flex;gap:8px;margin-top:16px">
+<button onClick="{{ nextT.toggle }}" style="flex:1;height:44px;border-radius:22px;border:0;background:#8fd1a8;color:#10261a;font-size:14px;font-weight:700;cursor:pointer">Marquer comme fait</button>
+<button onClick="{{ nextT.onMap }}" style="height:44px;padding:0 16px;border-radius:22px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Carte</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hSummary }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">
+<sc-for list="{{ summary }}" as="s" hint-placeholder-count="3">
+<div onClick="{{ s.go }}" style="background:#fff;border:1px solid #ebe8e1;border-radius:18px;padding:12px 14px;cursor:pointer">
+<div style="font-family:'Instrument Serif',serif;font-size:32px;line-height:1;color:{{ s.color }}">{{ s.v }}</div>
+<div style="font-size:12px;color:#5f6862;margin-top:6px">{{ s.k }}</div>
+</div>
+</sc-for>
+</div>
+
+</sc-if>
+<sc-if value="{{ hQuick }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:8px;overflow-x:auto;margin:16px -20px 0;padding:0 20px 4px">
+<sc-for list="{{ quick }}" as="q" hint-placeholder-count="4">
+<button onClick="{{ q.go }}" style="flex:none;display:flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 10px;border-radius:20px;border:1px solid #e3dfd7;background:#fff;font-size:13px;font-weight:600;color:#1d2420;cursor:pointer;white-space:nowrap"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#286a4a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ q.icon }}"></path></svg>{{ q.label }}</button>
+</sc-for>
+</div>
+
+</sc-if>
+<sc-if value="{{ showWeather }}" hint-placeholder-val="{{ true }}">
+<div style="margin-top:20px;background:#286a4a;color:#fff;border-radius:26px;padding:18px 18px 16px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start">
+<div>
+<div style="font-size:13px;opacity:.8">Montrevel · Couvert</div>
+<div style="font-family:'Instrument Serif',serif;font-size:64px;line-height:1;margin-top:4px">14°</div>
+</div>
+<div style="display:grid;grid-template-columns:auto auto;gap:4px 12px;font-size:13px;margin-top:4px">
+<span style="opacity:.75">Vent</span><span style="font-weight:600;text-align:right">12 km/h NO</span>
+<span style="opacity:.75">Pluie 24 h</span><span style="font-weight:600;text-align:right">0,4 mm</span>
+<span style="opacity:.75">Humidité</span><span style="font-weight:600;text-align:right">71 %</span>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:16px">
+<sc-for list="{{ hours }}" as="h" hint-placeholder-count="6">
+<div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;border-radius:12px;background:{{ h.bg }}">
+<span style="font-size:12px;opacity:.75">{{ h.t }}</span>
+<span style="font-size:15px;font-weight:600">{{ h.temp }}</span>
+<span style="font-size:11px;opacity:.75">{{ h.rain }}</span>
+</div>
+</sc-for>
+</div>
+<div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.18);display:flex;justify-content:space-between;align-items:center;font-size:13px">
+<span>Fenêtre de traitement favorable</span><span style="font-weight:700">14 h – 18 h</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hNow }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:28px 0 10px">
+<h2 style="margin:0;font-size:19px;font-weight:600">À faire maintenant</h2>
+<a onClick="{{ goWork }}" style="font-size:14px;font-weight:600;cursor:pointer">Tout voir</a>
+</div>
+<div style="background:#fff;border-radius:22px;overflow:hidden;border:1px solid #ebe8e1">
+<sc-for list="{{ nowTasks }}" as="k" hint-placeholder-count="3">
+<div style="display:flex;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid #f0ede7">
+<button onClick="{{ k.toggle }}" style="width:26px;height:26px;flex:none;border-radius:13px;border:2px solid {{ k.boxBorder }};background:{{ k.boxBg }};color:#fff;font-size:14px;font-weight:700;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center">{{ k.mark }}</button>
+<div style="flex:1;min-width:0;opacity:{{ k.op }}">
+<div style="font-size:16px;font-weight:500;text-decoration:{{ k.deco }}">{{ k.title }}</div>
+<div style="font-size:13px;color:#5f6862;margin-top:2px">{{ k.parcel }} · {{ k.time }}</div>
+</div>
+<div style="font-size:12px;font-weight:600;padding:4px 9px;border-radius:10px;background:{{ k.tagBg }};color:{{ k.tagFg }};white-space:nowrap">{{ k.when }}</div>
+</div>
+</sc-for>
+</div>
+
+</sc-if>
+<sc-if value="{{ hOther }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:28px 0 10px">
+<h2 style="margin:0;font-size:19px;font-weight:600">Autres tâches</h2>
+<a onClick="{{ goPlanned }}" style="font-size:14px;font-weight:600;cursor:pointer">Tout voir</a>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ otherTasks }}" as="k" hint-placeholder-count="2">
+<div style="display:flex;gap:14px;align-items:center;padding:12px 16px;background:#fff;border-radius:18px;border:1px solid #ebe8e1">
+<div style="width:44px;text-align:center;flex:none"><div style="font-size:11px;font-weight:600;color:#5f6862;text-transform:uppercase">{{ k.dow }}</div><div style="font-size:20px;font-weight:600">{{ k.day }}</div></div>
+<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600">{{ k.title }}</div><div style="font-size:13px;color:#5f6862;margin-top:2px">{{ k.parcel }}</div></div>
+</div>
+</sc-for>
+</div>
+
+</sc-if>
+<sc-if value="{{ hWatch }}" hint-placeholder-val="{{ true }}">
+<h2 style="margin:28px 0 10px;font-size:19px;font-weight:600">À surveiller</h2>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ watch }}" as="w" hint-placeholder-count="3">
+<div style="display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:18px;background:{{ w.bg }}">
+<div style="width:8px;height:8px;border-radius:4px;background:{{ w.dot }};margin-top:7px;flex:none"></div>
+<div><div style="font-size:15px;font-weight:600">{{ w.title }}</div><div style="font-size:13px;color:#4c544f;margin-top:2px;text-wrap:pretty">{{ w.sub }}</div></div>
+</div>
+</sc-for>
+</div>
+
+</sc-if>
+<sc-if value="{{ hActivity }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:28px 0 10px">
+<h2 style="margin:0;font-size:19px;font-weight:600">Activité récente</h2>
+<a onClick="{{ goHistory }}" style="font-size:14px;font-weight:600;cursor:pointer">Historique</a>
+</div>
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ activity }}" as="a" hint-placeholder-count="3">
+<div style="display:flex;gap:14px;padding:10px 0;border-bottom:1px solid #ebe8e1">
+<div style="width:52px;font-size:13px;color:#5f6862;flex:none">{{ a.t }}</div>
+<div style="font-size:14px;text-wrap:pretty"><span style="font-weight:600">{{ a.who }}</span> {{ a.what }}</div>
+</div>
+</sc-for>
+</div>
+
+</sc-if>
+<sc-if value="{{ hReview }}" hint-placeholder-val="{{ true }}">
+<div style="margin-top:24px;padding:18px;border-radius:22px;border:1px dashed #cfcabf">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:15px;font-weight:600">Bilan de la journée</div><div style="font-size:14px;font-weight:700;color:#286a4a">{{ reviewLabel }}</div></div>
+<div style="height:8px;border-radius:4px;background:#ebe8e1;margin-top:12px;overflow:hidden"><div style="height:100%;width:{{ reviewPct }};background:#286a4a;border-radius:4px;transition:width .3s"></div></div>
+<div style="font-size:13px;color:#5f6862;margin-top:10px">{{ reviewHint }}</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isList }}">
+<div data-screen-label="Parcelles" style="position:absolute;inset:0;overflow-y:auto;padding:4px 20px 100px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start">
+<div>
+<h1 style="font-family:'Instrument Serif',serif;font-weight:400;font-size:44px;line-height:1;margin:0">Parcelles</h1>
+<p style="margin:8px 0 0;font-size:15px;color:#5f6862">{{ countLabel }} · {{ totalLabel }} · campagne 2026</p>
+</div>
+<button onClick="{{ newParcel }}" aria-label="Nouvelle parcelle" style="width:44px;height:44px;border-radius:22px;border:0;background:#286a4a;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+</div>
+<div style="display:flex;gap:8px;margin-top:16px">
+<div style="flex:1;height:44px;border-radius:22px;background:#fff;border:1px solid #e3dfd7;display:flex;align-items:center;gap:10px;padding:0 14px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5f6862" stroke-width="2" stroke-linecap="round"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4"></path></svg>
+<input value="{{ q }}" onChange="{{ onQ }}" placeholder="Nom, culture, commune, > 5 ha…" style="flex:1;border:0;outline:0;background:transparent;font-size:15px;color:#1d2420;min-width:0"></input>
+</div>
+<button onClick="{{ openSort }}" aria-label="Filtrer et trier" style="width:44px;height:44px;border-radius:22px;border:1px solid #e3dfd7;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#1d2420"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 5h16M7 12h10M10 19h4"></path></svg></button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px">
+<sc-for list="{{ parcelTools }}" as="t" hint-placeholder-count="4">
+<button onClick="{{ t.go }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px 10px;border-radius:16px;border:0;background:#efece5;font-size:12px;font-weight:600;color:#1d2420;cursor:pointer" style-hover="background:#e6e2d9"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#286a4a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.icon }}"></path></svg>{{ t.label }}</button>
+</sc-for>
+</div>
+<div style="display:flex;gap:6px;overflow-x:auto;margin:14px -20px 0;padding:0 20px 4px">
+<sc-for list="{{ filters }}" as="f" hint-placeholder-count="5">
+<button onClick="{{ f.pick }}" style="flex:none;height:34px;padding:0 14px;border-radius:17px;border:1px solid {{ f.border }};background:{{ f.bg }};color:{{ f.fg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ f.label }}</button>
+</sc-for>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:18px 0 6px"><span style="font-size:13px;font-weight:600;color:#5f6862">Assolement 2026</span><span style="font-size:13px;color:#5f6862">{{ sortLabel }}</span></div>
+<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px">
+<sc-for list="{{ mix }}" as="m"><div style="flex:{{ m.ha }};background:{{ m.color }}"></div></sc-for>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:#5f6862;margin:8px 0 16px">
+<sc-for list="{{ mix }}" as="m"><span style="display:flex;align-items:center;gap:5px"><span style="width:8px;height:8px;border-radius:2px;background:{{ m.color }}"></span>{{ m.label }}</span></sc-for>
+</div>
+<sc-if value="{{ showRecent }}">
+<div style="font-size:13px;font-weight:600;color:#5f6862;margin-bottom:8px">Consultées récemment</div>
+<div style="display:flex;gap:8px;overflow-x:auto;margin:0 -20px 18px;padding:0 20px 2px">
+<sc-for list="{{ recent }}" as="p">
+<div onClick="{{ p.open }}" style="flex:none;width:132px;padding:12px;border-radius:18px;background:#fff;border:1px solid #ebe8e1;cursor:pointer">
+<div style="width:100%;height:6px;border-radius:3px;background:{{ p.color }}"></div>
+<div style="font-size:14px;font-weight:600;margin-top:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
+<div style="font-size:12px;color:#5f6862;margin-top:2px">{{ p.haLabel }}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ parcelsView }}" as="p" hint-placeholder-count="6">
+<div onClick="{{ p.open }}" style="display:flex;gap:14px;align-items:center;padding:14px;background:#fff;border-radius:20px;border:1px solid #ebe8e1;cursor:pointer" style-hover="border-color:#c9c4b9">
+<div style="width:46px;height:46px;border-radius:14px;background:{{ p.color }};flex:none;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.55);font-size:12px;font-weight:700">{{ p.code }}</div>
+<div style="flex:1;min-width:0">
+<div style="display:flex;gap:6px;align-items:center"><span style="font-size:16px;font-weight:600">{{ p.name }}</span><span style="font-size:13px;color:#b7791f">{{ p.star }}</span></div>
+<div style="font-size:13px;color:#5f6862;margin-top:2px">{{ p.culture }} · {{ p.commune }}</div>
+<div style="font-size:12px;color:#8a908b;margin-top:4px">{{ p.badge }}</div>
+</div>
+<div style="text-align:right"><div style="font-size:16px;font-weight:600">{{ p.haShort }}</div><div style="font-size:12px;color:#8a908b">ha</div></div>
+</div>
+</sc-for>
+<sc-if value="{{ listEmpty }}">
+<div style="padding:40px 20px;text-align:center;color:#5f6862;font-size:15px;background:#fff;border-radius:20px;border:1px dashed #d9d5cc">Aucune parcelle ici.</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDetail }}">
+<div data-screen-label="Fiche parcelle" style="position:absolute;inset:0;overflow-y:auto;padding:0 0 150px">
+<div style="background:{{ d.tint }};padding:8px 20px 20px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<button onClick="{{ backDetail }}" style="height:36px;padding:0 14px 0 8px;border-radius:18px;border:0;background:rgba(255,255,255,.7);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:2px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>{{ backLabel }}</button>
+<div style="display:flex;gap:6px">
+<button onClick="{{ toggleFav }}" style="height:36px;padding:0 14px;border-radius:18px;border:0;background:rgba(255,255,255,.7);font-size:14px;font-weight:600;cursor:pointer">{{ favLabel }}</button>
+<button onClick="{{ openActions }}" aria-label="Plus d’actions" style="width:36px;height:36px;border-radius:18px;border:0;background:rgba(255,255,255,.7);font-size:16px;font-weight:700;cursor:pointer">···</button>
+</div>
+</div>
+<div style="display:flex;align-items:center;gap:8px;margin-top:22px">
+<span style="width:10px;height:10px;border-radius:3px;background:{{ d.color }}"></span>
+<span style="font-size:13px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#3d4540">{{ d.culture }} · îlot {{ d.ilot }}</span>
+</div>
+<h1 style="font-family:'Instrument Serif',serif;font-weight:400;font-size:42px;line-height:1.05;margin:8px 0 0">{{ d.name }}</h1>
+<div style="font-size:15px;color:#3d4540;margin-top:6px">{{ d.haLabel }} · {{ d.commune }} · {{ d.soil }}</div>
+</div>
+<div style="position:sticky;top:0;z-index:5;background:#f7f5f0;padding:10px 20px 10px;border-bottom:1px solid #ebe8e1;display:flex;gap:4px;overflow-x:auto">
+<sc-for list="{{ dTabs }}" as="t" hint-placeholder-count="4">
+<button onClick="{{ t.pick }}" style="flex:none;height:34px;padding:0 14px;border-radius:17px;border:0;background:{{ t.bg }};color:{{ t.fg }};font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap">{{ t.label }}</button>
+</sc-for>
+</div>
+<div style="padding:16px 20px 0">
+<sc-if value="{{ dtApercu }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<sc-for list="{{ dStats }}" as="s" hint-placeholder-count="4">
+<div style="background:#fff;border:1px solid #ebe8e1;border-radius:18px;padding:14px">
+<div style="font-size:12px;color:#5f6862">{{ s.k }}</div>
+<div style="font-size:19px;font-weight:600;margin-top:4px">{{ s.v }}</div>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{ d.hasNext }}">
+<div style="margin-top:12px;padding:16px;border-radius:20px;background:#f8eedb">
+<div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#8a5a12">Prochaine intervention</div>
+<div style="font-size:17px;font-weight:600;margin-top:6px">{{ d.next }}</div>
+<div style="font-size:13px;color:#4c544f;margin-top:2px">{{ d.nextMeta }}</div>
+</div>
+</sc-if>
+<sc-if value="{{ d.hasClient }}">
+<div style="margin-top:12px;padding:16px;border-radius:20px;background:#fff;border:1px solid #ebe8e1;display:flex;justify-content:space-between;align-items:center">
+<div><div style="font-size:12px;color:#5f6862">Client · prestation</div><div style="font-size:16px;font-weight:600;margin-top:4px">{{ d.client }}</div></div>
+<span style="font-size:20px;color:#a7aca8">›</span>
+</div>
+</sc-if>
+<div style="margin-top:12px;padding:16px;border-radius:20px;background:#fff;border:1px solid #ebe8e1">
+<div style="font-size:12px;color:#5f6862">Notes</div>
+<div style="font-size:14px;margin-top:6px;line-height:1.5;text-wrap:pretty">{{ d.note }}</div>
+</div>
+</sc-if>
+<sc-if value="{{ dtTravaux }}">
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{ dHistory }}" as="h" hint-placeholder-count="4">
+<div style="display:flex;gap:14px">
+<div style="display:flex;flex-direction:column;align-items:center;width:12px"><div style="width:10px;height:10px;border-radius:5px;background:#286a4a;margin-top:5px"></div><div style="flex:1;width:2px;background:#e3dfd7"></div></div>
+<div style="flex:1;padding-bottom:18px">
+<div style="font-size:15px;font-weight:600">{{ h.what }}</div>
+<div style="font-size:13px;color:#5f6862;margin-top:2px">{{ h.date }} · {{ h.detail }}</div>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ dtPaturage }}">
+<sc-if value="{{ d.hasAnimals }}">
+<div style="padding:18px;border-radius:20px;background:#e3eee7">
+<div style="display:flex;justify-content:space-between;align-items:flex-start">
+<div><div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#286a4a">Animaux au pré</div><div style="font-size:18px;font-weight:600;margin-top:6px">{{ d.animals }}</div><div style="font-size:13px;color:#4c544f;margin-top:2px">Entrés le {{ d.since }}</div></div>
+<div style="font-family:'Instrument Serif',serif;font-size:40px;line-height:1;color:#286a4a">{{ d.days }}</div>
+</div>
+<div style="display:flex;gap:8px;margin-top:14px">
+<button onClick="{{ moveHerd }}" style="flex:1;height:42px;border-radius:21px;border:0;background:#286a4a;color:#fff;font-size:14px;font-weight:600;cursor:pointer">Déplacer le lot</button>
+<button onClick="{{ moveHerd }}" style="flex:1;height:42px;border-radius:21px;border:1px solid #b9d3c2;background:#fff;color:#1d2420;font-size:14px;font-weight:600;cursor:pointer">Sortir</button>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ d.noAnimals }}">
+<div style="padding:36px 20px;text-align:center;color:#5f6862;font-size:15px;background:#fff;border-radius:20px;border:1px dashed #d9d5cc">Pas d’animaux sur cette parcelle.</div>
+</sc-if>
+</sc-if>
+<sc-if value="{{ dtDocs }}">
+<div style="background:#fff;border-radius:20px;border:1px solid #ebe8e1;overflow:hidden">
+<sc-for list="{{ dDocs }}" as="o">
+<div onClick="{{ notify }}" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #f0ede7;cursor:pointer">
+<div style="width:36px;height:44px;border-radius:6px;background:#efece5;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px;font-size:9px;font-weight:700;color:#5f6862">{{ o.ext }}</div>
+<div style="flex:1"><div style="font-size:15px;font-weight:600">{{ o.name }}</div><div style="font-size:12px;color:#5f6862;margin-top:2px">{{ o.meta }}</div></div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;padding:12px 20px 14px;background:linear-gradient(rgba(247,245,240,0),#f7f5f0 30%);display:flex;gap:8px;z-index:6">
+<button onClick="{{ showOnMap }}" style="flex:1;height:48px;border-radius:24px;border:1px solid #d9d5cc;background:#fff;font-size:15px;font-weight:600;cursor:pointer">Voir sur la carte</button>
+<button onClick="{{ planDetail }}" style="flex:1;height:48px;border-radius:24px;border:0;background:#286a4a;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Nouveau travail</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isWork }}">
+<div data-screen-label="Travaux" style="position:absolute;inset:0;overflow-y:auto;padding:4px 20px 100px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start">
+<div>
+<h1 style="font-family:'Instrument Serif',serif;font-weight:400;font-size:44px;line-height:1;margin:0">Travaux</h1>
+<p style="margin:8px 0 0;font-size:15px;color:#5f6862">Planifier, réaliser, retrouver.</p>
+</div>
+<button onClick="{{ newWork }}" aria-label="Nouveau travail" style="width:44px;height:44px;border-radius:22px;border:0;background:#286a4a;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></button>
+</div>
+<div style="display:flex;gap:6px;overflow-x:auto;margin:16px -20px 0;padding:0 20px 4px">
+<sc-for list="{{ workViews }}" as="v" hint-placeholder-count="5">
+<button onClick="{{ v.pick }}" style="flex:none;height:36px;padding:0 14px;border-radius:18px;border:0;background:{{ v.bg }};color:{{ v.fg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ v.label }}</button>
+</sc-for>
+</div>
+
+<sc-if value="{{ wvTaches }}" hint-placeholder-val="{{ true }}">
+<sc-if value="{{ hasLate }}">
+<div onClick="{{ goLate }}" style="margin-top:14px;padding:12px 16px;border-radius:16px;background:#f7e3dd;display:flex;align-items:center;gap:10px;cursor:pointer">
+<div style="width:8px;height:8px;border-radius:4px;background:#b4432c"></div>
+<div style="flex:1;font-size:14px"><span style="font-weight:600">{{ lateLabel }}</span> · à replanifier</div>
+<span style="font-size:18px;color:#b4432c">›</span>
+</div>
+</sc-if>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);padding:4px;border-radius:16px;background:#ebe8e1;margin-top:14px">
+<sc-for list="{{ workFilters }}" as="f" hint-placeholder-count="4">
+<button onClick="{{ f.pick }}" style="height:36px;border-radius:12px;border:0;background:{{ f.bg }};box-shadow:{{ f.shadow }};font-size:12px;font-weight:600;color:#1d2420;cursor:pointer;white-space:nowrap;padding:0 2px">{{ f.label }}</button>
+</sc-for>
+</div>
+<div style="height:42px;border-radius:21px;background:#fff;border:1px solid #e3dfd7;display:flex;align-items:center;gap:10px;padding:0 14px;margin-top:10px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5f6862" stroke-width="2" stroke-linecap="round"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4"></path></svg>
+<input value="{{ wq }}" onChange="{{ onWq }}" placeholder="Type, parcelle, produit…" style="flex:1;border:0;outline:0;background:transparent;font-size:15px;color:#1d2420;min-width:0"></input>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+<sc-for list="{{ workTasks }}" as="k" hint-placeholder-count="4">
+<div onClick="{{ k.edit }}" style="display:flex;gap:12px;padding:14px 16px;background:#fff;border-radius:20px;border:1px solid #ebe8e1;cursor:pointer" style-hover="border-color:#c9c4b9">
+<div style="width:76px;flex:none"><div style="font-size:15px;font-weight:600">{{ k.time }}</div><div style="font-size:12px;color:{{ k.tagFg }};font-weight:600;margin-top:2px">{{ k.when }}</div></div>
+<div style="flex:1;min-width:0;border-left:2px solid {{ k.tagFg }};padding-left:12px;opacity:{{ k.op }}">
+<div style="font-size:16px;font-weight:600;text-decoration:{{ k.deco }}">{{ k.title }}</div>
+<div style="font-size:13px;color:#5f6862;margin-top:2px">{{ k.parcel }}</div>
+<div style="font-size:12px;color:#8a908b;margin-top:4px">{{ k.meta }}</div>
+</div>
+<button onClick="{{ k.toggle }}" style="width:28px;height:28px;flex:none;border-radius:14px;border:2px solid {{ k.boxBorder }};background:{{ k.boxBg }};color:#fff;font-size:14px;font-weight:700;cursor:pointer;padding:0">{{ k.mark }}</button>
+</div>
+</sc-for>
+<sc-if value="{{ workEmpty }}">
+<div style="padding:36px 20px;text-align:center;color:#5f6862;font-size:15px;background:#fff;border-radius:20px;border:1px dashed #d9d5cc">Rien ici. Profitez-en.</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ wvCal }}">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><div style="font-size:17px;font-weight:600">Octobre 2026</div>
+<div style="display:flex;padding:3px;border-radius:12px;background:#ebe8e1">
+<sc-for list="{{ calModes }}" as="c"><button onClick="{{ c.pick }}" style="height:30px;padding:0 12px;border-radius:9px;border:0;background:{{ c.bg }};box-shadow:{{ c.shadow }};font-size:13px;font-weight:600;color:#1d2420;cursor:pointer">{{ c.label }}</button></sc-for>
+</div></div>
+<sc-if value="{{ calMonth }}">
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:12px">
+<sc-for list="{{ monthHead }}" as="d"><div style="text-align:center;font-size:11px;font-weight:600;color:#8a908b;text-transform:uppercase;padding-bottom:4px">{{ d }}</div></sc-for>
+<sc-for list="{{ monthCells }}" as="m">
+<div onClick="{{ m.pick }}" style="height:44px;border-radius:12px;background:{{ m.bg }};color:{{ m.fg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:{{ m.cur }};opacity:{{ m.op }}">
+<span style="font-size:15px;font-weight:600">{{ m.n }}</span>
+<span style="display:flex;gap:2px"><sc-for list="{{ m.dots }}" as="dt"><span style="width:5px;height:5px;border-radius:3px;background:{{ dt }}"></span></sc-for></span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ calWeek }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px">
+<sc-for list="{{ week }}" as="w" hint-placeholder-count="7">
+<div onClick="{{ w.pick }}" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0 10px;border-radius:14px;background:{{ w.bg }};color:{{ w.fg }};cursor:pointer">
+<span style="font-size:11px;font-weight:600;opacity:.75;text-transform:uppercase">{{ w.d }}</span>
+<span style="font-size:17px;font-weight:600">{{ w.n }}</span>
+<span style="width:5px;height:5px;border-radius:3px;background:{{ w.dot }}"></span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<div style="font-size:13px;font-weight:600;color:#5f6862;margin:18px 0 8px">{{ dayLabel }}</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ dayTasks }}" as="k">
+<div style="display:flex;gap:12px;padding:14px 16px;background:#fff;border-radius:20px;border:1px solid #ebe8e1">
+<div style="width:52px;flex:none;font-size:15px;font-weight:600">{{ k.time }}</div>
+<div onClick="{{ k.edit }}" style="flex:1;border-left:2px solid {{ k.tagFg }};padding-left:12px;opacity:{{ k.op }};cursor:pointer"><div style="font-size:16px;font-weight:600;text-decoration:{{ k.deco }}">{{ k.title }}</div><div style="font-size:13px;color:#5f6862;margin-top:2px">{{ k.parcel }}</div></div>
+</div>
+</sc-for>
+<sc-if value="{{ dayEmpty }}">
+<div style="padding:28px 20px;text-align:center;color:#5f6862;font-size:15px;background:#fff;border-radius:20px;border:1px dashed #d9d5cc">Aucun travail ce jour-là.</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ wvChantiers }}">
+<div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+<sc-for list="{{ chantiers }}" as="c">
+<div style="padding:16px;background:#fff;border-radius:20px;border:1px solid #ebe8e1">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:17px;font-weight:600">{{ c.name }}</div><div style="font-size:14px;font-weight:700;color:#286a4a">{{ c.pct }}</div></div>
+<div style="font-size:13px;color:#5f6862;margin-top:2px">{{ c.sub }}</div>
+<div style="height:8px;border-radius:4px;background:#efece6;margin-top:12px;overflow:hidden"><div style="height:100%;width:{{ c.pct }};background:#286a4a;border-radius:4px"></div></div>
+<div style="font-size:12px;color:#8a908b;margin-top:8px">{{ c.foot }}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ wvMat }}">
+<div style="background:#fff;border-radius:22px;border:1px solid #ebe8e1;overflow:hidden;margin-top:16px">
+<sc-for list="{{ machines }}" as="m">
+<div onClick="{{ m.open }}" style="display:flex;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid #f0ede7;cursor:pointer" style-hover="background:#f7f5f0">
+<div style="flex:1"><div style="font-size:16px;font-weight:600">{{ m.name }}</div><div style="font-size:13px;color:#5f6862;margin-top:2px">{{ m.sub }}</div></div>
+<div style="font-size:12px;font-weight:600;padding:4px 9px;border-radius:10px;background:{{ m.bg }};color:{{ m.fg }};white-space:nowrap">{{ m.status }}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMore }}">
+<div data-screen-label="Plus" style="position:absolute;inset:0;overflow-y:auto;padding:4px 20px 100px">
+<h1 style="font-family:'Instrument Serif',serif;font-weight:400;font-size:44px;line-height:1;margin:0">Plus</h1>
+<p style="margin:8px 0 16px;font-size:15px;color:#5f6862">Les outils utiles, rangés par usage.</p>
+<div style="height:44px;border-radius:22px;background:#fff;border:1px solid #e3dfd7;display:flex;align-items:center;gap:10px;padding:0 14px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#5f6862" stroke-width="2" stroke-linecap="round"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4"></path></svg>
+<input value="{{ toolQ }}" onChange="{{ onToolQ }}" placeholder="Rechercher un outil" style="flex:1;border:0;outline:0;background:transparent;font-size:15px;color:#1d2420;min-width:0"></input>
+</div>
+<sc-if value="{{ toolSearching }}">
+<div style="background:#fff;border-radius:22px;border:1px solid #ebe8e1;overflow:hidden;margin-top:12px">
+<sc-for list="{{ toolResults }}" as="r">
+<div onClick="{{ r.open }}" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #f0ede7;cursor:pointer">
+<div style="flex:1"><div style="font-size:15px;font-weight:600">{{ r.label }}</div><div style="font-size:12px;color:#5f6862;margin-top:2px">{{ r.cat }}</div></div><span style="font-size:20px;color:#a7aca8">›</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ notToolSearching }}" hint-placeholder-val="{{ true }}">
+<div onClick="{{ openAssistant }}" style="display:flex;gap:12px;align-items:center;padding:16px;border-radius:22px;background:#1d2420;color:#fff;cursor:pointer;margin-top:16px">
+<div style="width:40px;height:40px;border-radius:20px;background:#8fd1a8;color:#10261a;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4z"></path></svg></div>
+<div style="flex:1"><div style="font-size:16px;font-weight:600">Assistant IA</div><div style="font-size:13px;opacity:.7;margin-top:2px">« Qu’est-ce que je sème sur Les Noues ? »</div></div>
+<span style="font-size:20px;opacity:.6">›</span>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 10px"><h2 style="margin:0;font-size:19px;font-weight:600">Favoris</h2><a onClick="{{ notify }}" style="font-size:14px;font-weight:600;cursor:pointer">Personnaliser</a></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<sc-for list="{{ favTiles }}" as="t" hint-placeholder-count="4">
+<div onClick="{{ t.go }}" style="padding:16px;background:#fff;border-radius:20px;border:1px solid #ebe8e1;cursor:pointer;display:flex;flex-direction:column;gap:18px" style-hover="border-color:#c9c4b9">
+<div style="width:38px;height:38px;border-radius:12px;background:#e3eee7;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#286a4a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.icon }}"></path></svg></div>
+<div><div style="font-size:16px;font-weight:600">{{ t.label }}</div><div style="font-size:13px;color:#5f6862;margin-top:2px">{{ t.sub }}</div></div>
+</div>
+</sc-for>
+</div>
+<h2 style="margin:26px 0 10px;font-size:19px;font-weight:600">Toutes les fonctions</h2>
+<div style="background:#fff;border-radius:22px;border:1px solid #ebe8e1;overflow:hidden">
+<sc-for list="{{ categories }}" as="c" hint-placeholder-count="5">
+<div onClick="{{ c.open }}" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-bottom:1px solid #f0ede7;cursor:pointer" style-hover="background:#faf9f6">
+<div style="width:36px;height:36px;border-radius:11px;background:#f1efe9;display:flex;align-items:center;justify-content:center;flex:none"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#1d2420" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ c.icon }}"></path></svg></div>
+<div style="flex:1"><div style="font-size:16px;font-weight:600">{{ c.label }}</div><div style="font-size:13px;color:#5f6862;margin-top:2px">{{ c.sub }}</div></div>
+<span style="font-size:20px;color:#a7aca8">›</span>
+</div>
+</sc-for>
+</div>
+<div style="text-align:center;font-size:12px;color:#8a908b;margin-top:22px;line-height:1.6">Parcelles 10.10 · build 2026.10.05-v10.10.1<br>Hors connexion : vos données locales restent disponibles</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isCategory }}">
+<div data-screen-label="Catégorie" style="position:absolute;inset:0;overflow-y:auto;padding:4px 20px 100px">
+<button onClick="{{ backCat }}" style="height:36px;padding:0 14px 0 8px;border-radius:18px;border:0;background:#ebe8e1;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:2px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>Plus</button>
+<h1 style="font-family:'Instrument Serif',serif;font-weight:400;font-size:40px;line-height:1.05;margin:18px 0 0">{{ cat.label }}</h1>
+<p style="margin:8px 0 18px;font-size:15px;color:#5f6862">{{ cat.sub }}</p>
+<div style="background:#fff;border-radius:22px;border:1px solid #ebe8e1;overflow:hidden">
+<sc-for list="{{ cat.items }}" as="i">
+<div onClick="{{ i.open }}" style="display:flex;align-items:center;gap:12px;padding:15px 16px;border-bottom:1px solid #f0ede7;cursor:pointer" style-hover="background:#faf9f6">
+<div style="flex:1"><div style="font-size:16px;font-weight:600">{{ i.label }}</div><div style="font-size:13px;color:#5f6862;margin-top:2px">{{ i.sub }}</div></div>
+<span style="font-size:20px;color:#a7aca8">›</span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showIaFab }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ openAssistant }}" aria-label="Assistant IA" style="position:absolute;right:16px;bottom:16px;z-index:40;height:52px;padding:0 18px 0 14px;border-radius:26px;border:0;background:#1d2420;color:#fff;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;box-shadow:0 10px 24px rgba(20,28,24,.3);cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8fd1a8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4zM20 2v4M18 4h4"></path></svg>IA</button>
+</sc-if>
+
+<sc-if value="{{ sheetOpen }}">
+<div onClick="{{ closeSheet }}" style="position:absolute;inset:0;z-index:800;background:rgba(20,28,24,.38)"></div>
+<div style="position:absolute;left:8px;right:8px;bottom:8px;z-index:801;background:#fff;border-radius:28px;padding:8px 8px 12px;box-shadow:0 -10px 40px rgba(0,0,0,.2);max-height:88%;display:flex;flex-direction:column">
+<div style="width:36px;height:4px;border-radius:2px;background:#d9d5cc;margin:6px auto 4px;flex:none"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 12px 8px;flex:none">
+<div style="font-size:18px;font-weight:600">{{ sheetTitle }}</div>
+<button onClick="{{ closeSheet }}" style="width:32px;height:32px;border-radius:16px;border:0;background:#f1efe9;font-size:16px;color:#5f6862;cursor:pointer">×</button>
+</div>
+<div style="overflow-y:auto;flex:1;min-height:0">
+
+<sc-if value="{{ shTools }}">
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 6px 10px">
+<sc-for list="{{ quickTools }}" as="t">
+<button onClick="{{ t.pick }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 2px 10px;border-radius:16px;border:0;background:#f1efe9;font-size:12px;font-weight:600;color:#1d2420;cursor:pointer" style-hover="background:#e6e2d9"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#286a4a" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.icon }}"></path></svg>{{ t.label }}</button>
+</sc-for>
+</div>
+<div style="padding:4px 14px 6px;font-size:13px;font-weight:600;color:#5f6862">Parcelles affichées · {{ mapFilterCount }}</div>
+<div style="display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px">
+<sc-for list="{{ mapFilters }}" as="f">
+<button onClick="{{ f.pick }}" style="flex:none;height:32px;padding:0 12px;border-radius:16px;border:1px solid {{ f.border }};background:{{ f.bg }};color:{{ f.fg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ f.label }}</button>
+</sc-for>
+</div>
+<sc-for list="{{ toolOptions }}" as="t">
+<div onClick="{{ t.pick }}" style="display:flex;gap:14px;align-items:center;padding:12px 14px;border-radius:18px;cursor:pointer" style-hover="background:#f4f2ec">
+<div style="width:44px;height:44px;border-radius:14px;background:#e3eee7;display:flex;align-items:center;justify-content:center;flex:none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#286a4a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.icon }}"></path></svg></div>
+<div style="flex:1"><div style="font-size:16px;font-weight:600">{{ t.title }}</div><div style="font-size:13px;color:#5f6862;margin-top:2px">{{ t.sub }}</div></div>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{ shLayers }}">
+<div style="padding:0 14px 6px;font-size:13px;font-weight:600;color:#5f6862">Colorer par</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 14px">
+<sc-for list="{{ colorModes }}" as="c">
+<button onClick="{{ c.pick }}" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ c.label }}</button>
+</sc-for>
+</div>
+<div style="margin:0 6px 12px;padding:14px;border-radius:18px;background:#fbf3dc;border:1px solid #efdca5">
+<div onClick="{{ toggleRpg }}" style="display:flex;align-items:center;gap:12px;cursor:pointer">
+<div style="width:28px;height:28px;border-radius:7px;border:2px dashed #805000;background:rgba(246,206,89,.45);flex:none"></div>
+<div style="flex:1"><div style="font-size:15px;font-weight:600">Parcelles PAC/RPG 2024</div><div style="font-size:13px;color:#5f4a1a;margin-top:2px">Registre parcellaire IGN autour du centre de la carte</div></div>
+<div style="width:46px;height:28px;border-radius:14px;background:{{ rpgTrack }};padding:3px;display:flex;justify-content:{{ rpgJustify }}"><div style="width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div>
+</div>
+<div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+<span style="font-size:13px;color:#5f4a1a;flex:1">Rayon</span>
+<sc-for list="{{ rpgRadii }}" as="r">
+<button onClick="{{ r.pick }}" style="height:30px;padding:0 12px;border-radius:15px;border:1px solid {{ r.border }};background:{{ r.bg }};color:{{ r.fg }};font-size:13px;font-weight:600;cursor:pointer">{{ r.label }}</button>
+</sc-for>
+</div>
+<sc-if value="{{ hasRpgStatus }}"><div style="font-size:13px;color:#5f4a1a;margin-top:10px;font-weight:500">{{ rpgStatus }}</div></sc-if>
+</div>
+<div style="padding:0 14px 6px;font-size:13px;font-weight:600;color:#5f6862">Fond de carte</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 6px">
+<sc-for list="{{ baseOptions }}" as="b">
+<div onClick="{{ b.pick }}" style="padding:12px;border-radius:18px;border:2px solid {{ b.border }};cursor:pointer">
+<div style="height:64px;border-radius:12px;background:{{ b.swatch }}"></div>
+<div style="font-size:15px;font-weight:600;margin-top:10px">{{ b.label }}</div>
+</div>
+</sc-for>
+</div>
+<div style="margin-top:8px">
+<sc-for list="{{ layerToggles }}" as="l">
+<div onClick="{{ l.toggle }}" style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;border-radius:16px" style-hover="background:#f4f2ec">
+<div style="flex:1"><div style="font-size:15px;font-weight:600">{{ l.label }}</div><div style="font-size:13px;color:#5f6862;margin-top:2px">{{ l.sub }}</div></div>
+<div style="width:46px;height:28px;border-radius:14px;background:{{ l.track }};padding:3px;display:flex;justify-content:{{ l.justify }};transition:all .2s"><div style="width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)"></div></div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ shNotif }}">
+<div style="display:flex;flex-direction:column;gap:8px;padding:0 6px">
+<sc-for list="{{ watch }}" as="w">
+<div style="display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:18px;background:{{ w.bg }}">
+<div style="width:8px;height:8px;border-radius:4px;background:{{ w.dot }};margin-top:7px;flex:none"></div>
+<div style="flex:1"><div style="font-size:15px;font-weight:600">{{ w.title }}</div><div style="font-size:13px;color:#4c544f;margin-top:2px;text-wrap:pretty">{{ w.sub }}</div></div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ shSort }}">
+<div style="padding:0 6px">
+<div style="font-size:13px;font-weight:600;color:#5f6862;padding:4px 8px 8px">Trier par</div>
+<sc-for list="{{ sortOptions }}" as="o">
+<div onClick="{{ o.pick }}" style="display:flex;align-items:center;justify-content:space-between;padding:13px 12px;border-radius:14px;cursor:pointer" style-hover="background:#f4f2ec">
+<span style="font-size:15px;font-weight:500">{{ o.label }}</span><span style="font-size:16px;font-weight:700;color:#286a4a">{{ o.mark }}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ shSearch }}">
+<div style="padding:0 6px">
+<div style="height:46px;border-radius:23px;background:#f4f2ec;display:flex;align-items:center;gap:10px;padding:0 16px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6862" stroke-width="2" stroke-linecap="round"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4"></path></svg>
+<input value="{{ gq }}" onChange="{{ onGq }}" placeholder="Parcelles, travaux, outils…" style="flex:1;border:0;outline:0;background:transparent;font-size:16px;color:#1d2420;min-width:0"></input>
+</div>
+<div style="margin-top:8px">
+<sc-for list="{{ gResults }}" as="r">
+<div onClick="{{ r.go }}" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;cursor:pointer" style-hover="background:#f4f2ec">
+<div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#5f6862;width:64px;flex:none">{{ r.kind }}</div>
+<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600">{{ r.label }}</div><div style="font-size:12px;color:#5f6862;margin-top:1px">{{ r.sub }}</div></div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ shRpg }}">
+<div style="padding:0 8px;display:flex;flex-direction:column;gap:12px">
+<div style="padding:14px;border-radius:18px;background:#fbf3dc;display:flex;justify-content:space-between;align-items:center">
+<div><div style="font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#805000">RPG {{ rpgInfo.year }} · îlot {{ rpgInfo.id }}</div><div style="font-size:16px;font-weight:600;margin-top:4px">{{ rpgInfo.cultureLabel }}</div></div>
+<div style="font-family:'Instrument Serif',serif;font-size:30px;color:#805000;white-space:nowrap">{{ rpgInfo.haLabel }}</div>
+</div>
+<label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#5f6862">Nom de la parcelle *<input value="{{ rpgForm.nom }}" onChange="{{ onRpgNom }}" style="height:44px;border-radius:14px;border:1px solid #d9d5cc;padding:0 14px;font-size:15px;color:#1d2420;outline:0"></input></label>
+<label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#5f6862">Culture<input value="{{ rpgForm.culture }}" onChange="{{ onRpgCulture }}" style="height:44px;border-radius:14px;border:1px solid #d9d5cc;padding:0 14px;font-size:15px;color:#1d2420;outline:0"></input></label>
+<div style="font-size:13px;font-weight:600;color:#5f6862">Destination</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);padding:4px;border-radius:14px;background:#ebe8e1;margin-top:-6px">
+<sc-for list="{{ rpgDests }}" as="d">
+<button onClick="{{ d.pick }}" style="height:36px;border-radius:10px;border:0;background:{{ d.bg }};box-shadow:{{ d.shadow }};font-size:13px;font-weight:600;color:#1d2420;cursor:pointer">{{ d.label }}</button>
+</sc-for>
+</div>
+<div style="font-size:12px;color:#5f6862;line-height:1.5">Le contour et la surface RPG sont conservés. Vous pourrez ensuite compléter la fiche et y enregistrer vos travaux.</div>
+<button onClick="{{ addRpg }}" style="height:48px;border-radius:24px;border:0;background:#286a4a;color:#fff;font-size:15px;font-weight:600;cursor:pointer">Ajouter la parcelle</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ shActions }}">
+<div style="padding:0 6px">
+<sc-for list="{{ parcelActions }}" as="a">
+<div onClick="{{ a.go }}" style="display:flex;align-items:center;gap:14px;padding:12px;border-radius:16px;cursor:pointer" style-hover="background:#f4f2ec">
+<div style="width:38px;height:38px;border-radius:12px;background:{{ a.bg }};display:flex;align-items:center;justify-content:center;flex:none"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ a.fg }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.icon }}"></path></svg></div>
+<div style="flex:1"><div style="font-size:15px;font-weight:600;color:{{ a.tc }}">{{ a.label }}</div><div style="font-size:12px;color:#5f6862;margin-top:2px">{{ a.sub }}</div></div>
+<span style="font-size:18px;color:#a7aca8">›</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ shMultiInfo }}">
+<div style="padding:0 6px">
+<sc-for list="{{ multiList }}" as="p">
+<div onClick="{{ p.open }}" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;cursor:pointer" style-hover="background:#f4f2ec">
+<div style="width:12px;height:12px;border-radius:4px;background:{{ p.color }}"></div>
+<div style="flex:1;font-size:15px;font-weight:600">{{ p.name }}</div><div style="font-size:13px;color:#5f6862">{{ p.haLabel }}</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ shModule }}">
+<div style="padding:0 8px">
+<div style="font-size:14px;color:#5f6862;line-height:1.5;padding:0 4px 12px">{{ moduleInfo.sub }}</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ moduleInfo.rows }}" as="r">
+<div style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:16px;background:#f7f5f0">
+<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:600">{{ r.a }}</div><div style="font-size:12px;color:#5f6862;margin-top:2px">{{ r.b }}</div></div>
+<div style="font-size:13px;font-weight:700;color:{{ r.cc }};white-space:nowrap">{{ r.c }}</div>
+<sc-if value="{{ r.hasActs }}"><div style="display:flex;gap:6px"><sc-for list="{{ r.acts }}" as="x"><button onClick="{{ x.go }}" style="height:32px;padding:0 12px;border-radius:16px;border:1px solid {{ x.border }};background:#fff;color:{{ x.fg }};font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">{{ x.label }}</button></sc-for></div></sc-if>
+</div>
+</sc-for>
+</div>
+<button onClick="{{ moduleInfo.cta }}" style="width:100%;margin-top:14px;height:46px;border-radius:23px;border:0;background:#286a4a;color:#fff;font-size:15px;font-weight:600;cursor:pointer">{{ moduleInfo.ctaLabel }}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ shForm }}">
+<div style="padding:0 8px 4px;display:flex;flex-direction:column;gap:14px">
+<sc-if value="{{ hasFormIntro }}"><div style="font-size:13px;color:#5f6862;line-height:1.5;margin-top:-4px">{{ formIntro }}</div></sc-if>
+<sc-for list="{{ formFields }}" as="f">
+<div style="display:flex;flex-direction:column;gap:6px">
+<div style="font-size:13px;font-weight:600;color:#5f6862">{{ f.label }}</div>
+<sc-if value="{{ f.isText }}"><input value="{{ f.value }}" onChange="{{ f.onChange }}" placeholder="{{ f.ph }}" type="{{ f.inputType }}" style="width:100%;height:44px;border-radius:14px;border:1px solid #d9d5cc;padding:0 14px;font-size:15px;color:#1d2420;outline:0;background:#fff"></input></sc-if>
+<sc-if value="{{ f.isArea }}"><textarea value="{{ f.value }}" onChange="{{ f.onChange }}" placeholder="{{ f.ph }}" style="width:100%;min-height:84px;border-radius:14px;border:1px solid #d9d5cc;padding:12px 14px;font-size:15px;color:#1d2420;outline:0;resize:vertical;font-family:inherit"></textarea></sc-if>
+<sc-if value="{{ f.isChips }}">
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{ f.opts }}" as="o">
+<button onClick="{{ o.pick }}" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">{{ o.label }}</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ f.isFile }}">
+<label style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;border:1px dashed #c9c4b9;cursor:pointer;background:#faf9f6">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#286a4a" stroke-width="1.9" stroke-linecap="round"><path d="M12 15V3M7 8l5-5 5 5M4 15v6h16v-6"></path></svg>
+<span style="flex:1;font-size:14px;color:#1d2420;font-weight:500">{{ f.fileLabel }}</span>
+<input type="file" accept="{{ f.accept }}" onChange="{{ f.onFile }}" style="display:none"></input>
+</label>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{ hasFormError }}"><div style="font-size:13px;font-weight:600;color:#b4432c">{{ formError }}</div></sc-if>
+<div style="display:flex;gap:8px">
+<sc-if value="{{ formCanDelete }}"><button onClick="{{ deleteForm }}" style="height:48px;padding:0 18px;border-radius:24px;border:1px solid #efc9bf;background:#fff;color:#b4432c;font-size:15px;font-weight:600;cursor:pointer">Supprimer</button></sc-if>
+<button onClick="{{ saveForm }}" style="flex:1;height:48px;border-radius:24px;border:0;background:#286a4a;color:#fff;font-size:15px;font-weight:600;cursor:pointer">{{ formSave }}</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ shAssistant }}">
+<div style="padding:0 6px;display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ chat }}" as="m">
+<div style="display:flex;justify-content:{{ m.align }}">
+<div style="max-width:85%;padding:12px 14px;border-radius:18px;background:{{ m.bg }};color:{{ m.fg }};font-size:14px;line-height:1.45;text-wrap:pretty">{{ m.text }}</div>
+</div>
+</sc-for>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{ suggestions }}" as="s">
+<button onClick="{{ s.ask }}" style="height:34px;padding:0 12px;border-radius:17px;border:1px solid #e3dfd7;background:#fff;font-size:13px;font-weight:500;color:#1d2420;cursor:pointer;white-space:nowrap">{{ s.label }}</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}">
+<div style="position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:900;background:#1d2420;color:#fff;font-size:14px;font-weight:500;padding:12px 18px;border-radius:22px;box-shadow:0 8px 24px rgba(0,0,0,.25);white-space:nowrap">{{ toast }}</div>
+</sc-if>
+</div>
+
+<div style="height:82px;flex:none;background:rgba(255,255,255,.97);border-top:1px solid #ebe8e1;display:grid;grid-template-columns:repeat(5,1fr);padding:8px 6px 0;position:relative;z-index:20">
+<sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+<button onClick="{{ t.click }}" style="border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:{{ t.color }};padding:0">
+<div style="width:52px;height:30px;border-radius:15px;background:{{ t.pill }};display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="{{ t.sw }}" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.icon }}"></path></svg></div>
+<span style="font-size:11px;font-weight:600">{{ t.label }}</span>
+</button>
+</sc-for>
+<div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:#1d2420"></div>
+</div>
+
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;startTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;today&quot;,&quot;map&quot;,&quot;list&quot;,&quot;work&quot;,&quot;more&quot;],&quot;default&quot;:&quot;today&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;basemap&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;satellite&quot;,&quot;plan&quot;],&quot;default&quot;:&quot;satellite&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showWeather&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const CULT = { 'Blé tendre': '#d9a441', 'Colza': '#e3d34a', 'Maïs grain': '#e0873a', "Orge d'hiver": '#c7b06a', 'Prairie permanente': '#6fb37a', 'Prairie temporaire': '#9ccb83', 'Tournesol': '#f0b429', 'Jachère': '#b3aa9b' };
+const quad = (lat, lng, h, w, sk) => [[lat + h, lng - w + sk], [lat + h * 0.9, lng + w], [lat - h, lng + w - sk], [lat - h * 1.05, lng - w]];
+const B = [46.338, 5.122], at = (a, b) => [B[0] + a, B[1] + b];
+const PARCELS = [
+  { id: 1, code: 'GP', ilot: '12', name: 'Grand Pré', culture: 'Prairie permanente', ha: 8.6, commune: 'Montrevel-en-Bresse', soil: 'Limon argileux', last: 'Fauche · 12 sept', lastD: 12, fav: true, animals: '24 vaches charolaises', days: '18 j', since: '18 septembre', c: at(.007, -.012), s: [.0016, .0026, .0004], next: 'Contrôle clôture', nextMeta: "Aujourd'hui 17 h 30 · 30 min", note: 'Abreuvoir côté nord à surveiller. Accès par le chemin communal.' },
+  { id: 2, code: 'GC', ilot: '4', name: 'Les Grands Champs', culture: 'Blé tendre', ha: 14.2, commune: 'Cuet', soil: 'Argilo-calcaire', last: 'Déchaumage · hier', lastD: 1, fav: true, c: at(.001, .001), s: [.0019, .0028, .0003], next: 'Semis blé tendre', nextMeta: 'Prévu le 10 oct. · Chevignon 180 kg/ha', note: 'Zone humide en bas de parcelle, semer en dernier.' },
+  { id: 3, code: 'CO', ilot: '7', name: 'La Combe', culture: 'Colza', ha: 6.8, commune: 'Malafretaz', soil: 'Limon sableux', last: 'Désherbage · 28 sept', lastD: 8, c: at(-.006, -.008), s: [.0013, .0024, .0002], next: 'Fongicide colza', nextMeta: "Aujourd'hui · fenêtre 14 h – 18 h", note: 'Pression altises élevée l’an dernier.' },
+  { id: 4, code: 'MO', ilot: '9', name: 'Champ du Moulin', culture: 'Maïs grain', ha: 11.3, commune: 'Montrevel-en-Bresse', soil: 'Alluvions', last: 'Irrigation · 2 sept', lastD: 34, c: at(-.004, .010), s: [.0018, .0026, -.0003], next: 'Récolte maïs', nextMeta: 'Jeudi 8 oct. · entreprise Garnier', note: 'Récolter en priorité avant les pluies annoncées.' },
+  { id: 5, code: 'NO', ilot: '3', name: 'Les Noues', culture: "Orge d'hiver", ha: 9.1, commune: 'Cuet', soil: 'Argilo-limoneux', last: 'Labour · 1 oct', lastD: 5, fav: true, c: at(.008, .006), s: [.0016, .0024, .0003], next: "Semis orge d'hiver", nextMeta: "Aujourd'hui 8 h · 160 kg/ha", note: 'Semence en commande : 1 456 kg nécessaires.' },
+  { id: 6, code: 'PB', ilot: '15', name: 'Pré Bas', culture: 'Prairie temporaire', ha: 4.7, commune: 'Malafretaz', soil: 'Limon', last: 'Sursemis · 20 sept', lastD: 16, animals: '6 génisses', days: '4 j', since: '2 octobre', c: at(-.011, .003), s: [.0011, .0019, .0002], note: 'Clôture refaite au printemps.' },
+  { id: 7, code: 'CR', ilot: '21', name: 'La Croix', culture: 'Tournesol', ha: 7.5, commune: 'Cuet', soil: 'Argilo-calcaire', last: 'Récolte · 22 sept', lastD: 14, client: 'GAEC Martin', c: at(.003, .016), s: [.0014, .0025, -.0002], next: 'Épandage lisier', nextMeta: 'En retard de 2 jours', note: 'Parcelle travaillée en prestation pour le GAEC Martin.' },
+  { id: 8, code: 'VH', ilot: '18', name: 'Les Vignes Hautes', culture: 'Jachère', ha: 2.3, commune: 'Malafretaz', soil: 'Calcaire', last: 'Broyage · 3 août', lastD: 64, c: at(-.012, .015), s: [.0008, .0013, .0001], note: 'Jachère mellifère, broyage après le 31 août.' }
+].map(p => ({ ...p, geo: quad(p.c[0], p.c[1], ...p.s) }));
+const TASKS = [
+  { id: 1, title: "Semis orge d'hiver", pid: 5, meta: 'JD 6155R + semoir 4 m · 160 kg/ha', time: '8:00', status: 'today', day: 6 },
+  { id: 2, title: 'Fongicide colza', pid: 3, meta: 'Pulvérisateur 24 m · fenêtre 14 h – 18 h', time: '14:00', status: 'today', day: 6 },
+  { id: 3, title: 'Contrôle clôture', pid: 1, meta: '30 min · batterie électrificateur', time: '17:30', status: 'today', day: 6 },
+  { id: 4, title: 'Épandage lisier', pid: 7, meta: 'Tonne 18 m³ · 30 m³/ha', time: 'Ven. 2', status: 'late', day: 2 },
+  { id: 5, title: 'Récolte maïs', pid: 4, meta: 'Entreprise Garnier · benne 2', time: '7:30', status: 'planned', day: 8 },
+  { id: 6, title: 'Semis blé tendre', pid: 2, meta: 'Chevignon · 180 kg/ha', time: '8:00', status: 'planned', day: 10 },
+  { id: 7, title: 'Déchaumage', pid: 2, meta: 'Déchaumeur 4 m · 3 h 40', time: '9:00', status: 'done', day: 5 }
+];
+const ICON = {
+  today: 'M3 10.5 12 3l9 7.5M5 9.8V21h14V9.8M9 21v-7h6v7', map: 'M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20',
+  list: 'M6 4h12l2 5-2 11H6L4 9zM4 9h16M9 4v16M15 4v16', work: 'M5 4h14v16H5zM8 7h6M9 12l2 2 4-5', more: 'M6 12h.01M12 12h.01M18 12h.01'
+};
+const CATS_OLD = [
+  { id: 'production', label: 'Production', sub: 'Cultures, matériel, stocks, pâturage', icon: 'M12 21V10M8 14c-3.5 0-5-2-5-5 3.5 0 5 2 5 5M16 10c3.5 0 5-2 5-5-3.5 0-5 2-5 5', items: [['Cultures & assolement', 'Rotation, précédents, campagne 2026'], ['Matériel', '4 machines, entretien'], ['Stocks', 'Semences, engrais, phytos'], ['Pâturage', 'Lots, rotations, jours de présence'], ['Récoltes & traçabilité', 'Rendements, lots, livraisons'], ['Zones de modulation', 'Cartes de préconisation']] },
+  { id: 'management', label: 'Gestion', sub: 'Pilotage, clients, documents, rapports', icon: 'M4 4h16v16H4zM8 8h8M8 12h8M8 16h5', items: [['Pilotage', 'Marges, coûts par hectare'], ['Clients & prestations', 'GAEC Martin · 7,5 ha'], ['Documents', 'PAC, factures, analyses'], ['Rapports', 'Registre phyto, cahier d’épandage'], ['Export machine', 'ISOXML, shapefile']] },
+  { id: 'planning', label: 'Planifier', sub: 'Calendrier, météo, tournée', icon: 'M5 5h14v16H5zM8 3v4M16 3v4M5 10h14', items: [['Calendrier', 'Semaine, mois, campagne'], ['Météo', 'Prévisions et fenêtres de traitement'], ['Tournée', 'Ordre optimal des parcelles']] },
+  { id: 'tools', label: 'Outils', sub: 'Assistant, automatisations, intégrations', icon: 'M12 2l1.3 3.7L17 7l-3.7 1.3L12 12l-1.3-3.7L7 7l3.7-1.3zM19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z', items: [['Assistant IA', 'Questions sur l’exploitation'], ['Automatisations', 'Rappels, règles, alertes'], ['Intégrations', 'Télépac, Mes Parcelles, météo'], ['Importer', 'SHP, GeoJSON, KML, Excel']] },
+  { id: 'account', label: 'Compte & application', sub: 'Équipe, données, paramètres, aide', icon: 'M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M4 21a8 8 0 0 1 16 0', items: [['Équipe', '2 membres · Thibault, Julie'], ['Données & sauvegarde', 'Synchronisé il y a 2 min'], ['Paramètres', 'Unités, affichage, notifications'], ['Aide & diagnostic', 'Parcelles 10.10.1']] }
+];
+const STATUS = { today: { when: "Aujourd'hui", bg: '#e3eee7', fg: '#286a4a' }, late: { when: 'En retard', bg: '#f7e3dd', fg: '#b4432c' }, planned: { when: 'Planifié', bg: '#eceae4', fg: '#5f6862' }, done: { when: 'Fait', bg: '#eceae4', fg: '#8a908b' } };
+const DOW = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
+const fmt = n => n.toFixed(1).replace('.', ',');
+const ECON = { 1: [180, 420], 2: [620, 780], 3: [540, 640], 4: [710, 520], 5: [480, 560], 6: [210, 380], 7: [390, -40], 8: [60, 90] };
+const CMODES = [['culture', 'Culture'], ['status', 'État'], ['work', 'Travaux'], ['last', 'Dernière intervention'], ['animals', 'Animaux'], ['client', 'Client'], ['cost', 'Coût/ha'], ['margin', 'Marge/ha']];
+const LEG = {
+  status: [['#c4553b', 'En retard'], ['#3f8f5f', 'Prévu aujourd’hui'], ['#d9a441', 'Planifié'], ['#9aa29c', 'Rien de prévu']],
+  work: [['#b4432c', '2 travaux ou plus'], ['#e0873a', '1 travail'], ['#c9c4b9', 'Aucun']],
+  last: [['#1f6b45', '≤ 7 jours'], ['#6fb37a', '≤ 30 jours'], ['#c7d9a8', '≤ 60 jours'], ['#e3dccb', '> 60 jours']],
+  animals: [['#286a4a', 'Animaux au pré'], ['#cfe3c3', 'Prairie libre'], ['#d6d2c8', 'Culture']],
+  client: [['#7a5ea8', 'Parcelle client'], ['#d6d2c8', 'Mon exploitation']],
+  cost: [['#cfe3c3', '< 300 €/ha'], ['#d9a441', '300 – 500 €/ha'], ['#b4432c', '> 500 €/ha']],
+  margin: [['#1f6b45', '> 600 €/ha'], ['#6fb37a', '300 – 600 €/ha'], ['#d9a441', '0 – 300 €/ha'], ['#b4432c', 'Négative']]
+};
+const colorFor = (p, mode, tasks) => {
+  const mine = tasks.filter(t => t.pid === p.id && t.status !== 'done'), e = ECON[p.id] || [0, 0];
+  switch (mode) {
+    case 'status': return mine.some(t => t.status === 'late') ? '#c4553b' : mine.some(t => t.status === 'today') ? '#3f8f5f' : mine.length ? '#d9a441' : '#9aa29c';
+    case 'work': return mine.length >= 2 ? '#b4432c' : mine.length ? '#e0873a' : '#c9c4b9';
+    case 'last': return p.lastD <= 7 ? '#1f6b45' : p.lastD <= 30 ? '#6fb37a' : p.lastD <= 60 ? '#c7d9a8' : '#e3dccb';
+    case 'animals': return p.animals ? '#286a4a' : /Prairie/.test(p.culture) ? '#cfe3c3' : '#d6d2c8';
+    case 'client': return p.client ? '#7a5ea8' : '#d6d2c8';
+    case 'cost': return e[0] < 300 ? '#cfe3c3' : e[0] <= 500 ? '#d9a441' : '#b4432c';
+    case 'margin': return e[1] > 600 ? '#1f6b45' : e[1] > 300 ? '#6fb37a' : e[1] >= 0 ? '#d9a441' : '#b4432c';
+    default: return CULT[p.culture] || '#a3b18a';
+  }
+};
+const RPG_STYLE = { color: '#805000', weight: 1.5, opacity: 1, fillColor: '#f6ce59', fillOpacity: .3, dashArray: '6 3' };
+const RPG_CODES = { BTH: 'Blé tendre', BDH: 'Blé dur', ORH: "Orge d'hiver", ORP: 'Orge de printemps', MIS: 'Maïs grain', MIE: 'Maïs ensilage', CZH: 'Colza', TRN: 'Tournesol', SOJ: 'Soja', PPH: 'Prairie permanente', PRL: 'Prairie temporaire', PTR: 'Prairie temporaire', J6P: 'Jachère', J6S: 'Jachère', TTH: 'Triticale', AVH: 'Avoine', SRS: 'Sarrasin', VRC: 'Vigne', LUZ: 'Luzerne' };
+const MFILTERS = [['all', 'Toutes'], ['todo', 'À faire'], ['fav', 'Favoris'], ['clients', 'Clients'], ['grazing', 'Animaux au pré'], ['old', 'Sans travail > 30 j']];
+const CATS = [
+  { id: 'production', label: 'Production', sub: 'Cultures, terrain, matériel et ressources de l’exploitation.', icon: 'M12 21V10M8 14c-3.5 0-5-2-5-5 3.5 0 5 2 5 5M16 10c3.5 0 5-2 5-5-3.5 0-5 2-5 5', items: [['Assolement', 'Cultures, surfaces et rotations', 'rotations'], ['Matériel', 'Compteurs, coûts et entretiens', 'go:mat'], ['Pâturage', 'Animaux actuellement au pré', 'grazing'], ['Observations terrain', 'Anomalies, GPS et suivi', 'observations'], ['Chantiers agricoles', 'Travaux multi-parcelles', 'go:chantiers'], ['Travaux publics', 'Chantiers, engins, heures et quantités', 'publicworks'], ['Stocks', 'Valeur, seuils et mouvements', 'stock']] },
+  { id: 'management', label: 'Gestion', sub: 'Pilotage économique, clients, documents et restitution.', icon: 'M4 4h16v16H4zM8 8h8M8 12h8M8 16h5', items: [['Pilotage', 'Économie, marges et indicateurs', 'pilotage'], ['Clients & prestations', 'Parcelles et travaux clients', 'clients'], ['Documents', 'Classement et recherche', 'documents'], ['Traçabilité', 'Registre de campagne', 'traceability'], ['Rapports', 'PDF, CSV et exports', 'reports']] },
+  { id: 'planning', label: 'Planifier', sub: 'Organisez les prochaines actions sans encombrer l’accueil.', icon: 'M5 5h14v16H5zM8 3v4M16 3v4M5 10h14', items: [['Pilotage avancé', 'Campagnes, précision, missions et connexions', 'farm'], ['Calendrier & tâches', 'Travaux et échéances', 'go:cal'], ['Tournée du jour', 'Parcelles à visiter', 'route'], ['Météo', 'Prévisions et seuils', 'weather'], ['Mode terrain', 'GPS, sessions et actions rapides', 'field']] },
+  { id: 'tools', label: 'Outils', sub: 'Assistant, automatisations et échanges avec les systèmes externes.', icon: 'M12 2l1.3 3.7L17 7l-3.7 1.3L12 12l-1.3-3.7L7 7l3.7-1.3zM19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z', items: [['Assistant terrain', 'Analyse locale, actions et voix', 'go:assistant'], ['Automatisations', 'Règles Si → Alors', 'automations'], ['Intégrations agricoles', 'GPX, KML, traces machine et météo', 'integrations']] },
+  { id: 'account', label: 'Compte & application', sub: 'Votre équipe, vos données et les réglages de Parcelles.', icon: 'M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M4 21a8 8 0 0 1 16 0', items: [['Équipe & synchronisation', 'Comptes, rôles et appareils', 'account'], ['Mes données', 'Import, sauvegardes et corbeille', 'data'], ['Corbeille', 'Récupérer un élément supprimé', 'trash'], ['Paramètres', 'Exploitation, carte et confidentialité', 'settings'], ['Confidentialité', 'GPS, cloud et traitement', 'privacy'], ['Aide', 'Guide rapide et hors connexion', 'help'], ['Avancé & diagnostic', 'Plateforme, iPhone et santé de l’application', 'advanced']] }
+];
+const G = '#286a4a', R = '#b4432c', A = '#8a5a12', N = '#5f6862';
+const MODULES = {
+  rotations: ['Assolement', 'Cultures, surfaces et rotations de la campagne 2026.', [['Blé tendre', 'Les Grands Champs', '14,2 ha', N], ['Maïs grain', 'Champ du Moulin', '11,3 ha', N], ["Orge d'hiver", 'Les Noues · précédent maïs', '9,1 ha', N], ['Prairies', '2 parcelles', '13,3 ha', N], ['Campagne 2027', 'Préparer la prochaine campagne', 'À faire', A]], 'Ajouter une rotation'],
+  grazing: ['Pâturage', 'Lots d’animaux, rotations et jours de présence.', [['24 vaches charolaises', 'Grand Pré · depuis le 18 sept.', '18 j', R], ['6 génisses', 'Pré Bas · depuis le 2 oct.', '4 j', G], ['Prairies libres', 'Aucune pour le moment', '0', N]], 'Nouvelle entrée au pré'],
+  observations: ['Observations terrain', 'Anomalies géolocalisées, photos et suivi.', [['Altises sur colza', 'La Combe · 28 sept.', 'À suivre', A], ['Clôture abîmée', 'Grand Pré · 2 oct.', 'Ouvert', R], ['Zone humide', 'Les Grands Champs · 15 sept.', 'Noté', N]], 'Nouvelle observation'],
+  publicworks: ['Travaux publics', 'Chantiers, engins, heures et quantités hors parcelles.', [['Curage fossés', 'Commune de Cuet · pelle 14 t', '12 h', N], ['Déneigement', 'Contrat hiver 2026', 'Prévu', A]], 'Nouveau chantier TP'],
+  stock: ['Stocks', 'Valeur, seuils d’alerte et mouvements.', [['Semence orge KWS', 'Seuil 1 500 kg', '320 kg', R], ['Ammonitrate 33,5', 'Seuil 2 t', '6,4 t', G], ['Fongicide colza', 'Seuil 20 L', '12 L', R], ['GNR', 'Cuve 3 000 L', '1 850 L', G]], 'Mouvement de stock'],
+  pilotage: ['Pilotage', 'Économie de la campagne : charges saisies, marges estimées.', [['Charges opérationnelles', 'Semences, engrais, phytos', '27 480 €', N], ['Marge brute estimée', '64,5 ha', '31 920 €', G], ['Marge/ha moyenne', 'Campagne 2026', '495 €/ha', G], ['La Croix', 'Marge négative · prestation', '−40 €/ha', R]], 'Rapport de pilotage'],
+  clients: ['Clients & prestations', 'Parcelles et travaux réalisés pour des tiers.', [['GAEC Martin', '1 parcelle · 7,5 ha', '2 travaux', N], ['EARL des Saules', '0 parcelle', '—', N]], 'Nouveau client'],
+  documents: ['Documents', 'Classez les fichiers et rattachez-les aux éléments de l’exploitation.', [['Déclaration PAC 2026', 'Télépac · 15 mai', 'PDF', N], ['Analyse de sol', 'Les Noues · 18 juin', 'PDF', N], ['Facture semences', 'Non rattaché', 'À classer', A]], '＋ Document'],
+  traceability: ['Traçabilité de campagne', 'Campagne 2025/2026 · reprend uniquement les données réellement saisies.', [['Interventions', 'Toutes parcelles', '42', N], ['Avec produit', 'Registre phyto', '18', N], ['Avec opérateur', '', '39', N], ['Avec pièce jointe', '', '11', A]], 'Exporter CSV'],
+  reports: ['Rapports', 'PDF imprimables et exports.', [['Rapport exploitation', 'Synthèse complète', 'PDF', N], ['Registre de traçabilité', 'Campagne 2026', 'PDF · CSV', N], ['Parcelles', 'Liste et surfaces', 'CSV · GeoJSON', N], ['Travaux', 'Historique', 'CSV', N]], 'Générer le rapport'],
+  farm: ['Pilotage avancé', 'Campagnes, agriculture de précision, missions et connexions.', [['Zones de modulation', '3 parcelles zonées', 'Actif', G], ['Missions', 'Envoi aux consoles machine', 'ISOXML', N], ['Campagne 2027', 'Brouillon', 'À préparer', A]], 'Nouvelle mission'],
+  route: ['Tournée du jour', 'Parcelles à visiter, dans l’ordre le plus court.', [['1 · Les Noues', "Semis orge d'hiver · 8 h", '2,1 km', G], ['2 · La Combe', 'Fongicide colza · 14 h', '3,4 km', G], ['3 · Grand Pré', 'Contrôle clôture · 17 h 30', '1,8 km', G]], 'Démarrer la tournée'],
+  weather: ['Météo', 'Prévisions localisées et seuils d’intervention.', [["Aujourd'hui", 'Couvert · vent 12 km/h NO', '9° / 14°', N], ['Mercredi', 'Averses · 6 mm', '8° / 12°', R], ['Jeudi', 'Éclaircies', '7° / 15°', G], ['Traitement', 'Fenêtre favorable', '14 h – 18 h', G]], 'Actualiser'],
+  field: ['Mode terrain', 'GPS uniquement après votre action, parcelles triées par distance, détection de la parcelle où vous êtes.', [['Parcelle la plus proche', 'Les Grands Champs', '320 m', G], ['Session en cours', 'Aucune', '—', N], ['Journal vocal', 'Dictez une observation', 'Prêt', N]], 'Démarrer une session'],
+  automations: ['Automatisations', 'Règles Si → Alors évaluées localement.', [['Stock sous le seuil', '→ notification', 'Active', G], ['Animaux > 15 j', '→ tâche rotation', 'Active', G], ['Pluie > 10 mm', '→ reporter les semis', 'En pause', N]], 'Nouvelle règle'],
+  integrations: ['Intégrations agricoles', 'GPX, KML, traces machine et météo.', [['Traces machine', 'JD Operations Center', '2 traces', N], ['Import GPX / KML', 'Contours et parcours', 'Prêt', N], ['Météo', 'Open-Meteo', 'Connecté', G]], 'Importer un fichier'],
+  trash: ['Corbeille', 'Éléments supprimés. Restaurez-les ou supprimez-les définitivement.', [], 'Vider la corbeille'],
+  account: ['Équipe & synchronisation', 'Comptes, rôles et appareils.', [['Thibault', 'Propriétaire · iPhone', 'En ligne', G], ['Julie', 'Collaboratrice · Android', 'Il y a 2 h', N], ['Synchronisation', 'Dernière il y a 2 min', 'À jour', G]], 'Inviter un membre'],
+  data: ['Mes données', 'Import, sauvegardes et corbeille.', [['Importer', 'SHP, GeoJSON, KML, CSV, Excel, ZIP', '', N], ['Sauvegarde complète ZIP', 'État, photos et documents', '', N], ['Sauvegardes automatiques', 'Dernière ce matin', '7', G], ['Corbeille', 'Récupérable', '0', N], ['Historique des imports', 'Annulable', '3', N]], 'Exporter une sauvegarde'],
+  settings: ['Paramètres', 'Exploitation, carte et confidentialité.', [['Exploitation', 'EARL du Sougey · Montrevel-en-Bresse', '', N], ['Carte', 'Fond, couleurs, RPG', '', N], ['Unités', 'ha, kg, L', '', N], ['Notifications', 'Rappels et alertes', 'Activées', G]], 'Enregistrer'],
+  privacy: ['Confidentialité', 'GPS, cloud et traitement des données.', [['GPS', 'Uniquement après votre action', 'Sur demande', G], ['Cloud', 'Synchronisation chiffrée', 'Activé', G], ['Assistant IA', 'Traitement local en priorité', 'Local', G]], 'Fermer'],
+  help: ['Aide', 'Guide rapide et fonctionnement hors connexion.', [['Commencer', 'Importez vos parcelles depuis Mes données → Importer', '', N], ['Sur le terrain', 'Mode terrain : GPS, tri par distance', '', N], ['Hors connexion', 'Météo, RPG et synchro peuvent manquer sans bloquer la saisie', '', N]], 'Compris'],
+  advanced: ['Avancé & diagnostic', 'Plateforme, iPhone et santé de l’application.', [['Diagnostic', 'Build 2026.10.05-v10.10.1', 'OK', G], ['Qualité des données', '2 parcelles sans commune', 'À corriger', A], ['Journal', 'Historique des actions', '', N], ['Fonctions iPhone', 'Haptique, caméra, biométrie', 'Tester', N]], 'Lancer le diagnostic']
+};
+const ANSWERS = {
+  "Qu’est-ce que je sème sur Les Noues ?": "Orge d’hiver, prévue aujourd’hui à 8 h : 160 kg/ha sur 9,1 ha, soit 1 456 kg. Il vous reste 320 kg en stock — commande à passer.",
+  'Quelles parcelles sont en retard ?': "Une seule : La Croix (7,5 ha), épandage de lisier prévu vendredi 2 octobre. Le sol est ressuyé, demain matin est favorable.",
+  'Où sont les animaux ?': "24 vaches sur Grand Pré depuis 18 jours (rotation conseillée) et 6 génisses sur Pré Bas depuis 4 jours.",
+  'Surface en céréales ?': "23,3 ha : blé tendre 14,2 ha et orge d’hiver 9,1 ha, soit 36 % de l’assolement."
+};
+
+const STORE_KEY = 'parcelles-proto-v3';
+const HOME_BLOCKS = [['next', 'Prochaine action'], ['summary', 'Résumé du jour'], ['quick', 'Actions rapides'], ['weather', 'Météo'], ['now', 'À faire maintenant'], ['other', 'Autres tâches'], ['watch', 'À surveiller'], ['activity', 'Activité récente'], ['review', 'Bilan de journée']];
+const SAVED = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; } })();
+if (SAVED && Array.isArray(SAVED.parcels) && SAVED.parcels.length) { PARCELS.length = 0; PARCELS.push(...SAVED.parcels); Object.assign(CULT, SAVED.cult || {}); Object.assign(ECON, SAVED.econ || {}); }
+const SV = (k, d) => (SAVED && SAVED[k] !== undefined ? SAVED[k] : d);
+
+class Component extends DCLogic {
+  state = {
+    tab: this.props.startTab ?? 'today', detail: null, from: 'list', dtab: 'apercu', cat: null,
+    fav: SV('fav', Object.fromEntries(PARCELS.map(p => [p.id, !!p.fav]))), recent: SV('recent', [5, 1, 2]), homeHide: SV('homeHide', []), trash: SV('trash', []), calMode: 'week', sync: 'ok', syncAt: 'il y a 2 min',
+    tasks: SV('tasks', TASKS), q: '', mq: '', wq: '', gq: '', toolQ: '', sort: 0, filter: 'all', wview: 'taches', wf: 'today', day: 6,
+    sel: null, multi: false, msel: [], base: this.props.basemap ?? 'satellite', labels: false, byCulture: true,
+    tool: null, pts: [], sheet: null, toast: '', form: null, formError: '', extra: SV('extra', {}), extraMat: SV('extraMat', []), colorMode: SV('colorMode', 'culture'), mapFilter: 'all', legendOpen: false, archived: SV('archived', []), module: null, rpgOn: false, rpgRadius: 5, rpgStatus: '', rpgSel: null, rpgForm: { nom: '', culture: '', dest: 'own' }, chat: [{ me: false, text: 'Bonjour Thibault. Je connais vos 8 parcelles, vos travaux et vos stocks. Que voulez-vous savoir ?' }]
+  };
+  mapRef = React.createRef();
+
+  componentDidMount() {
+    const rawSet = this.setState.bind(this);
+    this.setState = (u, cb) => { rawSet(u); if (typeof cb === 'function') setTimeout(cb, 0); };
+    this._on = () => this.setState({ sync: 'ok', syncAt: 'à l’instant' }); this._off = () => this.setState({ sync: 'offline' });
+    window.addEventListener('online', this._on); window.addEventListener('offline', this._off);
+    if (!navigator.onLine) this._off();
+    const tryInit = () => { if (window.L && this.mapRef.current) this.initMap(); else this._t = setTimeout(tryInit, 120); };
+    tryInit();
+  }
+  componentWillUnmount() { window.removeEventListener('online', this._on); window.removeEventListener('offline', this._off); clearTimeout(this._syncT); this._ro && this._ro.disconnect(); clearTimeout(this._t); clearTimeout(this._toastT); this.map && this.map.remove(); }
+  componentDidUpdate(pp, ps) {
+    const s = this.state;
+    clearTimeout(this._saveT); this._saveT = setTimeout(() => this.persist(), 400);
+    if (pp.basemap !== this.props.basemap && this.props.basemap) this.setState({ base: this.props.basemap });
+    if (!this.map) return;
+    if (ps.sel !== s.sel || ps.msel !== s.msel || ps.byCulture !== s.byCulture || ps.colorMode !== s.colorMode || ps.mapFilter !== s.mapFilter || ps.tasks !== s.tasks || ps.base !== s.base) this.styleParcels();
+    if (ps.base !== s.base) this.setBase();
+    if (ps.labels !== s.labels) this.applyLabels();
+    if (ps.pts !== s.pts || ps.tool !== s.tool) this.drawTemp();
+  }
+  initMap() {
+    this.L = window.L;
+    const L = this.L;
+    this.map = L.map(this.mapRef.current, { zoomControl: false });
+    this.map.attributionControl.setPrefix(false);
+    this.layers = {};
+    PARCELS.forEach(p => this.addParcelLayer(p));
+    this.map.on('click', e => { if (this.state.tool) this.addPt(e.latlng); else if (this.state.sel) this.setState({ sel: null }); });
+    this.temp = L.layerGroup().addTo(this.map);
+    this.setBase(); this.styleParcels();
+    this.map.setView(B, 14);
+    this._ro = new ResizeObserver(() => {
+      const el = this.mapRef.current;
+      const w = el ? el.offsetWidth : 0, wasHidden = !this._prevW;
+      this._prevW = w;
+      if (!w) return;
+      this.map.invalidateSize();
+
+    });
+    this._ro.observe(this.mapRef.current);
+  }
+  applyLabels() {
+    PARCELS.forEach(p => {
+      const l = this.layers[p.id];
+      if (this.state.labels) { if (!l.getTooltip()) l.bindTooltip(p.name, { permanent: true, direction: 'center', opacity: .9 }); }
+      else if (l.getTooltip()) l.unbindTooltip();
+    });
+  }
+  setBase() {
+    const L = this.L;
+    if (this.tile) this.map.removeLayer(this.tile);
+    this.tile = this.state.base === 'satellite'
+      ? L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri' })
+      : L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '© OSM · CARTO' });
+    this.tile.addTo(this.map); this.tile.bringToBack();
+  }
+  styleParcels() {
+    const s = this.state, sat = s.base === 'satellite';
+    PARCELS.forEach(p => {
+      const on = s.sel === p.id || s.msel.includes(p.id), fill = colorFor(p, s.colorMode, s.tasks), lyr = this.layers[p.id], vis = this.mapVisible(p);
+      if (vis !== this.map.hasLayer(lyr)) { if (vis) lyr.addTo(this.map); else this.map.removeLayer(lyr); }
+      this.layers[p.id].setStyle({ color: on ? '#ffffff' : fill, weight: on ? 4 : 2, fillColor: fill, fillOpacity: on ? .62 : sat ? .38 : .5 });
+      if (on) this.layers[p.id].bringToFront();
+    });
+  }
+  fitAll = () => { if (this.map) { this.map.invalidateSize(false); const b = PARCELS.flatMap(p => p.geo); this.map.fitBounds(b, { padding: [30, 30], animate: false }); } };
+  showMap() {
+    const tryFit = (n) => {
+      const el = this.mapRef.current;
+      if (!this.map || !el || !el.offsetWidth) { if (n < 20) setTimeout(() => tryFit(n + 1), 50); return; }
+      this.fitAll();
+    };
+    setTimeout(() => tryFit(0), 30);
+  }
+  flyTo = id => {
+    this._flying = true;
+    const go = () => { this._fitted = true; this._flying = false; this.map.invalidateSize(); this.map.flyToBounds(this.layers[id].getBounds(), { padding: [80, 80], maxZoom: 16, duration: .6 }); };
+    this.setState({ tab: 'map', sel: id, mq: '', detail: null, sheet: null, multi: false, msel: [] }, () => this.map && setTimeout(go, 60));
+  };
+  addPt(ll) { this.setState(s => ({ pts: s.tool === 'point' ? [ll] : [...s.pts, ll] })); }
+  drawTemp() {
+    const L = this.L, { pts, tool } = this.state, col = '#8fd1a8';
+    this.temp.clearLayers();
+    if (!tool) return;
+    if ((tool === 'draw' || tool === 'area') && pts.length > 2) L.polygon(pts, { color: col, weight: 3, fillOpacity: .25, dashArray: '6 6' }).addTo(this.temp);
+    else if (pts.length > 1) L.polyline(pts, { color: col, weight: 3, dashArray: tool === 'draw' ? '6 6' : null }).addTo(this.temp);
+    pts.forEach(p => L.circleMarker(p, { radius: tool === 'point' ? 9 : 6, color: '#fff', weight: 2, fillColor: tool === 'point' ? '#b4432c' : '#286a4a', fillOpacity: 1 }).addTo(this.temp));
+  }
+  mapVisible(p) {
+    const f = this.state.mapFilter, t = this.state.tasks;
+    if (this.state.archived.includes(p.id)) return false;
+    return f === 'all' || (f === 'todo' && t.some(x => x.pid === p.id && x.status !== 'done')) || (f === 'fav' && this.state.fav[p.id]) || (f === 'clients' && !!p.client) || (f === 'grazing' && !!p.animals) || (f === 'old' && p.lastD > 30);
+  }
+  addParcelLayer(p) {
+    const L = this.L, poly = L.polygon(p.geo).addTo(this.map);
+    poly.on('click', e => {
+      L.DomEvent.stopPropagation(e);
+      if (this.state.tool) return this.addPt(e.latlng);
+      if (this.state.multi) return this.setState(x => ({ msel: x.msel.includes(p.id) ? x.msel.filter(i => i !== p.id) : [...x.msel, p.id] }));
+      this.setState({ sel: p.id });
+    });
+    this.layers[p.id] = poly;
+  }
+  locate(follow) {
+    if (!navigator.geolocation) return this.toastMsg('GPS indisponible sur cet appareil');
+    this.toastMsg(follow ? 'Suivi de position activé' : 'Recherche de votre position…');
+    navigator.geolocation.getCurrentPosition(pos => {
+      const ll = [pos.coords.latitude, pos.coords.longitude];
+      if (this.gps) this.map.removeLayer(this.gps);
+      this.gps = this.L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#2f6fd6', fillOpacity: 1 }).addTo(this.map);
+      this.map.setView(ll, 16);
+    }, () => this.toastMsg('Position indisponible · autorisez la localisation'), { enableHighAccuracy: true, timeout: 8000 });
+  }
+  async loadRpg() {
+    if (!this.map) return;
+    const L = this.L, c = this.map.getCenter(), r = this.state.rpgRadius, dLat = r / 111, dLng = r / (111 * Math.cos(c.lat * Math.PI / 180));
+    const geom = { type: 'Polygon', coordinates: [[[c.lng - dLng, c.lat - dLat], [c.lng + dLng, c.lat - dLat], [c.lng + dLng, c.lat + dLat], [c.lng - dLng, c.lat + dLat], [c.lng - dLng, c.lat - dLat]]] };
+    const seq = (this._rpgSeq = (this._rpgSeq || 0) + 1), feats = [];
+    this.setState({ rpgOn: true, rpgStatus: 'Recherche des parcelles RPG…' });
+    try {
+      for (let page = 0, start = 0; page < 15; page++) {
+        const url = 'https://apicarto.ign.fr/api/rpg/v2?annee=2024&geom=' + encodeURIComponent(JSON.stringify(geom)) + '&_limit=1000&_start=' + start;
+        const res = await fetch(url, { headers: { accept: 'application/json' } });
+        if (!res.ok) throw new Error(res.status === 429 ? 'Le service RPG reçoit trop de demandes (429).' : 'Service RPG indisponible (' + res.status + ').');
+        const data = await res.json();
+        if (seq !== this._rpgSeq) return;
+        if (data.type !== 'FeatureCollection') throw new Error('Réponse RPG inattendue.');
+        feats.push(...data.features);
+        const total = data.totalFeatures;
+        this.setState({ rpgStatus: feats.length + (total ? ' / ' + total : '') + ' parcelles chargées' });
+        if (data.features.length < 1000 || (total && feats.length >= total)) break;
+        start += 1000;
+      }
+      if (this.rpgLayer) this.map.removeLayer(this.rpgLayer);
+      this.rpgLayer = L.geoJSON({ type: 'FeatureCollection', features: feats }, {
+        renderer: this._rpgRenderer || (this._rpgRenderer = L.canvas({ padding: .5 })), style: RPG_STYLE,
+        onEachFeature: (f, layer) => layer.on('click', e => {
+          L.DomEvent.stopPropagation(e);
+          if (this.state.tool) return this.addPt(e.latlng);
+          const p = f.properties || {}, code = p.code_cultu || p.CODE_CULTU || '', label = RPG_CODES[code] || code || 'Culture non renseignée';
+          this._rpgLayerSel = layer;
+          this.setState({ sheet: 'rpg', rpgSel: f, sel: null, rpgForm: { nom: 'RPG ' + (p.id_parcel || ''), culture: label, dest: 'own' } });
+        })
+      }).addTo(this.map);
+      this.rpgLayer.bringToBack(); if (this.tile) this.tile.bringToBack();
+      Object.values(this.layers).forEach(l => l.bringToFront());
+      this.setState({ rpgStatus: feats.length + ' parcelle' + (feats.length > 1 ? 's' : '') + ' RPG chargée' + (feats.length > 1 ? 's' : '') + '. Touchez un contour pour l’ajouter.' });
+      this.toastMsg(feats.length + ' parcelles RPG chargées');
+    } catch (err) {
+      if (seq !== this._rpgSeq) return;
+      this.setState({ rpgStatus: err.message || 'Chargement RPG impossible.' });
+      this.toastMsg(err.message || 'Chargement RPG impossible');
+    }
+  }
+  hideRpg() { this._rpgSeq = (this._rpgSeq || 0) + 1; if (this.rpgLayer) this.map.removeLayer(this.rpgLayer); this.rpgLayer = null; this.setState({ rpgOn: false, rpgStatus: '' }); }
+  addRpgParcel() {
+    const f = this.state.rpgSel, form = this.state.rpgForm;
+    if (!f || !form.nom.trim()) return this.toastMsg('Donnez un nom à la parcelle');
+    const g = f.geometry, ring = g.type === 'MultiPolygon' ? g.coordinates[0][0] : g.coordinates[0];
+    const p = f.properties || {}, id = Date.now(), culture = form.culture || 'Culture non renseignée';
+    if (!CULT[culture]) CULT[culture] = '#a3b18a';
+    const parcel = { id, code: form.nom.replace(/[^A-Za-zÀ-ÿ ]/g, '').split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'RP', ilot: String(p.id_parcel || '—'), name: form.nom.trim(), culture, ha: Number(p.surf_parc) || 0, commune: '—', soil: 'À compléter', last: 'Ajoutée · aujourd’hui', lastD: 0, client: form.dest === 'own' ? null : (form.dest === 'client' ? 'Client à choisir' : 'Prestation'), geo: ring.map(([x, y]) => [y, x]), note: 'Importée du RPG 2024 (îlot ' + (p.id_parcel || '—') + ').' };
+    PARCELS.push(parcel); ECON[id] = [0, 0];
+    this.addParcelLayer(parcel);
+    if (this._rpgLayerSel) this._rpgLayerSel.setStyle({ fillOpacity: 0, opacity: .4 });
+    this.setState(s => ({ sheet: null, rpgSel: null, sel: id, fav: { ...s.fav, [id]: false } }));
+    this.toastMsg('Parcelle ajoutée · ' + parcel.name);
+  }
+  areaHa(pts) {
+    if (pts.length < 3) return 0;
+    const l0 = pts[0].lat * Math.PI / 180, xy = pts.map(p => [p.lng * 111320 * Math.cos(l0), p.lat * 110540]);
+    let a = 0; xy.forEach((p, i) => { const q = xy[(i + 1) % xy.length]; a += p[0] * q[1] - q[0] * p[1]; });
+    return Math.abs(a / 2) / 10000;
+  }
+  distM(pts) { let d = 0; for (let i = 1; i < pts.length; i++) d += pts[i - 1].distanceTo(pts[i]); return d; }
+  persist() {
+    const s = this.state;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ parcels: PARCELS, cult: CULT, econ: ECON, tasks: s.tasks.map(({ _prev, ...t }) => (_prev ? { ...t, _prev } : t)), fav: s.fav, recent: s.recent, extra: s.extra, extraMat: s.extraMat, archived: s.archived, trash: s.trash, colorMode: s.colorMode, homeHide: s.homeHide })); } catch (e) {}
+  }
+  moduleRows(mod, m) {
+    const s = this.state, base = [...(s.extra[mod] || []), ...m[2].map(([a, b, c, cc]) => ({ a, b, c, cc }))];
+    const act = (label, go, danger) => ({ label, go, fg: danger ? R : G, border: danger ? '#efc9bf' : '#cfe0d5' });
+    const fin = rows => rows.map(r => ({ c: '', cc: N, ...r, hasActs: !!(r.acts && r.acts.length), acts: r.acts || [] }));
+    if (mod === 'trash') return fin(s.trash.length ? s.trash.map((t, i) => ({ a: t.label, b: (t.kind === 'parcel' ? 'Parcelle' : 'Travail') + ' · supprimé ' + (t.at || '').toLowerCase(), acts: [act('Restaurer', () => this.restoreTrash(i)), act('Supprimer', () => this.purgeTrash(i), true)] })) : [{ a: 'La corbeille est vide', b: 'Les éléments supprimés apparaîtront ici.' }]);
+    if (mod === 'reports') return fin([
+      { a: 'Rapport exploitation', b: 'Synthèse parcelles, travaux, pâturage', acts: [act('PDF', () => this.printReport('farm'))] },
+      { a: 'Registre de traçabilité', b: 'Campagne 2026', acts: [act('PDF', () => this.printReport('trace')), act('CSV', () => this.moduleCta('traceability'))] },
+      { a: 'Parcelles', b: 'Contours et surfaces', acts: [act('GeoJSON', () => this.moduleCta('reports-geo'))] }
+    ]);
+    if (mod === 'farm') return fin([
+      { a: 'Zones de modulation', b: '3 parcelles zonées', acts: [act('Carte', () => this.setState({ sheet: null, cat: null, tab: 'map' }, () => this.showMap()))] },
+      ...base.filter(x => x.a !== 'Zones de modulation' && x.a !== 'Campagne 2027'),
+      { a: 'Campagne 2027', b: 'Brouillon · ' + ((s.extra.rotations || []).filter(x => /2027/.test(x.b)).length) + ' rotation(s) prévue(s)', acts: [act('Préparer', () => this.openForm('rotation'))] }
+    ]);
+    if (mod === 'stock') return fin([{ a: 'Nouvel article', b: 'Semence, engrais, produit, carburant…', acts: [act('Créer', () => this.openForm('stockitem'))] }, ...base]);
+    if (mod === 'account') return fin([...base.slice(0, base.length - 1), { a: 'Synchronisation', b: s.sync === 'offline' ? 'Hors connexion · reprise automatique' : 'Dernière ' + s.syncAt, c: { ok: 'À jour', syncing: 'En cours…', offline: 'En attente' }[s.sync], cc: s.sync === 'ok' ? G : s.sync === 'syncing' ? A : R, acts: [act('Synchroniser', () => this.syncNow())] }]);
+    if (mod === 'data') return fin([{ a: 'Importer', b: 'SHP, GeoJSON, KML, Excel, CSV', acts: [act('Choisir', () => this.openForm('import'))] }, { a: 'Sauvegarde complète', b: 'Parcelles, contours et travaux (JSON)', acts: [act('Exporter', () => this.moduleCta('data-export'))] }, { a: 'Corbeille', b: s.trash.length + ' élément' + (s.trash.length > 1 ? 's' : ''), acts: [act('Ouvrir', () => this.setState({ module: 'trash' }))] }, { a: 'Réinitialiser', b: 'Revenir aux données de démonstration', acts: [act('Réinitialiser', () => { try { localStorage.removeItem(STORE_KEY); } catch (e) {} location.reload(); }, true)] }]);
+    return fin(base);
+  }
+  restoreTrash(i) {
+    const t = this.state.trash[i];
+    if (t.kind === 'parcel') this.setState(x => ({ trash: x.trash.filter((_, j) => j !== i), archived: x.archived.filter(id => id !== t.id) }));
+    else this.setState(x => ({ trash: x.trash.filter((_, j) => j !== i), tasks: [...x.tasks, t.data] }));
+    this.toastMsg('Restauré · ' + t.label);
+  }
+  purgeParcel(id) { const k = PARCELS.findIndex(p => p.id === id); if (k >= 0) PARCELS.splice(k, 1); if (this.layers && this.layers[id]) { this.map.removeLayer(this.layers[id]); delete this.layers[id]; } }
+  purgeTrash(i) {
+    const t = this.state.trash[i];
+    if (t.kind === 'parcel') { this.purgeParcel(t.id); this.setState(x => ({ trash: x.trash.filter((_, j) => j !== i), archived: x.archived.filter(id => id !== t.id), tasks: x.tasks.filter(k => k.pid !== t.id) })); }
+    else this.setState(x => ({ trash: x.trash.filter((_, j) => j !== i) }));
+    this.toastMsg('Supprimé définitivement');
+  }
+  syncNow() {
+    if (!navigator.onLine) { this.setState({ sync: 'offline' }); return this.toastMsg('Hors connexion · synchronisation à la reconnexion'); }
+    this.persist(); this.setState({ sync: 'syncing' });
+    clearTimeout(this._syncT); this._syncT = setTimeout(() => { this.setState({ sync: 'ok', syncAt: 'à l’instant' }); this.toastMsg('Synchronisé · 2 appareils à jour'); }, 1400);
+  }
+  printReport(kind, pid) {
+    const s = this.state, esc = x => String(x == null ? '' : x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const live = PARCELS.filter(p => !s.archived.includes(p.id)), pn = id => (PARCELS.find(p => p.id === id) || {}).name || '';
+    const ST = { done: 'Terminé', today: "Aujourd'hui", late: 'En retard', planned: 'Planifié' };
+    const table = (head, rows) => '<table><thead><tr>' + head.map(x => '<th>' + esc(x) + '</th>').join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + r.map(x => '<td>' + esc(x) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+    const workRows = list => list.map(t => [t.day + '/10/2026', pn(t.pid), t.title, t.product || '', t.dose || '', t.equip || '', t.op || '', ST[t.status] || t.status]);
+    let title, body;
+    if (kind === 'parcel') {
+      const p = PARCELS.find(q => q.id === pid); title = 'Rapport parcelle · ' + p.name;
+      body = '<p class="meta">' + esc([p.culture, String(p.ha).replace('.', ',') + ' ha', p.commune, p.soil, 'îlot ' + p.ilot].join(' · ')) + '</p>' + (p.animals ? '<p><b>Animaux au pré :</b> ' + esc(p.animals + ' · ' + p.days) + '</p>' : '') + (p.note ? '<p><b>Note :</b> ' + esc(p.note) + '</p>' : '') + '<h2>Travaux</h2>' + table(['Date', 'Parcelle', 'Travail', 'Produit', 'Dose', 'Matériel', 'Opérateur', 'Statut'], workRows(s.tasks.filter(t => t.pid === pid)));
+    } else if (kind === 'trace') {
+      title = 'Registre de traçabilité · campagne 2026';
+      body = table(['Date', 'Parcelle', 'Travail', 'Produit', 'Dose', 'Matériel', 'Opérateur', 'Statut'], workRows(s.tasks)) + '<p class="meta">Le registre reprend uniquement les données réellement saisies.</p>';
+    } else {
+      const tot = live.reduce((a, p) => a + p.ha, 0); title = 'Rapport d’exploitation · EARL du Sougey';
+      body = '<p class="meta">' + live.length + ' parcelles · ' + tot.toFixed(1).replace('.', ',') + ' ha · campagne 2026</p><h2>Parcelles</h2>' + table(['Parcelle', 'Culture', 'Surface (ha)', 'Commune', 'Dernier travail', 'Animaux'], live.map(p => [p.name, p.culture, String(p.ha).replace('.', ','), p.commune, p.last, p.animals || ''])) + '<h2>Travaux</h2>' + table(['Date', 'Parcelle', 'Travail', 'Produit', 'Dose', 'Matériel', 'Opérateur', 'Statut'], workRows(s.tasks));
+    }
+    const html = '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>' + esc(title) + '</title><style>@page{margin:16mm}body{font-family:Helvetica,Arial,sans-serif;color:#1d2420;font-size:11pt}h1{font-size:20pt;margin:0 0 4px;color:#286a4a}h2{font-size:13pt;margin:22px 0 8px}.meta{color:#5f6862}table{width:100%;border-collapse:collapse;font-size:9.5pt}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e3dfd7}th{background:#f1efe9}footer{margin-top:24px;color:#8a908b;font-size:9pt}</style></head><body><h1>' + esc(title) + '</h1>' + body + '<footer>Parcelles 10.10 · édité le 6 octobre 2026</footer></body></html>';
+    let fr = document.getElementById('pc-print-frame');
+    if (!fr) { fr = document.createElement('iframe'); fr.id = 'pc-print-frame'; fr.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0'; document.body.appendChild(fr); }
+    fr.srcdoc = html;
+    fr.onload = () => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { this.toastMsg('Impression indisponible ici'); } };
+    this.toastMsg('Rapport prêt · choisissez « Enregistrer en PDF »');
+  }
+  loadLib(url, name) { if (window[name]) return Promise.resolve(window[name]); return new Promise((ok, ko) => { const sc = document.createElement('script'); sc.src = url; sc.onload = () => ok(window[name]); sc.onerror = () => ko(new Error('Bibliothèque indisponible (hors connexion ?)')); document.head.appendChild(sc); }); }
+  async runImport() {
+    const name = this._importName || '', buf = this._importBuf;
+    this.setState({ formError: '' }); this.toastMsg('Import en cours…');
+    try {
+      let feats = [];
+      if (/\.(zip|shp)$/i.test(name)) {
+        const shp = await this.loadLib('https://unpkg.com/shpjs@6.2.0/dist/shp.min.js', 'shp');
+        if (/\.zip$/i.test(name)) { let gj = await shp(buf); (Array.isArray(gj) ? gj : [gj]).forEach(c => feats.push(...(c.features || []))); }
+        else feats = shp.parseShp(buf).map(g => ({ type: 'Feature', properties: {}, geometry: g }));
+        feats = feats.filter(f => f.geometry && /Polygon/.test(f.geometry.type));
+      } else {
+        const XLSX = await this.loadLib('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'XLSX');
+        const wb = buf ? XLSX.read(buf, { type: 'array' }) : XLSX.read(this._importText, { type: 'string' });
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+        const pick = (r, keys) => { const k = Object.keys(r).find(x => keys.includes(x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())); return k ? r[k] : ''; };
+        rows.forEach((r, i) => {
+          const ha = parseFloat(String(pick(r, ['surface', 'ha', 'surface (ha)', 'surf_parc', 'superficie'])).replace(',', '.')) || 1;
+          let lat = parseFloat(String(pick(r, ['lat', 'latitude'])).replace(',', '.')), lng = parseFloat(String(pick(r, ['lon', 'lng', 'longitude'])).replace(',', '.'));
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) { lat = B[0] - 0.02 - Math.floor(i / 5) * 0.006; lng = B[1] - 0.012 + (i % 5) * 0.007; }
+          const side = Math.sqrt(ha * 10000) / 2, dLa = side / 110540, dLn = side / (111320 * Math.cos(lat * Math.PI / 180));
+          feats.push({ type: 'Feature', properties: { nom: pick(r, ['nom', 'name', 'parcelle']), culture: pick(r, ['culture', 'code_cultu']), surface: ha, commune: pick(r, ['commune', 'ville']), _approx: true }, geometry: { type: 'Polygon', coordinates: [[[lng - dLn, lat - dLa], [lng + dLn, lat - dLa], [lng + dLn, lat + dLa], [lng - dLn, lat + dLa], [lng - dLn, lat - dLa]]] } });
+        });
+      }
+      if (!feats.length) throw new Error('Aucune parcelle trouvée dans ce fichier');
+      feats.forEach((f, i) => {
+        const g = f.geometry, ring = g.type === 'MultiPolygon' ? g.coordinates[0][0] : g.coordinates[0], pr = f.properties || {}, id = Date.now() + i;
+        const nm = pr.nom || pr.NOM || pr.name || pr.NOM_PARC || ('Parcelle ' + (pr.NUM_ILOT || pr.id_parcel || (i + 1))), cu = pr.culture || pr.CULTURE || RPG_CODES[pr.code_cultu || pr.CODE_CULTU] || pr.CODE_CULTU || 'Culture non renseignée';
+        if (!CULT[cu]) CULT[cu] = '#a3b18a';
+        const geo = ring.map(([x, y]) => [y, x]);
+        const ha = Number(String(pr.surface || pr.SURF_PARC || pr.surf_parc || pr.SURFACE || '').replace(',', '.')) || +this.areaHa(geo.map(([lat, lng]) => ({ lat, lng }))).toFixed(2);
+        const parcel = { id, code: String(nm).slice(0, 2).toUpperCase(), ilot: String(pr.NUM_ILOT || pr.id_parcel || pr.ilot || '—'), name: String(nm), culture: cu, ha, commune: pr.commune || pr.COMMUNE || '—', soil: 'À compléter', last: 'Importée · aujourd’hui', lastD: 0, geo, note: 'Importée depuis ' + name + (pr._approx ? ' · contour approximatif, à redessiner.' : '.') };
+        PARCELS.push(parcel); ECON[id] = [0, 0]; if (this.map) this.addParcelLayer(parcel);
+      });
+      if (this.map) this.styleParcels();
+      this._importBuf = null; this._importText = '';
+      this.setState({ sheet: null, form: null }); this.toastMsg(feats.length + (feats.length > 1 ? ' parcelles importées' : ' parcelle importée'));
+    } catch (err) { this.setState({ formError: err.message || 'Import impossible' }); }
+  }
+  openForm(key, ctx = {}, init = {}) {
+    const def = this.formDef(key, ctx), v = {};
+    def.fields.forEach(([k, , type, opts, ex = {}]) => { v[k] = ex.def !== undefined ? ex.def : type === 'multi' ? [] : type === 'chips' && opts && opts.length ? opts[0][0] : ''; });
+    this.setState({ sheet: 'form', form: { key, ctx, v: { ...v, ...init } }, formError: '' });
+  }
+  formDef(key, ctx = {}) {
+    const live = PARCELS.filter(p => !this.state.archived.includes(p.id)), po = live.map(p => [p.id, p.name]);
+    const days = [[2, 'Ven. 2'], [5, 'Hier'], [6, "Aujourd'hui"], [7, 'Demain'], [8, 'Jeu. 8'], [9, 'Ven. 9'], [10, 'Sam. 10'], [11, 'Dim. 11']];
+    const equip = [['', 'Aucun'], ...[...this.state.extraMat.map(m => m.name), 'John Deere 6155R', 'Semoir Kuhn 4 m', 'Pulvérisateur 24 m', 'Tonne à lisier 18 m³', 'Déchaumeur 4 m'].map(n => [n, n])];
+    const L2 = a => a.map(x => [x, x]);
+    const F = {
+      work: { title: ctx.id ? 'Modifier le travail' : ctx.batch ? 'Travail groupé' : 'Nouveau travail', save: ctx.id ? 'Enregistrer' : 'Créer le travail', intro: ctx.batch ? 'Un travail est créé sur chaque parcelle sélectionnée.' : '', fields: [
+        ['type', 'Type de travail *', 'chips', L2(['Semis', 'Labour', 'Déchaumage', 'Traitement', 'Fertilisation', 'Épandage', 'Récolte', 'Fauche', 'Broyage', 'Irrigation', 'Contrôle', 'Autre']), { req: 1, def: '' }],
+        ['pids', 'Parcelles *', 'multi', po, { req: 1 }], ['day', 'Date', 'chips', days, { def: 6 }], ['time', 'Heure', 'text', null, { ph: '8:00' }],
+        ['status', 'Statut', 'chips', [['todo', 'À faire'], ['doing', 'En cours'], ['done', 'Terminé']]],
+        ['product', 'Produit / variété', 'text', null, { ph: 'Chevignon, ammonitrate 33,5…' }], ['dose', 'Dose', 'text', null, { ph: '180 kg/ha' }],
+        ['equip', 'Matériel', 'chips', equip, { def: '' }], ['op', 'Opérateur', 'chips', L2(['Thibault', 'Julie', 'Entreprise'])], ['notes', 'Notes', 'area', null, { ph: 'Conditions, remarques…' }]] },
+      task: { title: ctx.batch ? 'Tâche sur plusieurs parcelles' : 'Nouvelle tâche', save: 'Créer la tâche', fields: [['title', 'Titre *', 'text', null, { req: 1, ph: 'Vérifier la levée…' }], ['pids', 'Parcelles *', 'multi', po, { req: 1 }], ['day', 'Échéance', 'chips', days.slice(2), { def: 7 }], ['prio', 'Priorité', 'chips', L2(['Normale', 'Haute', 'Urgente'])], ['notes', 'Notes', 'area']] },
+      parcel: { title: 'Modifier la parcelle', save: 'Enregistrer', fields: [['name', 'Nom *', 'text', null, { req: 1 }], ['culture', 'Culture', 'chips', L2(Object.keys(CULT))], ['ha', 'Surface (ha)', 'text'], ['commune', 'Commune', 'text'], ['soil', 'Type de sol', 'text'], ['client', 'Client (vide = mon exploitation)', 'text', null, { ph: 'GAEC Martin' }]] },
+      note: { title: 'Note de parcelle', save: 'Enregistrer', fields: [['notes', 'Note', 'area', null, { ph: 'Accès, zones à risque, consignes…' }]] },
+      photo: { title: 'Ajouter une photo', save: 'Enregistrer', intro: 'Le fichier reste sur l’appareil tant que la synchronisation n’est pas activée.', fields: [['file', 'Photo', 'file', null, { accept: 'image/*' }], ['comment', 'Commentaire', 'text']] },
+      herd: { title: 'Déplacer le lot', save: 'Enregistrer le mouvement', fields: [['to', 'Destination', 'chips', [['out', 'Sortir du pré'], ...live.filter(p => /Prairie/.test(p.culture) && p.id !== ctx.pid).map(p => [p.id, p.name])]], ['day', 'Date', 'chips', days.slice(1, 4), { def: 6 }]] },
+      grazing: { title: 'Nouvelle entrée au pré', save: 'Mettre au pré', fields: [['lot', 'Lot *', 'text', null, { req: 1, ph: 'Vaches charolaises' }], ['count', 'Nombre d’animaux *', 'text', null, { req: 1 }], ['pid', 'Parcelle', 'chips', live.filter(p => /Prairie/.test(p.culture)).map(p => [p.id, p.name])], ['day', 'Date d’entrée', 'chips', days.slice(1, 4), { def: 6 }]] },
+      observation: { title: 'Nouvelle observation', save: 'Enregistrer', fields: [['kind', 'Type', 'chips', L2(['Ravageur', 'Maladie', 'Adventice', 'Clôture', 'Zone humide', 'Dégât gibier', 'Autre'])], ['pid', 'Parcelle', 'chips', po], ['level', 'Gravité', 'chips', L2(['Faible', 'Moyenne', 'Forte'])], ['desc', 'Description *', 'area', null, { req: 1 }], ['file', 'Photo', 'file', null, { accept: 'image/*' }]] },
+      stock: { title: 'Mouvement de stock', save: 'Enregistrer', fields: [['item', 'Article', 'chips', L2(['Semence orge KWS', 'Ammonitrate 33,5', 'Fongicide colza', 'GNR'])], ['dir', 'Sens', 'chips', [['in', 'Entrée'], ['out', 'Sortie']]], ['qty', 'Quantité *', 'text', null, { req: 1, ph: '500 kg' }], ['notes', 'Notes', 'text']] },
+      client: { title: 'Nouveau client', save: 'Créer le client', fields: [['name', 'Nom *', 'text', null, { req: 1, ph: 'GAEC des Prés' }], ['contact', 'Contact', 'text'], ['phone', 'Téléphone', 'text', null, { type: 'tel' }], ['email', 'E-mail', 'text', null, { type: 'email' }]] },
+      rule: { title: 'Nouvelle automatisation', save: 'Créer la règle', fields: [['when', 'Si…', 'chips', L2(['Stock sous le seuil', 'Animaux au pré > 15 j', 'Pluie annoncée > 10 mm', 'Travail en retard', 'Entretien matériel dû'])], ['then', 'Alors…', 'chips', L2(['Notifier', 'Créer une tâche', 'Reporter les travaux', 'Envoyer un e-mail'])]] },
+      member: { title: 'Inviter un membre', save: 'Envoyer l’invitation', fields: [['email', 'E-mail *', 'text', null, { req: 1, type: 'email' }], ['role', 'Rôle', 'chips', L2(['Collaborateur', 'Saisonnier', 'Lecture seule', 'Administrateur'])]] },
+      publicworks: { title: 'Nouveau chantier TP', save: 'Créer le chantier', fields: [['name', 'Chantier *', 'text', null, { req: 1, ph: 'Curage fossés' }], ['commune', 'Commune / client', 'text'], ['engin', 'Engin', 'text', null, { ph: 'Pelle 14 t' }], ['hours', 'Heures', 'text']] },
+      doc: { title: 'Ajouter un document', save: 'Enregistrer', fields: [['file', 'Fichier', 'file', null, { accept: 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt' }], ['cat', 'Catégorie', 'chips', L2(['PAC', 'Facture', 'Analyse', 'Contrat', 'Photo / constat', 'Autre'])], ['pid', 'Rattacher à', 'chips', [['', 'Non rattaché'], ...po], { def: '' }], ['tags', 'Tags', 'text', null, { ph: 'analyse sol, semis…' }]] },
+      equipment: { title: 'Nouveau matériel', save: 'Ajouter', fields: [['name', 'Nom *', 'text', null, { req: 1, ph: 'Herse rotative 3 m' }], ['kind', 'Type', 'chips', L2(['Tracteur', 'Outil sol', 'Semoir', 'Pulvérisateur', 'Récolte', 'Transport'])], ['counter', 'Compteur (h)', 'text']] },
+      settings: { title: 'Paramètres', save: 'Enregistrer', fields: [['farm', 'Exploitation', 'text', null, { def: 'EARL du Sougey' }], ['commune', 'Commune', 'text', null, { def: 'Montrevel-en-Bresse' }], ['units', 'Unités', 'chips', [['ha', 'ha · kg · L'], ['ac', 'acres · lb · gal']]], ['notif', 'Notifications', 'chips', [['on', 'Activées'], ['off', 'Désactivées']]], ['reset', 'Données de démonstration', 'chips', [['keep', 'Conserver mes saisies'], ['reset', 'Tout réinitialiser']]]] },
+      personalize: { title: 'Personnaliser l’accueil', save: 'Enregistrer', intro: 'Choisissez les blocs visibles sur Aujourd’hui.', fields: [['blocks', 'Blocs affichés', 'multi', HOME_BLOCKS]] },
+      maintenance: { title: 'Nouvel entretien', save: 'Enregistrer', intro: ctx.mname, fields: [['type', 'Opération *', 'chips', L2(['Vidange', 'Graissage', 'Pneus', 'Contrôle technique', 'Réparation', 'Autre']), { req: 1 }], ['meter', 'Compteur (h)', 'text', null, { ph: '4 812' }], ['cost', 'Coût (€)', 'text', null, { ph: '0' }], ['next', 'Prochain entretien à (h)', 'text', null, { ph: '5 300' }], ['notes', 'Pièces / commentaire', 'area', null, { ph: 'Filtres, huile 15W40…' }]] },
+      stockitem: { title: 'Nouvel article de stock', save: 'Créer l’article', intro: 'La quantité initiale est ensuite suivie par mouvements.', fields: [['name', 'Nom *', 'text', null, { req: 1, ph: 'Semence blé Chevignon' }], ['cat', 'Catégorie', 'chips', L2(['Intrant', 'Semence', 'Engrais', 'Produit', 'Carburant', 'Fourniture', 'Autre']), { def: 'Intrant' }], ['qty', 'Quantité initiale', 'text', null, { ph: '0' }], ['unit', 'Unité', 'chips', L2(['kg', 'L', 't', 'm³', 'unités', 'sacs']), { def: 'kg' }], ['alert', 'Alerte sous', 'text', null, { ph: '500' }]] },
+      mission: { title: 'Nouvelle mission', save: 'Exporter ISOXML', intro: 'Une tâche TASKDATA.XML est générée pour la console machine.', fields: [['pids', 'Parcelles *', 'multi', po, { req: 1 }], ['kind', 'Opération', 'chips', L2(['Semis', 'Fertilisation', 'Traitement', 'Épandage']), { def: 'Fertilisation' }], ['product', 'Produit', 'text', null, { ph: 'Ammonitrate 33,5' }], ['dose', 'Dose de base', 'text', null, { ph: '180 kg/ha' }], ['mod', 'Modulation', 'chips', L2(['Aucune', 'Selon zones']), { def: 'Selon zones' }]] },
+      rotation: { title: 'Ajouter une rotation', save: 'Enregistrer', intro: 'Prévoir la culture d’une parcelle pour une campagne.', fields: [['pid', 'Parcelle *', 'chips', po, { req: 1 }], ['campaign', 'Campagne', 'chips', L2(['2026', '2027', '2028']), { def: '2027' }], ['culture', 'Culture *', 'chips', L2(Object.keys(CULT)), { req: 1 }]] },
+      import: { title: 'Importer des parcelles', save: 'Importer', intro: 'Shapefile (ZIP ou .shp, ex. export Télépac), GeoJSON, KML, Excel ou CSV. Pour Excel/CSV : colonnes nom, culture, surface, commune et éventuellement lat / lon.', fields: [['file', 'Fichier', 'file', null, { accept: '.zip,.shp,.geojson,.json,.kml,.xlsx,.xls,.csv' }]] }
+    };
+    return F[key];
+  }
+  formFields() {
+    const { form } = this.state, def = this.formDef(form.key, form.ctx), v = form.v;
+    const set = (k, val) => this.setState(x => ({ form: { ...x.form, v: { ...x.form.v, [k]: val } }, formError: '' }));
+    const chip = on => on ? { bg: '#1d2420', fg: '#fff', border: '#1d2420' } : { bg: '#fff', fg: '#1d2420', border: '#e3dfd7' };
+    return def.fields.map(([k, label, type, opts, ex = {}]) => ({
+      label, isText: type === 'text', isArea: type === 'area', isChips: type === 'chips' || type === 'multi', isFile: type === 'file',
+      value: v[k] ?? '', ph: ex.ph || '', inputType: ex.type || 'text', accept: ex.accept || '*', fileLabel: v[k] ? v[k] : 'Choisir un fichier',
+      onChange: e => set(k, e.target.value),
+      onFile: e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (form.key === 'import') { this._importName = f.name; if (/\.(zip|shp|xlsx|xls)$/i.test(f.name)) f.arrayBuffer().then(b => { this._importBuf = b; this._importText = ''; set(k, f.name); }); else f.text().then(t => { this._importText = t; this._importBuf = null; set(k, f.name); }); } else set(k, f.name); },
+      opts: (opts || []).map(([id, l]) => ({ label: l, ...chip(type === 'multi' ? (v[k] || []).includes(id) : v[k] === id), pick: () => set(k, type === 'multi' ? ((v[k] || []).includes(id) ? v[k].filter(i => i !== id) : [...(v[k] || []), id]) : id) }))
+    }));
+  }
+  saveForm() {
+    const s = this.state, { key, ctx, v } = s.form, def = this.formDef(key, ctx);
+    const miss = def.fields.find(([k, , type, , ex = {}]) => ex.req && (type === 'multi' ? !(v[k] || []).length : !String(v[k] ?? '').trim()));
+    if (miss) return this.setState({ formError: 'Champ obligatoire : ' + miss[1].replace(' *', '') });
+    const pname = id => (PARCELS.find(p => p.id === id) || {}).name || '—';
+    const DL = { 2: 'Ven. 2', 5: 'Hier', 6: "Aujourd'hui", 7: 'Demain', 8: 'Jeu. 8', 9: 'Ven. 9', 10: 'Sam. 10', 11: 'Dim. 11' }, dlabel = d => DL[d] || '';
+    const addExtra = (mod, row, msg) => { this.setState(x => ({ extra: { ...x.extra, [mod]: [row, ...(x.extra[mod] || [])] }, sheet: 'module', module: mod, form: null })); this.toastMsg(msg); };
+    const close = msg => { this.setState({ sheet: null, form: null }); this.toastMsg(msg); };
+    const statusOf = (st, d) => st === 'done' ? 'done' : d < 6 ? 'late' : d === 6 ? 'today' : 'planned';
+    switch (key) {
+      case 'work': case 'task': {
+        const d = Number(v.day), isTask = key === 'task', title = isTask ? v.title.trim() : v.type;
+        const meta = isTask ? ['Tâche', v.prio !== 'Normale' ? 'priorité ' + v.prio.toLowerCase() : '', v.notes].filter(Boolean).join(' · ') : [v.product, v.dose, v.equip, v.op].filter(Boolean).join(' · ') || 'Travail';
+        const st = isTask ? statusOf('todo', d) : statusOf(v.status, d);
+        const mk = (pid, id) => ({ id, title, pid, meta, time: v.time || (isTask ? '—' : '8:00'), status: st, _prev: st === 'done' ? statusOf('todo', d) : undefined, day: d, product: v.product, dose: v.dose, equip: v.equip, op: v.op, notes: v.notes });
+        if (ctx.id) this.setState(x => ({ tasks: x.tasks.map(t => t.id === ctx.id ? mk(v.pids[0], t.id) : t).concat(v.pids.slice(1).map((pid, i) => mk(pid, Date.now() + i))) }));
+        else this.setState(x => ({ tasks: [...x.tasks, ...v.pids.map((pid, i) => mk(pid, Date.now() + i))], multi: ctx.batch ? false : x.multi, msel: ctx.batch ? [] : x.msel }));
+        if (st === 'done') v.pids.forEach(pid => { const p = PARCELS.find(q => q.id === pid); if (p) { p.last = title + ' · ' + dlabel(d).toLowerCase(); p.lastD = Math.max(0, 6 - d); } });
+        return close(ctx.id ? 'Travail mis à jour' : v.pids.length > 1 ? v.pids.length + (isTask ? ' tâches créées' : ' travaux créés') : title + ' · ' + pname(v.pids[0]) + ' · ' + dlabel(d));
+      }
+      case 'parcel': { const p = PARCELS.find(q => q.id === ctx.pid); Object.assign(p, { name: v.name.trim(), culture: v.culture, ha: parseFloat(String(v.ha).replace(',', '.')) || p.ha, commune: v.commune, soil: v.soil, client: String(v.client || '').trim() || null }); this.styleParcels(); return close('Parcelle enregistrée'); }
+      case 'note': { PARCELS.find(q => q.id === ctx.pid).note = v.notes; return close('Note enregistrée'); }
+      case 'photo': { if (!v.file) return this.setState({ formError: 'Choisissez une photo' }); this.setState(x => ({ extra: { ...x.extra, ['docs' + ctx.pid]: [{ ext: 'JPG', name: v.comment || v.file, meta: 'Thibault · aujourd’hui' }, ...(x.extra['docs' + ctx.pid] || [])] } })); return close('Photo enregistrée'); }
+      case 'herd': {
+        const from = PARCELS.find(q => q.id === ctx.pid), lot = from.animals, days = from.days;
+        from.animals = null; from.days = null;
+        if (v.to !== 'out') { const to = PARCELS.find(q => q.id === v.to); to.animals = lot; to.days = '0 j'; to.since = dlabel(Number(v.day)).toLowerCase(); }
+        this.styleParcels(); return close(v.to === 'out' ? 'Lot sorti après ' + days : 'Lot déplacé vers ' + pname(v.to));
+      }
+      case 'grazing': { const p = PARCELS.find(q => q.id === v.pid), lot = v.count + ' ' + v.lot.toLowerCase(); if (p) { p.animals = lot; p.days = '0 j'; p.since = dlabel(Number(v.day)).toLowerCase(); } return addExtra('grazing', { a: lot, b: pname(v.pid) + ' · depuis ' + dlabel(Number(v.day)).toLowerCase(), c: '0 j', cc: G }, 'Lot mis au pré'); }
+      case 'observation': return addExtra('observations', { a: v.kind + ' · ' + v.level.toLowerCase(), b: pname(v.pid) + ' · ' + v.desc.slice(0, 60), c: 'Ouvert', cc: v.level === 'Forte' ? R : A }, 'Observation enregistrée');
+      case 'stock': return addExtra('stock', { a: (v.dir === 'in' ? 'Entrée · ' : 'Sortie · ') + v.item, b: v.notes || 'Aujourd’hui', c: (v.dir === 'in' ? '+' : '−') + v.qty, cc: v.dir === 'in' ? G : R }, 'Mouvement enregistré');
+      case 'client': return addExtra('clients', { a: v.name, b: [v.contact, v.phone, v.email].filter(Boolean).join(' · ') || '0 parcelle', c: 'Nouveau', cc: G }, 'Client créé');
+      case 'maintenance': { this.setState(x => ({ maintDone: { ...(x.maintDone || {}), [ctx.mname]: v.type + (v.meter ? ' à ' + v.meter + ' h' : '') + ' · aujourd’hui' } })); return close('Entretien enregistré · ' + ctx.mname); }
+      case 'stockitem': return addExtra('stock', { a: v.name.trim(), b: v.cat + (v.alert ? ' · seuil ' + v.alert + ' ' + v.unit : ''), c: (v.qty || '0') + ' ' + v.unit, cc: G }, 'Article créé');
+      case 'mission': { const esc = t => String(t || '').replace(/[<&"]/g, c => ({ '<': '&lt;', '&': '&amp;', '"': '&quot;' })[c]); const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<ISO11783_TaskData VersionMajor="4" VersionMinor="0" DataTransferOrigin="1">\n' + v.pids.map((pid, i) => '  <PFD A="PFD' + (i + 1) + '" C="' + esc(pname(pid)) + '"/>').join('\n') + '\n' + v.pids.map((pid, i) => '  <TSK A="TSK' + (i + 1) + '" B="' + esc(v.kind + ' · ' + pname(pid)) + '" E="PFD' + (i + 1) + '" G="1"/>').join('\n') + '\n</ISO11783_TaskData>\n'; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([xml], { type: 'application/xml' })); a.download = 'TASKDATA.XML'; document.body.appendChild(a); a.click(); a.remove(); return addExtra('farm', { a: v.kind + (v.product ? ' · ' + v.product : ''), b: v.pids.length + ' parcelle(s) · ' + (v.mod === 'Selon zones' ? 'modulée' : 'dose fixe') + (v.dose ? ' · ' + v.dose : ''), c: 'Exportée', cc: G }, 'Mission exportée · TASKDATA.XML'); }
+      case 'rotation': return addExtra('rotations', { a: v.culture, b: pname(v.pid) + ' · campagne ' + v.campaign, c: 'Prévu', cc: A }, 'Rotation enregistrée');
+      case 'rule': return addExtra('automations', { a: v.when, b: '→ ' + v.then.toLowerCase(), c: 'Active', cc: G }, 'Automatisation créée');
+      case 'member': return addExtra('account', { a: v.email, b: v.role + ' · invitation envoyée', c: 'En attente', cc: A }, 'Invitation envoyée');
+      case 'publicworks': return addExtra('publicworks', { a: v.name, b: [v.commune, v.engin].filter(Boolean).join(' · '), c: v.hours ? v.hours + ' h' : 'Prévu', cc: N }, 'Chantier créé');
+      case 'doc': { if (!v.file) return this.setState({ formError: 'Choisissez un fichier' }); return addExtra('documents', { a: v.file, b: v.cat + (v.pid ? ' · ' + pname(v.pid) : ' · Non rattaché') + (v.tags ? ' · ' + v.tags : ''), c: v.file.split('.').pop().toUpperCase(), cc: N }, 'Document enregistré'); }
+      case 'equipment': { this.setState(x => ({ extraMat: [{ name: v.name, sub: v.kind + (v.counter ? ' · ' + v.counter + ' h' : ''), status: 'Disponible', bg: '#e3eee7', fg: '#286a4a' }, ...x.extraMat], sheet: null, form: null, tab: 'work', wview: 'mat', cat: null })); return this.toastMsg('Matériel ajouté'); }
+      case 'settings': if (v.reset === 'reset') { try { localStorage.removeItem(STORE_KEY); } catch (e) {} location.reload(); return; } return close('Paramètres enregistrés');
+      case 'personalize': { this.setState({ homeHide: HOME_BLOCKS.map(b => b[0]).filter(id => !v.blocks.includes(id)) }); return close('Accueil personnalisé'); }
+      case 'import': { if (this._importBuf || /\.csv$/i.test(this._importName || '')) { this.runImport(); return; }
+        let gj, txt = (this._importText || '').trim();
+        if (txt.startsWith('<')) {
+          const doc = new DOMParser().parseFromString(txt, 'application/xml'), pms = [...doc.getElementsByTagName('Placemark')];
+          gj = { type: 'FeatureCollection', features: pms.map(pm => { const c = pm.getElementsByTagName('coordinates')[0]; if (!c || !pm.getElementsByTagName('Polygon')[0]) return null; const ring = c.textContent.trim().split(/\s+/).map(t => t.split(',').map(Number)).filter(a => a.length >= 2 && a.every(Number.isFinite)).map(([x, y]) => [x, y]); const nm = pm.getElementsByTagName('name')[0]; return { type: 'Feature', properties: { nom: nm ? nm.textContent.trim() : '' }, geometry: { type: 'Polygon', coordinates: [ring] } }; }).filter(Boolean) };
+        } else { try { gj = JSON.parse(txt); } catch (e) { return this.setState({ formError: 'Fichier illisible (GeoJSON ou KML attendu)' }); } }
+        const feats = (gj.type === 'FeatureCollection' ? gj.features : [gj]).filter(f => f && f.geometry && /Polygon/.test(f.geometry.type));
+        if (!feats.length) return this.setState({ formError: 'Aucun polygone trouvé dans ce fichier' });
+        feats.forEach((f, i) => {
+          const g = f.geometry, ring = g.type === 'MultiPolygon' ? g.coordinates[0][0] : g.coordinates[0], pr = f.properties || {}, id = Date.now() + i;
+          const name = pr.nom || pr.name || pr.NOM || 'Parcelle importée ' + (i + 1), culture = pr.culture || pr.CULTURE || RPG_CODES[pr.code_cultu] || 'Culture non renseignée';
+          if (!CULT[culture]) CULT[culture] = '#a3b18a';
+          const geo = ring.map(([x, y]) => [y, x]);
+          const parcel = { id, code: name.slice(0, 2).toUpperCase(), ilot: String(pr.id_parcel || pr.ilot || '—'), name, culture, ha: Number(pr.surf_parc || pr.surface || 0) || +this.areaHa(geo.map(([lat, lng]) => ({ lat, lng }))).toFixed(2), commune: pr.commune || '—', soil: 'À compléter', last: 'Importée · aujourd’hui', lastD: 0, geo, note: 'Importée depuis ' + (v.file || 'un fichier') + '.' };
+          PARCELS.push(parcel); ECON[id] = [0, 0]; if (this.map) this.addParcelLayer(parcel);
+        });
+        if (this.map) this.styleParcels();
+        return close(feats.length + (feats.length > 1 ? ' parcelles importées' : ' parcelle importée'));
+      }
+    }
+  }
+  moduleCta(mod) {
+    const formFor = { farm: 'mission', grazing: 'grazing', observations: 'observation', publicworks: 'publicworks', stock: 'stock', clients: 'client', documents: 'doc', automations: 'rule', account: 'member', settings: 'settings' };
+    if (formFor[mod]) return this.openForm(formFor[mod]);
+    if (mod === 'account') return this.openForm('member');
+    const dl = (name, text, type) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+    const parcels = PARCELS.filter(p => !this.state.archived.includes(p.id)), ring = p => [[...p.geo, p.geo[0]].map(([a, b]) => [b, a])];
+    if (mod === 'data') return this.moduleCta('data-export');
+    if (mod === 'data-export') { dl('parcelles-sauvegarde-2026-10-06.json', JSON.stringify({ parcelles: parcels.map(({ geo, ...p }) => ({ ...p, geometry: { type: 'Polygon', coordinates: ring({ geo }) } })), travaux: this.state.tasks }, null, 2), 'application/json'); return this.toastMsg('Sauvegarde téléchargée'); }
+    if (mod === 'traceability') { const rows = [['Date', 'Parcelle', 'Travail', 'Produit', 'Dose', 'Matériel', 'Opérateur', 'Statut'], ...this.state.tasks.map(t => [t.day + '/10/2026', (PARCELS.find(p => p.id === t.pid) || {}).name, t.title, t.product || '', t.dose || '', t.equip || '', t.op || '', t.status])]; dl('parcelles-tracabilite-2026.csv', rows.map(r => r.map(c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"').join(';')).join('\n'), 'text/csv;charset=utf-8'); return this.toastMsg('Registre exporté en CSV'); }
+    if (mod === 'trash') { const ids = this.state.trash.filter(t => t.kind === 'parcel').map(t => t.id); ids.forEach(id => this.purgeParcel(id)); this.setState(x => ({ trash: [], archived: x.archived.filter(i => !ids.includes(i)) })); return this.toastMsg('Corbeille vidée'); }
+    if (mod === 'reports') { return this.printReport('farm'); }
+    if (mod === 'reports-geo') { dl('parcelles-2026-10-06.geojson', JSON.stringify({ type: 'FeatureCollection', features: parcels.map(p => ({ type: 'Feature', properties: { nom: p.name, culture: p.culture, surface: p.ha, commune: p.commune }, geometry: { type: 'Polygon', coordinates: ring(p) } })) }), 'application/geo+json'); return this.toastMsg('GeoJSON des parcelles téléchargé'); }
+    if (mod === 'rotations') return this.openForm('rotation');
+    if (mod === 'integrations') return this.openForm('import');
+    if (mod === 'pilotage') return this.printReport('farm');
+    if (mod === 'route') return this.setState({ sheet: null, tab: 'work', wview: 'taches', wf: 'today', cat: null });
+    if (mod === 'weather') return this.setState({ sheet: null, tab: 'today', cat: null });
+    if (mod === 'field') return this.setState({ sheet: null, cat: null, tab: 'map' }, () => { this.showMap(); this.locate(true); });
+    this.setState({ sheet: null }); this.toastMsg(MODULES[mod][3] + ' · ' + MODULES[mod][0]);
+  }
+  openModule(key) {
+    const go = { 'go:mat': { tab: 'work', wview: 'mat', cat: null }, 'go:chantiers': { tab: 'work', wview: 'chantiers', cat: null }, 'go:cal': { tab: 'work', wview: 'cal', cat: null }, 'go:assistant': { sheet: 'assistant' } }[key];
+    if (go) return this.setState({ ...go, detail: null });
+    this.setState({ sheet: 'module', module: key });
+  }
+  toastMsg(msg) { clearTimeout(this._toastT); this.setState({ toast: msg }); this._toastT = setTimeout(() => this.setState({ toast: '' }), 2200); }
+  openDetail(id, from) { this.setState(s => ({ detail: id, from, dtab: 'apercu', sheet: null, recent: [id, ...s.recent.filter(r => r !== id)].slice(0, 4) })); }
+  toggleTask(id) {
+    this.setState(s => ({ tasks: s.tasks.map(t => t.id !== id ? t : t.status === 'done' ? { ...t, status: t._prev || 'today' } : { ...t, _prev: t.status, status: 'done' }) }));
+  }
+  ask(text) {
+    this.setState(s => ({ chat: [...s.chat, { me: true, text }] }));
+    setTimeout(() => this.setState(s => ({ chat: [...s.chat, { me: false, text: ANSWERS[text] || 'Je regarde vos données…' }] })), 500);
+  }
+  taskView(t) {
+    const p = PARCELS.find(x => x.id === t.pid), done = t.status === 'done', st = STATUS[done ? (t._prev || 'done') : t.status];
+    return {
+      ...t, parcel: p.name, when: done ? 'Fait' : st.when, tagBg: done ? STATUS.done.bg : st.bg, tagFg: done ? '#8a908b' : st.fg,
+      dow: DOW[(t.day + 2) % 7], boxBg: done ? '#286a4a' : '#fff', boxBorder: done ? '#286a4a' : '#c9c4b9', mark: done ? '✓' : '', deco: done ? 'line-through' : 'none', op: done ? .55 : 1,
+      toggle: e => { if (e && e.stopPropagation) e.stopPropagation(); this.toggleTask(t.id); if (!done) this.toastMsg(`« ${t.title} » terminé`); },
+      edit: () => this.openForm('work', { id: t.id }, { type: t.title, pids: [t.pid], day: t.day, time: t.time, status: done ? 'done' : 'todo', product: t.product || '', dose: t.dose || '', equip: t.equip || '', op: t.op || '', notes: t.notes || '' }),
+      onMap: () => this.flyTo(t.pid)
+    };
+  }
+
+  renderVals() {
+    const s = this.state, view = s.detail ? 'detail' : s.cat ? 'category' : s.tab;
+    const tabId = s.detail ? (s.from === 'map' ? 'map' : 'list') : s.cat ? 'more' : s.tab;
+    const fav = s.fav, pv = p => ({ ...p, color: CULT[p.culture], haLabel: fmt(p.ha) + ' ha', haShort: fmt(p.ha), star: fav[p.id] ? '★' : '' });
+    const all = PARCELS.map(pv), total = PARCELS.reduce((a, p) => a + p.ha, 0);
+    const chipSel = on => on ? { bg: '#1d2420', fg: '#fff', border: '#1d2420' } : { bg: '#fff', fg: '#1d2420', border: '#e3dfd7' };
+    const notify = () => this.toastMsg('Bientôt disponible dans la maquette');
+    const openSheet = k => () => this.setState({ sheet: k });
+
+    // Tasks
+    const tv = s.tasks.map(t => this.taskView(t));
+    const isNow = t => t.status === 'late' || t.status === 'today' || (t.status === 'done' && (t._prev === 'today' || t._prev === 'late'));
+    const nowTasks = tv.filter(isNow);
+    const open = tv.filter(t => t.status === 'today' || t.status === 'late');
+    const lateN = s.tasks.filter(t => t.status === 'late').length, todayN = s.tasks.filter(t => t.status === 'today').length;
+    const nextT = tv.find(t => t.status === 'today') || tv.find(t => t.status === 'late');
+    const doneToday = nowTasks.filter(t => t.status === 'done').length;
+    const wfd = { today: t => t.day === 6 && t.status !== 'late', planned: t => t.status === 'planned', late: t => t.status === 'late', history: t => t.status === 'done' };
+    const wql = s.wq.trim().toLowerCase();
+    const workTasks = tv.filter(wfd[s.wf]).filter(t => !wql || (t.title + t.parcel + t.meta).toLowerCase().includes(wql));
+    const dayTasks = tv.filter(t => t.day === s.day);
+
+    // Parcels
+    const taskPids = new Set(s.tasks.filter(t => t.status !== 'done').map(t => t.pid));
+    const fdefs = [['all', 'Toutes', () => true], ['todo', 'À faire', p => taskPids.has(p.id)], ['fav', 'Favoris', p => fav[p.id]], ['clients', 'Clients', p => !!p.client], ['grazing', 'Animaux au pré', p => !!p.animals], ['empty', 'Sans animaux', p => /Prairie/.test(p.culture) && !p.animals], ['arch', 'Archivées', p => s.archived.includes(p.id) && !s.trash.some(t => t.kind === 'parcel' && t.id === p.id)]];
+    const sorts = [['Nom', (a, b) => a.name.localeCompare(b.name)], ['Surface ↓', (a, b) => b.ha - a.ha], ['Surface ↑', (a, b) => a.ha - b.ha], ['Culture', (a, b) => a.culture.localeCompare(b.culture)], ['Commune', (a, b) => a.commune.localeCompare(b.commune)], ['Dernier travail', (a, b) => a.lastD - b.lastD]];
+    let ql = s.q.trim().toLowerCase(), minHa = 0;
+    const m = ql.match(/>\s*(\d+[.,]?\d*)\s*ha?/); if (m) { minHa = parseFloat(m[1].replace(',', '.')); ql = ql.replace(m[0], '').trim(); }
+    const fd = fdefs.find(f => f[0] === s.filter);
+    const parcelsView = all.filter(p => s.filter === 'arch' || !s.archived.includes(p.id)).filter(fd[2]).filter(p => p.ha > minHa && (!ql || (p.name + p.culture + p.commune).toLowerCase().includes(ql))).sort(sorts[s.sort][1])
+      .map(p => ({ ...p, badge: p.animals ? `${p.animals} · ${p.days}` : taskPids.has(p.id) ? `À faire · ${p.next}` : `Dernier · ${p.last}`, open: () => this.openDetail(p.id, 'list') }));
+    const mixMap = {}; PARCELS.forEach(p => { mixMap[p.culture] = (mixMap[p.culture] || 0) + p.ha; });
+    const mix = Object.entries(mixMap).sort((a, b) => b[1] - a[1]).map(([c, ha]) => ({ label: c, ha, color: CULT[c] }));
+
+    // Detail
+    const dp = s.detail ? pv(PARCELS.find(p => p.id === s.detail)) : null;
+    const tint = dp ? `color-mix(in oklch, ${dp.color} 28%, #f7f5f0)` : '#f7f5f0';
+    const dTabDefs = [['apercu', 'Aperçu'], ['travaux', 'Travaux'], ['paturage', 'Pâturage'], ['docs', 'Documents']];
+
+    // Map
+    const tool = s.tool, pts = s.pts;
+    const toolInfo = { draw: ['Dessiner la parcelle', 'Touchez la carte pour placer les sommets.', fmt(this.areaHa(pts)) + ' ha'], measure: ['Mesurer une distance', 'Touchez la carte pour placer les points.', (d => d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(2).replace('.', ',') + ' km')(this.distM(pts))], area: ['Mesurer une surface', 'Touchez la carte pour placer les points.', fmt(this.areaHa(pts)) + ' ha'], point: ['Placer un point', 'Touchez l’emplacement, puis confirmez.', pts.length ? '1 point' : '—'] }[tool] || ['', '', ''];
+    const mql = s.mq.trim().toLowerCase();
+    const selP = s.sel ? pv(PARCELS.find(p => p.id === s.sel)) : {};
+    const mHa = s.msel.reduce((a, id) => a + PARCELS.find(p => p.id === id).ha, 0);
+    const onMap = view === 'map';
+
+    // Global search
+    const gql = s.gq.trim().toLowerCase();
+    const gResults = !gql ? all.slice(0, 3).map(p => ({ kind: 'Parcelle', label: p.name, sub: p.culture + ' · ' + p.haLabel, go: () => this.openDetail(p.id, 'list') })) : [
+      ...all.filter(p => (p.name + p.culture + p.commune).toLowerCase().includes(gql)).map(p => ({ kind: 'Parcelle', label: p.name, sub: p.culture + ' · ' + p.haLabel, go: () => this.openDetail(p.id, 'list') })),
+      ...tv.filter(t => (t.title + t.parcel).toLowerCase().includes(gql)).map(t => ({ kind: 'Travail', label: t.title, sub: t.parcel + ' · ' + t.when, go: () => this.setState({ tab: 'work', wview: 'taches', wf: t.status === 'done' ? 'history' : t.status === 'late' ? 'late' : t.status === 'planned' ? 'planned' : 'today', sheet: null, detail: null, cat: null }) })),
+      ...CATS.flatMap(c => c.items.map(i => ({ c, i }))).filter(x => x.i[0].toLowerCase().includes(gql)).map(x => ({ kind: 'Outil', label: x.i[0], sub: x.c.label, go: () => this.setState({ tab: 'more', cat: x.c.id, sheet: null, detail: null }) }))
+    ].slice(0, 8);
+    const tql = s.toolQ.trim().toLowerCase();
+    const cat = s.cat ? CATS.find(c => c.id === s.cat) : null;
+    const sheetTitles = { form: s.form ? this.formDef(s.form.key, s.form.ctx).title : '', tools: 'Outils de carte', layers: 'Couches', notif: 'Notifications', sort: 'Trier les parcelles', search: 'Recherche', assistant: 'Assistant IA', rpg: 'Ajouter une parcelle RPG', actions: 'Actions de la parcelle', multiinfo: 'Parcelles sélectionnées', module: (MODULES[s.module] || [])[0] };
+
+    const watch = [
+      { title: 'Grand Pré · rotation conseillée', sub: '24 vaches depuis 18 jours, hauteur d’herbe estimée 5 cm.', bg: '#f8eedb', dot: '#b7791f' },
+      { title: 'Semence orge : 320 kg restants', sub: 'Il en faut 1 456 kg pour Les Noues.', bg: '#f7e3dd', dot: '#b4432c' },
+      { title: 'Contrôle pulvérisateur dans 12 jours', sub: 'Rendez-vous non pris.', bg: '#eceae4', dot: '#5f6862' }
+    ];
+
+    return {
+      statusBg: onMap ? 'rgba(255,255,255,.9)' : dp ? tint : '#f7f5f0',
+      showHeader: view !== 'detail' && !onMap,
+      goToday: () => this.setState({ tab: 'today', detail: null, cat: null }),
+      openSearch: openSheet('search'), openNotif: openSheet('notif'),
+      tabs: [['today', "Aujourd'hui"], ['map', 'Carte'], ['list', 'Parcelles'], ['work', 'Travaux'], ['more', 'Plus']].map(([id, label]) => ({
+        label, icon: ICON[id], color: tabId === id ? '#1d4f37' : '#6f7672', pill: tabId === id ? '#e3eee7' : 'transparent', sw: id === 'more' ? 3 : tabId === id ? 2.2 : 1.8,
+        click: () => this.setState({ tab: id, detail: null, cat: null, sheet: null }, () => { if (id === 'map') this.showMap(); })
+      })),
+      isToday: view === 'today', isList: view === 'list', isDetail: view === 'detail', isWork: view === 'work', isMore: view === 'more', isCategory: view === 'category',
+      mapDisplay: onMap ? 'block' : 'none', mapRef: this.mapRef, notify,
+      showIaFab: ['today', 'list', 'work', 'more'].includes(view) && !s.sheet && !s.toast,
+      openAssistant: openSheet('assistant'),
+
+      // Today
+      daySummary: `${todayN} tâche${todayN > 1 ? 's' : ''} aujourd’hui${lateN ? ` · ${lateN} en retard` : ''}. Sol ressuyé, semis possible ce matin.`,
+      newWork: () => s.tab === 'work' && s.wview === 'mat' && !s.detail ? this.openForm('equipment') : this.openForm('work'),
+      hasNext: !!nextT, nextT: nextT || {},
+      summary: [
+        { v: String(open.length), k: 'à faire', color: '#1d2420', go: () => this.setState({ tab: 'work', wview: 'taches', wf: 'today' }) },
+        { v: String(lateN), k: 'en retard', color: lateN ? '#b4432c' : '#1d2420', go: () => this.setState({ tab: 'work', wview: 'taches', wf: 'late' }) },
+        { v: '30', k: 'animaux au pré', color: '#286a4a', go: () => this.setState({ tab: 'list', filter: 'grazing' }) }
+      ],
+      quick: [
+        { label: 'Carte', icon: ICON.map, go: () => this.setState({ tab: 'map' }, () => this.showMap()) },
+        { label: 'Pâturage', icon: 'M4 18c2-6 6-6 8 0M12 18c2-6 6-6 8 0M8 9a2 2 0 1 0 0-4a2 2 0 1 0 0 4M16 9a2 2 0 1 0 0-4a2 2 0 1 0 0 4', go: () => this.setState({ tab: 'list', filter: 'grazing' }) },
+        { label: 'Stocks', icon: 'M4 7l8-4 8 4-8 4zM4 7v10l8 4 8-4V7M12 11v10', go: () => this.setState({ tab: 'more', cat: 'production' }) },
+        { label: 'Météo', icon: 'M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1A4 4 0 0 1 17 18z', go: () => this.setState({ tab: 'more', cat: 'planning' }) }
+      ],
+      showWeather: (this.props.showWeather ?? true) && !s.homeHide.includes('weather'),
+      hours: [['8h', '9°', '0 %'], ['10h', '11°', '5 %'], ['12h', '13°', '10 %'], ['14h', '14°', '0 %'], ['16h', '14°', '0 %'], ['18h', '12°', '20 %']].map(([t, temp, rain], i) => ({ t, temp, rain, bg: i === 3 || i === 4 ? 'rgba(255,255,255,.16)' : 'transparent' })),
+      nowTasks, otherTasks: tv.filter(t => t.status === 'planned'),
+      goWork: () => this.setState({ tab: 'work', wview: 'taches', wf: 'today' }),
+      goPlanned: () => this.setState({ tab: 'work', wview: 'taches', wf: 'planned' }),
+      goHistory: () => this.setState({ tab: 'work', wview: 'taches', wf: 'history' }),
+      watch,
+      activity: [
+        { t: 'Hier', who: 'Thibault', what: 'a terminé le déchaumage des Grands Champs (14,2 ha).' },
+        { t: '4 oct', who: 'Julie', what: 'a ajouté 6 génisses sur Pré Bas.' },
+        { t: '1 oct', who: 'Thibault', what: 'a labouré Les Noues.' }
+      ],
+      reviewLabel: `${doneToday} / ${nowTasks.length}`, reviewPct: nowTasks.length ? Math.round(doneToday / nowTasks.length * 100) + '%' : '0%',
+      reviewHint: doneToday === nowTasks.length ? 'Journée bouclée. Bon repos.' : 'Cochez vos tâches au fil de la journée.',
+
+      // List
+      countLabel: `${PARCELS.length} parcelles`, totalLabel: fmt(total) + ' ha',
+      newParcel: () => this.setState({ tab: 'map', tool: 'draw', pts: [], sel: null }, () => this.showMap()),
+      q: s.q, onQ: e => this.setState({ q: e.target.value }), openSort: openSheet('sort'), sortLabel: 'Tri : ' + sorts[s.sort][0],
+      sortOptions: sorts.map(([label], i) => ({ label, mark: s.sort === i ? '✓' : '', pick: () => this.setState({ sort: i, sheet: null }) })),
+      parcelTools: [
+        { label: 'Importer', icon: 'M12 3v12M7 10l5 5 5-5M4 21h16', go: () => this.openForm('import') },
+        { label: 'Assolement', icon: 'M4 4h16v16H4zM4 12h16M12 4v16', go: () => this.setState({ filter: 'all', sort: 3 }) },
+        { label: 'Pâturage', icon: 'M4 18c2-6 6-6 8 0M12 18c2-6 6-6 8 0', go: () => this.setState({ filter: 'grazing' }) },
+        { label: 'Documents', icon: 'M6 3h9l3 3v15H6zM15 3v4h4M9 12h6M9 16h6', go: () => this.setState({ tab: 'more', cat: 'management' }) }
+      ],
+      filters: fdefs.map(([id, label]) => ({ label, ...chipSel(s.filter === id), pick: () => this.setState({ filter: id }) })),
+      mix, showRecent: !ql && s.filter === 'all',
+      recent: s.recent.map(id => pv(PARCELS.find(p => p.id === id))).map(p => ({ ...p, open: () => this.openDetail(p.id, 'list') })),
+      parcelsView, listEmpty: parcelsView.length === 0,
+
+      // Detail
+      d: dp ? { ...dp, tint, hasNext: !!dp.next, hasClient: !!dp.client, hasAnimals: !!dp.animals, noAnimals: !dp.animals } : {},
+      backLabel: s.from === 'map' ? 'Carte' : 'Parcelles', backDetail: () => this.setState({ detail: null, tab: s.from === 'map' ? 'map' : 'list' }, () => s.from === 'map' && this.map && setTimeout(() => this.map.invalidateSize(), 30)),
+      favLabel: dp && fav[dp.id] ? '★ Favori' : '☆ Favori', toggleFav: () => this.setState(x => ({ fav: { ...x.fav, [x.detail]: !x.fav[x.detail] } })),
+      dTabs: dTabDefs.map(([id, label]) => ({ label, bg: s.dtab === id ? '#1d2420' : 'transparent', fg: s.dtab === id ? '#fff' : '#3d4540', pick: () => this.setState({ dtab: id }) })),
+      dtApercu: s.dtab === 'apercu', dtTravaux: s.dtab === 'travaux', dtPaturage: s.dtab === 'paturage', dtDocs: s.dtab === 'docs',
+      dStats: dp ? [{ k: 'Surface', v: dp.haLabel }, { k: 'Rendement prévu', v: { 'Blé tendre': '78 q/ha', 'Colza': '36 q/ha', 'Maïs grain': '105 q/ha', "Orge d'hiver": '72 q/ha', 'Tournesol': '28 q/ha' }[dp.culture] || '—' }, { k: 'Précédent', v: { 2: 'Colza', 3: 'Blé tendre', 4: 'Blé tendre', 5: 'Maïs grain', 7: 'Orge' }[dp.id] || 'Prairie' }, { k: 'Dernier travail', v: dp.last.split(' · ')[1] }] : [],
+      dHistory: dp ? [{ what: dp.last.split(' · ')[0], date: dp.last.split(' · ')[1], detail: 'Thibault · 3 h 10' }, { what: 'Analyse de sol', date: '18 juin', detail: 'pH 7,1 · MO 2,4 %' }, { what: 'Fertilisation azotée', date: '12 avr', detail: '60 u N/ha' }, { what: 'Semis', date: '28 mars', detail: dp.culture }] : [],
+      dDocs: [...(s.extra['docs' + s.detail] || []), { ext: 'PDF', name: 'Déclaration PAC 2026', meta: 'Télépac · 15 mai' }, { ext: 'PDF', name: 'Analyse de sol', meta: 'Laboratoire · 18 juin' }, { ext: 'JPG', name: 'Photo entrée de parcelle', meta: 'Julie · 4 oct' }],
+      moveHerd: () => this.openForm('herd', { pid: s.detail }),
+      showOnMap: () => this.flyTo(s.detail), planDetail: () => this.openForm('work', {}, { pids: [s.detail] }),
+
+      // Map
+      mq: s.mq, onMq: e => this.setState({ mq: e.target.value }), openLayers: openSheet('layers'), openTools: openSheet('tools'),
+      mqResults: mql ? all.filter(p => (p.name + p.culture).toLowerCase().includes(mql)).slice(0, 5).map(p => ({ ...p, go: () => this.flyTo(p.id) })) : [],
+      hasMqResults: !!mql && !tool,
+      fitAll: this.fitAll, noTool: !tool, hasTool: !!tool, toolTitle: toolInfo[0], toolHint: toolInfo[1], toolReadout: toolInfo[2],
+      undoPt: () => this.setState(x => ({ pts: x.pts.slice(0, -1) })), quitTool: () => this.setState({ tool: null, pts: [] }),
+      finishTool: () => { const msg = tool === 'draw' ? `Parcelle dessinée · ${toolInfo[2]}` : tool === 'measure' ? `Distance mesurée · ${toolInfo[2]}` : tool === 'area' ? `Surface mesurée · ${toolInfo[2]}` : 'Point enregistré'; this.setState({ tool: null, pts: [] }); this.toastMsg(msg); },
+      toggleMulti: () => this.setState(x => ({ multi: !x.multi, msel: [], sel: null })),
+      multiBg: s.multi ? '#1d2420' : '#fff', multiFg: s.multi ? '#fff' : '#1d2420',
+      showMultiBar: s.multi && s.msel.length > 0 && !tool,
+      multiLabel: `${s.msel.length} parcelle${s.msel.length > 1 ? 's' : ''} · ${fmt(mHa)} ha`,
+      batchWork: () => this.openForm('work', { batch: true }, { pids: [...s.msel] }),
+      showMapSheet: !!s.sel && !tool && !s.multi, showMapLegend: !s.sel && !tool && !(s.multi && s.msel.length),
+      legendHint: s.multi ? 'Sélection multiple active' : 'Touchez une parcelle',
+      fabBottom: (s.sel && !tool && !s.multi) ? '196px' : (s.multi && s.msel.length) ? '96px' : '12px',
+      selP, clearSel: () => this.setState({ sel: null }), openSelDetail: () => this.openDetail(s.sel, 'map'), planSel: () => this.openForm('work', {}, { pids: [s.sel] }),
+      toolOptions: [
+        { title: 'Dessiner une parcelle', sub: 'Placez les sommets, la surface se calcule', icon: 'M4 7l6-3 10 4-2 10-11 2z', id: 'draw' },
+        { title: 'Suivre ma position', sub: 'GPS sur la carte', icon: 'M12 2v3M12 19v3M2 12h3M19 12h3M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10', id: 'track' },
+        { title: 'Sélection multiple', sub: 'Travail, tâche ou infos sur plusieurs parcelles', icon: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11', id: 'multi' }
+      ].map(t => ({ ...t, pick: () => t.id === 'track' ? (this.setState({ sheet: null }), this.locate(true)) : t.id === 'multi' ? this.setState({ sheet: null, multi: true, msel: [], sel: null }) : this.setState({ tool: t.id, pts: [], sheet: null, sel: null, mq: '', multi: false, msel: [] }) })),
+      baseOptions: [['satellite', 'Satellite', 'linear-gradient(135deg,#4d5b3a,#7d8b5a 45%,#5d6b44)'], ['plan', 'Plan', 'linear-gradient(135deg,#eceae4,#f7f5f0 50%,#e0ddd5)']].map(([id, label, swatch]) => ({ label, swatch, border: s.base === id ? '#286a4a' : '#ebe8e1', pick: () => this.setState({ base: id }) })),
+      layerToggles: [['labels', 'Noms des parcelles', 'Étiquettes sur la carte']].map(([k, label, sub]) => ({ label, sub, track: s[k] ? '#286a4a' : '#d9d5cc', justify: s[k] ? 'flex-end' : 'flex-start', toggle: () => this.setState(x => ({ [k]: !x[k] })) })),
+
+      // Work
+      workViews: [['taches', 'Tâches'], ['cal', 'Calendrier'], ['chantiers', 'Chantiers'], ['mat', 'Matériel'], ['batch', 'Travail groupé']].map(([id, label]) => ({ label, bg: s.wview === id ? '#1d2420' : '#efece5', fg: s.wview === id ? '#fff' : '#1d2420', pick: () => id === 'batch' ? this.setState({ tab: 'map', multi: true, msel: [], sel: null }, () => this.showMap()) : this.setState({ wview: id }) })),
+      wvTaches: s.wview === 'taches', wvCal: s.wview === 'cal', wvChantiers: s.wview === 'chantiers', wvMat: s.wview === 'mat',
+      hasLate: lateN > 0 && s.wf !== 'late', lateLabel: `${lateN} travail en retard`, goLate: () => this.setState({ wf: 'late' }),
+      workFilters: [['today', "Aujourd'hui"], ['planned', 'Planifiés'], ['late', `En retard${lateN ? ' ' + lateN : ''}`], ['history', 'Historique']].map(([id, label]) => ({ label, bg: s.wf === id ? '#fff' : 'transparent', shadow: s.wf === id ? '0 1px 3px rgba(0,0,0,.12)' : 'none', pick: () => this.setState({ wf: id }) })),
+      wq: s.wq, onWq: e => this.setState({ wq: e.target.value }), workTasks, workEmpty: workTasks.length === 0,
+      week: DOW.map((d, i) => { const n = 5 + i, on = s.day === n, has = s.tasks.some(t => t.day === n); return { d, n, bg: on ? '#1d2420' : n === 6 ? '#e3eee7' : 'transparent', fg: on ? '#fff' : '#1d2420', dot: has ? (on ? '#8fd1a8' : '#286a4a') : 'transparent', pick: () => this.setState({ day: n }) }; }),
+      dayLabel: s.day === 6 ? "Aujourd'hui, mardi 6" : ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'][(s.day + 2) % 7] + ' ' + s.day + ' octobre',
+      calModes: [['week', 'Semaine'], ['month', 'Mois']].map(([id, label]) => ({ label, bg: s.calMode === id ? '#fff' : 'transparent', shadow: s.calMode === id ? '0 1px 3px rgba(0,0,0,.12)' : 'none', pick: () => this.setState({ calMode: id }) })),
+      calWeek: s.calMode === 'week', calMonth: s.calMode === 'month', monthHead: ['L', 'M', 'M', 'J', 'V', 'S', 'D'],
+      monthCells: [...Array(3).fill(0).map(() => ({ n: '', bg: 'transparent', fg: '#1d2420', dots: [], cur: 'default', op: 1, pick: () => {} })), ...Array.from({ length: 31 }, (_, i) => { const n = i + 1, on = s.day === n, ts = s.tasks.filter(t => t.day === n); return { n, bg: on ? '#1d2420' : n === 6 ? '#e3eee7' : 'transparent', fg: on ? '#fff' : '#1d2420', cur: 'pointer', op: 1, dots: ts.slice(0, 3).map(t => t.status === 'done' ? '#a7aca8' : t.status === 'late' ? '#b4432c' : on ? '#8fd1a8' : '#286a4a'), pick: () => this.setState({ day: n }) }; })], dayTasks, dayEmpty: dayTasks.length === 0,
+      chantiers: [
+        { name: 'Semis d’automne', sub: 'Blé, orge, colza · 30,1 ha', pct: '23%', foot: 'Reste Les Noues et Les Grands Champs' },
+        { name: 'Récolte maïs 2026', sub: 'Champ du Moulin · 11,3 ha', pct: '0%', foot: 'Démarrage jeudi 8 octobre' },
+        { name: 'Épandages d’automne', sub: '3 parcelles · 23,6 ha', pct: '41%', foot: 'La Croix en retard' }
+      ],
+      machines: [...s.extraMat,
+        { name: 'John Deere 6155R', sub: '4 812 h · vidange dans 188 h', status: 'Disponible', bg: '#e3eee7', fg: '#286a4a' },
+        { name: 'Semoir Kuhn 4 m', sub: 'Attelé · Les Noues', status: 'En service', bg: '#f8eedb', fg: '#8a5a12' },
+        { name: 'Pulvérisateur 24 m', sub: 'Contrôle technique le 18 oct.', status: 'À contrôler', bg: '#f7e3dd', fg: '#b4432c' },
+        { name: 'Tonne à lisier 18 m³', sub: 'Hangar 2', status: 'Disponible', bg: '#e3eee7', fg: '#286a4a' }
+      ].map((m, i) => ({ ...m, sub: (s.maintDone || {})[m.name] || m.sub, open: () => this.openForm('maintenance', { mi: i, mname: m.name }) })),
+
+      // More
+      toolQ: s.toolQ, onToolQ: e => this.setState({ toolQ: e.target.value }), toolSearching: !!tql, notToolSearching: !tql,
+      toolResults: CATS.flatMap(c => c.items.map(i => ({ label: i[0], cat: c.label, open: () => this.openModule(i[2]) }))).filter(r => r.label.toLowerCase().includes(tql)),
+      favTiles: [
+        { label: 'Matériel', sub: '4 machines', icon: 'M4 15h7l2-7h4l2 4h2v3M7 13a3 3 0 1 0 0 6a3 3 0 1 0 0-6M18 14a2 2 0 1 0 0 4a2 2 0 1 0 0-4', go: () => this.setState({ tab: 'work', wview: 'mat' }) },
+        { label: 'Stocks', sub: '2 alertes', icon: 'M4 7l8-4 8 4-8 4zM4 7v10l8 4 8-4V7M12 11v10', go: () => this.setState({ cat: 'production' }) },
+        { label: 'Pilotage', sub: 'Marges 2026', icon: 'M5 20V10M12 20V4M19 20v-7', go: () => this.setState({ cat: 'management' }) },
+        { label: 'Documents', sub: 'PAC, factures', icon: 'M6 3h9l3 3v15H6zM15 3v4h4M9 12h6M9 16h6', go: () => this.setState({ cat: 'management' }) }
+      ],
+      categories: CATS.map(c => ({ ...c, open: () => this.setState({ cat: c.id }) })),
+      cat: cat ? { ...cat, items: cat.items.map(([label, sub, key]) => ({ label, sub, open: () => this.openModule(key) })) } : { items: [] },
+      backCat: () => this.setState({ cat: null }),
+
+      // Sheets
+      sheetOpen: !!s.sheet, closeSheet: () => this.setState({ sheet: null }), sheetTitle: sheetTitles[s.sheet] || '',
+      shTools: s.sheet === 'tools', shLayers: s.sheet === 'layers', shNotif: s.sheet === 'notif', shSort: s.sheet === 'sort', shSearch: s.sheet === 'search', shAssistant: s.sheet === 'assistant',
+      gq: s.gq, onGq: e => this.setState({ gq: e.target.value }), gResults,
+      chat: s.chat.map(c => ({ text: c.text, align: c.me ? 'flex-end' : 'flex-start', bg: c.me ? '#286a4a' : '#f1efe9', fg: c.me ? '#fff' : '#1d2420' })),
+      suggestions: Object.keys(ANSWERS).filter(q => !s.chat.some(c => c.text === q)).map(label => ({ label, ask: () => this.ask(label) })),
+
+      quickTools: [
+        ['Terrain', 'M12 2v3M12 19v3M2 12h3M19 12h3M12 7a5 5 0 1 0 0 10a5 5 0 1 0 0-10', () => this.openModule('field')],
+        ['Observation', 'M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z', () => this.openModule('observations')],
+        ['Repère', 'M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12zM12 7a2 2 0 1 0 0 4a2 2 0 1 0 0-4', () => this.setState({ tool: 'point', pts: [], sheet: null, sel: null, multi: false, msel: [] })],
+        ['Distance', 'M3 17L17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2', () => this.setState({ tool: 'measure', pts: [], sheet: null, sel: null, multi: false, msel: [] })],
+        ['Surface', 'M4 7l6-3 10 4-2 10-11 2z', () => this.setState({ tool: 'area', pts: [], sheet: null, sel: null, multi: false, msel: [] })],
+        ['Tournée', 'M6 19a2 2 0 1 0 0-4a2 2 0 1 0 0 4M18 9a2 2 0 1 0 0-4a2 2 0 1 0 0 4M6 15V9a4 4 0 0 1 4-4h6M18 9v6a4 4 0 0 1-4 4H8', () => this.openModule('route')],
+        ['Météo', 'M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1A4 4 0 0 1 17 18z', () => this.openModule('weather')],
+        ['Tout cadrer', 'M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4', () => { this.setState({ sheet: null, mapFilter: 'all' }); setTimeout(this.fitAll, 30); }]
+      ].map(([label, icon, pick]) => ({ label, icon, pick })),
+      mapFilters: MFILTERS.map(([id, label]) => ({ label, ...chipSel(s.mapFilter === id), pick: () => this.setState({ mapFilter: id }) })),
+      mapFilterCount: PARCELS.filter(p => this.mapVisible(p)).length + ' / ' + PARCELS.filter(p => !s.archived.includes(p.id)).length,
+      colorModes: CMODES.map(([id, label]) => ({ label, ...chipSel(s.colorMode === id), pick: () => this.setState({ colorMode: id, legendOpen: true }) })),
+      colorModeLabel: CMODES.find(c => c[0] === s.colorMode)[1],
+      legendOpen: s.legendOpen, legendArrow: s.legendOpen ? '▾' : '▸', toggleLegend: () => this.setState(x => ({ legendOpen: !x.legendOpen })),
+      legend: [...(s.colorMode === 'culture' ? mix.map(m => [m.color, m.label]) : LEG[s.colorMode]).map(([color, label]) => ({ color, label, border: '0' })), ...(s.rpgOn ? [{ color: 'rgba(246,206,89,.5)', label: 'RPG/PAC 2024', border: '1.5px dashed #805000' }] : [])],
+      rpgTrack: s.rpgOn ? '#805000' : '#d9d5cc', rpgJustify: s.rpgOn ? 'flex-end' : 'flex-start',
+      toggleRpg: () => s.rpgOn ? this.hideRpg() : this.loadRpg(),
+      rpgRadii: [5, 10].map(r => ({ label: r + ' km', ...(s.rpgRadius === r ? { bg: '#805000', fg: '#fff', border: '#805000' } : { bg: '#fff', fg: '#5f4a1a', border: '#efdca5' }), pick: () => this.setState({ rpgRadius: r }, () => this.state.rpgOn && this.loadRpg()) })),
+      hasRpgStatus: !!s.rpgStatus, rpgStatus: s.rpgStatus,
+      shRpg: s.sheet === 'rpg', shActions: s.sheet === 'actions', shMultiInfo: s.sheet === 'multiinfo', shModule: s.sheet === 'module',
+      rpgInfo: s.rpgSel ? (p => ({ year: 2024, id: p.id_parcel || '—', cultureLabel: (RPG_CODES[p.code_cultu] || p.code_cultu || 'Culture non renseignée') + (p.code_group ? ' · groupe ' + p.code_group : ''), haLabel: fmt(Number(p.surf_parc) || 0) + ' ha' }))(s.rpgSel.properties || {}) : {},
+      rpgForm: s.rpgForm,
+      onRpgNom: e => this.setState({ rpgForm: { ...s.rpgForm, nom: e.target.value } }), onRpgCulture: e => this.setState({ rpgForm: { ...s.rpgForm, culture: e.target.value } }),
+      rpgDests: [['own', 'Mon exploitation'], ['client', 'Client'], ['service', 'Prestation']].map(([id, label]) => ({ label, bg: s.rpgForm.dest === id ? '#fff' : 'transparent', shadow: s.rpgForm.dest === id ? '0 1px 3px rgba(0,0,0,.12)' : 'none', pick: () => this.setState({ rpgForm: { ...s.rpgForm, dest: id } }) })),
+      addRpg: () => this.addRpgParcel(),
+      locate: () => this.locate(false),
+      openActions: () => this.setState({ sheet: 'actions' }),
+      parcelActions: dp ? [
+        ['Modifier', 'Informations, économie et client', 'M4 20h4L19 9l-4-4L4 16zM14 6l4 4', () => this.openForm('parcel', { pid: dp.id }, { name: dp.name, culture: dp.culture, ha: String(dp.ha).replace('.', ','), commune: dp.commune, soil: dp.soil, client: dp.client || '' })],
+        ['Ajouter une note', 'Note permanente de parcelle', 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5', () => this.openForm('note', { pid: dp.id }, { notes: dp.note || '' })],
+        ['Prendre une photo', 'Caméra ou photothèque', 'M4 7h3l2-3h6l2 3h3v13H4zM12 10a3.5 3.5 0 1 0 0 7a3.5 3.5 0 1 0 0-7', () => this.openForm('photo', { pid: dp.id })],
+        ['Dessiner le contour', 'Créer ou remplacer la géométrie', 'M4 7l6-3 10 4-2 10-11 2z', () => { this.setState({ sheet: null, detail: null, tab: 'map', tool: 'draw', pts: [] }, () => this.showMap()); }],
+        ['Météo de la parcelle', 'Prévisions localisées', 'M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1A4 4 0 0 1 17 18z', () => this.openModule('weather')],
+        ['Partager', 'Résumé de parcelle', 'M4 12v7h16v-7M12 3v12M7 8l5-5 5 5', () => this.toastMsg('Résumé copié · ' + dp.name)],
+        ['Rapport parcelle', 'Historique imprimable / PDF', 'M6 3h9l3 3v15H6zM15 3v4h4M9 12h6M9 16h6', () => { this.setState({ sheet: null }); this.printReport('parcel', dp.id); }],
+        [s.archived.includes(dp.id) ? 'Réactiver' : 'Archiver', s.archived.includes(dp.id) ? 'Remettre dans les parcelles actives' : 'Masquer sans supprimer', 'M3 4h18v4H3zM5 8v12h14V8M10 12h4', () => { const was = s.archived.includes(dp.id); this.setState(x => ({ sheet: null, archived: was ? x.archived.filter(i => i !== dp.id) : [...x.archived, dp.id] })); this.toastMsg(was ? 'Parcelle réactivée' : 'Parcelle archivée'); }],
+        ['Placer dans la corbeille', 'Récupérable ensuite', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13', () => { this.setState(x => ({ sheet: null, detail: null, tab: 'list', archived: [...x.archived, dp.id], trash: [{ kind: 'parcel', id: dp.id, label: dp.name, at: 'Aujourd’hui' }, ...x.trash] })); this.toastMsg('Placée dans la corbeille'); }, true]
+      ].map(([label, sub, icon, go, danger]) => ({ label, sub, icon, go, bg: danger ? '#f7e3dd' : '#e3eee7', fg: danger ? '#b4432c' : '#286a4a', tc: danger ? '#b4432c' : '#1d2420' })) : [],
+      multiInfo: () => this.setState({ sheet: 'multiinfo' }), multiTask: () => this.openForm('task', { batch: true }, { pids: [...s.msel] }),
+      multiList: s.msel.map(id => pv(PARCELS.find(p => p.id === id))).map(p => ({ ...p, open: () => this.openDetail(p.id, 'map') })),
+      moduleInfo: s.module && MODULES[s.module] ? (m => ({ sub: m[1], rows: this.moduleRows(s.module, m), ctaLabel: s.module === 'account' ? 'Inviter un membre' : m[3], cta: () => this.moduleCta(s.module) }))(MODULES[s.module]) : { rows: [] },
+      shForm: s.sheet === 'form' && !!s.form,
+      formFields: s.form ? this.formFields() : [], formSave: s.form ? this.formDef(s.form.key, s.form.ctx).save : '',
+      hasFormIntro: !!(s.form && this.formDef(s.form.key, s.form.ctx).intro), formIntro: s.form ? this.formDef(s.form.key, s.form.ctx).intro || '' : '',
+      hasFormError: !!s.formError, formError: s.formError, saveForm: () => this.saveForm(),
+      formCanDelete: !!(s.form && s.form.key === 'work' && s.form.ctx.id), deleteForm: () => { const id = s.form.ctx.id, t0 = s.tasks.find(t => t.id === id); this.setState(x => ({ tasks: x.tasks.filter(t => t.id !== id), sheet: null, form: null, trash: [{ kind: 'task', id, label: t0.title + ' · ' + ((PARCELS.find(p => p.id === t0.pid) || {}).name || ''), data: t0, at: 'Aujourd’hui' }, ...x.trash] })); this.toastMsg('Travail placé dans la corbeille'); },
+      personalize: () => this.openForm('personalize', {}, { blocks: HOME_BLOCKS.map(b => b[0]).filter(id => !s.homeHide.includes(id)) }),
+      hNext: !!nextT && !s.homeHide.includes('next'), hSummary: !s.homeHide.includes('summary'), hQuick: !s.homeHide.includes('quick'), hNow: !s.homeHide.includes('now'), hOther: !s.homeHide.includes('other'), hWatch: !s.homeHide.includes('watch'), hActivity: !s.homeHide.includes('activity'), hReview: !s.homeHide.includes('review'),
+      syncLabel: { ok: 'À jour', syncing: 'Synchronisation…', offline: 'Hors connexion' }[s.sync], syncBg: { ok: '#e3eee7', syncing: '#f8eedb', offline: '#f7e3dd' }[s.sync], syncFg: { ok: '#286a4a', syncing: '#8a5a12', offline: '#b4432c' }[s.sync],
+      syncNow: () => this.syncNow(),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>
