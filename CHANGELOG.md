@@ -1,5 +1,14 @@
 # Changelog
 
+## 10.10.1 · design v3 — 2026-10-06
+
+- refonte visuelle mobile selon `design_handoff_parcelles_mobile` : nouvelle feuille `design-v3.css`, chargée en dernier, sans changement de logique ;
+- polices Instrument Sans / Instrument Serif, fond crème, cartes arrondies, pastilles sombres pour les filtres et onglets ;
+- en-tête avec pastille de synchronisation (À jour / à synchroniser / Hors connexion) ; en-tête masqué sur la carte et la fiche parcelle ;
+- Aujourd’hui : carte « prochaine action » sombre, chiffres du jour, carte météo verte ; fiche parcelle teintée de la couleur de culture ;
+- carte : recherche et boutons flottants, bouton Outils vert, panneaux de mesure/dessin et sélection multiple sombres ; bouton IA sombre en bas à droite ;
+- couleurs de culture du design (blé, colza, maïs, orge, prairies, tournesol, jachère) ; cache hors connexion mis à jour.
+
 ## 7.1.8 — 2026-10-03
 
 - ouverture animée avec le symbole Parcelles et suivi des quatre étapes réelles du démarrage, sans attente artificielle ;

@@ -177,7 +177,7 @@ function renderAll(){const data=state();renderCommon(data);renderToday(data);ren
 function renderNetwork(){
   if(!store)return;const data=state(),pending=data.queue.filter(item=>item.status==='pending').length,offline=!navigator.onLine;
   document.documentElement.classList.toggle('is-offline',offline);
-  const button=$('#network-button');if(button)button.classList.toggle('offline',offline);
+  const button=$('#network-button');if(button){button.classList.toggle('offline',offline);button.classList.toggle('is-pending',!offline&&pending>0);}
   const cloud=sync?.status?.connected;const readOnly=cloud&&sync.role==='viewer';const label=offline?'Hors connexion':readOnly?'Lecture seule · Cloud':pending?`${pending} à synchroniser`:cloud?'Synchronisé':'À jour';
   setText('#network-label',label);setText('#desktop-network-label',label);
   const dot=$('#network-dot');if(dot)dot.title=lastGps?`${lastGps.status} · ± ${Math.round(lastGps.accuracy)} m`:offline?'Hors connexion':cloud?`Synchronisé · ${sync.roleName}`:'En ligne';
@@ -307,7 +307,9 @@ function workRow(item,parcelNames,{today=false}={}){
   const badge=item.status&&item.status!=='Terminé'?`<span class="badge ${item.status==='En retard'?'danger':'info'}">${escapeHtml(item.status)}</span>`:'';
   return `<button class="work-row" data-action="edit-work" data-id="${item.id}"><span class="crop-dot"></span><span class="row-main"><strong>${escapeHtml(item.type||'Travail')}</strong><small>${escapeHtml(parcelNames.get(item.parcelId)||'Parcelle supprimée')} · ${today?'Aujourd’hui':localDate(workDate(item))}</small></span><span class="row-trailing">${badge}${icon('chevron',{size:18})}</span></button>`;
 }
+const CULTURE_COLORS=[['prairie temp','#9ccb83'],['prairie','#6fb37a'],['ble','#d9a441'],['colza','#e3d34a'],['mais','#e0873a'],['orge','#c7b06a'],['tournesol','#f0b429'],['jachere','#b3aa9b']];
 function cultureAccent(value=''){
+  const name=normalize(value),known=CULTURE_COLORS.find(([key])=>name.startsWith(key));if(known)return known[1];
   const palette=['#4d8b5f','#7b8f4c','#b08345','#5d86a7','#8b6b9d','#4f927f','#a66e55','#6d7e92'];let hash=0;for(const ch of String(value))hash=(hash*31+ch.charCodeAt(0))>>>0;return palette[hash%palette.length];
 }
 function renderParcels(data){
@@ -411,7 +413,7 @@ function openParcelDetail(id,tab='summary',{historyMode='push'}={}){
 }
 function renderParcelDetailPage(id,tab='summary',data=state()){
   const p=parcelById(id,data);if(!p)return;const works=active('interventions',data).filter(w=>w.parcelId===id).sort((a,b)=>new Date(workDate(b))-new Date(workDate(a))),photos=active('photos',data).filter(x=>x.parcelId===id),docs=active('documents',data).filter(x=>x.parcelId===id),observations=active('observations',data).filter(x=>x.parcelId===id&&x.status!=='Résolu');
-  setText('#parcel-detail-title',p.nom);setText('#parcel-detail-subtitle',`${p.culture||'Culture non renseignée'} · ${formatNumber(p.surfaceHa)} ha${p.commune?` · ${p.commune}`:''}`);
+  setText('#parcel-detail-title',p.nom);$('#view-parcel')?.style.setProperty('--crop',cultureAccent(p.culture));setText('#parcel-detail-subtitle',`${p.culture||'Culture non renseignée'} · ${formatNumber(p.surfaceHa)} ha${p.commune?` · ${p.commune}`:''}`);
   $('#parcel-detail-top-actions').innerHTML=`<button class="icon-button" data-action="toggle-favorite" data-id="${id}" aria-label="${p.favorite?'Retirer des favoris':'Ajouter aux favoris'}">${icon('star',{size:21})}</button><button class="icon-button" data-action="parcel-actions" data-id="${id}" aria-label="Plus d’actions">${icon('ellipsis',{size:21})}</button>`;
   $('#parcel-detail-actions').innerHTML=`<button class="button primary" data-action="new-work" data-parcel-id="${id}">${icon('plus',{size:18})}<span>Travail</span></button><button class="button secondary" data-action="new-observation" data-id="${id}">${icon('alert',{size:18})}<span>Observation</span></button><button class="button secondary" data-action="add-photo" data-id="${id}">${icon('camera',{size:18})}<span>Photo</span></button><button class="button secondary" data-action="open-grazing-parcel" data-id="${id}">${icon('production',{size:18})}<span>Animaux</span></button><button class="button secondary" data-action="parcel-actions" data-id="${id}">${icon('ellipsis',{size:18})}<span>Plus</span></button>`;
   const tabs=[['summary','Résumé'],['activity','Activité'],['documents','Documents'],['economy','Économie'],['satellite','Satellite'],['yield','Rendement']];$('#parcel-detail-tabs').innerHTML=tabs.map(([key,label])=>`<button class="${tab===key?'is-active':''}" data-action="parcel-tab" data-id="${id}" data-tab="${key}">${label}</button>`).join('');
