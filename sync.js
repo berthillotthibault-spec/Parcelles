@@ -7,6 +7,29 @@ const CLOUD_ENTITY_TYPES=ENTITY_TYPES.filter(type=>!['syncConflicts','devices','
 const clean=value=>JSON.parse(JSON.stringify(value??null));
 const emailKey=value=>String(value||'').trim().toLocaleLowerCase('fr');
 
+// Firestore rejects directly nested arrays (GeoJSON coordinates, rasters).
+// Only their transport representation changes; local records retain their shape.
+const ARRAY_TAG='__parcelles_nested_array_v1__',OBJECT_TAG='__parcelles_object_v1__';
+export function encodeCloudPayload(value){
+  if(Array.isArray(value))return value.some(Array.isArray)?{[ARRAY_TAG]:JSON.stringify(value)}:value.map(encodeCloudPayload);
+  if(value&&typeof value==='object'&&(Object.hasOwn(value,ARRAY_TAG)||Object.hasOwn(value,OBJECT_TAG)))return {[OBJECT_TAG]:JSON.stringify(value)};
+  if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,encodeCloudPayload(v)]));
+  return value;
+}
+export function decodeCloudDocument(doc){
+  if(!doc||doc.payloadEncoding!=='nested-arrays-v1')return doc;
+  const decode=value=>{
+    if(Array.isArray(value))return value.map(decode);
+    if(value&&typeof value==='object'){
+      if(Object.keys(value).length===1&&typeof value[OBJECT_TAG]==='string')return JSON.parse(value[OBJECT_TAG]);
+      if(Object.keys(value).length===1&&typeof value[ARRAY_TAG]==='string'){const result=JSON.parse(value[ARRAY_TAG]);if(!Array.isArray(result))throw new Error('Tableau cloud invalide.');return result;}
+      return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,decode(v)]));
+    }
+    return value;
+  };
+  return {...doc,payload:decode(doc.payload)};
+}
+
 async function loadScript(src){
   if([...document.scripts].some(s=>s.src===src))return;
   await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=src;script.async=true;script.onload=resolve;script.onerror=()=>reject(new Error(`Impossible de charger ${src}`));document.head.append(script);});
@@ -78,7 +101,7 @@ export class SyncService{
 
   async audit(action,entity='',entityId='',details=null){if(!this.db||!this.workspaceId||!this.user||this.store.snapshot().preferences.securityAuditEnabled===false)return;try{await this.db.collection('workspaces').doc(this.workspaceId).collection('audit').add({action,entity,entityId,userId:this.user.uid,email:emailKey(this.user.email),deviceId:this.deviceId||'',build:BUILD_ID,details:details?clean(details):null,createdAt:Date.now()});}catch{}}
   remoteRef(entity,entityId){return this.db.collection('workspaces').doc(this.workspaceId).collection('data').doc(`${entity}__${entityId}`);}
-  async writeRemoteEntity(entity,entityId,payload,action='update'){const safe=clean(payload);await this.remoteRef(entity,entityId).set({entityType:entity,entityId,payload:safe,version:Number(safe?.version||0),updatedAt:Number(safe?.updatedAt||safe?.deletedAt||Date.now()),deletedAt:safe?.deletedAt||null,modifiedBy:this.user.uid,modifiedEmail:emailKey(this.user.email),deviceId:this.deviceId||'',build:BUILD_ID,action},{merge:false});}
+  async writeRemoteEntity(entity,entityId,payload,action='update'){const safe=clean(payload);await this.remoteRef(entity,entityId).set({entityType:entity,entityId,payload:encodeCloudPayload(safe),payloadEncoding:'nested-arrays-v1',version:Number(safe?.version||0),updatedAt:Number(safe?.updatedAt||safe?.deletedAt||Date.now()),deletedAt:safe?.deletedAt||null,modifiedBy:this.user.uid,modifiedEmail:emailKey(this.user.email),deviceId:this.deviceId||'',build:BUILD_ID,action},{merge:false});}
 
   async bootstrapWorkspace(){if(!this.db||!this.workspaceId||this.syncCursor>0)return{seeded:0,remoteEmpty:false};const ref=this.db.collection('workspaces').doc(this.workspaceId).collection('data'),probe=await ref.limit(1).get();if(!probe.empty)return{seeded:0,remoteEmpty:false};if(!this.can('write'))return{seeded:0,remoteEmpty:true};let seeded=0;const snapshot=this.store.snapshot();for(const type of CLOUD_ENTITY_TYPES){if(!this.canWriteEntity(type,'create'))continue;for(const entity of(snapshot[type]||[])){if(!entity?.id)continue;await this.writeRemoteEntity(type,entity.id,entity,'bootstrap');seeded++;}}if(seeded)await this.audit('bootstrap','workspace',this.workspaceId,{seeded});return{seeded,remoteEmpty:true};}
 
@@ -94,7 +117,7 @@ export class SyncService{
     for(const operation of pending){
       try{
         if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}if(!this.canWriteEntity(operation.entity,operation.action)){await this.markQueueDone(operation.id);continue;}
-        const localEntity=this.store.get(operation.entity,operation.entityId,{includeDeleted:true});const localPayload=localEntity||operation.payload||{id:operation.entityId,deletedAt:Date.now()};const remote=await this.remoteRef(operation.entity,operation.entityId).get(),remoteData=remote.exists?remote.data():null;
+        const localEntity=this.store.get(operation.entity,operation.entityId,{includeDeleted:true});const localPayload=localEntity||operation.payload||{id:operation.entityId,deletedAt:Date.now()};const remote=await this.remoteRef(operation.entity,operation.entityId).get(),remoteData=remote.exists?decodeCloudDocument(remote.data()):null;
         if(remoteData?.payload&&Number(remoteData.updatedAt||0)>Number(snapshot.metadata.lastSyncAt||0)&&JSON.stringify(remoteData.payload)!==JSON.stringify(clean(localPayload))){const suggestion=safeMergeEntity(localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.store.applyRemote(operation.entity,suggestion.merged,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload);await this.markQueueConflict(operation.id);conflicts++;continue;}
         await this.writeRemoteEntity(operation.entity,operation.entityId,localPayload,operation.action);await this.markQueueDone(operation.id);await this.audit(operation.action,operation.entity,operation.entityId);sent++;
       }catch(error){await this.markQueueFailure(operation.id,error);errors++;}
@@ -109,7 +132,7 @@ export class SyncService{
     while(true){
       const snap=await (lastDocument?query.startAfter(lastDocument):query).get();
       for(const doc of snap.docs){
-        const remote=doc.data();
+        const remote=decodeCloudDocument(doc.data());
         cursor=Math.max(cursor,Number(remote.updatedAt)||0);
         if(!CLOUD_ENTITY_TYPES.includes(remote.entityType)||!remote.payload?.id)continue;
         // Retry failures and unresolved conflicts are still unsent local edits.
