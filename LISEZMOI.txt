@@ -1,0 +1,8 @@
+Fichiers à envoyer sur GitHub (dépôt Parcelles, branche main), à la racine, en remplaçant les existants :
+
+- index.html
+- sw.js
+- design-v3.css
+
+Sur GitHub : Add file > Upload files > glisser les 3 fichiers > Commit changes.
+Attendre 1 à 2 minutes, puis fermer et rouvrir l'application deux fois.
