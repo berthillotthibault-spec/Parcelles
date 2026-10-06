@@ -18,7 +18,7 @@ const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 page.on('console', m => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push('console: ' + m.text()));
 
-await page.goto(URL, {waitUntil: 'networkidle'});
+await page.goto(URL, {waitUntil: 'load'});
 if (SEED) {
   await page.evaluate(async () => {
     const {Store} = await import('./state.js'); const {StorageService} = await import('./storage.js');
@@ -34,7 +34,7 @@ if (SEED) {
     await s.upsert('grazingSessions', {parcelId: 'p3', animalType: 'Vaches', animalsCount: 24, startDate: D(-18)});
     await s.upsert('materiels', {nom: 'Tracteur', location: 'Hangar'});
   });
-  await page.reload({waitUntil: 'networkidle'});
+  await page.reload({waitUntil: 'load'});
 }
 await page.waitForFunction(() => document.documentElement.dataset.appReady === '1', null, {timeout: 15000});
 await page.addStyleTag({content: '*,*::before,*::after{animation:none!important;transition:none!important}'});

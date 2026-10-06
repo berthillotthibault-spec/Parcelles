@@ -1,0 +1,4 @@
+node_modules/
+audit/
+dist-github-root/
+.DS_Store

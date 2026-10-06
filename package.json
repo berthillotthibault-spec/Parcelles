@@ -8,5 +8,9 @@
     "preflight": "node scripts/preflight.mjs",
     "build:flat": "node scripts/build-flat.mjs",
     "release:check": "npm test && npm run preflight && npm run build:flat"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "playwright": "^1.63.0"
   }
 }
