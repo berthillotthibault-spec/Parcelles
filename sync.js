@@ -9,7 +9,7 @@ const emailKey=value=>String(value||'').trim().toLocaleLowerCase('fr');
 
 // Firestore rejects directly nested arrays (GeoJSON coordinates, rasters).
 // Only their transport representation changes; local records retain their shape.
-const ARRAY_TAG='__parcelles_nested_array_v1__',OBJECT_TAG='__parcelles_object_v1__';
+const ARRAY_TAG='parcellesNestedArrayV1',OBJECT_TAG='parcellesEscapedObjectV1';
 export function encodeCloudPayload(value){
   if(Array.isArray(value))return value.some(Array.isArray)?{[ARRAY_TAG]:JSON.stringify(value)}:value.map(encodeCloudPayload);
   if(value&&typeof value==='object'&&(Object.hasOwn(value,ARRAY_TAG)||Object.hasOwn(value,OBJECT_TAG)))return {[OBJECT_TAG]:JSON.stringify(value)};
