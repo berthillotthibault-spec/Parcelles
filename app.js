@@ -1406,7 +1406,8 @@ function bindEvents(){
       else if(action==='open-grazing-parcel')openGrazing({parcelId:id});
       else if(action==='new-grazing'){closeModal();openGrazingForm();}
       else if(action==='edit-grazing'){const g=store.get('grazingSessions',id);if(g){closeModal();openGrazingForm(g);}}
-      else if(action==='end-grazing'){await endGrazingSession(store,id,{date:grazingDate()});openGrazing();}
+      else if(action==='move-grazing'){const g=store.get('grazingSessions',id);if(g){closeModal();getGrazingUI().openMove(g);}}
+      else if(action==='end-grazing'){const g=store.get('grazingSessions',id);await endGrazingSession(store,id,{date:grazingDate()});toast('Sortie du pré enregistrée.');if(currentView!=='parcel')openGrazing({parcelId:g?.parcelId||''});}
       else if(action==='open-clients')openClients();
       else if(action==='open-client-detail')openClientDetail(id);
       else if(action==='new-client'){closeModal();openClientForm();}
