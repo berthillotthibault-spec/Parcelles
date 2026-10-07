@@ -90,7 +90,9 @@ export function queueStats(queue=[]){
 
 const ignoredMergeKeys=new Set(['updatedAt','version','cloudSyncedAt','modifiedBy','modifiedEmail','deviceId']);
 const empty=value=>value===null||value===undefined||value===''||(Array.isArray(value)&&!value.length);
-const same=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
+// Firestore map ordering is not significant; array ordering remains significant.
+export const canonicalData=value=>JSON.stringify(value??null,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
+const same=(a,b)=>canonicalData(a)===canonicalData(b);
 
 export function safeMergeEntity(local,remote){
   const a=clone(local||{}),b=clone(remote||{}),merged={...a};
