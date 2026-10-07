@@ -68,7 +68,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelet
         const additionalAnimalsCount=Number(values.additionalAnimalsCount);
         if(!Number.isSafeInteger(additionalAnimalsCount)||additionalAnimalsCount<0)throw new Error('Indiquez un nombre entier d’animaux sans numéro.');
         const unchanged=values.animals===text;
-        const animals=unchanged&&session?row.animals:parseGrazingAnimals(values.animals).map(animal=>{
+        const animals=unchanged&&session&&row.animals!=null?row.animals:parseGrazingAnimals(values.animals).map(animal=>{
           const previous=grazingAnimalList(row).find(old=>String(old.number||old.name).trim()===animal.number);
           return previous?{...previous,gestation:animal.gestation}:animal;
         });
