@@ -4,6 +4,7 @@ import {satelliteContext} from './farm-context.js';
 import {createFarmUI} from './farm-ui.js';
 import {createYieldUI} from './yield-ui.js';
 import {createSatelliteUI} from './satellite-ui.js';
+import {createWideLayoutUI} from './wide-layout-ui.js';
 import {HOME_SHORTCUTS,normalizePersonalization,filterMapParcels} from './personalization.js';
 import {openPersonalization} from './personalization-ui.js';
 import {getHomeAgenda,getParcelWorkContext,matchesWorkTab,isPending,agendaDate,dailySituation,parcelSituation,weatherOpportunity,localDay} from './home-priorities.js';
@@ -278,6 +279,7 @@ function parcelTimelineHtml(data,id){
   return `<section class="panel"><h2>Historique réalisé</h2><ul class="timeline">${events.map(e=>`<li><small>${e.date?localDate(e.date):'Date non renseignée'}</small><button class="text-button" data-action="${e.action}" data-id="${escapeHtml(e.id)}">${escapeHtml(e.label)}</button></li>`).join('')||'<li>Aucune intervention terminée.</li>'}</ul></section>`;
 }
 
+let wideLayoutUI=null;
 function renderToday(data){
   satelliteUI?.today();
   const parcels=active('parcelles',data),works=active('interventions',data),today=todayIso(),own=parcels.filter(p=>(p.ownershipType||'own')==='own');
@@ -318,6 +320,7 @@ function renderToday(data){
   $('#alerts-list').innerHTML=alerts.length?alerts.slice(0,4).map(a=>`<button class="list-row" data-action="${a.action}"><div><strong>${escapeHtml(a.label)}</strong><small>À vérifier</small></div>${icon('chevron',{size:18})}</button>`).join(''):'<div class="empty-state">Aucune alerte importante.</div>';
   const recent=works.filter(w=>!isPending(w)&&!['Annulé','Annulée'].includes(w.status)).sort((a,b)=>new Date(workDate(b))-new Date(workDate(a))).slice(0,4);$('#recent-list').innerHTML=recent.length?recent.map(w=>{const d=workDate(w);return `<button class="list-row activity-row" data-action="edit-work" data-id="${escapeHtml(w.id)}"><span class="activity-when">${d===today?escapeHtml(w.endTime||w.startTime||'Auj.'):d?escapeHtml(localDate(d).replace(/ \d{4}$/,'')):'—'}</span><span class="activity-what"><b>${escapeHtml(w.operator||w.type||'Travail')}</b> ${w.operator?`${escapeHtml(w.type||'Travail')} · `:'· '}${escapeHtml(parcelNames.get(w.parcelId)||'Parcelle supprimée')}</span></button>`;}).join(''):'<div class="empty-state">Aucune activité récente.</div>';
   renderDailyBrief(cockpit,notifications);if(weatherCache)renderWeatherCard(weatherCache);else $('#weather-content').innerHTML=data.exploitation.commune||data.exploitation.latitude?'<div class="empty-state">Prévisions non chargées.<br><button class="text-button" data-action="refresh-weather">Actualiser</button></div>':'<div class="empty-state">Ajoutez la localisation de l’exploitation dans les paramètres.</div>';
+  (wideLayoutUI||=createWideLayoutUI()).today(data,layout.homeCardOrder);
 }
 function workRow(item,parcelNames,{today=false,overdue=false}={}){
   const late=overdue||item.status==='En retard'||(item.status!=='Terminé'&&workDate(item)&&workDate(item)<todayIso());
@@ -368,6 +371,7 @@ function renderWork(data){
 
   const works=filteredWorks(data),parcels=new Map(active('parcelles',data).map(p=>[p.id,p]));
   $('#work-list').innerHTML=works.length?works.map(w=>{const p=parcels.get(w.parcelId),status=w.status==='En cours'?'En cours':matchesWorkTab(w,'overdue',todayIso())?'En retard':w.status||'Terminé';const done=status==='Terminé',d=workDate(w),isT=d===todayIso();return `<article class="work-row has-time${done?' is-done':''}${status==='En retard'?' is-late':''}"><span class="row-time"><b>${escapeHtml(w.startTime||'—')}</b><small class="${status==='En retard'?'is-late':''}">${status==='En retard'?'En retard':isT?'Aujourd’hui':localDate(d)}</small></span><button class="row-main" data-action="edit-work" data-id="${w.id}"><strong>${escapeHtml(w.type||'Travail')}</strong><small>${escapeHtml(p?.nom||'Parcelle supprimée')} · ${localDate(workDate(w))}${w.product?` · ${escapeHtml(w.product)}`:''}</small><span class="row-context">${w.surfaceWorked?`${formatNumber(w.surfaceWorked)} ha`:''}${w.cost?`${w.surfaceWorked?' · ':''}${formatEuro(w.cost)}`:''}</span></button><span class="row-trailing"><span class="badge ${status==='En retard'?'danger':status==='Terminé'?'success':'info'}">${escapeHtml(status)}</span><button class="row-check" ${done?'aria-pressed="true"':''} data-action="${done?'reopen-work':'finish-work'}" data-id="${w.id}" aria-label="${done?'Remettre à faire':'Marquer terminé'}">${done?'✓':''}</button><button class="row-more" data-action="work-actions" data-id="${w.id}" aria-label="Actions du travail">${icon('ellipsis',{size:20})}</button></span></article>`;}).join(''):'<div class="empty-state">Aucun travail dans cette vue.<br><button class="text-button" data-action="new-work">Ajouter un travail</button></div>';
+  (wideLayoutUI||=createWideLayoutUI()).work(data);
 }
 function filteredWorks(data=state()){
   const works=active('interventions',data),today=todayIso(),query=normalize($('#work-search')?.value||'');let list=works;

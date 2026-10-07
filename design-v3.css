@@ -835,3 +835,64 @@ html.hide-parcel-labels #map .leaflet-tooltip.parcel-label{display:none!importan
 .review-bloom .leaf-2{fill:#9cc7a6}
 .theme-dark .review-bloom .leaf-2{fill:#3f7f5c}
 @media (prefers-reduced-motion:reduce){.day-review{transition:none}.review-bloom{display:none}}
+
+/* n° 22 — Tableau de bord en colonnes sur grand écran (Aujourd’hui et Travaux).
+   Les colonnes sont créées par wide-layout-ui.js à partir de 1100 px seulement ; en dessous, rien ne change. */
+@media(min-width:1100px){
+  .today-page.is-wide{max-width:1180px}
+  .today-page.is-wide-three{max-width:1400px}
+  .wide-cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+  .is-wide-three .wide-cols{grid-template-columns:minmax(0,1fr) 300px 280px;gap:28px}
+  .wide-cols>.wide-main{min-width:0}
+  .wide-cols>.today-grid{margin-top:20px;min-width:0}
+  /* Raccourcis : en colonne principale, ils passent à la ligne plutôt que d’être coupés. */
+  .is-wide #today-quick-actions.quick-action-strip{flex-wrap:wrap!important;overflow-x:visible;margin-left:0;margin-right:0;padding-left:0;padding-right:0}
+  .wide-cols>.wide-extra[hidden]{display:none}
+  .wide-side>.weather-card{margin-top:0}
+  .wide-cols>.wide-extra>.panel:first-child>.panel-heading{margin-top:0}
+  .wide-side>.day-review,.wide-side>#satellite-today{margin-top:24px}
+  .wide-minimap.panel{margin-top:16px;padding:16px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--r-card)}
+  .wide-minimap[hidden]{display:none}
+  .wide-cols .wide-minimap>.panel-heading{margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline}
+  .wide-minimap>.panel-heading h2{font-size:17px;font-weight:600}
+  .wide-minimap-svg{display:block;width:100%;height:auto;border-radius:14px;background:var(--surface-secondary)}
+  .wide-minimap-svg path{fill:var(--tile-hover);stroke:var(--border-strong);stroke-width:1;vector-effect:non-scaling-stroke}
+  .wide-minimap-svg path.is-focus{fill:color-mix(in srgb,var(--brand) 38%,transparent);stroke:var(--brand);stroke-width:2;cursor:pointer}
+  .wide-minimap-svg path.is-focus:hover{fill:color-mix(in srgb,var(--brand) 55%,transparent)}
+  .wide-minimap-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .wide-chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border:0;border-radius:22px;background:var(--tile);color:var(--text-primary);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .wide-chip:hover{background:var(--tile-hover)}
+  .wide-dot{width:8px;height:8px;border-radius:4px;background:var(--brand);flex:none}
+  .wide-note{margin:10px 0 0;font-size:13px;color:var(--text-secondary)}
+
+  .wide-work{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:28px;align-items:start;margin-top:12px}
+  .wide-work>.work-list{margin-top:0;min-width:0}
+  .wide-work-side{display:flex;flex-direction:column;gap:16px;min-width:0}
+  .wide-panel{padding:16px;background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--r-card)}
+  .wide-panel>.panel-heading{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 8px}
+  .wide-panel>.panel-heading h2{font-size:17px;font-weight:600;margin:0}
+  .wide-count{display:inline-block;min-width:22px;padding:1px 7px;border-radius:11px;background:var(--brand-soft);color:var(--brand-hover);font-size:12px;font-weight:700;text-align:center;vertical-align:2px}
+  .wide-late{margin:0 0 8px;padding:8px 12px;border-radius:12px;background:var(--danger-soft);color:var(--danger);font-size:13px;font-weight:600}
+  .wide-week,.wide-tasks{list-style:none;margin:0;padding:0}
+  .wide-day{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)}
+  .wide-day:first-child{border-top:0}
+  .wide-day .date-block{width:40px;flex:none;display:flex;flex-direction:column;align-items:center;padding-top:8px}
+  .wide-day .date-block small{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase}
+  .wide-day .date-block b{font-size:18px;font-weight:600;line-height:1.2;color:var(--text-primary)}
+  .wide-day.is-today .date-block b,.wide-day.is-today .date-block small{color:var(--brand)}
+  .wide-day-items{flex:1;min-width:0;display:flex;flex-direction:column}
+  .wide-item{display:flex;flex-direction:column;justify-content:center;gap:1px;width:100%;min-height:44px;padding:4px 8px;border:0;border-radius:12px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;min-width:0}
+  .wide-item:hover{background:var(--tile)}
+  .wide-item strong{font-size:14px;font-weight:600;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wide-item small{font-size:12px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wide-item small.is-late{color:var(--danger)}
+  .wide-more{align-self:flex-start;min-height:44px;padding:0 8px;border:0;background:none;color:var(--brand-hover);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .wide-empty{display:flex;align-items:center;min-height:44px;padding:0 8px;font-size:13px;color:var(--text-secondary)}
+  .wide-task{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line)}
+  .wide-task:first-child{border-top:0}
+  .wide-task .row-check{position:relative;flex:none;width:28px;height:28px;min-height:28px;margin-left:8px;padding:0;border-radius:14px;border:2px solid var(--border-strong);background:var(--surface);cursor:pointer}
+  .wide-task .row-check::before{content:'';position:absolute;inset:-8px}
+  .wide-task .row-check:hover{border-color:var(--brand)}
+  .wide-empty-row{padding:12px 8px;font-size:13px;color:var(--text-secondary)}
+  .wide-item:focus-visible,.wide-chip:focus-visible,.wide-more:focus-visible,.wide-task .row-check:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+}
