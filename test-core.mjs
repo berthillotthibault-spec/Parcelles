@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {parseImportDate,geometryCentroid,haversineMeters,pointInGeometry,normalize,toNullableNumber,validateGeometry} from '../js/utils.js';
+import {parseImportDate,geometryCentroid,haversineMeters,pointInGeometry,normalize,toNullableNumber,validateGeometry} from './utils.js';
 
 assert.equal(parseImportDate('14/09/2026'),'2026-09-14');
 assert.equal(parseImportDate('2026-09-14'),'2026-09-14');

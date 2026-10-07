@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {emptyState,migrateData} from '../js/state.js';
-import {buildStatistics} from '../js/statistics.js';
-import {computeNotifications} from '../js/notifications.js';
-import {clientReportHtml,equipmentReportHtml} from '../js/reports.js';
-import {APP_VERSION} from '../js/utils.js';
+import {emptyState,migrateData} from './state.js';
+import {buildStatistics} from './statistics.js';
+import {computeNotifications} from './notifications.js';
+import {clientReportHtml,equipmentReportHtml} from './reports.js';
+import {APP_VERSION} from './utils.js';
 
 const state=emptyState();
 state.parcelles.push({id:'p1',nom:'Pré du Moulin',surfaceHa:4.2,culture:'Prairie',ownershipType:'own',deletedAt:null});
@@ -39,10 +39,10 @@ assert.equal(migrated.version,APP_VERSION);
 for(const key of ['observations','stockItems','maintenanceRecords','routeSessions'])assert.ok(Array.isArray(migrated[key]),`${key} doit exister après migration`);
 assert.ok(Object.hasOwn(migrated.preferences,'remoteAiEnabled'));
 
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const app=fs.readFileSync(path.join(root,'js/app.js'),'utf8');
+const root=path.dirname(fileURLToPath(import.meta.url));
+const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
 const imports=[...app.matchAll(/from ['"](\.\/[^'"]+)['"]/g)].map(m=>m[1]);
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-const runtime=fs.readFileSync(path.join(root,'js/runtime.js'),'utf8');
-for(const imp of imports){const rel=`./js/${imp.replace('./','')}`;assert.ok(sw.includes(rel),`SW doit mettre en cache ${rel}`);assert.ok(runtime.includes(rel),`Diagnostic doit vérifier ${rel}`);}
+const runtime=fs.readFileSync(path.join(root,'runtime.js'),'utf8');
+for(const imp of imports){const rel=`./${imp.replace('./','')}`;assert.ok(sw.includes(rel),`SW doit mettre en cache ${rel}`);assert.ok(runtime.includes(rel),`Diagnostic doit vérifier ${rel}`);}
 console.log('✓ Parcelles 4.0 : migrations, pilotage, notifications, rapports et ressources validés.');
