@@ -1,5 +1,17 @@
 # Changelog
 
+## 10.10.9 · fiabilisation — 2026-10-07
+
+- hors connexion : l’installation du service worker échouait sur un hébergement HTTP/1.1 (téléchargements bloqués, « Cache incomplet ») ; l’invite « Mettre à jour » reste affichée jusqu’au choix ;
+- Aujourd’hui et Travaux : un travail ou une tâche en retard coché reste barré « Fait » pour la journée ; rouvrir rétablit l’échéance et le statut d’avant (« En cours ») ; sous-titre « 2 travaux et 1 tâche aujourd’hui » ; direction du vent dans la météo ;
+- pâturage : « Déplacer le lot » crée un nouveau passage (historique conservé), modification possible d’un lot à effectif seul, « Sortir » confirmé ; animaux au pré sans les parcelles archivées ;
+- carte : « Dessiner » crée une parcelle à partir du tracé, noms des parcelles affichés et masquables, tracé de mesure effaçable, erreurs RPG en français, distances au format français ;
+- parcelles : fiche quittée après la corbeille, étoile favori visible, tri « Distance » sans position, campagne au format 2026/27 ;
+- modules : retour après un entretien vers l’écran d’origine, dernier entretien correct le même jour, erreur « Stock insuffisant » dans le formulaire, une tâche ISOXML par parcelle ;
+- accessibilité : contrastes ≥ 4,5:1 en clair et en sombre (boutons principaux, légende, panneau Couches, onglets), zoom de la carte dégagé du bouton IA sur ordinateur ;
+- textes : accords singulier/pluriel dans tous les messages générés ;
+- outillage : tests Node exécutables (`npm test`), audit Playwright (`npm run audit`), GitHub Action de tests ; voir `BUGS.md`.
+
 ## 10.10.8 · design v3.7 — 2026-10-06
 
 - conformité à la maquette v3 (voir `AUDIT_MAQUETTE.md`) : Aujourd’hui (cases à gauche, résumé cliquable, météo détaillée, activité, bilan), carte (couleurs de culture, fiche, sélection multiple, outil Dessiner), parcelles (initiales, surface, campagne), fiche (barre Voir sur la carte / Nouveau travail, lot au pré), travaux (fait conservé le jour même, recocher pour rouvrir), matériel (nouvel entretien), Plus (carte Assistant IA, pied de version) ;
