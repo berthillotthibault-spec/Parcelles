@@ -64,7 +64,7 @@ function reportUnhandledActionError(event){
   // Keep the current form and the diagnostic listeners intact, including on save failure.
   toast(message,'error');
 }
-function debounceInput(key,fn,delay=90){clearTimeout(inputTimers.get(key));inputTimers.set(key,setTimeout(()=>{inputTimers.delete(key);fn();},delay));}
+function debounceInput(key,fn,delay=150){clearTimeout(inputTimers.get(key));inputTimers.set(key,setTimeout(()=>{inputTimers.delete(key);fn();},delay));}
 function readLocalText(key,fallback=''){try{return localStorage.getItem(key)??fallback;}catch(error){console.warn(`[Parcelles] stockage local inaccessible : ${key}`,error);return fallback;}}
 function writeLocalText(key,value){try{localStorage.setItem(key,String(value));return true;}catch(error){console.warn(`[Parcelles] écriture locale impossible : ${key}`,error);return false;}}
 function readLocalJson(key,fallback=null){try{const raw=readLocalText(key,null);if(raw===null)return fallback;const parsed=JSON.parse(raw);return parsed??fallback;}catch(error){console.warn(`[Parcelles] stockage local illisible : ${key}`,error);return fallback;}}
