@@ -1045,3 +1045,34 @@ button.story-line:hover>span,button.story-line:focus-visible>span{text-decoratio
 .field-sun-mode .ft-where small,.field-sun-mode .ft-where span{color:#313631}
 /* Les fenêtres ouvertes depuis le mode terrain (consentement GPS, fin de session) passent au-dessus de lui. */
 .modal-root.has-modal{z-index:calc(var(--z-modal) + 1)}
+
+/* n° 82 — commercialisation : contrats, ventes et prix moyen obtenu */
+.sales-head-actions{display:flex;flex-wrap:wrap;gap:8px}
+.sales-head-actions .button,.sales-add,.sales-delivery .button{min-height:44px}
+.sales-summary{margin:0;color:var(--text-primary);font-size:14px}
+.sales-headline{margin:0;font-size:15px;color:var(--text-primary)}
+.sales-headline strong{font-variant-numeric:tabular-nums}
+.sales-bar{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--surface-secondary);border:1px solid var(--border-subtle)}
+.sales-bar span{display:block;height:100%}
+.sales-bar .is-sold{background:var(--brand)}
+.sales-bar .is-contract{background:repeating-linear-gradient(135deg,var(--brand) 0 3px,var(--brand-soft) 3px 7px)}
+.sales-product{margin:0;font-size:14px;color:var(--text-primary);line-height:1.45}
+.sales-product strong{font-variant-numeric:tabular-nums}
+.sales-product small{color:var(--text-secondary);font-size:12.5px}
+.sales-contracts{display:flex;flex-direction:column;gap:8px}
+.sales-contract{display:flex;flex-direction:column;gap:4px;width:100%;min-height:44px;padding:10px 12px;border-radius:14px;border:1px solid var(--border-subtle);background:var(--surface-secondary);color:var(--text-primary);text-align:left;font:inherit}
+button.sales-contract{cursor:pointer}
+button.sales-contract:hover{border-color:var(--border-strong)}
+button.sales-contract:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.sales-contract-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.sales-contract small{color:var(--text-secondary);font-size:12.5px;line-height:1.4}
+.sales-type{display:inline-flex;padding:2px 9px;border-radius:999px;background:var(--brand-soft);color:var(--text-primary);font-size:12px;font-weight:600}
+.sales-warn{color:var(--danger);font-weight:600}
+.sales-mini{display:block;height:4px;border-radius:999px;background:var(--surface);overflow:hidden}
+.sales-mini span{display:block;height:100%;background:var(--brand)}
+.sales-add{align-self:flex-start}
+.sales-deliveries h4{margin:12px 0 6px;font-size:14px;color:var(--text-primary)}
+.sales-deliveries ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.sales-delivery{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 10px;border-radius:12px;background:var(--surface-secondary);font-size:13.5px;color:var(--text-primary)}
+.modal-footer:has(.sales-save){flex-wrap:wrap}
+.modal-footer .button.primary.sales-save{flex:1 1 100%;height:auto;min-height:48px}
