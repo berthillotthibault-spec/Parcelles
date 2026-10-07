@@ -988,3 +988,60 @@ button.story-line:hover>span,button.story-line:focus-visible>span{text-decoratio
 .story-weather-empty>span{flex:1 1 180px;color:var(--text-secondary)}
 .story-weather-empty .button{display:inline-flex;align-items:center;gap:6px;min-height:44px}
 @media (prefers-reduced-motion:reduce){.story-listen,.story-line{transition:none}}
+
+/* n° 9 — Suivi GPS continu du mode terrain */
+.ft-panel{margin:0 0 12px;display:flex;flex-direction:column;gap:12px}
+.ft-panel.is-on{border-color:color-mix(in srgb,var(--brand) 45%,var(--border-subtle))}
+.ft-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ft-head h2{margin:2px 0 0;font-size:18px;color:var(--text-primary)}
+.ft-panel .form-note{margin:0;color:var(--text-secondary)}
+.ft-switch{flex:none;position:relative;width:52px;height:32px;min-height:32px;border-radius:16px;border:0;padding:0;background:var(--border-strong);cursor:pointer;transition:background .15s}
+.ft-switch::after{content:"";position:absolute;inset:-6px -4px}
+.ft-switch i{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.ft-switch.is-on{background:var(--brand)}
+.ft-switch.is-on i{transform:translateX(20px)}
+.ft-switch:focus-visible{outline:3px solid var(--brand);outline-offset:3px}
+.ft-status{display:flex;flex-direction:column;gap:8px}
+.ft-where{display:flex;flex-direction:column;gap:2px;margin:0;padding:12px 14px;border-radius:16px;background:var(--brand-soft);color:var(--text-primary)}
+.ft-where small{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-secondary)}
+.ft-where strong{font-family:var(--font-serif);font-weight:400;font-size:28px;line-height:1.1;overflow-wrap:anywhere}
+.ft-where span{font-size:14px;color:var(--text-secondary)}
+.ft-meta{display:flex;flex-wrap:wrap;gap:8px}
+.ft-gps,.ft-battery{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 10px;border-radius:14px;background:var(--surface-secondary);color:var(--text-primary);font-size:13px;font-weight:600}
+.ft-gps i{width:10px;height:10px;border-radius:50%;background:var(--text-tertiary)}
+.ft-gps.is-good i{background:var(--success)}
+.ft-gps.is-fair i{background:var(--warning)}
+.ft-gps.is-poor i{background:var(--danger)}
+.ft-battery.is-low{background:var(--danger-soft);color:var(--danger)}
+.ft-error{color:var(--warning)!important}
+.ft-option{display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;color:var(--text-primary)}
+.ft-option input{width:22px;height:22px;accent-color:var(--brand);flex:none}
+.ft-proposals{display:flex;flex-direction:column;gap:10px}
+.ft-proposals h3{margin:4px 0 0;font-size:15px;color:var(--text-primary)}
+.ft-proposal,.ft-hint{display:flex;flex-direction:column;gap:8px;padding:14px;border-radius:18px;border:1px solid var(--border-strong);background:var(--surface)}
+.ft-hint{background:var(--warning-soft);border-color:color-mix(in srgb,var(--warning) 35%,transparent)}
+.ft-hint p{margin:0;color:var(--text-primary)}
+.ft-hint .eyebrow{color:var(--warning)}
+.ft-proposal-title{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px;margin:0}
+.ft-proposal-title strong{font-size:17px;color:var(--text-primary)}
+.ft-proposal-title span{font-size:13px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.ft-question{margin:0;font-size:15px;color:var(--text-primary)}
+.ft-reason{margin:0;font-size:13px;color:var(--text-secondary)}
+.ft-proposal .ft-save{width:100%;min-height:52px;font-size:16px}
+.ft-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ft-chips span{font-size:13px;color:var(--text-secondary)}
+.ft-chip{min-height:44px;padding:0 14px;border-radius:22px;border:1px solid var(--chip-border);background:var(--surface-secondary);color:var(--text-primary);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.ft-chip:hover,.ft-chip:focus-visible{border-color:var(--brand);color:var(--text-primary)}
+.ft-actions{display:flex;flex-wrap:wrap;gap:8px}
+.ft-actions .button{flex:1 1 140px;min-height:44px}
+.ft-pill{position:fixed;z-index:60;left:max(16px,var(--safe-left,0px));bottom:calc(var(--nav-h) + var(--safe-bottom,0px) + 12px);display:inline-flex;align-items:center;gap:8px;min-height:44px;max-width:calc(100vw - 132px);padding:0 16px;border:0;border-radius:22px;background:var(--brand);color:var(--on-brand);font:inherit;font-size:14px;font-weight:600;box-shadow:var(--shadow-brand);cursor:pointer}
+.ft-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-pill i{flex:none;width:10px;height:10px;border-radius:50%;background:currentColor;animation:ft-pulse 1.6s ease-in-out infinite}
+.ft-pill b{flex:none;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--on-brand);color:var(--brand);font-size:12px;line-height:22px;text-align:center}
+@media(min-width:1024px){.ft-pill{left:auto;right:104px;bottom:24px;max-width:360px}}
+@keyframes ft-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@media(prefers-reduced-motion:reduce){.ft-pill i{animation:none}.ft-switch,.ft-switch i{transition:none}}
+.field-sun-mode .ft-where{background:#fff;border:2px solid #000}
+.field-sun-mode .ft-where small,.field-sun-mode .ft-where span{color:#313631}
+/* Les fenêtres ouvertes depuis le mode terrain (consentement GPS, fin de session) passent au-dessus de lui. */
+.modal-root.has-modal{z-index:calc(var(--z-modal) + 1)}
