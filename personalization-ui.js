@@ -9,7 +9,7 @@ export function openPersonalization({preferences,modal,closeModal,save,toast}){
       <fieldset><legend>En haut de l’accueil</legend><label class="personalization-toggle"><input type="checkbox" name="homeNextAction">Prochaine action à réaliser</label><label class="personalization-toggle"><input type="checkbox" name="homeSummary">Repères : surface, parcelles et travaux</label></fieldset>
       <fieldset><legend>Blocs de l’accueil</legend><p class="form-note">Cochez les blocs à afficher. Les flèches changent leur ordre.</p><div id="home-card-options"></div></fieldset>
       <fieldset><legend>Mes raccourcis</legend><p class="form-note">Accédez à vos outils directement depuis l’accueil.</p><div class="shortcut-options">${HOME_SHORTCUTS.map(item=>`<label class="personalization-toggle"><input type="checkbox" name="homeShortcut" value="${item.id}">${item.label}</label>`).join('')}</div></fieldset>
-      <fieldset><legend>Confort d’utilisation</legend><label class="personalization-toggle"><input type="checkbox" name="assistantDock">Afficher l’assistant IA en bas à gauche</label><p class="form-note">Seul le rond vert apparaît sur la carte. Il s’efface pendant les mesures et la consultation d’une parcelle. L’assistant reste disponible dans Plus si vous le masquez.</p><label class="startup-choice" for="startup-duration">Animation à l’ouverture<select id="startup-duration" name="startupDuration"><option value="3500">Standard · 3,5 secondes</option><option value="2200">Rapide · 2,2 secondes</option><option value="1200">Courte · 1,2 seconde</option><option value="0">Accès direct</option></select></label><p class="form-note">L’application s’ouvre automatiquement à la fin de cette durée, sans bouton à toucher. Le réglage système « Réduire les animations » est respecté.</p></fieldset>
+      <fieldset><legend>Confort d’utilisation</legend><label class="personalization-toggle"><input type="checkbox" name="assistantDock">Afficher l’assistant IA en bas à gauche</label><p class="form-note">Seul le rond vert apparaît sur la carte. Il s’efface pendant les mesures et la consultation d’une parcelle. L’assistant reste disponible dans Plus si vous le masquez.</p><label class="personalization-toggle"><input type="checkbox" name="nativeHaptics">Vibration discrète quand je coche un travail ou une tâche</label><p class="form-note">Sur les téléphones qui le permettent. Le même réglage commande le retour haptique de l’application iPhone.</p><label class="startup-choice" for="startup-duration">Animation à l’ouverture<select id="startup-duration" name="startupDuration"><option value="3500">Standard · 3,5 secondes</option><option value="2200">Rapide · 2,2 secondes</option><option value="1200">Courte · 1,2 seconde</option><option value="0">Accès direct</option></select></label><p class="form-note">L’application s’ouvre automatiquement à la fin de cette durée, sans bouton à toucher. Le réglage système « Réduire les animations » est respecté.</p></fieldset>
     </form>`, `<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" type="submit" form="personalization-form">Enregistrer</button>`);
   const form=document.getElementById('personalization-form');
   const preview=()=>{
@@ -23,13 +23,13 @@ export function openPersonalization({preferences,modal,closeModal,save,toast}){
     }).join('');
   };
   const render=()=>{
-    for(const key of ['homeNextAction','homeSummary','assistantDock'])form.elements[key].checked=draft[key];
+    for(const key of ['homeNextAction','homeSummary','assistantDock','nativeHaptics'])form.elements[key].checked=draft[key];
     form.elements.startupDuration.value=String(draft.startupDuration);
     form.querySelectorAll('[name="homeShortcut"]').forEach(input=>input.checked=draft.homeShortcuts.includes(input.value));
     renderCards();preview();
   };
   form.addEventListener('change',()=>{
-    for(const key of ['homeNextAction','homeSummary','assistantDock'])draft[key]=form.elements[key].checked;
+    for(const key of ['homeNextAction','homeSummary','assistantDock','nativeHaptics'])draft[key]=form.elements[key].checked;
     draft.startupDuration=Number(form.elements.startupDuration.value);
     draft.homeCards=[...form.querySelectorAll('[name="homeCard"]:checked')].map(input=>input.value);
     draft.homeShortcuts=[...form.querySelectorAll('[name="homeShortcut"]:checked')].map(input=>input.value);

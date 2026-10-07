@@ -821,3 +821,17 @@ html.hide-parcel-labels #map .leaflet-tooltip.parcel-label{display:none!importan
 .ly-opacity input[type=range]{width:100%;min-height:44px;margin:0;accent-color:var(--brand);background:transparent}
 .ly-note{margin:10px 0 0;font-size:12px;line-height:1.4;color:var(--text-secondary)}
 .cadastre-popup .cadastre-note{font-style:italic}
+/* n° 25 Célébration sobre quand on coche un travail */
+.work-row .row-check .check-draw,.task-date-row .row-check .check-draw{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.day-review{position:relative;transition:background-color .3s,border-color .3s}
+.day-review.is-complete{background:var(--brand-soft);border-style:solid;border-color:var(--brand)}
+.day-review.is-complete .review-head b{color:var(--brand)}
+.day-review .review-complete{margin:0 0 6px;font-size:15px;font-weight:600;color:var(--text-primary)}
+.day-review .review-complete::before{content:'';display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--brand);vertical-align:2px}
+.review-bloom{position:absolute;right:18px;top:6px;width:120px;height:120px;pointer-events:none;overflow:visible}
+.review-bloom svg{width:100%;height:100%;overflow:visible}
+.review-bloom .leaf{fill:var(--brand);opacity:0}
+.review-bloom .leaf-1{fill:var(--success)}
+.review-bloom .leaf-2{fill:#9cc7a6}
+.theme-dark .review-bloom .leaf-2{fill:#3f7f5c}
+@media (prefers-reduced-motion:reduce){.day-review{transition:none}.review-bloom{display:none}}
