@@ -1,6 +1,7 @@
-import {clone,validateParcel} from './utils.js';
+import {clone,geometryAreaHa,validateParcel} from './utils.js';
 import {normalizeEntity} from './state.js';
 import {rpgFeatureId,rpgFeatureToParcel} from './rpg.js';
+import {cadastreInfoToParcel} from './basemaps.js';
 
 const OWNERSHIP_TYPES=new Set(['own','client','service']);
 const POINT_FIELDS=new Set(['nom','type','note','parcelId','latitude','longitude']);
@@ -22,6 +23,26 @@ function rpgMatch(parcels,sourceId,geometry){
   return legacy[0]||null;
 }
 
+function resolveOwnership(store,settings){
+  const ownershipType=settings.ownershipType??'own';
+  if(!OWNERSHIP_TYPES.has(ownershipType))throw new Error('Choisissez Mon exploitation, Client ou Prestation.');
+  const newClientName=String(settings.newClientName??'').trim();
+  const requestedClientId=String(settings.clientId??'').trim();
+  let clientId=null,newClient=null;
+  if(ownershipType!=='own'){
+    if(requestedClientId&&newClientName)throw new Error('Choisissez un client existant ou créez un nouveau client, pas les deux.');
+    if(requestedClientId){
+      const clients=store.state.clients.filter(client=>client.id===requestedClientId&&!client.deletedAt);
+      if(clients.length!==1)throw new Error('Le client sélectionné est introuvable ou supprimé. Choisissez un client actif.');
+      clientId=clients[0].id;
+    }else if(newClientName){
+      requireWrite(store,'clients','create');
+      newClient=normalizeEntity('clients',{name:newClientName,source:'local'});clientId=newClient.id;
+    }else throw new Error('Sélectionnez un client ou renseignez le nom du nouveau client.');
+  }
+  return{ownershipType,clientId,newClient};
+}
+
 export function addRpgParcel(store,feature,options={}){
   const input=clone(feature),settings=clone(options);
   return store.enqueueWrite(async()=>{
@@ -33,22 +54,7 @@ export function addRpgParcel(store,feature,options={}){
       if(existing.deletedAt)throw new Error('Cette parcelle RPG se trouve dans la corbeille. Restaurez-la depuis Mes données → Corbeille.');
       return{parcel:clone(existing),created:false};
     }
-    const ownershipType=settings.ownershipType??'own';
-    if(!OWNERSHIP_TYPES.has(ownershipType))throw new Error('Choisissez Mon exploitation, Client ou Prestation.');
-    const newClientName=String(settings.newClientName??'').trim();
-    const requestedClientId=String(settings.clientId??'').trim();
-    let clientId=null,newClient=null;
-    if(ownershipType!=='own'){
-      if(requestedClientId&&newClientName)throw new Error('Choisissez un client existant ou créez un nouveau client, pas les deux.');
-      if(requestedClientId){
-        const clients=store.state.clients.filter(client=>client.id===requestedClientId&&!client.deletedAt);
-        if(clients.length!==1)throw new Error('Le client sélectionné est introuvable ou supprimé. Choisissez un client actif.');
-        clientId=clients[0].id;
-      }else if(newClientName){
-        requireWrite(store,'clients','create');
-        newClient=normalizeEntity('clients',{name:newClientName,source:'local'});clientId=newClient.id;
-      }else throw new Error('Sélectionnez un client ou renseignez le nom du nouveau client.');
-    }
+    const {ownershipType,clientId,newClient}=resolveOwnership(store,settings);
     const parcel=normalizeEntity('parcelles',{
       ...base,sourceId,nom:settings.nom===undefined?base.nom:String(settings.nom).trim(),
       culture:settings.culture===undefined?base.culture:String(settings.culture).trim(),
@@ -59,6 +65,37 @@ export function addRpgParcel(store,feature,options={}){
       if(newClient){state.clients.push(newClient);store.queue({entity:'clients',entityId:newClient.id,action:'create',payload:clone(newClient)});}
       state.parcelles.push(parcel);store.queue({entity:'parcelles',entityId:parcel.id,action:'create',payload:clone(parcel)});
     },{entity:'parcelles',entityId:parcel.id,action:'create',kind:'rpg-add',queue:false});
+    return{parcel:clone(parcel),created:true};
+  });
+}
+
+// Crée une parcelle depuis un contour cadastral (API Carto). Une même référence
+// cadastrale (IDU) n'est jamais ajoutée deux fois.
+export function addCadastreParcel(store,info,options={}){
+  const input=clone(info),settings=clone(options);
+  return store.enqueueWrite(async()=>{
+    requireWrite(store,'parcelles','create');
+    const base=cadastreInfoToParcel(input);
+    if(base.sourceId){
+      const existing=store.state.parcelles.filter(parcel=>parcel.sourceId===base.sourceId);
+      if(existing.length>1)throw new Error('Plusieurs parcelles portent cette référence cadastrale. Vérifiez les doublons avant de continuer.');
+      if(existing.length){
+        if(existing[0].deletedAt)throw new Error('Cette parcelle cadastrale se trouve dans la corbeille. Restaurez-la depuis Mes données → Corbeille.');
+        return{parcel:clone(existing[0]),created:false};
+      }
+    }
+    const {ownershipType,clientId,newClient}=resolveOwnership(store,settings);
+    const parcel=normalizeEntity('parcelles',{
+      ...base,surfaceHa:base.surfaceHa??Math.round(geometryAreaHa(base.geometry)*10000)/10000,
+      nom:settings.nom===undefined?base.nom:String(settings.nom).trim(),
+      culture:String(settings.culture??'').trim(),
+      ownershipType,clientId,status:'À jour'
+    });
+    const errors=validateParcel(parcel);if(errors.length)throw new Error(errors.join(' — '));
+    await store._mutate(`Parcelle cadastrale ajoutée : ${parcel.nom}`,state=>{
+      if(newClient){state.clients.push(newClient);store.queue({entity:'clients',entityId:newClient.id,action:'create',payload:clone(newClient)});}
+      state.parcelles.push(parcel);store.queue({entity:'parcelles',entityId:parcel.id,action:'create',payload:clone(parcel)});
+    },{entity:'parcelles',entityId:parcel.id,action:'create',kind:'cadastre-add',queue:false});
     return{parcel:clone(parcel),created:true};
   });
 }
