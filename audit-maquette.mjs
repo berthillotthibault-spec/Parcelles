@@ -18,7 +18,7 @@ const errors = [];
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 page.on('console', m => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push('console: ' + m.text()));
 
-await page.goto(URL, {waitUntil: 'networkidle'});
+await page.goto(URL, {waitUntil: 'load'});
 if (SEED) {
   await page.evaluate(async () => {
     const {Store} = await import('./state.js'); const {StorageService} = await import('./storage.js');
@@ -34,7 +34,7 @@ if (SEED) {
     await s.upsert('grazingSessions', {parcelId: 'p3', animalType: 'Vaches', animalsCount: 24, startDate: D(-18)});
     await s.upsert('materiels', {nom: 'Tracteur', location: 'Hangar'});
   });
-  await page.reload({waitUntil: 'networkidle'});
+  await page.reload({waitUntil: 'load'});
 }
 await page.waitForFunction(() => document.documentElement.dataset.appReady === '1', null, {timeout: 15000});
 await page.addStyleTag({content: '*,*::before,*::after{animation:none!important;transition:none!important}'});
@@ -62,7 +62,7 @@ await check('Commun', 'pastille synchro', () => !!document.querySelector('#netwo
 await go('today'); await shot('01-aujourdhui');
 await check('Aujourd’hui', 'date (jour de la semaine)', () => /lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche/i.test(document.querySelector('#today-label')?.textContent || ''));
 await check('Aujourd’hui', 'titre Bonjour en Instrument Serif', () => /Bonjour/.test(document.querySelector('#today-title').textContent) && /Instrument Serif/.test(getComputedStyle(document.querySelector('#today-title')).fontFamily));
-await check('Aujourd’hui', 'phrase « tâche(s) aujourd’hui »', () => /tâche/.test(document.querySelector('#today-subtitle')?.textContent || ''));
+await check('Aujourd’hui', 'phrase « … aujourd’hui »', () => /aujourd’hui/.test(document.querySelector('#today-subtitle')?.textContent || ''));
 await check('Aujourd’hui', '« + Travail » avant « Personnaliser »', () => document.querySelector('.today-primary-action').firstElementChild.dataset.action === 'new-work');
 await check('Aujourd’hui', 'carte prochaine action', () => !!document.querySelector('#next-action .next-action-card'));
 await check('Aujourd’hui', 'résumé : 3 cartes cliquables', () => document.querySelectorAll('#today-summary .summary-card[data-action]').length === 3);

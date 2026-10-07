@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {parseShpDbf} from '../js/shapefile-fallback.js';
+import {parseShpDbf} from './shapefile-fallback.js';
 
 const here=path.dirname(fileURLToPath(import.meta.url));
-const dir=path.join(here,'fixtures','shp');
-const files=fs.readdirSync(dir);
+const dir=here;
+const files=fs.readdirSync(dir).filter(f=>f.normalize('NFC').startsWith('Export_Spécifique (SHP)'));
 const find=ext=>path.join(dir,files.find(f=>f.toLowerCase().endsWith(ext)));
 const asArrayBuffer=file=>{const b=fs.readFileSync(file);return b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength);};
 const result=parseShpDbf({shp:asArrayBuffer(find('.shp')),dbf:asArrayBuffer(find('.dbf')),prj:fs.readFileSync(find('.prj'),'utf8')});

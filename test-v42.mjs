@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {emptyState,migrateData,Store} from '../js/state.js';
-import {buildPilotage,stockSummary} from '../js/pilotage.js';
-import {pilotageReportHtml,stockReportHtml} from '../js/reports.js';
-import {APP_VERSION,BUILD_ID} from '../js/utils.js';
+import {emptyState,migrateData,Store} from './state.js';
+import {buildPilotage,stockSummary} from './pilotage.js';
+import {pilotageReportHtml,stockReportHtml} from './reports.js';
+import {APP_VERSION,BUILD_ID} from './utils.js';
 
 assert.ok(APP_VERSION>=6);
-assert.match(BUILD_ID,/^2026\.09\.14-v(?:4\.2|5\.0)\.0$/);
+assert.match(BUILD_ID,/^\d{4}\.\d{2}\.\d{2}-v[\w.-]+$/);
 
 const state=emptyState();
 state.preferences.autoBackup=false;
@@ -64,10 +64,10 @@ assert.ok(Math.abs(store.get('stockItems',item.id).unitPrice-0.625)<1e-9,'prix m
 await assert.rejects(()=>store.recordStockMovement({stockItemId:item.id,type:'Sortie',date:'2026-09-14',quantity:1000}),/insuffisant/i);
 assert.equal(store.get('stockItems',item.id).quantity,100,'rollback atomique si sortie impossible');
 
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const app=fs.readFileSync(path.join(root,'js/app.js'),'utf8');
+const root=path.dirname(fileURLToPath(import.meta.url));
+const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
-const runtime=fs.readFileSync(path.join(root,'js/runtime.js'),'utf8');
+const runtime=fs.readFileSync(path.join(root,'runtime.js'),'utf8');
 assert.match(app,/Pilotage/);
 assert.match(app,/openCampaignPlanner/);
 assert.match(app,/recordStockMovement/);

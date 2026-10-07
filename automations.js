@@ -175,7 +175,7 @@ export function interpolateAutomationText(template,match,rule){
 export function automationRuleSummary(rule){
   const trigger=AUTOMATION_TRIGGERS[rule?.trigger||'interval']?.label||'Périodique';
   const actions=automationActions(rule).map(a=>AUTOMATION_ACTIONS[a.type]?.label||a.type).join(' + ');
-  if(rule?.target){const target=AUTOMATION_TARGETS[rule.target]?.label||rule.target;const count=(rule.conditions||[]).filter(c=>c?.field).length;return `${trigger} · ${target} · ${count} condition(s) · ${actions}`;}
+  if(rule?.target){const target=AUTOMATION_TARGETS[rule.target]?.label||rule.target;const count=(rule.conditions||[]).filter(c=>c?.field).length;return `${trigger} · ${target} · ${count} ${(count)>1?'conditions':'condition'} · ${actions}`;}
   return `${trigger} · ${AUTOMATION_KINDS[rule?.kind]?.description||rule?.kind||''} · ${actions}`;
 }
 

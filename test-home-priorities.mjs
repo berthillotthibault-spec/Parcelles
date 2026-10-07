@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {getHomeAgenda,getParcelWorkContext,matchesWorkTab,agendaDate} from './home-priorities.js';
+import {getHomeAgenda,getParcelWorkContext,matchesWorkTab,agendaDate,localDay} from './home-priorities.js';
 import {filterMapParcels} from './personalization.js';
 import {computeNotifications} from './notifications.js';
 const today='2026-10-04';
@@ -69,7 +69,7 @@ test('cancelled and completed records do not leave overdue notifications',()=>{
 });
 
 test('notifications use the same calendar date as the home and respect planned dates',()=>{
-  const date=new Date().toISOString().slice(0,10);
+  const date=localDay(); // même date locale que l'application, pas UTC
   const state={tasks:[{id:'t',status:'À faire',dueDate:date+'T09:00:00'}],interventions:[{id:'w',status:'Planifié',date:'2010-01-01',plannedDate:date+'T10:00:00'}]};
   const rows=computeNotifications(state);
   assert.equal(rows.length,2);assert.ok(rows.every(row=>row.date===date&&!row.title.includes('retard')));

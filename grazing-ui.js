@@ -14,7 +14,7 @@ export function parcelGrazingHtml(sessions,parcelId,{compact=false,date=new Date
     if(summary.unidentifiedCount)names.push(`${summary.unidentifiedCount} sans numéro`);
     return `<div class="grazing-map-summary"><strong>${escapeHtml(title)}</strong>${names.length?`<small>${escapeHtml(names.join(' · '))}</small>`:''}<button type="button" class="text-button" data-action="open-grazing-parcel" data-id="${escapeHtml(parcelId)}">${summary.total?'Voir les animaux':'Mettre au pré'}</button></div>`;
   }
-  return `<section class="panel parcel-grazing" data-parcel-grazing="${escapeHtml(parcelId)}"><div class="panel-heading"><h2>${escapeHtml(title)}</h2><button class="text-button" data-action="open-grazing-parcel" data-id="${escapeHtml(parcelId)}">Gérer le pâturage</button></div>${summary.groups.map(group=>{const days=group.startDate?Math.max(0,Math.floor((new Date(grazingDate(date)+'T12:00:00')-new Date(String(group.startDate).slice(0,10)+'T12:00:00'))/86400000)):null;return `<article class="grazing-group grazing-lot"><div class="grazing-lot-head"><div><p class="eyebrow">Animaux au pré</p><strong>${escapeHtml(group.type)} · ${formatNumber(group.total,0)} ${group.total===1?'animal':'animaux'}</strong></div>${days!==null?`<span class="grazing-days">${days} j</span>`:''}</div>${group.note?`<p>${escapeHtml(group.note)}</p>`:''}${group.animals.length?`<ul class="grazing-animals">${group.animals.map(animalHtml).join('')}</ul>`:''}${group.animalDescription?`<p>${escapeHtml(group.animalDescription)}</p>`:''}${group.unidentifiedCount?`<p class="form-note">${group.unidentifiedCount} animal(aux) sans numéro enregistré.</p>`:''}<small>Entrés le ${group.startDate?localDate(group.startDate):'(date non renseignée)'}</small><div class="grazing-lot-actions"><button type="button" class="button primary" data-action="edit-grazing" data-id="${escapeHtml(group.id)}">Déplacer le lot</button><button type="button" class="button secondary" data-action="end-grazing" data-id="${escapeHtml(group.id)}">Sortir</button></div></article>`;}).join('')||`<div class="empty-state">Pas d’animaux sur cette parcelle.<br><button type="button" class="text-button" data-action="open-grazing-parcel" data-id="${escapeHtml(parcelId)}">Mettre au pré</button></div>`}</section>`;
+  return `<section class="panel parcel-grazing" data-parcel-grazing="${escapeHtml(parcelId)}"><div class="panel-heading"><h2>${escapeHtml(title)}</h2><button class="text-button" data-action="open-grazing-parcel" data-id="${escapeHtml(parcelId)}">Gérer le pâturage</button></div>${summary.groups.map(group=>{const days=group.startDate?Math.max(0,Math.floor((new Date(grazingDate(date)+'T12:00:00')-new Date(String(group.startDate).slice(0,10)+'T12:00:00'))/86400000)):null;return `<article class="grazing-group grazing-lot"><div class="grazing-lot-head"><div><p class="eyebrow">Animaux au pré</p><strong>${escapeHtml(group.type)} · ${formatNumber(group.total,0)} ${group.total===1?'animal':'animaux'}</strong></div>${days!==null?`<span class="grazing-days">${days} j</span>`:''}</div>${group.note?`<p>${escapeHtml(group.note)}</p>`:''}${group.animals.length?`<ul class="grazing-animals">${group.animals.map(animalHtml).join('')}</ul>`:''}${group.animalDescription?`<p>${escapeHtml(group.animalDescription)}</p>`:''}${group.unidentifiedCount?`<p class="form-note">${group.unidentifiedCount} ${(group.unidentifiedCount)>1?'animaux':'animal'} sans numéro enregistré.</p>`:''}<small>Entrés le ${group.startDate?localDate(group.startDate):'(date non renseignée)'}</small><div class="grazing-lot-actions"><button type="button" class="button primary" data-action="move-grazing" data-id="${escapeHtml(group.id)}">Déplacer le lot</button><button type="button" class="button secondary" data-action="end-grazing" data-id="${escapeHtml(group.id)}">Sortir</button></div></article>`;}).join('')||`<div class="empty-state">Pas d’animaux sur cette parcelle.<br><button type="button" class="text-button" data-action="open-grazing-parcel" data-id="${escapeHtml(parcelId)}">Mettre au pré</button></div>`}</section>`;
 }
 
 export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelete,today}){
@@ -34,10 +34,10 @@ export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelet
     const data=state(),parcels=new Map(active('parcelles').map(p=>[p.id,p]));
     const rows=filterGrazingSessions(data.grazingSessions||[],{...filters,parcels:active('parcelles'),date:today()});
     const total=rows.reduce((sum,row)=>sum+grazingTotal(row),0);
-    $('#grazing-counter').textContent=`${formatNumber(total,0)} animaux dans ${rows.length} lot(s) affiché(s)`;
+    $('#grazing-counter').textContent=`${formatNumber(total,0)} ${total>1?'animaux':'animal'} dans ${rows.length} lot${rows.length>1?'s':''} affiché${rows.length>1?'s':''}`;
     $('#grazing-results').innerHTML=rows.length?rows.map(row=>{
       const animals=grazingAnimalList(row),unknown=Math.max(0,grazingTotal(row)-animals.length),status=grazingStatus(row,{date:today()});
-      return `<article class="grazing-group" data-grazing-id="${escapeHtml(row.id)}"><div class="grazing-heading"><div><strong>${escapeHtml(parcels.get(row.parcelId)?.nom||'Parcelle indisponible')}</strong><p>${grazingTotal(row)} animaux · ${escapeHtml(grazingType(row))}</p></div><span class="badge ${status==='current'?'success':'info'}">${labels[status]||'À vérifier'}</span></div>${row.note?`<p>${escapeHtml(row.note)}</p>`:''}${animals.length?`<ul class="grazing-animals">${animals.map(animalHtml).join('')}</ul>`:typeof row.animals==='string'&&row.animals?`<p>${escapeHtml(row.animals)}</p>`:''}${unknown?`<p class="form-note">${unknown} animal(aux) sans numéro enregistré.</p>`:''}<p class="form-note">Entrée : ${row.startDate?localDate(row.startDate):'non renseignée'}${row.endDate?` · Sortie : ${localDate(row.endDate)}`:''}</p><div class="grazing-actions"><button type="button" class="small-button" data-grazing-edit="${escapeHtml(row.id)}">Modifier</button>${status==='current'?`<button type="button" class="small-button" data-grazing-exit="${escapeHtml(row.id)}">Sortir du pré</button>`:''}</div></article>`;
+      return `<article class="grazing-group" data-grazing-id="${escapeHtml(row.id)}"><div class="grazing-heading"><div><strong>${escapeHtml(parcels.get(row.parcelId)?.nom||'Parcelle indisponible')}</strong><p>${grazingTotal(row)} ${grazingTotal(row)>1?'animaux':'animal'} · ${escapeHtml(grazingType(row))}</p></div><span class="badge ${status==='current'?'success':'info'}">${labels[status]||'À vérifier'}</span></div>${row.note?`<p>${escapeHtml(row.note)}</p>`:''}${animals.length?`<ul class="grazing-animals">${animals.map(animalHtml).join('')}</ul>`:typeof row.animals==='string'&&row.animals?`<p>${escapeHtml(row.animals)}</p>`:''}${unknown?`<p class="form-note">${unknown} ${unknown>1?'animaux':'animal'} sans numéro ${unknown>1?'enregistrés':'enregistré'}.</p>`:''}<p class="form-note">Entrée : ${row.startDate?localDate(row.startDate):'non renseignée'}${row.endDate?` · Sortie : ${localDate(row.endDate)}`:''}</p><div class="grazing-actions"><button type="button" class="small-button" data-grazing-edit="${escapeHtml(row.id)}">Modifier</button>${status==='current'?`<button type="button" class="small-button" data-grazing-exit="${escapeHtml(row.id)}">Sortir du pré</button>`:''}</div></article>`;
     }).join(''):'<div class="empty-state">Aucun lot ne correspond aux filtres.</div>';
     $('#grazing-results').querySelectorAll('[data-grazing-edit]').forEach(button=>button.onclick=()=>openForm(store.get('grazingSessions',button.dataset.grazingEdit)));
     $('#grazing-results').querySelectorAll('[data-grazing-exit]').forEach(button=>button.onclick=async()=>{
@@ -68,7 +68,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelet
         const additionalAnimalsCount=Number(values.additionalAnimalsCount);
         if(!Number.isSafeInteger(additionalAnimalsCount)||additionalAnimalsCount<0)throw new Error('Indiquez un nombre entier d’animaux sans numéro.');
         const unchanged=values.animals===text;
-        const animals=unchanged&&session?row.animals:parseGrazingAnimals(values.animals).map(animal=>{
+        const animals=unchanged&&session&&row.animals!=null?row.animals:parseGrazingAnimals(values.animals).map(animal=>{
           const previous=grazingAnimalList(row).find(old=>String(old.number||old.name).trim()===animal.number);
           return previous?{...previous,gestation:animal.gestation}:animal;
         });
@@ -81,5 +81,25 @@ export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelet
       }catch(error){button.disabled=false;toast(error.message,'error');}
     };
   }
-  return{openList,openForm};
+  function openMove(session){
+    const parcels=active('parcelles').filter(p=>p.id!==session.parcelId);
+    if(!parcels.length)return toast('Ajoutez une autre parcelle pour déplacer ce lot.','error');
+    const from=active('parcelles').find(p=>p.id===session.parcelId),total=grazingTotal(session);
+    modal('Déplacer le lot',`${formatNumber(total,0)} ${total>1?'animaux':'animal'} · ${escapeHtml(grazingType(session))}${from?` · depuis ${escapeHtml(from.nom)}`:''}. Le passage actuel est clos et un nouveau passage commence.`,`<form id="grazing-move-form" class="form-grid"><label>Vers la parcelle *<select name="parcelId" required>${parcels.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.nom)}</option>`).join('')}</select></label><label>Date du déplacement *<input name="date" type="date" required value="${today()}" min="${escapeHtml(String(session.startDate||'').slice(0,10))}" max="${today()}"></label></form><p class="form-error" id="grazing-move-error" role="alert" hidden></p>`,`<button type="button" class="button secondary" data-action="close-modal">Annuler</button><button type="button" class="button primary" id="save-grazing-move">Déplacer</button>`);
+    const form=$('#grazing-move-form'),button=$('#save-grazing-move'),error=$('#grazing-move-error');
+    button.onclick=async()=>{
+      if(button.disabled)return;
+      const values=Object.fromEntries(new FormData(form));
+      if(!values.parcelId||!values.date){error.textContent=`Champ obligatoire : ${!values.parcelId?'Vers la parcelle':'Date du déplacement'}.`;error.hidden=false;return;}
+      button.disabled=true;
+      const animals=grazingAnimalList(session),moved={parcelId:values.parcelId,animalType:grazingType(session),startDate:values.date,endDate:null,animals,additionalAnimalsCount:Math.max(0,total-animals.length),note:session.note||''};
+      try{
+        await endGrazingSession(store,session.id,{date:values.date});
+        try{await saveGrazingSession(store,moved);}
+        catch(failure){await saveGrazingSession(store,{parcelId:session.parcelId,animalType:session.animalType??grazingType(session),startDate:String(session.startDate).slice(0,10),endDate:null,animals:session.animals??[],additionalAnimalsCount:Number(session.additionalAnimalsCount)||0,note:session.note||''},{id:session.id}).catch(()=>{});throw failure;}
+        closeModal();toast(`Lot déplacé vers ${active('parcelles').find(p=>p.id===values.parcelId)?.nom||'la parcelle'}.`);
+      }catch(failure){button.disabled=false;error.textContent=failure.message;error.hidden=false;}
+    };
+  }
+  return{openList,openForm,openMove};
 }

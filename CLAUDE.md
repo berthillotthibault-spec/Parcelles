@@ -1,0 +1,54 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+Parcelles is an offline-first PWA for farm management (parcels, field work/interventions, grazing, equipment, public works, harvest, satellite, weather). The UI, comments, docs and commit messages are in **French**; keep that convention. It is published as-is to GitHub Pages (`https://berthillotthibault-spec.github.io/Parcelles/`). There is no bundler and no framework: plain ES modules loaded directly by the browser. `node_modules/` (Playwright, http-server) is dev-only and git-ignored; never add a runtime dependency.
+
+## Repository layout: flat publication, legacy leftovers
+
+The repo **is** the deployed site: every served file lives at the root (no `js/`, `css/`, `icons/` folders). Dev-only files (`tools/`, `test-*.mjs`, `package.json`, `.github/`) are harmless when published.
+
+- `SOURCE_*` files are old v4 snapshots that nothing references; `build-flat.mjs`, `preflight.mjs`, `import-all.html` and `module-smoke.html` expect the old `js/`+`css/` tree. Don't edit them as live code.
+- `Parcelles v3.dc.html` + `support.js` are the design-handoff prototype, not the app. `AUDIT_MAQUETTE.md` tracks conformity to it; `BUGS.md` the last bug hunt.
+- `DEPLOYMENT.md`, `CLOUD_SETUP.md`, `TEST_PLAN.md` describe the old tree (for example `firebase/` paths). The rules files sit at the root: `firestore.rules`, `storage.rules`, `firebase.json`.
+- Mixed CRLF/LF line endings in `app.js`, `index.html`, `map.js`… Never reformat a whole file: make exact, targeted replacements and keep the surrounding line ending. `app.js` has very long lines; locate code with grep, not line numbers.
+
+## Commands
+
+Node is installed per-user in `~/.local/node/bin` (not on the default PATH): `export PATH=~/.local/node/bin:$PATH`.
+
+```bash
+npm test                      # node --check on every served .js, then all test-*.mjs (node:test)
+node --test test-motion.mjs   # one file
+node --test --test-name-pattern="<name>" test-home-priorities.mjs   # one test
+npm run serve                 # http-server on :8080 with no-store caching
+npm run audit                 # Playwright audit of the mockup (needs the server), screenshots in audit/apres/
+```
+
+`tools/audit-maquette.mjs <url> <outdir> --seed` seeds a blank browser profile (never the user's data). Service-worker caching makes stale files likely in a normal browser: use a private window or `Plus › Mes données › Diagnostic` (Mise à jour / Nettoyer cache).
+
+## Architecture
+
+- **Entry point**: `index.html` loads vendored globals (`leaflet.min.js`, `xlsx.full.min.js`, `shp.min.js`; see `VENDOR-README.md`, don't upgrade them), then `config.js`, then `app.js` as a module. `app.js` (~365 KB) is the orchestrator: it imports nearly every module, owns screen rendering and navigation (Aujourd'hui / Carte / Parcelles / Travaux / Plus) and wires the feature UIs. Feature pairs follow a `foo.js` (pure logic) + `foo-ui.js` (`createFooUI(...)` factory) pattern, for example `grazing`, `yield`, `satellite`, `public-works`, `harvest`, `farm`.
+- **State**: `state.js` exports `emptyState()`, `migrateData()` and `Store`. The whole app state is a single object persisted in IndexedDB via `storage.js`, keyed per workspace (`state` for local, `state:workspace:<id>` for cloud farms). Writes are serialized through `Store.enqueueWrite`, and every mutation is logged and queued for sync. Entities carry `id`, `createdAt`, `updatedAt`, `version`, `source` and `sourceId`.
+- **Data format version**: `APP_VERSION` in `utils.js` is the schema version. Changing the stored shape requires bumping it and adding a step in `migrateData()`, which must stay forward-compatible with old backups.
+- **Sync** (`sync.js`): optional Firebase (compat SDK loaded from gstatic at runtime) using the public config in `config.js`. Firestore rejects nested arrays, so payloads go through `encodeCloudPayload` (nested arrays such as GeoJSON coordinates are JSON-stringified under a tag, with `payloadEncoding:'nested-arrays-v1'`). Field names must be Firestore-compatible. When local and remote both changed, sync creates conflicts (`syncConflicts`) instead of overwriting. Roles (`owner` / `editor` / `viewer`) are enforced in the UI by `permissions.js`, but the real security boundary is `firestore.rules` / `storage.rules`.
+- **External services**: the satellite feature calls a Cloudflare Worker (`PARCELLES_SATELLITE_ENDPOINT` in `config.js`), and the remote assistant (`remote-ai.js`) calls a user-configured HTTPS endpoint. Its write actions (`create_work`, `create_task`, …) always require user confirmation. Never put private API keys in any served file.
+- **UI pattern**: screens are HTML template strings built in `render*` / `open*Form` functions; one delegated click handler in `app.js` dispatches on `data-action` / `data-id`. Use `modal(title, description, body, footer, size)`, `toast(message, type, {label, run}, {persist})`, `store.upsert(type, entity, {label})` (merges into the existing entity). Forms use `bindChipChoices` for single-choice chips and an inline `.form-error` instead of `alert`/`reportValidity`.
+- **Dates of work**: `workDate()` returns the due date (`plannedDate||date`) for pending work and the completion date (`date`) for closed work; `finish-work` keeps the due date in `plannedDate`. Campaigns use the `2026/27` format (`campaignFor()`).
+- **Map**: `map.js` (`ParcelMap`, Leaflet) and `rpg.js` (PAC/RPG parcel layer).
+- **Imports**: `import-export.js`, with `shapefile-fallback.js` and `zip-lite.js` as internal fallbacks when `shp.min.js` is unavailable.
+- **CSS**: the stylesheets load in a fixed order, with `design-v3.css` last. It is the current visual layer (Instrument Sans/Serif, cream background) and overrides the earlier sheets without changing logic.
+
+## Releasing a change (cache busting)
+
+The app is cached aggressively by `sw.js`, so every release must:
+
+1. Bump the build to the same value in three places: `BUILD` in `sw.js`, `<meta name="parcelles-build">` in `index.html` and `BUILD_ID` in `utils.js` (`test-static.mjs` checks this). `runtime.js` registers `sw.js?build=<BUILD_ID>`.
+2. Add any new served file to the `CORE` list in `sw.js`. Installation fails if a listed file is missing, and an unlisted file won't work offline.
+3. Bump the `?v=` query string on `design-v3.css` in `index.html` when that file changes.
+4. Add an entry to `CHANGELOG.md` (in French). `MISE_A_JOUR.md` holds the user-facing update instructions.
+
+The user publishes by uploading files directly to `main` on GitHub. Several commits are "Add files via upload", so expect whole-file replacements in the history.

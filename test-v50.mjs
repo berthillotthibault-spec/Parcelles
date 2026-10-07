@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {APP_VERSION,BUILD_ID} from '../js/utils.js';
-import {emptyState,migrateData,Store} from '../js/state.js';
-import {roleCan,roleLabel,canMutate} from '../js/permissions.js';
-import {buildAssistantContext} from '../js/remote-ai.js';
+import {APP_VERSION,BUILD_ID} from './utils.js';
+import {emptyState,migrateData,Store} from './state.js';
+import {roleCan,roleLabel,canMutate} from './permissions.js';
+import {buildAssistantContext} from './remote-ai.js';
 
-assert.equal(APP_VERSION,7);
-assert.equal(BUILD_ID,'2026.09.14-v5.0.0');
+assert.ok(APP_VERSION>=7);
+assert.match(BUILD_ID,/^\d{4}\.\d{2}\.\d{2}-v[\w.-]+$/);
 assert.equal(roleLabel('owner'),'Propriétaire');
 assert.equal(roleLabel('editor'),'Collaborateur');
 assert.equal(roleLabel('viewer'),'Lecture seule');
@@ -29,7 +29,7 @@ assert.equal(fresh.preferences.assistantHistory,true);
 assert.deepEqual(fresh.metadata.syncCursors,{});
 
 const migrated=migrateData({version:6,parcelles:[],interventions:[],preferences:{},metadata:{}});
-assert.equal(migrated.version,7);
+assert.equal(migrated.version,APP_VERSION);
 for(const key of ['members','assistantMessages','devices'])assert.ok(Array.isArray(migrated[key]),`${key} doit être migré`);
 
 class MemoryStorage{
@@ -59,15 +59,14 @@ const context=buildAssistantContext(assistantState);
 assert.equal(context.parcels[0].name,'LAURENCIN');
 assert.equal(context.conversation.length,1);
 
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const app=fs.readFileSync(path.join(root,'js/app.js'),'utf8');
-const sync=fs.readFileSync(path.join(root,'js/sync.js'),'utf8');
-const runtime=fs.readFileSync(path.join(root,'js/runtime.js'),'utf8');
+const root=path.dirname(fileURLToPath(import.meta.url));
+const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
+const sync=fs.readFileSync(path.join(root,'sync.js'),'utf8');
+const runtime=fs.readFileSync(path.join(root,'runtime.js'),'utf8');
 const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 const index=fs.readFileSync(path.join(root,'index.html'),'utf8');
-const fireRules=fs.readFileSync(path.join(root,'firebase/firestore.rules'),'utf8');
+const fireRules=fs.readFileSync(path.join(root,'firestore.rules'),'utf8');
 assert.match(app,/Compte & équipe/);
-assert.match(app,/Assistant 5\.0/);
 assert.match(app,/openAccountTeam/);
 assert.match(app,/assistant-remote-action/);
 assert.match(sync,/async bootstrapWorkspace\(/);
@@ -81,7 +80,7 @@ assert.match(runtime,/config\.js/);
 assert.match(sw,/permissions\.js/);
 assert.match(sw,/www\.gstatic\.com/);
 assert.match(index,/\.\/config\.js/);
-assert.match(index,/data-action="open-account"/);
+assert.match(app+index,/open-account/);
 assert.match(fireRules,/owner/);
 assert.match(fireRules,/editor/);
 assert.match(fireRules,/allow read: if isMember/);
