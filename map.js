@@ -143,6 +143,7 @@ export class ParcelMap{
       const layer=L.geoJSON(parcel.geometry,{pane,style:()=>({color:selected?'#092c1c':color,weight:selected?5:3,opacity:1,fillColor:color,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:(selected?.52:.3)}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
       layer.on('click',()=>{if(this.pointPlacementHandler||this.polygonDraw||this.measure)return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
       this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(this.colorInfo(parcel).label)}</small>${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
+      if(parcel.nom&&parcel.geometry?.type!=='Point')layer.bindTooltip(escapeHtml(parcel.nom),{permanent:true,direction:'center',className:'parcel-label',interactive:false,opacity:1});
       layer.addTo(this.layers.parcels);
     }catch(error){console.warn('[Parcelles] Géométrie ignorée',parcel.id,error);}
   }

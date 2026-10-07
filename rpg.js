@@ -114,6 +114,8 @@ async function requestPage(url,{fetchImpl,signal,timeoutMs}){
     })()]);
   }catch(error){
     if(timedOut)throw new Error('Le service RPG met trop de temps à répondre.');
+    if(error?.name==='TypeError')throw new Error('Connexion impossible au service RPG (réseau indisponible).');
+    if(error?.name==='SyntaxError')throw new Error('La réponse du service RPG est illisible.');
     throw error;
   }finally{
     clearTimeout(timer);

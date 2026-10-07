@@ -92,7 +92,7 @@ async function init(){
   installErrorRecorder({buildId:BUILD_ID});
   window.addEventListener('unhandledrejection',reportUnhandledActionError);
   updateBoot(0,'Ouverture des données locales…');
-  store=new Store(new StorageService());await store.init();perf.mark('storage-ready');
+  store=new Store(new StorageService());await store.init();perf.mark('storage-ready');document.documentElement.classList.toggle('hide-parcel-labels',Boolean(state().preferences?.mapHideLabels));
   updateBoot(1,'Préparation de la synchronisation…');
   sync=new SyncService(store);await sync.init();perf.mark('sync-ready');
   updateBoot(2,'Préparation de votre appareil…');
@@ -594,7 +594,7 @@ function openMapTools(){
     '<button class="button primary" data-action="close-modal">Revenir à la carte</button>','small map-tools-menu');
   mapRenderState(state());
 }
-function startMapMeasurement(kind){closeModal();switchView('map');const panel=$('#map-measure-panel'),title=$('#measure-title'),value=$('#measure-value');if(!panel)return;panel.classList.remove('hidden');title.textContent=kind==='area'?'Mesurer une surface':'Mesurer une distance';value.textContent='Touchez la carte pour placer les points.';parcelMap.startMeasurement(kind,{onCancel:()=>panel.classList.add("hidden"),onUpdate:detail=>{value.textContent=detail.points.length<2?`${detail.points.length} point${detail.points.length!==1?'s':''}`:kind==='area'?`${detail.points.length} points · ${formatNumber(detail.value)} ha`:`${detail.points.length} points · ${detail.value<1000?`${Math.round(detail.value)} m`:`${(detail.value/1000).toFixed(2)} km`}`;},onComplete:detail=>{panel.classList.add('hidden');toast(kind==='area'?`Surface mesurée : ${formatNumber(detail.value)} ha`:`Distance mesurée : ${detail.value<1000?`${Math.round(detail.value)} m`:`${(detail.value/1000).toFixed(2)} km`}`);}});}
+function startMapMeasurement(kind){closeModal();switchView('map');const panel=$('#map-measure-panel'),title=$('#measure-title'),value=$('#measure-value');if(!panel)return;panel.classList.remove('hidden');title.textContent=kind==='area'?'Mesurer une surface':'Mesurer une distance';value.textContent='Touchez la carte pour placer les points.';parcelMap.startMeasurement(kind,{onCancel:()=>panel.classList.add("hidden"),onUpdate:detail=>{value.textContent=detail.points.length<2?`${detail.points.length} point${detail.points.length!==1?'s':''}`:kind==='area'?`${detail.points.length} points · ${formatNumber(detail.value)} ha`:`${detail.points.length} points · ${detail.value<1000?`${Math.round(detail.value)} m`:`${formatNumber(detail.value/1000)} km`}`;},onComplete:detail=>{panel.classList.add('hidden');toast(kind==='area'?`Surface mesurée : ${formatNumber(detail.value)} ha`:`Distance mesurée : ${detail.value<1000?`${Math.round(detail.value)} m`:`${formatNumber(detail.value/1000)} km`}`);}});}
 function openMapLayers(){
   const prefs=state().preferences;
   const economicRows=[...mapEconomics(state()).values()];
@@ -1547,7 +1547,6 @@ function renderMapSearch(value){const root=$('#map-search-results');if(!root)ret
 
 init().catch(error=>{console.error(error);document.body.innerHTML=`<main class="recovery-screen"><section class="recovery-card"><p class="eyebrow">Mode récupération</p><h1>Parcelles n’a pas pu démarrer</h1><p>${escapeHtml(error.message)}</p><p class="form-note">Build ${escapeHtml(BUILD_ID)} · vos données IndexedDB ne sont pas supprimées.</p><div class="recovery-actions"><button class="button primary" id="recovery-retry">Réessayer</button><button class="button secondary" id="recovery-export">Exporter mes données</button><button class="button danger" id="recovery-reset">Réinitialiser cache/PWA</button></div></section></main>`;document.querySelector('#recovery-retry').onclick=()=>location.reload();document.querySelector('#recovery-export').onclick=()=>downloadEmergencyState().catch(e=>alert(e.message));document.querySelector('#recovery-reset').onclick=()=>resetRuntimeAndReload();});
 
-document.documentElement.classList.toggle('hide-parcel-labels',!!(()=>{try{return state().preferences?.mapHideLabels}catch{return false}})());
 function renderMapSelection(event){
   const {enabled,ids}=event.detail,root=$('#map-selection');root.classList.toggle('hidden',!enabled);$('#map-parcel-sheet').classList.toggle('hidden',enabled);$('#map-multiple-toggle')?.setAttribute('aria-pressed',String(enabled));
   const ha=formatNumber(ids.reduce((sum,id)=>sum+toNumber(parcelById(id)?.surfaceHa),0)),dis=ids.length?'':'disabled';
