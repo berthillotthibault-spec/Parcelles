@@ -955,3 +955,36 @@ html.hide-parcel-labels #map .leaflet-tooltip.parcel-label{display:none!importan
 .modal-footer:has(.cost-accept-all){flex-wrap:wrap}
 .modal-footer .button.primary.cost-accept-all{flex:1 1 100%;height:auto;min-height:48px}
 @media (min-width:720px){.cost-figures{grid-template-columns:repeat(4,minmax(0,1fr))}.cost-cards{grid-template-columns:repeat(auto-fill,minmax(420px,1fr))}}
+
+/* n° 23 et 98 Accueil qui raconte la journée : salutation, briefing « Ce matin », météo compacte */
+.story-name-prompt{display:flex;align-items:center;gap:4px;margin:6px 0 0}
+.story-name-prompt .text-button{min-height:44px;padding:0;text-align:left}
+.story-dismiss{min-width:44px;min-height:44px;border:0;border-radius:22px;background:transparent;color:var(--text-secondary);font-size:20px;line-height:1;cursor:pointer}
+.story-dismiss:hover,.story-dismiss:focus-visible{background:var(--surface-secondary);color:var(--text-primary)}
+.morning-brief .story-card{background:var(--surface);border:1px solid var(--border-subtle);border-radius:var(--r-card);padding:16px 16px 10px;color:var(--text-primary)}
+.story-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:6px}
+.story-head h2{margin:0;font-family:var(--font-serif);font-weight:400;font-size:24px;line-height:1.15;color:var(--text-primary)}
+.story-meta{display:block;margin-top:3px;font-size:12px;color:var(--text-secondary)}
+.story-listen{display:inline-flex;align-items:center;gap:6px;min-height:44px;flex:none;padding:0 14px;border-radius:22px;font-size:14px}
+.story-listen[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);color:var(--text-primary)}
+.story-list{list-style:none;margin:0;padding:0}
+.story-list li+li{border-top:1px solid var(--border-subtle)}
+.story-line{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;margin:0;padding:10px 0 10px 14px;border:0;background:transparent;color:var(--text-primary);font:inherit;font-size:15px;line-height:1.45;text-align:left;position:relative;cursor:pointer}
+.story-line::before{content:'';position:absolute;left:0;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--text-tertiary)}
+.story-line.is-good::before{background:var(--success)}
+.story-line.is-warn::before{background:var(--warning)}
+.story-line.is-muted{color:var(--text-secondary)}
+.story-line.is-static{cursor:default}
+.story-line>span{flex:1}
+.story-line .story-chevron{flex:none;color:var(--text-tertiary)}
+button.story-line:hover>span,button.story-line:focus-visible>span{text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px}
+.morning-brief .story-note{margin:4px 0 6px;font-size:12px;line-height:1.4;color:var(--text-secondary)}
+.morning-brief .story-card~p,.morning-brief .story-card~.text-button{padding:0 16px}
+.story-full{width:100%}
+.today-grid .weather-card:has(.story-weather-empty){background:var(--surface);color:var(--text-primary);border:1px solid var(--border-subtle);padding:14px 16px}
+.today-grid .weather-card:has(.story-weather-empty) .panel-heading h2{opacity:1;color:var(--text-secondary)}
+.today-grid .weather-card:has(.story-weather-empty) .text-button{color:var(--brand);opacity:1}
+.story-weather-empty{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:14px;color:var(--text-primary)}
+.story-weather-empty>span{flex:1 1 180px;color:var(--text-secondary)}
+.story-weather-empty .button{display:inline-flex;align-items:center;gap:6px;min-height:44px}
+@media (prefers-reduced-motion:reduce){.story-listen,.story-line{transition:none}}
