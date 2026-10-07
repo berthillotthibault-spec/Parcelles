@@ -111,7 +111,7 @@ async function init(){
   bindEvents();store.subscribe((data,event)=>{renderAfterStoreChange(data,event);scheduleAutomationEvent(event);});perf.mark('events-ready');
   applyTheme();renderAll();renderNetwork();perf.mark('first-render');
   requestPersistentStorage().catch(()=>false);
-  registerAppServiceWorker({onUpdate:update=>toast('Une nouvelle version de Parcelles est prête.','success',{label:'Mettre à jour',run:update.activate})}).catch(error=>console.warn('[Parcelles] SW',error));
+  registerAppServiceWorker({onUpdate:update=>toast('Une nouvelle version de Parcelles est prête.','success',{label:'Mettre à jour',run:update.activate},{persist:true})}).catch(error=>console.warn('[Parcelles] SW',error));
   window.addEventListener('online',()=>{renderNetwork();if(!weatherCache)refreshWeather({silent:true});backgroundSync();});
   window.addEventListener('offline',renderNetwork);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){renderToday(state());if(fieldModeOpen){requestFieldWakeLock();updateFieldSessionClock();}}});
@@ -189,12 +189,12 @@ function renderNetwork(){
   const desktopDot=$('#desktop-network-dot');if(desktopDot)desktopDot.classList.toggle('offline',offline);
   const banner=$('#offline-banner');if(banner)banner.classList.toggle('hidden',!offline);
 }
-function toast(message,type='success',action=null){
+function toast(message,type='success',action=null,{persist=false}={}){
   const root=$('#toast-root');if(!root)return;const item=document.createElement('div');item.className=`toast ${type==='error'?'error':''}`;
   const span=document.createElement('span');span.textContent=message;item.append(span);
   if(action){const button=document.createElement('button');button.textContent=action.label;button.onclick=async()=>{item.remove();await action.run();};item.append(button);}
   if(currentView==='map')root.replaceChildren(item);else root.append(item);
-  setText('#live-region',message);setTimeout(()=>dismissToast(item),5200);
+  setText('#live-region',message);if(!persist)setTimeout(()=>dismissToast(item),5200);
 }
 
 function routeHashForView(view){let hash=`#${view}`;if(view==='parcel'&&selectedParcelId)hash=`#parcel/${encodeURIComponent(selectedParcelId)}/${currentParcelTab}`;if(view==='more-category')hash=`#more/${currentMoreCategory}`;return hash;}

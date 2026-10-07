@@ -22,7 +22,9 @@ async function fetchWithTimeout(request,ms=4500){
 async function warmCore(){
  const cache=await caches.open(STATIC);
  const results=await Promise.all(CORE.map(async path=>{
-   try{const response=await fetchWithTimeout(new Request(new URL(path,self.registration.scope)),10000);if(!response.ok)throw new Error(`HTTP ${response.status}`);return {path,response};}
+   // Lire le corps aussitôt : en HTTP/1.1, des réponses non lues gardent les 6 connexions
+   // et bloquent les autres requêtes jusqu'au délai. L'écriture reste tout ou rien.
+   try{const fetched=await fetchWithTimeout(new Request(new URL(path,self.registration.scope)),20000);if(!fetched.ok)throw new Error(`HTTP ${fetched.status}`);const body=await fetched.blob();return {path,response:new Response(body,{status:fetched.status,statusText:fetched.statusText,headers:fetched.headers})};}
    catch(error){return {path,error:error?.message||String(error)};}
  }));
  const failures=results.filter(x=>x.error);if(failures.length)throw new Error(`Cache incomplet : ${failures.map(x=>x.path).join(', ')}`);
