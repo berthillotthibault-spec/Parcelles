@@ -60,9 +60,9 @@ export function buildActivityBrief(state,{period='today',now=Date.now()}={}){
   const today=isoDate(now),tasks=active(state,'tasks').filter(t=>t.status!=='Terminé'&&t.dueDate&&t.dueDate<=today),urgentObs=active(state,'observations').filter(o=>o.status!=='Résolu'&&norm(o.severity)==='urgent');
   const lowStock=active(state,'stockItems').filter(isLowStock);
   const maintenance=active(state,'materiels').filter(m=>maintenanceRemaining(m)!==null&&maintenanceRemaining(m)<=20);
-  const bits=[`${works.length} travail${works.length!==1?'aux':''} ${range.label}`,`${done.length} terminé${done.length!==1?'s':''}`,`${planned.length} à faire`];
+  const bits=[`${works.length} travail${works.length!==1?'aux':''} ${range.label}`,`${done.length} terminé${done.length>1?'s':''}`,`${planned.length} à faire`];
   if(area>0)bits.push(`${fmt(area)} ha saisis`);if(cost>0)bits.push(`${euro(cost)} de coûts saisis`);
-  const alerts=[];if(tasks.length)alerts.push(`${tasks.length} tâche${tasks.length!==1?'s':''} à traiter`);if(urgentObs.length)alerts.push(`${urgentObs.length} observation${urgentObs.length!==1?'s':''} urgente${urgentObs.length!==1?'s':''}`);if(lowStock.length)alerts.push(`${lowStock.length} stock${lowStock.length!==1?'s':''} faible${lowStock.length!==1?'s':''}`);if(maintenance.length)alerts.push(`${maintenance.length} entretien${maintenance.length!==1?'s':''} proche${maintenance.length!==1?'s':''}`);
+  const alerts=[];if(tasks.length)alerts.push(`${tasks.length} tâche${tasks.length>1?'s':''} à traiter`);if(urgentObs.length)alerts.push(`${urgentObs.length} observation${urgentObs.length>1?'s':''} urgente${urgentObs.length>1?'s':''}`);if(lowStock.length)alerts.push(`${lowStock.length} stock${lowStock.length>1?'s':''} faible${lowStock.length>1?'s':''}`);if(maintenance.length)alerts.push(`${maintenance.length} entretien${maintenance.length>1?'s':''} proche${maintenance.length>1?'s':''}`);
   const actions=[];for(const work of works.slice(0,4))actions.push({type:'open_work',label:`Ouvrir · ${work.type||'Travail'}`,payload:{workId:work.id}});
   return{range,works,done,planned,area,cost,tasks,urgentObs,lowStock,maintenance,answer:`${bits.join(' · ')}.${alerts.length?` À surveiller : ${alerts.join(', ')}.`:''}`,actions};
 }
@@ -76,30 +76,30 @@ function assolementAnswer(state){
 function maintenanceAnswer(state){
   const rows=active(state,'materiels').map(m=>({...m,remaining:maintenanceRemaining(m)})).filter(m=>m.remaining!==null&&m.remaining<=20).sort((a,b)=>a.remaining-b.remaining);
   if(!rows.length)return{answer:'Aucun entretien matériel n’est à moins de 20 h selon les compteurs renseignés.',actions:[]};
-  return{answer:`${rows.length} matériel${rows.length!==1?'s':''} à surveiller : ${rows.slice(0,6).map(m=>`${m.nom||'Matériel'} ${m.remaining<=0?`${Math.abs(Math.round(m.remaining))} h dépassées`:`dans ${Math.round(m.remaining)} h`}`).join(' · ')}.`,actions:rows.slice(0,4).map(m=>({type:'open_equipment',label:`Ouvrir · ${m.nom||'Matériel'}`,payload:{equipmentId:m.id}}))};
+  return{answer:`${rows.length} matériel${rows.length>1?'s':''} à surveiller : ${rows.slice(0,6).map(m=>`${m.nom||'Matériel'} ${m.remaining<=0?`${Math.abs(Math.round(m.remaining))} h dépassées`:`dans ${Math.round(m.remaining)} h`}`).join(' · ')}.`,actions:rows.slice(0,4).map(m=>({type:'open_equipment',label:`Ouvrir · ${m.nom||'Matériel'}`,payload:{equipmentId:m.id}}))};
 }
 
 function stockAnswer(state){
   const rows=active(state,'stockItems').filter(isLowStock).sort((a,b)=>Number(a.quantity)-Number(b.quantity));
   if(!rows.length)return{answer:'Aucun stock n’est sous son seuil d’alerte.',actions:[]};
-  return{answer:`${rows.length} stock${rows.length!==1?'s':''} sous seuil : ${rows.slice(0,8).map(x=>`${x.name||'Article'} ${fmt(x.quantity)} ${x.unit||''}`.trim()).join(' · ')}.`,actions:rows.slice(0,4).map(x=>({type:'open_stock',label:`Ouvrir · ${x.name||'Stock'}`,payload:{stockId:x.id}}))};
+  return{answer:`${rows.length} stock${rows.length>1?'s':''} sous seuil : ${rows.slice(0,8).map(x=>`${x.name||'Article'} ${fmt(x.quantity)} ${x.unit||''}`.trim()).join(' · ')}.`,actions:rows.slice(0,4).map(x=>({type:'open_stock',label:`Ouvrir · ${x.name||'Stock'}`,payload:{stockId:x.id}}))};
 }
 
 function observationsAnswer(state){
   const rows=active(state,'observations').filter(o=>o.status!=='Résolu'&&norm(o.severity)==='urgent');
   if(!rows.length)return{answer:'Aucune observation terrain urgente non résolue.',actions:[]};
-  return{answer:`${rows.length} observation${rows.length!==1?'s':''} urgente${rows.length!==1?'s':''} : ${rows.slice(0,8).map(o=>`${o.title||o.type||'Observation'}${o.parcelId?` — ${parcelName(state,o.parcelId)}`:''}`).join(' · ')}.`,actions:rows.slice(0,4).map(o=>({type:'open_observation',label:`Ouvrir · ${o.title||o.type||'Observation'}`,payload:{observationId:o.id}}))};
+  return{answer:`${rows.length} observation${rows.length>1?'s':''} urgente${rows.length>1?'s':''} : ${rows.slice(0,8).map(o=>`${o.title||o.type||'Observation'}${o.parcelId?` — ${parcelName(state,o.parcelId)}`:''}`).join(' · ')}.`,actions:rows.slice(0,4).map(o=>({type:'open_observation',label:`Ouvrir · ${o.title||o.type||'Observation'}`,payload:{observationId:o.id}}))};
 }
 
 function tasksAnswer(state){
   const today=isoDate(Date.now()),rows=active(state,'tasks').filter(t=>t.status!=='Terminé'&&t.dueDate&&t.dueDate<today).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
   if(!rows.length)return{answer:'Aucune tâche en retard.',actions:[]};
-  return{answer:`${rows.length} tâche${rows.length!==1?'s':''} en retard : ${rows.slice(0,8).map(t=>t.title||'Tâche').join(' · ')}.`,actions:rows.slice(0,4).map(t=>({type:'open_task',label:`Ouvrir · ${t.title||'Tâche'}`,payload:{taskId:t.id}}))};
+  return{answer:`${rows.length} tâche${rows.length>1?'s':''} en retard : ${rows.slice(0,8).map(t=>t.title||'Tâche').join(' · ')}.`,actions:rows.slice(0,4).map(t=>({type:'open_task',label:`Ouvrir · ${t.title||'Tâche'}`,payload:{taskId:t.id}}))};
 }
 
 function chantierAnswer(state){
   const rows=active(state,'chantiers').filter(c=>!['Terminé','Annulé'].includes(c.status));if(!rows.length)return{answer:'Aucun chantier actif ou planifié.',actions:[]};
-  return{answer:`${rows.length} chantier${rows.length!==1?'s':''} actif${rows.length!==1?'s':''}/planifié${rows.length!==1?'s':''} : ${rows.slice(0,6).map(c=>`${c.type||'Chantier'} (${c.status||'Planifié'})`).join(' · ')}.`,actions:rows.slice(0,4).map(c=>({type:'open_chantier',label:`Ouvrir · ${c.type||'Chantier'}`,payload:{chantierId:c.id}}))};
+  return{answer:`${rows.length} chantier${rows.length>1?'s':''} actif${rows.length>1?'s':''}/planifié${rows.length>1?'s':''} : ${rows.slice(0,6).map(c=>`${c.type||'Chantier'} (${c.status||'Planifié'})`).join(' · ')}.`,actions:rows.slice(0,4).map(c=>({type:'open_chantier',label:`Ouvrir · ${c.type||'Chantier'}`,payload:{chantierId:c.id}}))};
 }
 
 
@@ -165,11 +165,11 @@ export function answerLocalIntelligence(question,state,context={}){
   if(/\bassolement\b/.test(q))return{recognized:true,intent:'crop_plan',answer:assolementAnswer(state),actions:[]};
 
   const structured=filterParcelsStructured(raw,state);
-  if(structured.recognized){const area=structured.rows.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'parcel_filter',answer:`${structured.rows.length} parcelle${structured.rows.length!==1?'s':''} correspondent (${fmt(area)} ha)${structured.rows.length?` : ${structured.rows.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:structured.rows.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}})),matches:structured.rows.map(p=>p.id)};}
-  if(/\bsans culture\b/.test(q)){const list=parcels.filter(p=>!String(p.culture||'').trim());return{recognized:true,intent:'missing_crop',answer:`${list.length} parcelle${list.length!==1?'s':''} sans culture${list.length?` : ${list.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:list.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))};}
+  if(structured.recognized){const area=structured.rows.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'parcel_filter',answer:`${structured.rows.length} parcelle${structured.rows.length>1?'s':''} correspondent (${fmt(area)} ha)${structured.rows.length?` : ${structured.rows.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:structured.rows.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}})),matches:structured.rows.map(p=>p.id)};}
+  if(/\bsans culture\b/.test(q)){const list=parcels.filter(p=>!String(p.culture||'').trim());return{recognized:true,intent:'missing_crop',answer:`${list.length} parcelle${list.length>1?'s':''} sans culture${list.length?` : ${list.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:list.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))};}
   if(/\b(combien|nombre)\b/.test(q)&&/\bparcelle/.test(q)){const own=parcels.filter(p=>(p.ownershipType||'own')==='own'),area=own.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'parcel_count',answer:`${parcels.length} parcelles actives, dont ${own.length} de l’exploitation pour ${fmt(area)} ha.`,actions:[]};}
   const culture=cultureFromQuestion(raw,state);
-  if(culture&&/\b(surface|hectare|hectares|ha|combien)\b/.test(q)){const list=parcels.filter(p=>norm(p.culture)===norm(culture)),area=list.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'crop_area',answer:`${fmt(area)} ha en ${culture}, répartis sur ${list.length} parcelle${list.length!==1?'s':''}.`,actions:list.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))};}
+  if(culture&&/\b(surface|hectare|hectares|ha|combien)\b/.test(q)){const list=parcels.filter(p=>norm(p.culture)===norm(culture)),area=list.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'crop_area',answer:`${fmt(area)} ha en ${culture}, répartis sur ${list.length} parcelle${list.length>1?'s':''}.`,actions:list.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))};}
   if(parcel){const list=works.filter(w=>w.parcelId===parcel.id).sort((a,b)=>String(workDate(b)).localeCompare(String(workDate(a))));const last=list.find(w=>!isPending(w)&&!['Annulé','Annulée'].includes(w.status));const openObs=active(state,'observations').filter(o=>o.parcelId===parcel.id&&o.status!=='Résolu').length;return{recognized:true,intent:'parcel_context',answer:`${parcel.nom} : ${fmt(parcel.surfaceHa)} ha · ${parcel.culture||'culture non renseignée'}${parcel.commune?` · ${parcel.commune}`:''}.${last?` Dernier travail : ${last.type||'Travail'} le ${new Intl.DateTimeFormat('fr-FR').format(new Date(workDate(last)))}.`:''}${openObs?` ${openObs} observation${openObs>1?'s':''} ouverte${openObs>1?'s':''}.`:''}`,actions:[{type:'open_parcel',label:`Ouvrir ${parcel.nom}`,payload:{parcelId:parcel.id}}]};}
   if(/\b(ouvre|ouvrir|montre|affiche)\b/.test(q)&&/\bcarte\b/.test(q))return{recognized:true,intent:'open_map',answer:'J’ouvre la carte.',actions:[{type:'open_map',label:'Ouvrir la carte',payload:{}}]};
   return{recognized:false,intent:'unknown',answer:'',actions:[]};
