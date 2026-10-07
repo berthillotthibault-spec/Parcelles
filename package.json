@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "check": "for f in *.js; do case $f in SOURCE_*) ;; *) node --check \"$f\" || exit 1;; esac; done",
-    "test": "npm run check && node --test test-core.mjs test-shp.mjs test-zip.mjs test-v4.mjs test-v41.mjs test-v42.mjs test-v50.mjs test-static.mjs test-home-priorities.mjs test-motion.mjs test-personalization.mjs test-startup.mjs",
+    "test": "npm run check && node --test test-core.mjs test-shp.mjs test-zip.mjs test-v4.mjs test-v41.mjs test-v42.mjs test-v50.mjs test-static.mjs test-home-priorities.mjs test-motion.mjs test-personalization.mjs test-startup.mjs test-fiabilisation.mjs",
     "test:motion": "node --test test-motion.mjs",
     "serve": "http-server -p 8080 -c-1 -s .",
     "audit": "node tools/audit-maquette.mjs http://localhost:8080/index.html audit/apres --seed"
