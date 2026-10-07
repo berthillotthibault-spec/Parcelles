@@ -16,7 +16,9 @@ export function getParcelWorkContext(works,today,tasks=[]){
 }
 export function matchesWorkTab(item,tab,today){
   if(item.deletedAt)return false;
-  const date=agendaDate(item),pending=isPending(item);
+  const pending=isPending(item),done=String(item.date||'').slice(0,10);
+  // Un travail clos se range à sa date de réalisation, un travail à faire à son échéance.
+  const date=!pending&&/^\d{4}-\d{2}-\d{2}$/.test(done)?done:agendaDate(item);
   if(tab==='today')return date===today&&!['Annulé','Annulée'].includes(item.status);
   if(tab==='overdue')return pending&&Boolean(date)&&date<today;
   if(tab==='upcoming')return pending&&(!date||date>today);
