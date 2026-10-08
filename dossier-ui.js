@@ -4,6 +4,7 @@
 // Boutons repérés par data-dossier : un seul écouteur délégué, installé une fois.
 import {escapeHtml as e,campaignFor} from './utils.js';
 import {DOSSIER_PRESETS,DOSSIER_SECTIONS,dossierCampaigns,dossierHtml,presetById} from './dossier.js';
+import {flowPdf,htmlBlocks,isTouchDevice,pdfFile,sharePdf} from './pdf-lite.js';
 
 const PREF_KEY='parcelles:dossier-preset';
 const readPref=()=>{try{return globalThis.localStorage?.getItem(PREF_KEY)||'';}catch{return'';}};
@@ -11,25 +12,42 @@ const writePref=v=>{try{globalThis.localStorage?.setItem(PREF_KEY,v);}catch{}};
 const standaloneIos=()=>{try{return /iPad|iPhone|iPod/.test(navigator.userAgent)&&(navigator.standalone===true||matchMedia('(display-mode: standalone)').matches);}catch{return false;}};
 export const assetBase=()=>{try{return new URL('./',location.href).href;}catch{return'';}};
 
-let viewerReturnFocus=null;
-function closeViewer(){const v=document.querySelector('.dz-viewer');if(!v)return;v.remove();document.removeEventListener('keydown',viewerKey,true);if(viewerReturnFocus?.isConnected)viewerReturnFocus.focus?.({preventScroll:true});viewerReturnFocus=null;}
+let viewerReturnFocus=null,viewerPdf=null;
+function closeViewer(){const v=document.querySelector('.dz-viewer');viewerPdf=null;if(!v)return;v.remove();document.removeEventListener('keydown',viewerKey,true);if(viewerReturnFocus?.isConnected)viewerReturnFocus.focus?.({preventScroll:true});viewerReturnFocus=null;}
 function viewerKey(event){if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeViewer();}}
 
-// Visionneuse de repli : le document reste dans l’application, l’impression passe par l’iframe.
-export function showPrintable(html,title='Document'){
+// PDF « texte » générique d’un document imprimable HTML (titres, paragraphes, tableaux).
+export function genericPdf(html,title='Document'){
+  const doc=new DOMParser().parseFromString(String(html),'text/html'),name=title||doc.title||'Document';
+  return flowPdf(htmlBlocks(doc),{title:name,footer:name.slice(0,110)});
+}
+// Visionneuse : le document reste dans l’application. Bouton PDF (vrai fichier, partage iOS ou
+// téléchargement) ; « Imprimer » via l’iframe seulement sur ordinateur (inopérant dans l’app iOS).
+// pdf = {name, make:()=>Uint8Array} facultatif ; sinon PDF générique tiré du HTML.
+export function showPrintable(html,title='Document',{pdf=null}={}){
   closeViewer();viewerReturnFocus=document.activeElement;
+  const touch=isTouchDevice();
+  viewerPdf={name:pdf?.name||`${title}.pdf`,make:pdf?.make||(()=>genericPdf(html,title)),title,bytes:null};
   const root=document.createElement('div');root.className='dz-viewer';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label',title);
-  root.innerHTML=`<header class="dz-viewer-bar"><strong>${e(title)}</strong><div class="dz-viewer-actions"><button type="button" class="button primary" data-dossier="viewer-print">Imprimer / PDF</button><button type="button" class="button secondary dz-viewer-close" data-dossier="viewer-close" aria-label="Fermer le document">Fermer</button></div></header><iframe class="dz-viewer-frame" title="${e(title)}"></iframe>`;
-  document.body.append(root);root.querySelector('iframe').srcdoc=html;document.addEventListener('keydown',viewerKey,true);root.querySelector('[data-dossier="viewer-close"]').focus({preventScroll:true});
+  root.innerHTML=`<header class="dz-viewer-bar"><strong>${e(title)}</strong><div class="dz-viewer-actions"><button type="button" class="button primary" data-dossier="viewer-pdf" aria-label="${e(touch?`Partager ou imprimer le PDF : ${title}`:`Télécharger le PDF : ${title}`)}">${touch?'Partager / imprimer le PDF':'Télécharger le PDF'}</button>${touch?'':'<button type="button" class="button secondary" data-dossier="viewer-print">Imprimer</button>'}<button type="button" class="button secondary dz-viewer-close" data-dossier="viewer-close" aria-label="Fermer le document">Fermer</button></div></header><iframe class="dz-viewer-frame" title="${e(title)}"></iframe>`;
+  document.body.append(root);root.querySelector('iframe').srcdoc=String(html).replace('</head>','<style>.dz-toolbar,#print{display:none!important}</style></head>');document.addEventListener('keydown',viewerKey,true);root.querySelector('[data-dossier="viewer-close"]').focus({preventScroll:true});
   return root;
 }
 
-// Ouvre un document imprimable dans un nouvel onglet ; sinon, visionneuse intégrée.
-export function openPrintable(html,title='Document'){
-  if(!standaloneIos()){
+// Ouvre un document imprimable dans un nouvel onglet (ordinateur) ; sur téléphone ou tablette, et si
+// l’onglet est bloqué, visionneuse intégrée avec le bouton PDF.
+export function openPrintable(html,title='Document',options={}){
+  if(!standaloneIos()&&!isTouchDevice()){
     try{const blob=new Blob([html],{type:'text/html;charset=utf-8'}),url=URL.createObjectURL(blob),win=window.open(url,'_blank');setTimeout(()=>URL.revokeObjectURL(url),120000);if(win){try{win.opener=null;}catch{}return'window';}URL.revokeObjectURL(url);}catch{}
   }
-  showPrintable(html,title);return'viewer';
+  showPrintable(html,title,options);return'viewer';
+}
+// Remise du PDF de la visionneuse : génération synchrone puis partage DANS le geste (exigence iOS).
+export function deliverViewerPdf(toast){
+  const v=viewerPdf;if(!v)return;
+  try{if(!v.bytes)v.bytes=v.make();}catch(error){toast?.(error?.message||'Impossible de préparer le PDF.','error');return;}
+  const file=pdfFile(v.bytes,v.name);
+  sharePdf(file,{title:v.title,preferShare:isTouchDevice()}).then(how=>{if(how==='downloaded')toast?.(`PDF téléchargé : ${file.name}`,'success');}).catch(()=>toast?.('Partage du PDF impossible.','error'));
 }
 
 export function createDossierUI({store,modal,closeModal,toast}){
@@ -48,7 +66,7 @@ export function createDossierUI({store,modal,closeModal,toast}){
 <label class="span-2">Campagne *<select name="campaign">${campaigns.map(c=>`<option value="${e(c)}"${c===campaignChoice?' selected':''}>${e(c)}${c===campaignFor()?' (en cours)':''}</option>`).join('')}</select></label>
 <fieldset class="span-2 dossier-sections"><legend>Contenu *</legend><div data-dossier-sections>${sectionBoxes(preset)}</div></fieldset>
 <label class="span-2">Signataire<input name="signer" autocomplete="name" placeholder="Ex. Prénom Nom, gérant" maxlength="80"></label>
-<p class="span-2 cost-detail">Le dossier s’ouvre dans un nouvel onglet, prêt à imprimer ou à enregistrer en PDF (A4). Il est généré sur cet appareil, même hors connexion. Montants indicatifs, calculés à partir des données saisies.</p>
+<p class="span-2 cost-detail">Le dossier s’ouvre prêt à imprimer (A4), avec un bouton pour obtenir un vrai fichier PDF à partager, imprimer ou enregistrer, y compris sur iPhone. Il est généré sur cet appareil, même hors connexion. Montants indicatifs, calculés à partir des données saisies.</p>
 <p class="span-2 form-error hidden" role="alert"></p></form>`;
     modal('Dossier de campagne','Un document soigné pour la banque, le centre de gestion ou la coopérative',body,`<button type="button" class="button secondary" data-action="close-modal">Annuler</button><button type="button" class="button primary dossier-generate" data-dossier="generate">Générer le dossier</button>`,'small');
   }
@@ -69,7 +87,7 @@ export function createDossierUI({store,modal,closeModal,toast}){
     campaignChoice=campaign;writePref(preset);
     const p=presetById(preset),html=dossierHtml(state(),{campaign,preset,sections,assetBase:assetBase(),signer:form.signer.value}),title=`Dossier de campagne ${campaign} · ${p.label}`;
     closeModal();const how=openPrintable(html,title);
-    toast(how==='window'?`Dossier ${p.label} ${campaign} ouvert dans un nouvel onglet.`:`Dossier ${p.label} ${campaign} prêt à imprimer.`,'success');
+    toast(how==='window'?`Dossier ${p.label} ${campaign} ouvert dans un nouvel onglet.`:`Dossier ${p.label} ${campaign} prêt : imprimez-le ou obtenez le PDF.`,'success');
   }
 
   document.addEventListener('click',event=>{
@@ -77,6 +95,7 @@ export function createDossierUI({store,modal,closeModal,toast}){
     if(kind==='preset'){event.preventDefault();choosePreset(control);}
     else if(kind==='generate'){event.preventDefault();try{generate();}catch(error){toast(error.message||'Impossible de générer le dossier.','error');}}
     else if(kind==='viewer-close'){event.preventDefault();closeViewer();}
+    else if(kind==='viewer-pdf'){event.preventDefault();deliverViewerPdf(toast);}
     else if(kind==='viewer-print'){event.preventDefault();const f=document.querySelector('.dz-viewer-frame');try{f?.contentWindow?.focus();f?.contentWindow?.print();}catch{toast('Impression indisponible dans ce navigateur.','error');}}
   });
   document.addEventListener('change',event=>{if(event.target.closest?.('#dossier-form'))document.querySelector('#dossier-form .form-error')?.classList.add('hidden');});

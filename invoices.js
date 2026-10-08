@@ -14,20 +14,29 @@ export const VAT_RATES=[20,10,5.5,0];
 export const UNITS=[['h','heure'],['ha','hectare'],['m³','m³'],['t','tonne'],['L','litre'],['forfait','forfait'],['u','unité']];
 export const PAYMENT_TERMS=[0,15,30,45,60];
 export const DEFAULT_PENALTY='Pénalités de retard : trois fois le taux d’intérêt légal, exigibles dès le lendemain de l’échéance. Indemnité forfaitaire pour frais de recouvrement : 40 €. Pas d’escompte pour paiement anticipé.';
+// Apparence (lot 2) : couleur d’accent en pastilles et logo facultatif (data URL PNG/JPEG, 150 Ko au plus).
+export const ACCENTS=[['#2f6b4a','Vert Parcelles'],['#2c5a85','Bleu'],['#7d2f3a','Bordeaux'],['#9a5a24','Terre'],['#3f4b55','Ardoise'],['#1f2421','Noir']];
+export const DEFAULT_ACCENT=ACCENTS[0][0];
+export const LOGO_MAX_BYTES=150*1024;
+const LOGO_RE=/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/;
+export const logoBytes=url=>{const b64=String(url||'').split(',')[1]||'';return Math.floor(b64.length*3/4)-(b64.endsWith('==')?2:b64.endsWith('=')?1:0);};
+export const validLogo=url=>!!url&&LOGO_RE.test(url)&&logoBytes(url)<=LOGO_MAX_BYTES;
+const accentOf=v=>/^#[0-9a-f]{6}$/i.test(String(v||'').trim())?String(v).trim().toLowerCase():DEFAULT_ACCENT;
 export const STATUS_LABELS={brouillon:'Brouillon',emise:'Émise',payee:'Payée',retard:'En retard',annulee:'Annulée par avoir',avoir:'Avoir'};
 
 const num=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
 const loose=v=>{if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(String(v).replace(/\s/g,'').replace(',','.'));return Number.isFinite(n)?n:null;};
 const positive=v=>{const n=loose(v);return n!==null&&n>0?n:null;};
 const text=v=>String(v??'').trim();
-export const round2=v=>Math.round((v+Number.EPSILON)*100)/100;
+// Arrondi au centime symétrique : un avoir (montants négatifs) donne exactement l’opposé de la facture.
+export const round2=v=>{const r=Math.round((Math.abs(v)+Number.EPSILON)*100)/100;return v<0?-r:r;};
 const DATE_RE=/^\d{4}-\d{2}-\d{2}$/;
 export const isoDay=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 export const addDays=(day,n)=>{const d=new Date(`${day}T12:00:00`);d.setDate(d.getDate()+Number(n||0));return isoDay(d);};
 const canWrite=(store,action='update')=>!store.writeGuard||store.writeGuard({entity:'integrationImports',action});
 
 export const invoices=state=>farmRecords(state,INVOICE_KIND);
-export const invoiceSettings=state=>{const s=state?.exploitation?.invoicing||{};return{legalName:text(s.legalName)||text(state?.exploitation?.nom),legalForm:text(s.legalForm),address:text(s.address),siret:text(s.siret),vatNumber:text(s.vatNumber),iban:text(s.iban),bic:text(s.bic),paymentDays:PAYMENT_TERMS.includes(Number(s.paymentDays))?Number(s.paymentDays):30,vatRate:VAT_RATES.includes(Number(s.vatRate))?Number(s.vatRate):20,prefix:text(s.prefix)||'F',penalty:text(s.penalty)||DEFAULT_PENALTY,mention:text(s.mention),vatOnDebits:!!s.vatOnDebits,email:text(s.email),phone:text(s.phone)};};
+export const invoiceSettings=state=>{const s=state?.exploitation?.invoicing||{};return{legalName:text(s.legalName)||text(state?.exploitation?.nom),legalForm:text(s.legalForm),address:text(s.address),siret:text(s.siret),vatNumber:text(s.vatNumber),iban:text(s.iban),bic:text(s.bic),paymentDays:PAYMENT_TERMS.includes(Number(s.paymentDays))?Number(s.paymentDays):30,vatRate:VAT_RATES.includes(Number(s.vatRate))?Number(s.vatRate):20,prefix:text(s.prefix)||'F',penalty:text(s.penalty)||DEFAULT_PENALTY,mention:text(s.mention),vatOnDebits:!!s.vatOnDebits,email:text(s.email),phone:text(s.phone),accent:accentOf(s.accent),logo:validLogo(text(s.logo))?text(s.logo):''};};
 
 // ---------- Montants ----------
 export function lineTotal(line){const q=loose(line?.quantity),p=loose(line?.unitPrice);return q===null||p===null?null:round2(q*p);}
@@ -127,13 +136,14 @@ export function cleanLine(l,i=0){
   return{id:text(l.id)||`l${i+1}`,label:text(l.label).slice(0,200),date:DATE_RE.test(text(l.date))?text(l.date):'',quantity:loose(l.quantity),unit,unitPrice:loose(l.unitPrice),vatRate:VAT_RATES.includes(rate)?rate:20,...(l.source?.type&&l.source?.id?{source:{type:text(l.source.type),id:text(l.source.id),...(l.source.parentId?{parentId:text(l.source.parentId)}:{})}}:{})};
 }
 export function validateSettings(v){
-  const out={legalName:text(v.legalName),legalForm:text(v.legalForm),address:text(v.address),siret:text(v.siret).replace(/\s/g,''),vatNumber:text(v.vatNumber).replace(/\s/g,'').toUpperCase(),iban:text(v.iban).replace(/\s/g,'').toUpperCase(),bic:text(v.bic).toUpperCase(),paymentDays:Number(v.paymentDays),vatRate:Number(v.vatRate),prefix:text(v.prefix)||'F',penalty:text(v.penalty),mention:text(v.mention),email:text(v.email),phone:text(v.phone)};
+  const out={legalName:text(v.legalName),legalForm:text(v.legalForm),address:text(v.address),siret:text(v.siret).replace(/\s/g,''),vatNumber:text(v.vatNumber).replace(/\s/g,'').toUpperCase(),iban:text(v.iban).replace(/\s/g,'').toUpperCase(),bic:text(v.bic).toUpperCase(),paymentDays:Number(v.paymentDays),vatRate:Number(v.vatRate),prefix:text(v.prefix)||'F',penalty:text(v.penalty),mention:text(v.mention),email:text(v.email),phone:text(v.phone),accent:accentOf(v.accent),logo:text(v.logo)};
   const missing=!out.legalName?'Raison sociale':!out.address?'Adresse':!out.siret?'SIRET':'';
   if(missing)return{error:`Champ obligatoire : ${missing}`,field:missing};
   if(!/^\d{14}$/.test(out.siret))return{error:'SIRET invalide : 14 chiffres attendus.',field:'SIRET'};
   if(out.vatNumber&&!/^[A-Z]{2}[0-9A-Z]{2,13}$/.test(out.vatNumber))return{error:'Numéro de TVA invalide (ex. FR12345678901).',field:'N° de TVA'};
   if(out.iban&&!/^[A-Z]{2}\d{2}[0-9A-Z]{10,30}$/.test(out.iban))return{error:'IBAN invalide.',field:'IBAN'};
   if(!/^[A-Za-z0-9-]{1,6}$/.test(out.prefix))return{error:'Préfixe invalide : 1 à 6 lettres ou chiffres.',field:'Préfixe'};
+  if(out.logo&&!validLogo(out.logo))return{error:`Logo invalide ou trop lourd (${Math.round(LOGO_MAX_BYTES/1024)} Ko au plus) : importez-le de nouveau.`,field:'Logo'};
   if(!PAYMENT_TERMS.includes(out.paymentDays))out.paymentDays=30;if(!VAT_RATES.includes(out.vatRate))out.vatRate=20;
   return{value:out};
 }
@@ -204,7 +214,8 @@ export async function emitInvoice(store,id,{version,today=isoDay()}={}){
   if(docType==='facture'){const billed=billedKeys(state,{exceptId:id}),dup=(inv.lines||[]).find(l=>l.source&&billed.has(`${l.source.type}:${l.source.id}`));if(dup)throw Error(`Déjà facturé ailleurs : ${dup.label}`);}
   let base=null;if(docType==='avoir'){base=current(store,inv.creditOf);if(base.status==='brouillon')throw Error('La facture d’origine n’est pas émise.');const totals=invoiceTotals(inv.lines);const already=creditNotesOf(state,base).reduce((s,a)=>s+Math.abs(num(a.totals?.ttc)||0),0);if(Math.abs(totals.ttc)+already>Math.abs(num(base.totals?.ttc)||0)+0.005)throw Error('L’avoir dépasse le montant restant de la facture.');}
   const settings=invoiceSettings(state),year=Number(String(inv.issueDate||today).slice(0,4)),{number,sequence}=nextNumber(state,{prefix:settings.prefix,year});
-  return saveFarmRecord(store,INVOICE_KIND,{status:'emise',number,sequence,name:`${docType==='avoir'?'Avoir':'Facture'} ${number}`,issueDate:inv.issueDate||today,totals:invoiceTotals(inv.lines),seller:{...settings},emittedAt:Date.now(),...(base?{creditOfNumber:base.number}:{})},inv);
+  const {logo:_logo,...seller}=settings;// Le logo reste dans les paramètres : pas de copie de l’image dans chaque facture.
+  return saveFarmRecord(store,INVOICE_KIND,{status:'emise',number,sequence,name:`${docType==='avoir'?'Avoir':'Facture'} ${number}`,issueDate:inv.issueDate||today,totals:invoiceTotals(inv.lines),seller:{...seller},emittedAt:Date.now(),...(base?{creditOfNumber:base.number}:{})},inv);
 }
 
 export async function markPaid(store,id,{paidAt=isoDay(),method=''}={}){
@@ -245,28 +256,70 @@ const qty=v=>num(v)===null?'—':new Intl.NumberFormat('fr-FR',{maximumFractionD
 const pctRate=r=>`${String(r).replace('.',',')}${NB}%`;
 export const dateFr=v=>{const m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:'—';};
 const lines2=v=>esc(v).replace(/\n/g,'<br>');
-export function invoiceHtml(state,inv,{assetBase=''}={}){
-  const draft=inv.status==='brouillon',seller=draft?invoiceSettings(state):{...invoiceSettings(state),...(inv.seller||{})},t=draft?invoiceTotals(inv.lines||[]):inv.totals||invoiceTotals(inv.lines||[]);
-  const avoir=inv.docType==='avoir',kind=avoir?'Avoir':'Facture',number=inv.number||'Brouillon',title=`${kind} ${number} · ${inv.clientName||''}`;
-  const status=draft?'':invoiceStatus(inv,state),paid=!avoir&&inv.paidAt;
+// Contenu affichable d’une facture, partagé par l’aperçu HTML et le PDF (même hiérarchie, mêmes textes).
+export const invoiceMoney=money,invoiceQty=qty;
+export function invoiceView(state,inv){
+  const draft=inv.status==='brouillon',current=invoiceSettings(state);
+  const seller=draft?current:{...current,...(inv.seller||{}),logo:current.logo,accent:inv.seller?.accent||current.accent};
+  const t=draft?invoiceTotals(inv.lines||[]):inv.totals||invoiceTotals(inv.lines||[]);
+  const avoir=inv.docType==='avoir',kind=avoir?'Avoir':'Facture',number=inv.number||'Brouillon';
+  const status=draft?'':invoiceStatus(inv,state),paid=!avoir&&!draft&&inv.paidAt;
   const credits=!avoir&&!draft?creditNotesOf(state,inv):[],creditTotal=round2(credits.reduce((s,a)=>s+(num(a.totals?.ttc)||0),0));
-  const css=printCss({assetBase,footer:`${seller.legalName} · ${kind} ${number}`,cover:false})+`
-.inv-head{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;align-items:start}.inv-seller strong{font:400 18pt/1.1 'Instrument Serif',Georgia,serif;display:block;margin-bottom:4px}.inv-seller p,.inv-client p{margin:0;font-size:9.5pt}
-.inv-title{text-align:right}.inv-title h1{font-size:28pt;margin:0}.inv-title dl{display:grid;grid-template-columns:auto auto;justify-content:end;gap:2px 12px;margin:8px 0 0;font-size:9.5pt}.inv-title dt{color:var(--muted)}.inv-title dd{margin:0;font-weight:600}
-.inv-client{margin:16px 0 8px auto;width:55%;border:1px solid var(--rule);border-radius:10px;padding:10px 12px;background:#fff}.inv-client small{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:7.5pt}
-.inv-totals{margin:6px 0 12px auto;width:55%;break-inside:avoid}.inv-totals table{margin:0}.inv-totals td{padding:4px 6px}.inv-totals tr.is-grand td{font:400 14pt/1.2 'Instrument Serif',Georgia,serif;border-top:1.5px solid var(--ink);border-bottom:0}
-.inv-legal{font-size:8.5pt;color:var(--muted);border-top:1px solid var(--rule);padding-top:8px;margin-top:10px}.inv-legal p{margin:0 0 4px}
-.inv-stamp{display:inline-block;padding:3px 10px;border:1.5px solid currentColor;border-radius:6px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:9pt}.inv-stamp.is-draft{color:#9b3b2e}.inv-stamp.is-paid{color:#2f6b4a}
-.inv-draft-mark{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font:400 90pt 'Instrument Serif',Georgia,serif;color:rgba(155,59,46,.08);transform:rotate(-24deg)}
-@media (max-width:640px){.inv-head{grid-template-columns:1fr}.inv-title{text-align:left}.inv-title dl{justify-content:start}.inv-client,.inv-totals{width:100%}}`;
-  const sellerBlock=`<div class="inv-seller"><strong>${esc(seller.legalName||'Raison sociale à compléter')}</strong>${seller.legalForm?`<p>${esc(seller.legalForm)}</p>`:''}<p>${lines2(seller.address||'Adresse à compléter')}</p><p>SIRET ${esc(seller.siret||'à compléter')}${seller.vatNumber?` · TVA ${esc(seller.vatNumber)}`:''}</p>${seller.email||seller.phone?`<p>${esc([seller.phone,seller.email].filter(Boolean).join(' · '))}</p>`:''}</div>`;
-  const head=`<div class="inv-head">${sellerBlock}<div class="inv-title"><h1>${kind}</h1>${draft?'<span class="inv-stamp is-draft">Brouillon · sans valeur</span>':paid?`<span class="inv-stamp is-paid">Payée le ${esc(dateFr(inv.paidAt))}</span>`:''}<dl><dt>N°</dt><dd>${esc(number)}</dd><dt>Date</dt><dd>${esc(dateFr(inv.issueDate))}</dd>${avoir?'':`<dt>Échéance</dt><dd>${esc(dateFr(inv.dueDate))}</dd>`}${inv.periodStart||inv.periodEnd?`<dt>Période</dt><dd>${esc(inv.periodStart&&inv.periodEnd?`${dateFr(inv.periodStart)} – ${dateFr(inv.periodEnd)}`:inv.periodStart?`depuis le ${dateFr(inv.periodStart)}`:`jusqu’au ${dateFr(inv.periodEnd)}`)}</dd>`:''}${avoir&&inv.creditOfNumber?`<dt>Facture d’origine</dt><dd>${esc(inv.creditOfNumber)}</dd>`:''}</dl></div></div>`;
-  const client=`<div class="inv-client"><small>${avoir?'Client':'Facturé à'}</small><p><strong>${esc(inv.clientName||'Client')}</strong></p><p>${lines2(inv.clientAddress||'Adresse à compléter')}</p>${inv.clientSiren?`<p>SIREN ${esc(inv.clientSiren)}</p>`:''}${inv.clientVat?`<p>TVA ${esc(inv.clientVat)}</p>`:''}</div>`;
-  const rows=(inv.lines||[]).map(l=>`<tr><td>${esc(l.date?dateFr(l.date):'')}</td><td>${esc(l.label)}</td><td class="n">${esc(qty(l.quantity))}${NB}${esc(l.unit==='forfait'?'forf.':l.unit)}</td><td class="n">${esc(money(l.unitPrice))}</td><td class="n">${esc(pctRate(l.vatRate))}</td><td class="n">${esc(money(lineTotal(l)))}</td></tr>`).join('');
-  const table=`<div class="dz-wide"><table><thead><tr><th>Date</th><th>Désignation</th><th class="n">Quantité</th><th class="n">PU HT</th><th class="n">TVA</th><th class="n">Total HT</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="muted">Aucune ligne.</td></tr>'}</tbody></table></div>`;
-  const totals=`<div class="inv-totals"><table><tbody><tr><td>Total HT</td><td class="n">${esc(money(t.ht))}</td></tr>${t.byRate.map(r=>`<tr><td>TVA ${esc(pctRate(r.rate))} sur ${esc(money(r.base))}</td><td class="n">${esc(money(r.tax))}</td></tr>`).join('')}<tr class="is-grand"><td>Total TTC</td><td class="n">${esc(money(t.ttc))}</td></tr>${credits.length?`<tr><td>Avoirs (${esc(credits.map(a=>a.number).join(', '))})</td><td class="n">${esc(money(creditTotal))}</td></tr><tr><td><strong>Net à payer</strong></td><td class="n"><strong>${esc(money(round2(t.ttc+creditTotal)))}</strong></td></tr>`:''}</tbody></table>${t.missing?`<p class="dz-note">${t.missing} ligne${t.missing>1?'s':''} sans prix : non comptée${t.missing>1?'s':''}.</p>`:''}</div>`;
-  const pay=avoir?`<p>Avoir sur la facture ${esc(inv.creditOfNumber||'')} : ce montant vient en déduction de la facture d’origine.</p>`:`<p><strong>Règlement</strong> au plus tard le ${esc(dateFr(inv.dueDate))}${seller.iban?` par virement · IBAN ${esc(seller.iban.replace(/(.{4})/g,'$1 ').trim())}${seller.bic?` · BIC ${esc(seller.bic)}`:''}`:''}.</p><p>${esc(seller.penalty||DEFAULT_PENALTY)}</p>`;
-  const legal=`<div class="inv-legal">${pay}<p>Opération : prestations de services.${seller.vatOnDebits?' Option pour le paiement de la taxe d’après les débits.':''}</p>${seller.mention?`<p>${esc(seller.mention)}</p>`:''}${inv.note?`<p>${lines2(inv.note)}</p>`:''}</div>`;
-  const body=`${draft?'<div class="inv-draft-mark" aria-hidden="true">Brouillon</div>':''}<main class="page"><div class="dz-body">${head}${client}${table}${totals}${legal}</div><footer class="dz-foot"><span>${esc(seller.legalName)} · SIRET ${esc(seller.siret||'—')}</span><span>${esc(kind)} ${esc(number)}${status&&status!=='avoir'?` · ${esc(STATUS_LABELS[status])}`:''}</span></footer></main>`;
-  return printDocument({title,css,body});
+  const split=v=>String(v||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  const period=inv.periodStart||inv.periodEnd?(inv.periodStart&&inv.periodEnd?`${dateFr(inv.periodStart)} – ${dateFr(inv.periodEnd)}`:inv.periodStart?`depuis le ${dateFr(inv.periodStart)}`:`jusqu’au ${dateFr(inv.periodEnd)}`):'';
+  const meta=[['Date d’émission',dateFr(inv.issueDate)],!avoir&&['Échéance',dateFr(inv.dueDate)],period&&['Période',period],avoir&&inv.creditOfNumber&&['Facture d’origine',inv.creditOfNumber]].filter(Boolean);
+  const ids=[`SIRET ${seller.siret||'à compléter'}`,seller.vatNumber?`TVA ${seller.vatNumber}`:''].filter(Boolean).join(' · ');
+  const sellerLines=[seller.legalForm,...split(seller.address||'Adresse à compléter'),ids,[seller.phone,seller.email].filter(Boolean).join(' · ')].filter(Boolean);
+  const clientLines=[...split(inv.clientAddress||'Adresse à compléter'),inv.clientSiren?`SIREN ${inv.clientSiren}`:'',inv.clientVat?`TVA ${inv.clientVat}`:''].filter(Boolean);
+  const rows=(inv.lines||[]).map(l=>({date:l.date?dateFr(l.date):'',label:text(l.label),qty:qty(l.quantity),unit:l.unit==='forfait'?'forf.':text(l.unit),price:money(l.unitPrice),vat:pctRate(l.vatRate),total:money(lineTotal(l))}));
+  const totals=[['Total HT',money(t.ht)],...t.byRate.map(r=>[`TVA ${pctRate(r.rate)} sur ${money(r.base)}`,money(r.tax)])];
+  const grand=[avoir?'Total TTC de l’avoir':'Total TTC',money(t.ttc)];
+  const after=credits.length?[[`Avoirs (${credits.map(a=>a.number).join(', ')})`,money(creditTotal)],['Net à payer',money(round2(t.ttc+creditTotal))]]:[];
+  const iban=seller.iban?seller.iban.replace(/(.{4})/g,'$1 ').trim():'';
+  const terms=avoir?{title:'Avoir',lines:[`Avoir sur la facture ${inv.creditOfNumber||''} : ce montant vient en déduction de la facture d’origine.`],bank:[]}
+    :{title:'Règlement',lines:[`À régler au plus tard le ${dateFr(inv.dueDate)}${iban?' par virement bancaire':''}.`,...(paid?[`Payée le ${dateFr(inv.paidAt)}${inv.paymentMethod?` · ${inv.paymentMethod}`:''}.`]:[])],bank:iban?[['IBAN',iban],...(seller.bic?[['BIC',seller.bic]]:[])]:[]};
+  const legal=[!avoir?seller.penalty||DEFAULT_PENALTY:'',`Opération : prestations de services.${seller.vatOnDebits?' Option pour le paiement de la taxe d’après les débits.':''}`,seller.mention].filter(Boolean);
+  const stamp=draft?{text:'Brouillon · sans valeur',tone:'draft'}:paid?{text:`Payée le ${dateFr(inv.paidAt)}`,tone:'paid'}:status==='annulee'?{text:'Annulée par avoir',tone:'draft'}:null;
+  const footer=[seller.legalName,seller.legalForm,`SIRET ${seller.siret||'—'}`,seller.vatNumber?`TVA ${seller.vatNumber}`:''].filter(Boolean).join(' · ');
+  return{draft,avoir,kind,number,title:`${kind} ${number} · ${inv.clientName||''}`,seller,accent:accentOf(seller.accent),logo:seller.logo||'',sellerName:seller.legalName||'Raison sociale à compléter',sellerLines,meta,stamp,clientLabel:avoir?'Client':'Facturé à',clientName:inv.clientName||'Client',clientLines,rows,totals,grand,after,missing:t.missing,terms,legal,note:text(inv.note),footer,status:status&&status!=='avoir'?STATUS_LABELS[status]:'',totalsRaw:t};
+}
+export function invoiceFileName(inv){
+  const kind=inv.docType==='avoir'?'Avoir':'Facture',num=inv.number||'brouillon',client=text(inv.clientName);
+  return`${kind} ${num}${client?` - ${client}`:''}.pdf`.replace(/[\\/:*?"<>|\u0000-\u001f]+/g,' ').replace(/\s+/g,' ').trim();
+}
+export function invoiceHtml(state,inv,{assetBase=''}={}){
+  const v=invoiceView(state,inv);
+  const css=printCss({assetBase,footer:`${v.seller.legalName} · ${v.kind} ${v.number}`,cover:false})+`
+.inv-doc{--acc:${v.accent};border-top:6px solid var(--acc);position:relative}
+.inv-top{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;align-items:start;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+.inv-brand{display:flex;flex-direction:column;gap:2px;min-width:0}.inv-logo{display:block;max-width:58mm;max-height:22mm;width:auto;height:auto;object-fit:contain;margin-bottom:8px}
+.inv-name{font:600 15pt/1.15 'Instrument Sans',system-ui,sans-serif;color:var(--ink)}.inv-brand p{margin:0;font-size:9pt;color:var(--muted)}
+.inv-title{text-align:right}.inv-title h1{margin:0;font:700 24pt/1 'Instrument Sans',system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--acc)}
+.inv-no{margin:6px 0 0;font-weight:700;font-size:12pt}
+.inv-title dl{display:grid;grid-template-columns:auto auto;justify-content:end;gap:3px 14px;margin:10px 0 0;font-size:9.5pt}.inv-title dt{color:var(--muted)}.inv-title dd{margin:0;font-weight:600;text-align:right}
+.inv-stamp{display:inline-block;margin-top:8px;padding:3px 10px;border:1.5px solid currentColor;border-radius:6px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:8.5pt}.inv-stamp.is-draft{color:#9b3b2e}.inv-stamp.is-paid{color:#2f6b4a}
+.inv-parties{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin:16px 0 14px}
+.inv-box{border:1px solid var(--rule);border-radius:10px;padding:10px 12px;background:#fff}.inv-box small{display:block;color:var(--acc);text-transform:uppercase;letter-spacing:.1em;font-size:7.5pt;font-weight:700;margin-bottom:4px}.inv-box p{margin:0;font-size:9.5pt}.inv-box strong{font-size:11pt}
+.inv-client{border-color:var(--acc);border-width:1.5px}
+.inv-table thead th{background:var(--acc);color:#fff;border-bottom:0;padding:7px 6px;font-size:7.5pt}.inv-table thead th:first-child{border-radius:6px 0 0 0}.inv-table thead th:last-child{border-radius:0 6px 0 0}
+.inv-table tbody tr:nth-child(even) td{background:#f6f4ee}.inv-table td{border-bottom:1px solid #e6e1d4}.inv-table td small{display:block;color:var(--muted);font-size:8pt}.inv-table td.n{font-variant-numeric:tabular-nums}
+.inv-bottom{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;margin-top:6px;break-inside:avoid}
+.inv-pay p{margin:0 0 4px}.inv-bank{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:6px 0 0;font-size:9pt}.inv-bank dt{color:var(--muted)}.inv-bank dd{margin:0;font-weight:600;letter-spacing:.02em}
+.inv-totals table{margin:0;font-size:9.5pt}.inv-totals td{padding:4px 8px;border-bottom:1px solid #ece7db}.inv-totals tr.is-grand td{background:var(--acc);color:#fff;font-weight:700;font-size:12.5pt;border:0;padding:8px}.inv-totals tr.is-grand td:first-child{border-radius:8px 0 0 8px}.inv-totals tr.is-grand td:last-child{border-radius:0 8px 8px 0}
+.inv-totals tr.is-net td{font-weight:700}
+.inv-note{margin:0;padding:10px 12px;border-left:3px solid var(--acc);background:var(--soft);border-radius:0 8px 8px 0;font-size:9.5pt}
+.inv-legal{font-size:8pt;color:var(--muted);border-top:1px solid var(--rule);padding-top:8px;margin-top:16px}.inv-legal p{margin:0 0 4px}
+.inv-draft-mark{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font:700 92pt 'Instrument Sans',system-ui,sans-serif;letter-spacing:.1em;color:rgba(155,59,46,.09);transform:rotate(-30deg);z-index:1}
+@media (max-width:640px){.inv-top,.inv-parties,.inv-bottom{grid-template-columns:1fr}.inv-title{text-align:left}.inv-title dl{justify-content:start}.inv-title dd{text-align:left}.inv-title h1{font-size:20pt}}
+@media print{.inv-table thead th,.inv-totals tr.is-grand td,.inv-table tbody tr:nth-child(even) td{-webkit-print-color-adjust:exact;print-color-adjust:exact}}`;
+  const sellerBlock=`<div class="inv-brand">${v.logo?`<img class="inv-logo" src="${esc(v.logo)}" alt="${esc(`Logo ${v.sellerName}`)}">`:''}<strong class="inv-name">${esc(v.sellerName)}</strong>${v.sellerLines.map(l=>`<p>${esc(l)}</p>`).join('')}</div>`;
+  const head=`<header class="inv-top">${sellerBlock}<div class="inv-title"><h1>${v.kind}</h1><p class="inv-no">N° ${esc(v.number)}</p>${v.stamp?`<span class="inv-stamp is-${v.stamp.tone}">${esc(v.stamp.text)}</span>`:''}<dl>${v.meta.map(([k,x])=>`<dt>${esc(k)}</dt><dd>${esc(x)}</dd>`).join('')}</dl></div></header>`;
+  const parties=`<section class="inv-parties"><div class="inv-box inv-pay"><small>${esc(v.terms.title)}</small>${v.terms.lines.map(l=>`<p>${esc(l)}</p>`).join('')}${v.terms.bank.length?`<dl class="inv-bank">${v.terms.bank.map(([k,x])=>`<dt>${esc(k)}</dt><dd>${esc(x)}</dd>`).join('')}</dl>`:''}</div><div class="inv-box inv-client"><small>${esc(v.clientLabel)}</small><p><strong>${esc(v.clientName)}</strong></p>${v.clientLines.map(l=>`<p>${esc(l)}</p>`).join('')}</div></section>`;
+  const rows=v.rows.map(r=>`<tr><td>${esc(r.label)}${r.date?`<small>${esc(r.date)}</small>`:''}</td><td class="n">${esc(r.qty)}${NB}${esc(r.unit)}</td><td class="n">${esc(r.price)}</td><td class="n">${esc(r.vat)}</td><td class="n">${esc(r.total)}</td></tr>`).join('');
+  const table=`<div class="dz-wide"><table class="inv-table"><thead><tr><th>Désignation</th><th class="n">Quantité</th><th class="n">PU HT</th><th class="n">TVA</th><th class="n">Montant HT</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="muted">Aucune ligne.</td></tr>'}</tbody></table></div>`;
+  const totals=`<div class="inv-totals"><table><tbody>${v.totals.map(([k,x])=>`<tr><td>${esc(k)}</td><td class="n">${esc(x)}</td></tr>`).join('')}<tr class="is-grand"><td>${esc(v.grand[0])}</td><td class="n">${esc(v.grand[1])}</td></tr>${v.after.map(([k,x],i)=>`<tr${i?' class="is-net"':''}><td>${esc(k)}</td><td class="n">${esc(x)}</td></tr>`).join('')}</tbody></table>${v.missing?`<p class="dz-note">${v.missing} ligne${v.missing>1?'s':''} sans prix : non comptée${v.missing>1?'s':''}.</p>`:''}</div>`;
+  const bottom=`<section class="inv-bottom"><div>${v.note?`<p class="inv-note"><strong>Note</strong><br>${lines2(v.note)}</p>`:''}</div>${totals}</section>`;
+  const legal=`<div class="inv-legal">${v.legal.map(l=>`<p>${esc(l)}</p>`).join('')}</div>`;
+  const body=`${v.draft?'<div class="inv-draft-mark" aria-hidden="true">Brouillon</div>':''}<main class="page inv-doc"><div class="dz-body">${head}${parties}${table}${bottom}${legal}</div><footer class="dz-foot"><span>${esc(v.footer)}</span><span>${esc(v.kind)} ${esc(v.number)}${v.status?` · ${esc(v.status)}`:''}</span></footer></main>`;
+  return printDocument({title:v.title,css,body});
 }

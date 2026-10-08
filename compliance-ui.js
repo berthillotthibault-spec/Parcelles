@@ -66,8 +66,8 @@ export function createComplianceUI({store,modal,closeModal,toast,bindChipChoices
     let html;
     try{html=controlDossierHtml(store.state,{today:today()});}
     catch(error){toast(`Dossier impossible : ${error.message}`,'error');return;}
-    try{openPrintableReport(html);}catch{}
-    toast('Dossier de contrôle ouvert dans un nouvel onglet : « Imprimer / PDF ».','success',{label:'Télécharger',run:()=>download(html)});
+    let win=false;try{win=openPrintableReport(html);}catch{}
+    toast(win?'Dossier de contrôle ouvert dans un nouvel onglet : « Imprimer / PDF ».':'Dossier de contrôle prêt : imprimez-le ou obtenez le PDF.','success',{label:'Télécharger',run:()=>download(html)});
   }
   function download(html){
     const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'})),a=document.createElement('a');

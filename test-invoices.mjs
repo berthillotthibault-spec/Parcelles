@@ -136,3 +136,16 @@ test('fichiers servis et accroches',()=>{
   const app=read('app.js');assert.match(app,/action==='open-invoices'/);assert.match(app,/data-action="new-invoice"/);assert.match(app,/name="m3Rate"/);
   assert.match(read('design-v3.css'),/n° 56/);
 });
+
+test('un avoir total est exactement l’opposé de la facture (arrondi symétrique)', () => {
+  const lines = [{label: 'Fauche', quantity: 37.37, unitPrice: 139.27, vatRate: 20}];
+  const facture = invoiceTotals(lines);
+  const avoir = invoiceTotals(lines.map(l => ({...l, quantity: -l.quantity})));
+  assert.equal(avoir.ht, -facture.ht);
+  assert.equal(avoir.tva, -facture.tva);
+  assert.equal(avoir.ttc, -facture.ttc);
+  for (let cents = 1; cents < 2000; cents += 7) {
+    const l = [{label: 'x', quantity: 1, unitPrice: cents / 100 + 0.005, vatRate: 20}];
+    assert.equal(invoiceTotals(l.map(x => ({...x, quantity: -1}))).ttc, -invoiceTotals(l).ttc);
+  }
+});

@@ -1,5 +1,5 @@
 export const APP_VERSION = 16;
-export const BUILD_ID = '2026.10.08-v10.11.0';
+export const BUILD_ID = '2026.10.08-v10.11.1';
 export const ENTITY_TYPES = [
   'parcelles','interventions','tasks','rotations','grazingSessions','materiels',
   'products','clients','documents','photos','points','templates','importSessions','syncConflicts','notifications','observations','stockItems','stockMovements','maintenanceRecords','routeSessions','fieldSessions','chantiers','members','assistantMessages','devices','automationRules','automationRuns','gpsTracks','integrationImports','weatherStations','platformJobs','platformEvents'
@@ -191,3 +191,7 @@ export function fileLabel(bytes){
 }
 
 export function slug(value){return normalize(value).replace(/\s+/g,'-') || 'sans-nom';}
+
+// Itinéraire vers un point dans l’application choisie (Préférences › Itinéraire).
+export const ROUTE_PROVIDERS=[['apple','Plans Apple'],['google','Google Maps'],['waze','Waze']];
+export function routeUrl(provider,latitude,longitude){const fix=v=>Number(Number(v).toFixed(6)),ll=`${fix(latitude)},${fix(longitude)}`;if(provider==='google')return `https://www.google.com/maps/dir/?api=1&destination=${ll}`;if(provider==='waze')return `https://waze.com/ul?ll=${encodeURIComponent(ll)}&navigate=yes`;return `https://maps.apple.com/?daddr=${ll}`;}

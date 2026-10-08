@@ -18,6 +18,29 @@ service cloud.firestore {
     // Rôles connus de l'application (permissions.js : ROLES / assignableRoles).
     function validRole(role) { return role in ['owner','manager','editor','operator','accountant','viewer']; }
     function invitableRole(role) { return role in ['manager','editor','operator','accountant','viewer']; }
+    // Équipe et autorisations (team-roles.js) : propriétaire > responsable > collaborateur > opérateur / comptabilité > lecteur.
+    // - le propriétaire gère tout membre qui n'est pas propriétaire et attribue tout rôle invitable ;
+    // - le responsable gère et attribue uniquement les rôles inférieurs au sien ;
+    // - les autres rôles ne gèrent personne. La propriété ne se donne que par transfert (voir members.update).
+    function lowerThanManager(role) { return role in ['editor','operator','accountant','viewer']; }
+    function canManageTarget(workspaceId, targetRole) {
+      let me = memberRole(workspaceId);
+      return isMember(workspaceId) && ((me == 'owner' && targetRole != 'owner')
+        || (me == 'manager' && !(targetRole in ['owner','manager'])));
+    }
+    function canAssignRole(workspaceId, role) {
+      let me = memberRole(workspaceId);
+      return isMember(workspaceId) && ((me == 'owner' && invitableRole(role))
+        || (me == 'manager' && lowerThanManager(role)));
+    }
+    // L'auteur d'une invitation doit encore avoir, au moment de l'acceptation, le droit d'attribuer ce rôle
+    // (un responsable rétrogradé ou retiré ne peut plus faire entrer quelqu'un).
+    function inviterStillAllowed(workspaceId, token) {
+      let invite = get(invitePath(token)).data;
+      let inviterRole = get(memberPath(workspaceId, invite.createdBy)).data.role;
+      return inviterRole == 'owner' || (inviterRole == 'manager' && lowerThanManager(invite.role));
+    }
+    function isTeamManager(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) in ['owner','manager']; }
     function validInvite(token, workspaceId) {
       return signedIn() && token is string && exists(invitePath(token))
         && get(invitePath(token)).data.workspaceId == workspaceId
@@ -36,17 +59,30 @@ service cloud.firestore {
     match /workspaces/{workspaceId} {
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
       allow read: if isMember(workspaceId);
-      allow update, delete: if isOwner(workspaceId);
+      // Propriété transférée uniquement dans le lot de transferOwnership (sync.js) : le nouveau propriétaire
+      // était déjà membre et devient owner, l'ancien devient responsable. Jamais d'exploitation sans propriétaire.
+      allow update: if isOwner(workspaceId) && (
+        request.resource.data.get('ownerUid', null) == resource.data.get('ownerUid', null)
+        || (request.resource.data.ownerUid is string
+            && request.resource.data.ownerUid != request.auth.uid
+            && exists(memberPath(workspaceId, request.resource.data.ownerUid))
+            && getAfter(memberPath(workspaceId, request.resource.data.ownerUid)).data.role == 'owner'
+            && getAfter(memberPath(workspaceId, request.auth.uid)).data.role == 'manager'));
+      allow delete: if isOwner(workspaceId);
 
       match /members/{uid} {
+        function roleChangeOnly() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','updatedAt','updatedBy']);
+        }
+        function workspaceAfter() { return getAfter(/databases/$(database)/documents/workspaces/$(workspaceId)).data; }
         allow read: if isMember(workspaceId);
         // Trois chemins de création, chacun limité au rôle qu'il a le droit d'attribuer :
-        // - propriétaire existant : n'importe quel rôle connu ;
+        // - propriétaire ou responsable existant : un rôle qu'il peut attribuer (jamais owner), pour un autre que lui ;
         // - créateur de l'exploitation (createWorkspace) : son propre document, rôle owner ;
         // - invité (acceptInvite) : son propre document, rôle EXACT de l'invitation,
         //   clés limitées, et l'invitation doit être supprimée dans le même lot (usage unique).
         allow create: if signedIn() && (
-          (isOwner(workspaceId) && validRole(request.resource.data.role))
+          (request.auth.uid != uid && canAssignRole(workspaceId, request.resource.data.role))
           || (request.auth.uid == uid
               && getAfter(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid
               && request.resource.data.uid == uid
@@ -59,10 +95,37 @@ service cloud.firestore {
               && invitableRole(request.resource.data.role)
               && request.resource.data.role == get(invitePath(request.resource.data.inviteToken)).data.role
               && request.resource.data.email == get(invitePath(request.resource.data.inviteToken)).data.email
+              && inviterStillAllowed(workspaceId, request.resource.data.inviteToken)
               && !existsAfter(invitePath(request.resource.data.inviteToken)))
         );
-        allow update: if isOwner(workspaceId) && validRole(request.resource.data.get('role', 'viewer'));
-        allow delete: if isOwner(workspaceId);
+        // Mise à jour : uniquement le rôle (et updatedAt/updatedBy), jamais son propre rôle.
+        // 1. changement de grade : l'auteur gère le grade actuel ET attribue le nouveau grade ;
+        // 2. transfert, côté nouveau propriétaire : posé par le propriétaire actuel dans le même lot
+        //    que workspaces.ownerUid = uid et sa propre rétrogradation en responsable ;
+        // 3. transfert, côté ancien propriétaire : il se rétrograde en responsable seulement si
+        //    l'exploitation a, après le lot, un autre propriétaire effectif.
+        allow update: if signedIn() && roleChangeOnly() && (
+          (request.auth.uid != uid
+            && canManageTarget(workspaceId, resource.data.role)
+            && canAssignRole(workspaceId, request.resource.data.role))
+          || (request.auth.uid != uid
+            && isOwner(workspaceId)
+            && resource.data.role != 'owner'
+            && request.resource.data.role == 'owner'
+            && workspaceAfter().ownerUid == uid
+            && getAfter(memberPath(workspaceId, request.auth.uid)).data.role == 'manager')
+          || (request.auth.uid == uid
+            && isOwner(workspaceId)
+            && resource.data.role == 'owner'
+            && request.resource.data.role == 'manager'
+            && workspaceAfter().ownerUid != uid
+            && getAfter(memberPath(workspaceId, workspaceAfter().ownerUid)).data.role == 'owner')
+        );
+        // Retrait : par quelqu'un qui gère ce grade, ou départ volontaire (sauf le propriétaire).
+        allow delete: if signedIn() && (
+          (request.auth.uid != uid && canManageTarget(workspaceId, resource.data.role))
+          || (request.auth.uid == uid && isMember(workspaceId) && resource.data.role != 'owner')
+        );
       }
 
       // Documents écrits par writeRemoteEntity (sync.js), toujours en set complet (merge:false).
@@ -110,16 +173,22 @@ service cloud.firestore {
 
     match /invites/{token} {
       // Une invitation n'attribue jamais le rôle owner et expire sous 31 jours au plus.
-      allow create: if signedIn() && isOwner(request.resource.data.workspaceId)
+      // Le responsable n'invite qu'à un grade inférieur au sien (canAssignRole).
+      allow create: if signedIn() && canAssignRole(request.resource.data.workspaceId, request.resource.data.role)
         && invitableRole(request.resource.data.role)
         && request.resource.data.email is string
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.expiresAt is number
         && request.resource.data.expiresAt <= request.time.toMillis() + 31 * 86400000;
-      allow read: if signedIn() && request.auth.token.email != null && request.auth.token.email == resource.data.email;
+      // Lecture : l'invité, ou le propriétaire / un responsable de l'exploitation (invitations en attente).
+      allow read: if signedIn() && (
+        (request.auth.token.email != null && request.auth.token.email == resource.data.email)
+        || isTeamManager(resource.data.workspaceId)
+      );
+      // Révocation : l'invité, ou quelqu'un qui gère le grade proposé (un responsable ne révoque pas une invitation de responsable).
       allow delete: if signedIn() && (
         (request.auth.token.email != null && request.auth.token.email == resource.data.email)
-        || isOwner(resource.data.workspaceId)
+        || canManageTarget(resource.data.workspaceId, resource.data.role)
       );
       allow update: if false;
     }

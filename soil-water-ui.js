@@ -137,9 +137,9 @@ export function createSoilWaterUI({store, state, modal, closeModal, toast, bindC
     const worstCount = s.counts[s.level];
     const scope = s.level === 'good' ? 'partout' : `${plural(worstCount, 'parcelle', 'parcelles')}`;
     const grass = s.grass.length ? `<span class="soil-home-alert">Déficit hydrique : ${plural(s.grass.length, 'prairie', 'prairies')}</span>` : '';
-    return `<button type="button" class="soil-home" data-soil="farm" aria-label="Portance des sols : ${e(label.toLowerCase())}, ${e(scope)}. Ouvrir le détail">
+    return `<button type="button" class="soil-home" data-soil="farm">
       <span class="soil-home-head"><span class="soil-home-title">Portance</span><span class="soil-pill is-${s.level}">${e(label)}${s.level === 'good' ? '' : ` · ${e(scope)}`}</span></span>
-      <span class="soil-home-facts">Pluie 7 j ${formatMm(ref.rain7)} mm · ETP ${formatMm(ref.et07)} mm · réserve ~${ref.percent} %</span>${grass}</button>`;
+      <span class="soil-home-facts">Pluie 7 j ${formatMm(ref.rain7)} mm · ETP ${formatMm(ref.et07)} mm · réserve ~${ref.percent} %</span>${grass}<span class="sr-only"> · Portance des sols : ${e(label.toLowerCase())}, ${e(scope)}. Ouvrir le détail</span></button>`;
   }
 
   function renderHome() {

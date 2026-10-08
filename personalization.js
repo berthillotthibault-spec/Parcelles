@@ -40,6 +40,8 @@ export function normalizePersonalization(preferences={}){
     homeNextAction:preferences.homeNextAction!==false,
     assistantDock:preferences.assistantDock!==false,
     nativeHaptics:preferences.nativeHaptics!==false,
+    // Plein champ : grands boutons, texte agrandi et contraste renforcé (champ facultatif, désactivé par défaut).
+    pleinChamp:preferences.pleinChamp===true,
     startupDuration:[0,1200,2200,3500].includes(preferences.startupDuration)&&(preferences.startupDurationVersion===2||preferences.startupDuration!==2200)?preferences.startupDuration:3500,
     startupDurationVersion:2
   };

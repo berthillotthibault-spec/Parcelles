@@ -3,8 +3,10 @@
 // Boutons repérés par data-invoice : un seul écouteur délégué, installé une fois.
 import {escapeHtml as e,download} from './utils.js';
 import {active} from './farm-memory.js';
-import {INVOICE_KIND,PAYMENT_TERMS,STATUS_LABELS,UNITS,VAT_RATES,addDays,billableItems,clientsToBill,createCreditNote,createDraft,creditNotesOf,dateFr,deleteDraft,emissionProblems,emitInvoice,invoiceHtml,invoiceSettings,invoiceStatus,invoiceTotals,invoices,invoicesCsv,isoDay,lineTotal,markPaid,nextNumber,numberingIssues,receivable,saveDraft,saveSettings,settingsReady,sortInvoices,validateDraft} from './invoices.js';
+import {ACCENTS,LOGO_MAX_BYTES,INVOICE_KIND,PAYMENT_TERMS,STATUS_LABELS,UNITS,VAT_RATES,addDays,billableItems,clientsToBill,createCreditNote,createDraft,creditNotesOf,dateFr,deleteDraft,emissionProblems,emitInvoice,invoiceHtml,invoiceSettings,invoiceStatus,invoiceTotals,invoices,invoicesCsv,isoDay,lineTotal,markPaid,nextNumber,numberingIssues,receivable,saveDraft,saveSettings,settingsReady,sortInvoices,validateDraft} from './invoices.js';
 import {openPrintable,assetBase} from './dossier-ui.js';
+import {invoicePdf,invoiceFileName} from './invoice-pdf.js';
+import {dataUrlBytes,isTouchDevice,pdfFile,sharePdf} from './pdf-lite.js';
 
 const NB=' ',colon=`${NB}:`;
 const money=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${new Intl.NumberFormat('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v).replace(/[  ]/g,NB).replace(/^-/,'−')}${NB}€`;
@@ -14,6 +16,56 @@ const FILTERS=[['all','Toutes'],['brouillon','Brouillons'],['due','À encaisser'
 const TERM_LABEL=d=>d===0?'À réception':`${d}${NB}jours`;
 const rateLabel=r=>`${String(r).replace('.',',')}${NB}%`;
 const chips=(name,list,value,label)=>`<input type="hidden" name="${name}" value="${e(value)}"><div class="chip-choices" role="group" aria-label="${e(label)}">${list.map(([v,l])=>`<button type="button" class="choice-chip${String(v)===String(value)?' is-on':''}" data-invoice="chip" data-name="${name}" data-value="${e(v)}" aria-pressed="${String(v)===String(value)}">${e(l)}</button>`).join('')}</div>`;
+
+// ---------- Logo (lot 2) ----------
+// Le logo est conservé en data URL (PNG si transparent, sinon PNG ou JPEG) dans exploitation.invoicing.
+// Pour le PDF, il est converti en JPEG sur fond blanc (insertion directe DCTDecode), une fois par logo.
+const logoJpegCache=new Map();
+export function warmLogo(url){
+  if(!url)return Promise.resolve(null);
+  if(!logoJpegCache.has(url)){
+    const entry={value:undefined};
+    entry.promise=(async()=>{const img=new Image();img.src=url;await img.decode();const c=document.createElement('canvas');c.width=img.naturalWidth||1;c.height=img.naturalHeight||1;const x=c.getContext('2d');x.fillStyle='#ffffff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0);return{bytes:dataUrlBytes(c.toDataURL('image/jpeg',0.92))};})().catch(()=>null).then(v=>(entry.value=v));
+    logoJpegCache.set(url,entry);
+  }
+  return logoJpegCache.get(url).promise;
+}
+// null = pas de logo ou logo illisible ; undefined = conversion en cours.
+const logoNow=url=>!url?null:(logoJpegCache.get(url)||{}).value;
+
+async function decodeImage(file){
+  if(typeof createImageBitmap==='function'){try{return{img:await createImageBitmap(file),done(){this.img.close?.();}};}catch{}}
+  const url=URL.createObjectURL(file),img=new Image();img.src=url;
+  try{await img.decode();}catch{URL.revokeObjectURL(url);throw Error('Ce format d’image n’est pas lu par ce navigateur : enregistrez le logo en PNG ou en JPEG, puis importez-le de nouveau.');}
+  return{img,done(){URL.revokeObjectURL(url);}};
+}
+// Recadrage automatique (marges blanches ou transparentes), 600 × 300 px au plus, moins de 150 Ko.
+export async function prepareLogo(file){
+  if(!file)return'';
+  if(file.type&&!/^image\//.test(file.type))throw Error('Choisissez une image (PNG, JPEG ou HEIC).');
+  if(file.size>20*1024*1024)throw Error('Image trop lourde : 20 Mo au plus.');
+  const src=await decodeImage(file);
+  try{
+    const sw=src.img.width||src.img.naturalWidth,sh=src.img.height||src.img.naturalHeight;if(!sw||!sh)throw Error('Image illisible.');
+    const k=Math.min(1,1200/Math.max(sw,sh)),cw=Math.max(1,Math.round(sw*k)),ch=Math.max(1,Math.round(sh*k));
+    const scan=document.createElement('canvas');scan.width=cw;scan.height=ch;const sx=scan.getContext('2d',{willReadFrequently:true});sx.drawImage(src.img,0,0,cw,ch);
+    const d=sx.getImageData(0,0,cw,ch).data;let x0=cw,y0=ch,x1=-1,y1=-1,transparent=false;
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){const i=(y*cw+x)*4,a=d[i+3];if(a<250)transparent=true;if(a>24&&!(d[i]>242&&d[i+1]>242&&d[i+2]>242)){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}
+    if(x1<0)throw Error('Image vide : le logo semble entièrement blanc ou transparent.');
+    const pad=Math.round(Math.max(x1-x0,y1-y0)*0.03);x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(cw-1,x1+pad);y1=Math.min(ch-1,y1+pad);
+    const cropW=(x1-x0+1)/k,cropH=(y1-y0+1)/k;let scale=Math.min(1,600/cropW,300/cropH);
+    for(let attempt=0;attempt<8;attempt++){
+      const w=Math.max(1,Math.round(cropW*scale)),h=Math.max(1,Math.round(cropH*scale)),c=document.createElement('canvas');c.width=w;c.height=h;const cx=c.getContext('2d');
+      cx.imageSmoothingQuality='high';cx.drawImage(src.img,x0/k,y0/k,cropW,cropH,0,0,w,h);
+      const png=c.toDataURL('image/png');if(validSize(png))return png;
+      if(!transparent){const white=document.createElement('canvas');white.width=w;white.height=h;const wx=white.getContext('2d');wx.fillStyle='#ffffff';wx.fillRect(0,0,w,h);wx.drawImage(c,0,0);for(const q of [0.9,0.8,0.7]){const jpg=white.toDataURL('image/jpeg',q);if(validSize(jpg))return jpg;}}
+      scale*=0.8;
+    }
+    throw Error('Logo trop détaillé pour être allégé : essayez une version plus simple (PNG ou JPEG).');
+  }finally{src.done();}
+}
+const validSize=url=>/^data:image\/(png|jpeg);base64,/.test(url)&&Math.floor((url.length-url.indexOf(',')-1)*3/4)<=LOGO_MAX_BYTES-2048;
+const logoPreview=url=>url?`<img src="${e(url)}" alt="Logo de l’entreprise">`:'<span>Aucun logo</span>';
 
 export function statusPill(status){return`<span class="inv-pill is-${e(status)}">${e(STATUS_LABELS[status]||status)}</span>`;}
 
@@ -138,13 +190,32 @@ ${clients.length?'':'<p class="span-2 notice info">Aucun client enregistré : cr
 <h3 class="inv-h3">${e(plural((inv.lines||[]).length,'ligne','lignes'))}</h3><div class="stack-list">${(inv.lines||[]).map(l=>`<div class="list-row"><div><strong>${e(l.label)}</strong><small>${e(qty(l.quantity))}${NB}${e(l.unit)} × ${e(money(l.unitPrice))} · TVA ${e(rateLabel(l.vatRate))}</small></div><strong>${e(money(lineTotal(l)))}</strong></div>`).join('')}</div>
 ${credits.length?`<h3 class="inv-h3">Avoirs</h3><div class="stack-list">${credits.map(a=>`<button type="button" class="list-row is-button" data-invoice="view" data-id="${e(a.id)}"><div><strong>${e(a.number)}</strong><small>${e(dateFr(a.issueDate))}</small></div><strong>${e(money(a.totals?.ttc))}</strong></button>`).join('')}</div>`:''}
 ${pay}<p class="cost-detail">${avoir?'Avoir émis':'Facture émise'} : non modifiable.${!avoir&&s!=='annulee'?' Pour corriger un montant, établissez un avoir.':''}</p>`;
-    modal(`${avoir?'Avoir':'Facture'} ${inv.number}`,inv.clientName,body,`<button type="button" class="button secondary" data-invoice="list">Retour</button>${!avoir&&write&&s!=='annulee'?`<button type="button" class="button secondary" data-invoice="credit" data-id="${e(inv.id)}">Créer un avoir</button>`:''}<button type="button" class="button primary inv-primary" data-invoice="print" data-id="${e(inv.id)}">Imprimer / PDF</button>`,'small');
+    modal(`${avoir?'Avoir':'Facture'} ${inv.number}`,inv.clientName,body,`<button type="button" class="button secondary" data-invoice="list">Retour</button>${!avoir&&write&&s!=='annulee'?`<button type="button" class="button secondary" data-invoice="credit" data-id="${e(inv.id)}">Créer un avoir</button>`:''}${pdfButtons(inv)}`,'small');
+    warmLogo(invoiceSettings(data).logo);
   }
+  // Téléphone : « Partager / imprimer le PDF » (feuille de partage iOS : Imprimer, Fichiers, Mail…) + aperçu.
+  // Ordinateur : « Télécharger le PDF » + « Imprimer » (aperçu HTML imprimable).
+  function pdfButtons(inv){
+    const touch=isTouchDevice(),label=`${inv.docType==='avoir'?'Avoir':'Facture'} ${inv.number||'brouillon'}`;
+    return`<button type="button" class="button secondary" data-invoice="print" data-id="${e(inv.id)}" aria-label="${e(`${touch?'Aperçu':'Imprimer'} : ${label}`)}">${touch?'Aperçu':'Imprimer'}</button><button type="button" class="button primary inv-primary" data-invoice="pdf" data-id="${e(inv.id)}" aria-label="${e(`${touch?'Partager ou imprimer le PDF':'Télécharger le PDF'} : ${label}`)}">${touch?'Partager / imprimer le PDF':'Télécharger le PDF'}</button>`;
+  }
+  // Construction synchrone (le partage iOS doit partir dans le geste) : null si le logo n’est pas encore prêt.
+  function pdfFor(inv){
+    const url=invoiceSettings(state()).logo,logo=logoNow(url);if(logo===undefined)return null;
+    return pdfFile(invoicePdf(state(),inv,{logo}),invoiceFileName(inv));
+  }
+  function printOptions(inv){return{pdf:{name:invoiceFileName(inv),make:()=>invoicePdf(state(),inv,{logo:logoNow(invoiceSettings(state()).logo)||null})}};}
 
   // ---------- Paramètres ----------
   function settings(){
     const s=invoiceSettings(state());
+    warmLogo(s.logo);
     const body=`<form id="invoice-settings-form" class="form-grid inv-form" novalidate>
+<div class="span-2 inv-brand-field"><span class="field-label" id="inv-logo-label">Logo</span><input type="hidden" name="logo" value="${e(s.logo)}">
+<div class="inv-logo-row"><div class="inv-logo-preview" data-invoice-logo-preview aria-live="polite">${logoPreview(s.logo)}</div>
+<div class="inv-logo-actions"><label class="button secondary inv-logo-pick"><input type="file" class="sr-only" accept="image/png,image/jpeg,image/heic,image/heif,image/webp,image/*" data-invoice-logo aria-labelledby="inv-logo-label inv-logo-pick-text"><span id="inv-logo-pick-text">${s.logo?'Changer de logo':'Importer un logo'}</span></label><button type="button" class="button secondary${s.logo?'':' hidden'}" data-invoice="logo-remove">Retirer le logo</button></div></div>
+<p class="cost-detail">PNG, JPEG ou photo (HEIC sur iPhone). Le logo est recadré et allégé automatiquement (${Math.round(LOGO_MAX_BYTES/1024)} Ko au plus) ; il figure en tête des factures et des PDF.</p></div>
+<div class="span-2"><span class="field-label">Couleur des factures</span><input type="hidden" name="accent" value="${e(s.accent)}"><div class="chip-choices inv-accents" role="group" aria-label="Couleur des factures">${ACCENTS.map(([hex,label])=>`<button type="button" class="choice-chip${hex===s.accent?' is-on':''}" data-invoice="chip" data-name="accent" data-value="${e(hex)}" aria-pressed="${hex===s.accent}"><i class="inv-swatch" style="background:${e(hex)}" aria-hidden="true"></i>${e(label)}</button>`).join('')}</div></div>
 <label class="span-2">Raison sociale *<input name="legalName" value="${e(s.legalName)}" autocomplete="organization" data-autofocus></label>
 <label>Forme juridique<input name="legalForm" value="${e(s.legalForm)}" placeholder="Ex. EARL au capital de 7 500 €"></label><label>SIRET *<input name="siret" inputmode="numeric" value="${e(s.siret)}" placeholder="14 chiffres"></label>
 <label class="span-2">Adresse *<textarea name="address" rows="2">${e(s.address)}</textarea></label>
@@ -165,6 +236,15 @@ ${pay}<p class="cost-detail">${avoir?'Avoir émis':'Facture émise'} : non modif
   function showError(form,message){const el=form?.querySelector('.form-error');if(!el)return toast(message,'error');el.textContent=message;el.classList.remove('hidden');el.scrollIntoView?.({block:'nearest'});}
   async function action(kind,control){
     const id=control.dataset.id;
+    if(kind==='pdf'){
+      const inv=store.get('integrationImports',id);if(!inv||inv.deletedAt)return open();
+      const file=pdfFor(inv);
+      if(!file){await warmLogo(invoiceSettings(state()).logo);control.textContent=isTouchDevice()?'Partager le PDF (prêt)':'Télécharger le PDF (prêt)';toast('PDF prêt : touchez de nouveau le bouton.','success');return;}
+      const how=await sharePdf(file,{title:file.name.replace(/\.pdf$/,''),preferShare:isTouchDevice()});
+      if(how==='downloaded')toast(`PDF téléchargé : ${file.name}`,'success');
+      return;
+    }
+    if(kind==='logo-remove'){const form=document.getElementById('invoice-settings-form');if(!form)return;form.logo.value='';form.querySelector('[data-invoice-logo-preview]').innerHTML=logoPreview('');control.classList.add('hidden');const t=form.querySelector('#inv-logo-pick-text');if(t)t.textContent='Importer un logo';toast('Logo retiré : enregistrez pour confirmer.','success');return;}
     if(kind==='list')return open();
     if(kind==='filter')return open(control.dataset.value);
     if(kind==='prepare')return prepare(id||'');
@@ -179,14 +259,23 @@ ${pay}<p class="cost-detail">${avoir?'Avoir émis':'Facture émise'} : non modif
     if(kind==='add-items'){const inv=store.get('integrationImports',form.dataset.id),existing=new Set([...draftLines.values()].filter(l=>l.source).map(l=>`${l.source.type}:${l.source.id}`));for(const it of billableItems(state(),inv.clientId,{exceptId:inv.id}))if(!existing.has(it.key))addLine(form,it.line);control.remove();return;}
     if(kind==='remove-line'){const card=control.closest('.inv-line');draftLines.delete(card.dataset.lineId);card.remove();renumber(form);return liveTotals(form);}
     if(kind==='save'){await save(form);return;}
-    if(kind==='preview'){const values=collect(form),checked=validateDraft(values);if(checked.error)return showError(form,checked.error);const inv={...store.get('integrationImports',form.dataset.id),...checked.value};openPrintable(invoiceHtml(state(),inv,{assetBase:assetBase()}),'Aperçu du brouillon');return;}
+    if(kind==='preview'){const values=collect(form),checked=validateDraft(values);if(checked.error)return showError(form,checked.error);const inv={...store.get('integrationImports',form.dataset.id),...checked.value};openPrintable(invoiceHtml(state(),inv,{assetBase:assetBase()}),'Aperçu du brouillon',printOptions(inv));return;}
     if(kind==='emit')return confirmEmit(form);
     if(kind==='emit-confirm'){const saved=await emitInvoice(store,id,{version:Number(control.dataset.version)||undefined});toast(`${saved.docType==='avoir'?'Avoir':'Facture'} ${saved.number} émis${saved.docType==='avoir'?'':'e'}.`,'success');return view(saved.id);}
     if(kind==='delete'){const inv=await deleteDraft(store,id);open();toast('Brouillon supprimé.','success',{label:'Annuler',run:async()=>{await store.restore?.('integrationImports',inv.id);open();}});return;}
-    if(kind==='print'){const inv=store.get('integrationImports',id);const how=openPrintable(invoiceHtml(state(),inv,{assetBase:assetBase()}),`${inv.docType==='avoir'?'Avoir':'Facture'} ${inv.number}`);if(how==='window')toast(`${inv.docType==='avoir'?'Avoir':'Facture'} ${inv.number} ouvert${inv.docType==='avoir'?'':'e'} dans un nouvel onglet.`,'success');return;}
+    if(kind==='print'){const inv=store.get('integrationImports',id);const how=openPrintable(invoiceHtml(state(),inv,{assetBase:assetBase()}),`${inv.docType==='avoir'?'Avoir':'Facture'} ${inv.number}`,printOptions(inv));if(how==='window')toast(`${inv.docType==='avoir'?'Avoir':'Facture'} ${inv.number} ouvert${inv.docType==='avoir'?'':'e'} dans un nouvel onglet.`,'success');return;}
     if(kind==='pay'){const f=document.getElementById('invoice-pay-form');if(!f.paidAt.value)return showError(f,'Champ obligatoire : Payée le');try{await markPaid(store,id,{paidAt:f.paidAt.value,method:f.method.value});}catch(error){return showError(f,error.message);}const inv=store.get('integrationImports',id);toast(`Facture ${inv.number} marquée payée.`,'success',{label:'Annuler',run:async()=>{await markPaid(store,id,{paidAt:null});view(id);}});return view(id);}
     if(kind==='unpay'){await markPaid(store,id,{paidAt:null});toast('Paiement retiré.','success');return view(id);}
     if(kind==='credit'){const draft=await createCreditNote(store,id);toast('Avoir préparé : vérifiez les montants avant de l’émettre.','success');return edit(draft.id);}
+  }
+  async function pickLogo(input){
+    const form=input.closest('form'),file=input.files?.[0];if(!form||!file)return;
+    const label=form.querySelector('#inv-logo-pick-text'),before=label?.textContent;if(label)label.textContent='Préparation…';form.querySelector('.form-error')?.classList.add('hidden');
+    try{
+      const url=await prepareLogo(file);form.logo.value=url;form.querySelector('[data-invoice-logo-preview]').innerHTML=logoPreview(url);form.querySelector('[data-invoice="logo-remove"]')?.classList.remove('hidden');
+      if(label)label.textContent='Changer de logo';warmLogo(url);toast(`Logo prêt (${Math.max(1,Math.round((url.length-url.indexOf(',')-1)*3/4/1024))} Ko) : enregistrez les paramètres.`,'success');
+    }catch(error){if(label)label.textContent=before;showError(form,error.message||'Logo illisible.');}
+    finally{input.value='';}
   }
   function chip(control){
     const group=control.closest('.chip-choices'),form=control.closest('form'),input=form?.querySelector(`input[type="hidden"][name="${control.dataset.name}"]`);if(!input)return;
@@ -200,6 +289,7 @@ ${pay}<p class="cost-detail">${avoir?'Avoir émis':'Facture émise'} : non modif
   });
   document.addEventListener('input',event=>{const form=event.target.closest?.('#invoice-form');if(form){form.querySelector('.form-error')?.classList.add('hidden');liveTotals(form);}});
   document.addEventListener('change',event=>{
+    if(event.target.matches?.('[data-invoice-logo]'))return pickLogo(event.target);
     const prepForm=event.target.closest?.('#invoice-prepare-form');if(prepForm&&['clientId','from','to','fuel'].includes(event.target.name))refreshItems(prepForm);
     const f=event.target.closest?.('#invoice-form');if(f&&event.target.name==='issueDate'&&event.target.value){const due=f.dueDate;if(due&&(!due.value||due.value<event.target.value))due.value=addDays(event.target.value,invoiceSettings(state()).paymentDays);}
   });

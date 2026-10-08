@@ -17,7 +17,7 @@
 // les tests storage.rules sont ignorés.
 //
 // Chaque écriture légitime de sync.js (createWorkspace, acceptInvite, createInvite, updateMemberRole,
-// removeMember, writeRemoteEntity/bootstrap/auto-merge/restauration/pièce jointe, heartbeat, audit)
+// removeMember, leaveWorkspace, transferOwnership, listInvites, revokeInvite, writeRemoteEntity/bootstrap/auto-merge/restauration/pièce jointe, heartbeat, audit)
 // est rejouée ici avec la même forme de données, ainsi que le dépôt des pièces jointes (syncAttachments).
 import {test, before, after, beforeEach} from 'node:test';
 import {readFileSync} from 'node:fs';
@@ -33,7 +33,7 @@ async function load(name) {
 }
 const {initializeTestEnvironment, assertSucceeds, assertFails} = await load('@firebase/rules-unit-testing');
 const fs = await load('firebase/firestore');
-const {doc, setDoc, getDoc, deleteDoc, writeBatch, collection, addDoc, serverTimestamp, Timestamp} = fs;
+const {doc, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, collection, addDoc, serverTimestamp, Timestamp, query, where, getDocs} = fs;
 const storageHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
 const st = storageHost ? await load('firebase/storage') : null;
 
@@ -186,6 +186,133 @@ test('createInvite : rôle owner, durée excessive, auteur usurpé ou non-propri
 test('invitation : le propriétaire peut révoquer, l’invité peut lire la sienne, un tiers non', async () => {
   await assertFails(getDoc(doc(as('intrus', 'intrus@ex.fr'), 'invites', 'tokViewer')));
   await assertSucceeds(deleteDoc(doc(as('owner', 'owner@ex.fr'), 'invites', 'tokViewer')));
+});
+
+// --- Équipe et autorisations : gestion par grade (team-roles.js / sync.js) ---
+// Les tests marqués « NOUVEAU » décrivent une capacité ajoutée (refusée par les anciennes règles) ;
+// les autres vérifient qu'aucune escalade n'est possible.
+const mgDb = () => as('mg', 'mg@ex.fr');
+const ownerDb = () => as('owner', 'owner@ex.fr');
+const memberRef = (db, uid) => doc(db, 'workspaces', WS, 'members', uid);
+// Rejoue updateMemberRole (sync.js).
+const setRole = (db, uid, role, by = 'x') => setDoc(memberRef(db, uid), {role, updatedAt: Date.now(), updatedBy: by}, {merge: true});
+// Rejoue transferOwnership (sync.js) avec des variantes malveillantes possibles.
+function transferBatch(db, from, to, {ws = true, promote = true, demote = true, demoteTo = 'manager'} = {}) {
+  const b = writeBatch(db);
+  if (ws) b.update(doc(db, 'workspaces', WS), {ownerUid: to, updatedAt: Date.now()});
+  if (promote) b.set(memberRef(db, to), {role: 'owner', updatedAt: Date.now(), updatedBy: from}, {merge: true});
+  if (demote) b.set(memberRef(db, from), {role: demoteTo, updatedAt: Date.now(), updatedBy: from}, {merge: true});
+  return b.commit();
+}
+async function seedMember(uid, role) {
+  await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'workspaces', WS, 'members', uid), {uid, email: uid + '@ex.fr', role, joinedAt: 1, inviteToken: 'old-' + uid}));
+}
+
+test('NOUVEAU responsable : invite à un grade inférieur (collaborateur, opérateur, comptabilité, lecteur)', async () => {
+  for (const role of ['editor', 'operator', 'accountant', 'viewer'])
+    await assertSucceeds(setDoc(doc(mgDb(), 'invites', 'm' + role), inviteData({role, createdBy: 'mg'})));
+});
+test('ESCALADE responsable : invitation responsable ou propriétaire refusée, auteur usurpé refusé', async () => {
+  await assertFails(setDoc(doc(mgDb(), 'invites', 'm1'), inviteData({role: 'manager', createdBy: 'mg'})));
+  await assertFails(setDoc(doc(mgDb(), 'invites', 'm2'), inviteData({role: 'owner', createdBy: 'mg'})));
+  await assertFails(setDoc(doc(mgDb(), 'invites', 'm3'), inviteData({role: 'viewer', createdBy: 'owner'})));
+});
+test('ESCALADE : collaborateur, opérateur, comptabilité et lecteur ne peuvent pas inviter', async () => {
+  for (const uid of ['ed', 'op', 'ac', 'vw'])
+    await assertFails(setDoc(doc(as(uid, uid + '@ex.fr'), 'invites', 'i' + uid), inviteData({role: 'viewer', createdBy: uid})));
+});
+test('NOUVEAU responsable : change le grade d’un rang inférieur vers un rang inférieur', async () => {
+  await assertSucceeds(setRole(mgDb(), 'ed', 'operator', 'mg'));
+  await assertSucceeds(setRole(mgDb(), 'vw', 'editor', 'mg'));
+  await assertSucceeds(setRole(mgDb(), 'ac', 'viewer', 'mg'));
+});
+test('ESCALADE responsable : ne peut promouvoir personne responsable ou propriétaire', async () => {
+  await assertFails(setRole(mgDb(), 'ed', 'manager', 'mg'));
+  await assertFails(setRole(mgDb(), 'vw', 'owner', 'mg'));
+  await assertFails(setRole(mgDb(), 'op', 'superadmin', 'mg'));
+});
+test('ESCALADE responsable : ne peut ni modifier ni retirer le propriétaire ou un autre responsable', async () => {
+  await seedMember('mg2', 'manager');
+  await assertFails(setRole(mgDb(), 'owner', 'viewer', 'mg'));
+  await assertFails(setRole(mgDb(), 'mg2', 'viewer', 'mg'));
+  await assertFails(deleteDoc(memberRef(mgDb(), 'owner')));
+  await assertFails(deleteDoc(memberRef(mgDb(), 'mg2')));
+});
+test('NOUVEAU responsable : retire un membre de rang inférieur', async () => {
+  for (const uid of ['ed', 'op', 'ac', 'vw']) await assertSucceeds(deleteDoc(memberRef(mgDb(), uid)));
+});
+test('ESCALADE : un membre ne peut pas modifier son propre grade', async () => {
+  await assertFails(setRole(as('ed', 'ed@ex.fr'), 'ed', 'manager', 'ed'));
+  await assertFails(setRole(as('vw', 'vw@ex.fr'), 'vw', 'editor', 'vw'));
+  await assertFails(setRole(mgDb(), 'mg', 'owner', 'mg'));
+  await assertFails(setRole(mgDb(), 'mg', 'viewer', 'mg'));
+  await assertFails(setRole(ownerDb(), 'owner', 'manager', 'owner'));
+});
+test('ESCALADE : collaborateur et opérateur ne gèrent personne', async () => {
+  await assertFails(setRole(as('ed', 'ed@ex.fr'), 'vw', 'viewer', 'ed'));
+  await assertFails(deleteDoc(memberRef(as('op', 'op@ex.fr'), 'vw')));
+  await assertFails(setDoc(memberRef(as('ed', 'ed@ex.fr'), 'bob'), {uid: 'bob', role: 'viewer', joinedAt: 1}));
+});
+test('ESCALADE : changement de grade limité au rôle (adresse, uid, jeton intouchables)', async () => {
+  await assertFails(setDoc(memberRef(mgDb(), 'ed'), {role: 'viewer', email: 'pirate@ex.fr'}, {merge: true}));
+  await assertFails(setDoc(memberRef(ownerDb(), 'ed'), {role: 'viewer', uid: 'owner'}, {merge: true}));
+});
+test('NOUVEAU : chacun peut quitter l’exploitation, sauf le propriétaire', async () => {
+  for (const uid of ['mg', 'ed', 'op', 'ac', 'vw']) await assertSucceeds(deleteDoc(memberRef(as(uid, uid + '@ex.fr'), uid)));
+  await assertFails(deleteDoc(memberRef(ownerDb(), 'owner')));
+});
+test('ESCALADE propriétaire : pas de second propriétaire hors transfert', async () => {
+  await assertFails(setRole(ownerDb(), 'ed', 'owner', 'owner'));
+  await assertFails(setDoc(memberRef(ownerDb(), 'bob'), {uid: 'bob', role: 'owner', joinedAt: 1}));
+  await assertSucceeds(setRole(ownerDb(), 'mg', 'editor', 'owner'));
+});
+test('NOUVEAU : transfert de propriété atomique vers un membre existant', async () => {
+  await assertSucceeds(transferBatch(ownerDb(), 'owner', 'ed'));
+  let after;
+  await env.withSecurityRulesDisabled(async ctx => {
+    const db = ctx.firestore();
+    after = {
+      ws: (await getDoc(doc(db, 'workspaces', WS))).data().ownerUid,
+      ed: (await getDoc(memberRef(db, 'ed'))).data().role,
+      old: (await getDoc(memberRef(db, 'owner'))).data().role
+    };
+  });
+  if (after.ws !== 'ed' || after.ed !== 'owner' || after.old !== 'manager') throw new Error('Transfert incomplet : ' + JSON.stringify(after));
+  // Le nouveau propriétaire gère désormais l'ancien.
+  await assertSucceeds(setRole(as('ed', 'ed@ex.fr'), 'owner', 'editor', 'ed'));
+});
+test('ESCALADE transfert : non-propriétaire, lot partiel ou cible non membre refusés', async () => {
+  await assertFails(transferBatch(mgDb(), 'mg', 'mg', {demote: false}));
+  await assertFails(transferBatch(mgDb(), 'owner', 'ed'));
+  await assertFails(transferBatch(ownerDb(), 'owner', 'ed', {demote: false}));
+  await assertFails(transferBatch(ownerDb(), 'owner', 'ed', {promote: false}));
+  await assertFails(transferBatch(ownerDb(), 'owner', 'ed', {ws: false}));
+  await assertFails(transferBatch(ownerDb(), 'owner', 'ed', {demoteTo: 'viewer'}));
+  await assertFails(transferBatch(ownerDb(), 'owner', 'inconnu'));
+  // Le propriétaire ne peut pas se rétrograder seul (exploitation sans propriétaire).
+  await assertFails(setRole(ownerDb(), 'owner', 'manager', 'owner'));
+  await assertFails(updateDoc(doc(ownerDb(), 'workspaces', WS), {ownerUid: 'ed'}));
+});
+test('NOUVEAU invitations en attente : propriétaire et responsable les listent, pas un collaborateur', async () => {
+  const q = db => getDocs(query(collection(db, 'invites'), where('workspaceId', '==', WS)));
+  await assertSucceeds(q(ownerDb()));
+  await assertSucceeds(q(mgDb()));
+  await assertFails(q(as('ed', 'ed@ex.fr')));
+  await assertFails(getDoc(doc(as('ed', 'ed@ex.fr'), 'invites', 'tokViewer')));
+});
+test('NOUVEAU révocation : le responsable révoque une invitation de rang inférieur, pas celle d’un responsable', async () => {
+  await assertSucceeds(deleteDoc(doc(mgDb(), 'invites', 'tokViewer')));
+  await assertFails(deleteDoc(doc(mgDb(), 'invites', 'tokManager')));
+  await assertFails(deleteDoc(doc(as('ed', 'ed@ex.fr'), 'invites', 'tokExpired')));
+  await assertSucceeds(deleteDoc(doc(ownerDb(), 'invites', 'tokManager')));
+});
+test('NOUVEAU invitation d’un responsable acceptée ; refusée si l’auteur a été rétrogradé entre-temps', async () => {
+  await assertSucceeds(setDoc(doc(mgDb(), 'invites', 'tokMg'), inviteData({role: 'operator', createdBy: 'mg', email: 'guest@ex.fr'})));
+  await assertSucceeds(setDoc(doc(mgDb(), 'invites', 'tokMg2'), inviteData({role: 'viewer', createdBy: 'mg', email: 'guest@ex.fr'})));
+  await assertSucceeds(acceptBatch(guest(), 'tokMg', {role: 'operator'}));
+  await env.withSecurityRulesDisabled(ctx => deleteDoc(doc(ctx.firestore(), 'workspaces', WS, 'members', 'guest')));
+  await assertSucceeds(setRole(ownerDb(), 'mg', 'editor', 'owner'));
+  await assertFails(acceptBatch(guest(), 'tokMg2', {role: 'viewer'}));
 });
 
 // --- non-régression des autres écritures de sync.js ---

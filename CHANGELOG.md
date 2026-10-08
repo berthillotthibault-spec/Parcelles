@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.11.1 · factures PDF, équipe, carte et accessibilité — 2026-10-08
+
+- factures et avoirs : vrai fichier PDF à partager, imprimer ou enregistrer depuis l’iPhone (Safari et application installée), nouvelle mise en page, logo et couleur de l’entreprise ; un avoir total est exactement égal à la facture ; dossier de campagne, dossier de contrôle et rapports aussi en PDF (sans graphiques) ;
+- équipe et autorisations : écran par grade (propriétaire, responsable, collaborateur, opérateur, comptabilité, lecteur), le responsable gère les grades inférieurs, transfert de propriété, invitations révocables, tableau « Qui peut faire quoi » ; appliqué par les règles Firestore (à republier) ;
+- carte : un seul outil actif à la fois ; la barre de sélection multiple se ferme en touchant un autre outil ; « Abandonner le tracé ? » avant de perdre un dessin ; mesure effaçable ;
+- accessibilité sur téléphone : boutons de 44 px au moins, champs à 16 px, VoiceOver, encoche, contraste renforcé ; option « Plein champ » (grands boutons, texte agrandi) dans Personnaliser ;
+- itinéraire : Waze proposé en plus de Plans et Google Maps.
+
 ## 10.11.0 · sécurité et grandes améliorations — 2026-10-08
 
 Sécurité et protection des données (à accompagner du déploiement des règles Firebase) :

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f5f0">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="application-name" content="Parcelles 10.10">
-  <meta name="parcelles-build" content="2026.10.08-v10.11.0">
+  <meta name="parcelles-build" content="2026.10.08-v10.11.1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="./public-works.css">
   <link rel="stylesheet" href="./motion.css">
   <link rel="stylesheet" href="./personalization.css">
-  <link rel="stylesheet" href="./design-v3.css?v=3.9">
+  <link rel="stylesheet" href="./design-v3.css?v=4.0">
   <title>Parcelles</title>
 </head>
 <body>
@@ -58,11 +58,11 @@
   <div id="app" class="app-shell">
     <script>document.getElementById('app').setAttribute('inert','');</script>
     <header class="app-header">
-      <button class="brand" data-view="today" aria-label="Ouvrir Aujourd’hui">
+      <button class="brand" data-view="today">
         <span class="brand-mark" aria-hidden="true">
           <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg>
         </span>
-        <span class="brand-copy"><strong>Parcelles</strong><small id="farm-name">Mon exploitation</small></span>
+        <span class="brand-copy"><strong>Parcelles</strong><small id="farm-name">Mon exploitation</small></span><span class="sr-only"> : ouvrir Aujourd’hui</span>
       </button>
       <div class="header-actions">
         <button class="icon-button" data-action="global-search" aria-label="Rechercher partout" title="Recherche">
@@ -71,7 +71,7 @@
         <button class="icon-button header-status" id="notification-button" data-action="open-notifications" data-count="0" aria-label="Notifications" title="Notifications">
           <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
         </button>
-        <button id="network-button" class="connection-button" data-action="network-details" aria-label="État de connexion" title="Synchronisation"><span id="network-dot"></span><span id="network-label">Initialisation</span></button>
+        <button id="network-button" class="connection-button" data-action="network-details" title="Synchronisation"><span class="sr-only">Connexion : </span><span id="network-dot"></span><span id="network-label">Initialisation</span></button>
       </div>
     </header>
 
@@ -233,8 +233,8 @@
     </nav>
   </div>
 
-  <div id="modal-root" class="modal-root" aria-live="polite"></div>
-  <div id="toast-root" class="toast-region" aria-live="polite"></div>
+  <div id="modal-root" class="modal-root"></div>
+  <div id="toast-root" class="toast-region"></div>
   <aside id="assistant-dock" class="assistant-dock" aria-label="Assistant IA">
   <button id="assistant-launcher" class="assistant-launcher" type="button" data-action="open-assistant" aria-label="Assistant IA" aria-haspopup="dialog" title="Ouvrir l’assistant IA">
     <svg class="ui-icon" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4zM20 2v4M18 4h4"/></svg>
