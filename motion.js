@@ -45,12 +45,18 @@ export function bootRemaining(duration, startedAt, now, reduce = false) {
   return reduce ? 0 : Math.max(0, Math.min(3500, Number(duration) || 0) - Math.max(0, now - startedAt));
 }
 
-export async function finishBoot({duration = 3500} = {}) {
+export const BOOT_FADE_MS = 220;
+
+// n° 142 : par défaut (0), l’écran s’efface dès que l’application est prête, par un fondu de 220 ms.
+// Une durée choisie (1,2 s ou 3,5 s) n’attend que le temps de présentation manquant.
+// L’application redevient utilisable dès le début du fondu : le voile ne capte plus les appuis.
+export async function finishBoot({duration = 0} = {}) {
   const root = document.getElementById('app-boot');
   if (root) {
     updateBoot(4, 'Votre exploitation est prête');
-    const remaining = bootRemaining(duration, Number(root.dataset.startedAt) || 0, performance.now(), reducedMotion?.matches);
-    const fadeDuration = Math.min(220, remaining);
+    const reduce = Boolean(reducedMotion?.matches);
+    const remaining = bootRemaining(duration, Number(root.dataset.startedAt) || 0, performance.now(), reduce);
+    const fadeDuration = reduce ? 0 : BOOT_FADE_MS;
     if (remaining > fadeDuration) await new Promise(resolve => {
       const finish = () => {clearTimeout(timer);reducedMotion?.removeEventListener?.('change', onChange);resolve();};
       const onChange = event => {if (event.matches) finish();};
@@ -58,11 +64,13 @@ export async function finishBoot({duration = 3500} = {}) {
       reducedMotion?.addEventListener?.('change', onChange);
     });
     const returnFocus = root.contains(document.activeElement);
-    if (fadeDuration > 0) await animateElement(root, [{opacity: 1}, {opacity: 0}], {duration: fadeDuration});
-    root.remove();
+    if (root.style) root.style.pointerEvents = 'none';
+    root.setAttribute?.('aria-hidden', 'true');
     document.getElementById('app')?.removeAttribute('inert');
     document.getElementById('assistant-dock')?.removeAttribute('inert');
     if (returnFocus) document.getElementById('main')?.focus({preventScroll:true});
+    if (fadeDuration > 0 && !reducedMotion?.matches) await animateElement(root, [{opacity: 1}, {opacity: 0}], {duration: fadeDuration, fill: 'forwards'});
+    root.remove();
   }
   revealView(document.querySelector('.view.is-active'));
 }

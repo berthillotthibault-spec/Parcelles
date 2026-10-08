@@ -8,11 +8,15 @@ service cloud.firestore {
     function isOwner(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) == 'owner'; }
     // Écriture des données selon le rôle, même périmètre que permissions.js (canMutate) :
     // propriétaire, responsable et collaborateur partout ; opérateur terrain et comptabilité sur leurs entités.
-    function canWriteData(workspaceId, entityType) {
+    // Factures et contrats de vente (integrationImports, payload.farmKind) : comptabilité, pas opérateur terrain.
+    function financeKind(d) { return d.payload is map && d.payload.get('farmKind', '') in ['invoice','salesContract']; }
+    function canWriteData(workspaceId, entityType, d) {
       let role = memberRole(workspaceId);
       return isMember(workspaceId) && (role in ['owner','manager','editor']
-        || (role == 'operator' && entityType in ['interventions','tasks','observations','fieldSessions','chantiers','points','photos','documents','routeSessions','gpsTracks','integrationImports'])
-        || (role == 'accountant' && entityType in ['clients','documents','stockItems','stockMovements','products','maintenanceRecords']));
+        || (role == 'operator' && (entityType in ['interventions','tasks','observations','fieldSessions','chantiers','points','photos','documents','routeSessions','gpsTracks']
+          || (entityType == 'integrationImports' && !financeKind(d))))
+        || (role == 'accountant' && (entityType in ['clients','documents','stockItems','stockMovements','products','maintenanceRecords']
+          || (entityType == 'integrationImports' && financeKind(d)))));
     }
     function invitePath(token) { return /databases/$(database)/documents/invites/$(token); }
     // Rôles connus de l'application (permissions.js : ROLES / assignableRoles).
@@ -154,7 +158,9 @@ service cloud.firestore {
       }
       match /data/{docId} {
         allow read: if isMember(workspaceId);
-        allow create, update: if canWriteData(workspaceId, request.resource.data.entityType) && validEntityDoc(workspaceId, docId);
+        allow create, update: if canWriteData(workspaceId, request.resource.data.entityType, request.resource.data)
+          && (resource == null || canWriteData(workspaceId, resource.data.entityType, resource.data))
+          && validEntityDoc(workspaceId, docId);
         allow delete: if isOwner(workspaceId);
       }
 

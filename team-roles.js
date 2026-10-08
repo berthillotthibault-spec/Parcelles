@@ -123,7 +123,8 @@ const DOMAINS = [
   ['Entretiens du matériel', {entity: 'maintenanceRecords'}],
   ['Stocks et produits', {entity: 'stockItems'}],
   ['Clients', {entity: 'clients'}],
-  ['Factures et ventes', {entity: 'integrationImports'}],
+  ['Factures et ventes', {entity: 'integrationImports', farmKind: 'invoice'}],
+  ['Capteurs et imports machine', {entity: 'integrationImports', farmKind: 'sensor'}],
   ['Documents', {entity: 'documents'}]
 ];
 export function permissionMatrix() {

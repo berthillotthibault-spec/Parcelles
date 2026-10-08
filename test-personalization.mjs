@@ -9,21 +9,24 @@ test('legacy preferences retain visible cards and receive safe new defaults',()=
   const old=emptyState();old.preferences={homeCards:['tasks','today'],theme:'dark'};
   const migrated=migrateData(old);
   assert.deepEqual(migrated.preferences.homeCards,['tasks','today']);
-  assert.equal(migrated.preferences.startupDuration,3500);
+  assert.equal(migrated.preferences.startupDuration,0);
   assert.equal(migrated.preferences.assistantDock,true);
   assert.equal(migrated.preferences.theme,'dark');
 });
 test('malformed imported preferences cannot add unknown actions or drop card ordering',()=>{
   const p=normalizePersonalization({homeCards:['tasks','bad','tasks'],homeCardOrder:['tasks','bad'],homeShortcuts:['javascript:alert(1)','open-calendar','open-calendar'],startupDuration:Infinity});
   assert.deepEqual(p.homeCards,['tasks']);assert.deepEqual(p.homeShortcuts,['open-calendar']);
-  assert.equal(p.homeCardOrder.length,HOME_CARDS.length);assert.equal(p.homeCardOrder[0],'tasks');assert.equal(p.startupDuration,3500);
+  assert.equal(p.homeCardOrder.length,HOME_CARDS.length);assert.equal(p.homeCardOrder[0],'tasks');assert.equal(p.startupDuration,0);
 });
 
-test('the old 2.2 second default migrates once and subsequent explicit choices survive reload',()=>{
+test('old startup defaults migrate once to direct access and explicit choices survive reload',()=>{
   const data=emptyState();data.preferences={startupDuration:2200};
-  const upgraded=migrateData(data);assert.equal(upgraded.preferences.startupDuration,3500);assert.equal(upgraded.preferences.startupDurationVersion,2);
-  upgraded.preferences.startupDuration=2200;assert.equal(migrateData(upgraded).preferences.startupDuration,2200);
-  for(const duration of [0,1200,3500]){data.preferences={startupDuration:duration};assert.equal(migrateData(data).preferences.startupDuration,duration);}
+  const upgraded=migrateData(data);assert.equal(upgraded.preferences.startupDuration,0);assert.equal(upgraded.preferences.startupDurationVersion,3);
+  data.preferences={startupDuration:3500,startupDurationVersion:2};assert.equal(migrateData(data).preferences.startupDuration,0,'the old 3.5 s default becomes direct access');
+  for(const duration of [1200,2200]){data.preferences={startupDuration:duration,startupDurationVersion:2};assert.equal(migrateData(data).preferences.startupDuration,duration);}
+  for(const duration of [0,1200]){data.preferences={startupDuration:duration};assert.equal(migrateData(data).preferences.startupDuration,duration);}
+  for(const duration of [0,1200,2200,3500]){upgraded.preferences.startupDuration=duration;const again=migrateData(upgraded);assert.equal(again.preferences.startupDuration,duration);assert.equal(migrateData(again).preferences.startupDuration,duration);}
+  assert.equal(normalizePersonalization({}).startupDuration,0);
 });
 test('an intentionally empty home and hidden assistant survive migration',()=>{
   const data=emptyState();Object.assign(data.preferences,{homeCards:[],homeShortcuts:[],homeSummary:false,homeNextAction:false,assistantDock:false,startupDuration:0});

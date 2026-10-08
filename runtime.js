@@ -1,12 +1,12 @@
 import {BUILD_ID} from './utils.js';
 
 const REQUIRED_ASSETS = [
-  './machine-export.js','./application-coverage.js','./spatial-analysis.js','./spatial-ui.js','./work-effects.js','./work-effects-ui.js','./farm-context.js','./weather-decision.js','./farm-memory.js','./farm-planner.js','./farm-ui.js','./farm-extension-ui.js','./management-zones.js','./prescriptions.js','./farm-records.js','./advanced-economics.js','./connections.js','./scanner.js','./precision-ui.js','./application-map.js','./application-ui.js','./operations-ui.js','./connections-ui.js','./farm-agent.js','./economic-ui.js','./harvest-traceability.js','./harvest-ui.js','./yield.js','./yield-ui.js','./satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css','./design-v3.css',
+  './machine-export.js','./application-coverage.js','./spatial-analysis.js','./spatial-ui.js','./work-effects.js','./work-effects-ui.js','./farm-context.js','./weather-decision.js','./work-weather.js','./day-route-ui.js','./qr.js','./qr-labels.js','./equipment-qr-ui.js','./farm-memory.js','./farm-planner.js','./farm-ui.js','./farm-extension-ui.js','./management-zones.js','./prescriptions.js','./farm-records.js','./advanced-economics.js','./connections.js','./scanner.js','./precision-ui.js','./application-map.js','./application-ui.js','./operations-ui.js','./connections-ui.js','./farm-agent.js','./economic-ui.js','./harvest-traceability.js','./harvest-ui.js','./yield.js','./yield-ui.js','./satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css','./design-v3.css',
   './index.html',
   './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css','./assistant-launcher.css','./grazing.css','./public-works.css',
   './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
   './shapefile-fallback.js','./zip-lite.js','./tab-coordinator.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
-  './text-encoding.js','./text-repair.js','./rpg.js','./map-records.js','./basemaps.js','./field-tracker.js','./field-tracker-ui.js','./voice-notes.js','./voice-notes-ui.js','./offline-map.js','./offline-map-ui.js','./map-modes.js','./costs.js','./costs-ui.js','./sales.js','./sales-ui.js','./dossier.js','./dossier-ui.js','./invoices.js','./invoices-ui.js','./invoice-pdf.js','./pdf-lite.js','./grazing.js','./grazing-ui.js','./grazing-records.js','./celebration.js','./celebration-ui.js','./quick-entry.js','./quick-entry-ui.js','./soil-water.js','./soil-water-ui.js','./team-work.js','./team-work-ui.js','./team-roles.js','./team-roles-ui.js','./home-story.js','./home-story-ui.js','./rpg-onboarding.js','./rpg-onboarding-ui.js','./compliance.js','./compliance-ui.js','./public-works.js','./public-works-ui.js','./wide-layout.js','./wide-layout-ui.js',
+  './text-encoding.js','./text-repair.js','./rpg.js','./map-records.js','./basemaps.js','./field-tracker.js','./field-tracker-ui.js','./voice-notes.js','./voice-notes-ui.js','./form-chips.js','./form-chips-ui.js','./work-subviews.js','./work-subviews-ui.js','./offline-map.js','./offline-map-ui.js','./map-modes.js','./sync-status.js','./sync-status-ui.js','./install-prompt.js','./install-ui.js','./costs.js','./costs-ui.js','./sales.js','./sales-ui.js','./dossier.js','./dossier-ui.js','./invoices.js','./invoices-ui.js','./invoice-pdf.js','./pdf-lite.js','./grazing.js','./grazing-ui.js','./history.js','./history-ui.js','./form-drafts.js','./grazing-records.js','./celebration.js','./celebration-ui.js','./quick-entry.js','./quick-entry-ui.js','./soil-water.js','./soil-water-ui.js','./team-work.js','./team-work-ui.js','./team-roles.js','./team-roles-ui.js','./home-story.js','./home-story-ui.js','./rpg-onboarding.js','./rpg-onboarding-ui.js','./compliance.js','./compliance-ui.js','./public-works.js','./public-works-ui.js','./wide-layout.js','./wide-layout-ui.js',
   './manifest.webmanifest','./parcelles.svg','./config.js'
   ,'./leaflet.min.css','./leaflet.min.js','./xlsx.full.min.js','./shp.min.js'
 ];
@@ -165,6 +165,38 @@ export async function downloadEmergencyState(){
   const url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=`parcelles-secours-${new Date().toISOString().slice(0,10)}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
   return true;
+}
+
+// n° 117 : installation sur l’écran d’accueil. L’invite Android (beforeinstallprompt) est mise
+// de côté dès le chargement du module pour être proposée au bon moment.
+let deferredInstallPrompt=null;
+const installListeners=new Set();
+function notifyInstall(){for(const listener of installListeners){try{listener(detectInstallState());}catch{}}}
+if(typeof window!=='undefined'&&typeof window.addEventListener==='function'){
+  window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredInstallPrompt=event;notifyInstall();});
+  window.addEventListener('appinstalled',()=>{deferredInstallPrompt=null;notifyInstall();});
+}
+export function onInstallStateChange(listener){installListeners.add(listener);return()=>installListeners.delete(listener);}
+
+// « standalone » (déjà installé), « installable » (invite Android disponible),
+// « ios-safari » (Partager › Sur l’écran d’accueil) ou « unsupported ».
+export function detectInstallState({nav=globalThis.navigator,media=globalThis.matchMedia,prompt=deferredInstallPrompt}={}){
+  try{
+    if(nav?.standalone===true)return 'standalone';
+    if(typeof media==='function'&&['standalone','fullscreen','minimal-ui'].some(mode=>media.call(globalThis,`(display-mode: ${mode})`)?.matches))return 'standalone';
+  }catch{}
+  if(prompt)return 'installable';
+  const ua=String(nav?.userAgent||''),ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&Number(nav?.maxTouchPoints)>1);
+  if(ios&&/Safari\//.test(ua)&&!/CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(ua))return 'ios-safari';
+  return 'unsupported';
+}
+
+// Affiche l’invite native mise de côté ; renvoie « accepted », « dismissed » ou « unavailable ».
+export async function promptInstall(){
+  const event=deferredInstallPrompt;if(!event?.prompt)return 'unavailable';
+  deferredInstallPrompt=null;
+  try{await event.prompt();const choice=await event.userChoice;notifyInstall();return choice?.outcome==='accepted'?'accepted':'dismissed';}
+  catch{notifyInstall();return 'unavailable';}
 }
 
 export {REQUIRED_ASSETS};

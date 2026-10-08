@@ -17,6 +17,9 @@ export const ROLE_CAPABILITIES={
 };
 
 const OPERATOR_ENTITIES=new Set(['interventions','tasks','observations','fieldSessions','chantiers','points','photos','documents','routeSessions','gpsTracks','integrationImports']);
+// Factures et contrats de vente (integrationImports, farmKind) : la comptabilité les gère, pas l'opérateur terrain.
+export const FINANCE_KINDS=new Set(['invoice','salesContract']);
+const financeRecord=operation=>FINANCE_KINDS.has(operation.farmKind??operation.payload?.farmKind);
 const ACCOUNTANT_ENTITIES=new Set(['clients','documents','stockItems','stockMovements','products','maintenanceRecords']);
 
 export function normalizeRole(role){return ROLES[role]?role:'viewer';}
@@ -39,8 +42,8 @@ export function canMutate(role,operation={}){
   const normalized=normalizeRole(role),capability=capabilityForMutation(operation);
   if(!roleCan(normalized,capability))return false;
   if(['owner','manager','editor'].includes(normalized))return true;
-  if(normalized==='operator')return OPERATOR_ENTITIES.has(operation.entity);
-  if(normalized==='accountant')return ACCOUNTANT_ENTITIES.has(operation.entity);
+  if(normalized==='operator')return OPERATOR_ENTITIES.has(operation.entity)&&!(operation.entity==='integrationImports'&&financeRecord(operation));
+  if(normalized==='accountant')return ACCOUNTANT_ENTITIES.has(operation.entity)||operation.entity==='integrationImports'&&financeRecord(operation);
   return false;
 }
 

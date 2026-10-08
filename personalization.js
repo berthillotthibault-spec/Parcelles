@@ -24,10 +24,21 @@ export const PERSONALIZATION_DEFAULTS = {
   homeCards:HOME_CARDS.map(item=>item.id),
   homeCardOrder:HOME_CARDS.map(item=>item.id),
   homeShortcuts:['new-work','open-field-mode','new-observation'],
-  homeSummary:true,homeNextAction:true,assistantDock:true,nativeHaptics:true,startupDuration:3500,startupDurationVersion:2
+  homeSummary:true,homeNextAction:true,assistantDock:true,nativeHaptics:true,startupDuration:0,startupDurationVersion:3
 };
 function knownUnique(value,allowed,fallback){
   return Array.isArray(value)?[...new Set(value.filter(key=>allowed.includes(key)))]:[...fallback];
+}
+// n° 142 : version 3 = accès direct par défaut. Les anciens défauts (2,2 s avant la version 2,
+// 3,5 s avant la version 3) passent à 0 ; tout autre choix explicite est conservé, et un choix
+// enregistré en version 3 (y compris 3,5 s) n’est plus jamais réécrit.
+export const STARTUP_DURATIONS=[0,1200,2200,3500];
+function normalizeStartupDuration(preferences){
+  const value=preferences.startupDuration,version=Number(preferences.startupDurationVersion)||0;
+  if(!STARTUP_DURATIONS.includes(value))return 0;
+  if(version>=3)return value;
+  if(value===3500||(version<2&&value===2200))return 0;
+  return value;
 }
 export function normalizePersonalization(preferences={}){
   const cards=HOME_CARDS.map(item=>item.id),shortcuts=HOME_SHORTCUTS.map(item=>item.id);
@@ -42,8 +53,8 @@ export function normalizePersonalization(preferences={}){
     nativeHaptics:preferences.nativeHaptics!==false,
     // Plein champ : grands boutons, texte agrandi et contraste renforcé (champ facultatif, désactivé par défaut).
     pleinChamp:preferences.pleinChamp===true,
-    startupDuration:[0,1200,2200,3500].includes(preferences.startupDuration)&&(preferences.startupDurationVersion===2||preferences.startupDuration!==2200)?preferences.startupDuration:3500,
-    startupDurationVersion:2
+    startupDuration:normalizeStartupDuration(preferences),
+    startupDurationVersion:3
   };
 }
 export function moveHomeCard(order,id,direction){

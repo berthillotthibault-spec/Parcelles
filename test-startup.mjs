@@ -16,20 +16,22 @@ function fixture(elapsed=0){
 }
 async function tick(ms){mock.timers.tick(ms);await Promise.resolve();await Promise.resolve();}
 
-test('default startup opens automatically at 3.5 seconds including its fade, without a click',async()=>{
+test('default startup opens as soon as the app is ready, with a 220 ms fade, without a click',async()=>{
   const view=fixture(),done=finishBoot();
-  await tick(3279);assert.equal(view.removed,false);assert.equal(view.released,false);
-  await tick(1);await tick(219);assert.equal(view.removed,false);
-  await tick(1);await done;assert.equal(view.removed,true);assert.equal(view.released,true);assert.equal(view.focused,true);
+  await tick(0);assert.equal(view.released,true,'the app is usable from the start of the fade');assert.equal(view.focused,true);assert.equal(view.removed,false);
+  await tick(219);assert.equal(view.removed,false);
+  await tick(1);await done;assert.equal(view.removed,true);
+});
+test('an explicit 3.5 second choice is honoured, fade included',async()=>{
+  const view=fixture(),done=finishBoot({duration:3500});
+  await tick(3279);assert.equal(view.released,false);await tick(1);assert.equal(view.released,true);
+  await tick(219);assert.equal(view.removed,false);await tick(1);await done;assert.equal(view.removed,true);
 });
 test('a custom shorter duration also opens automatically',async()=>{
-  const view=fixture(),done=finishBoot({duration:1200});await tick(980);assert.equal(view.removed,false);await tick(220);await done;assert.equal(view.removed,true);
+  const view=fixture(),done=finishBoot({duration:1200});await tick(979);assert.equal(view.released,false);await tick(1);assert.equal(view.released,true);await tick(220);await done;assert.equal(view.removed,true);
 });
-test('direct access has no presentation delay',async()=>{
-  const view=fixture();await finishBoot({duration:0});assert.equal(view.removed,true);assert.equal(view.released,true);
-});
-test('slow real initialization receives no extra animation delay',async()=>{
-  const view=fixture(5000);await finishBoot({duration:3500});assert.equal(view.removed,true);
+test('slow real initialization receives no extra presentation delay',async()=>{
+  const view=fixture(5000),done=finishBoot({duration:3500});await tick(0);assert.equal(view.released,true);await tick(220);await done;assert.equal(view.removed,true);
 });
 test('reduced motion skips the delay and reacts to live preference changes',async()=>{
   preference.matches=true;const initial=fixture();await finishBoot({duration:3500});assert.equal(initial.removed,true);

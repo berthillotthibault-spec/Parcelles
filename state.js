@@ -1,4 +1,5 @@
 import {PERSONALIZATION_DEFAULTS,normalizePersonalization} from './personalization.js';
+import {HISTORY_MAX_AGE_DAYS,HISTORY_MAX_PER_ENTITY,buildHistoryEntry,isMeaningfulEntry,shouldRecordHistory} from './history.js';
 import {APP_VERSION, ENTITY_TYPES, campaignFor, clone, isoDate, now, parseImportDate, toNumber, uid, validateIntervention, validateParcel} from './utils.js';
 
 export function emptyState(){
@@ -320,7 +321,7 @@ export function externalBackupStatus(data,at=now()){
 }
 
 export class Store{
-  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';this.writePromise=Promise.resolve();this.backupRetryAt=0;this.persistedStamp=null;this.tabReadOnly=null;this.onPersisted=null;this.schemaLock=null;}
+  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';this.writePromise=Promise.resolve();this.backupRetryAt=0;this.persistedStamp=null;this.tabReadOnly=null;this.onPersisted=null;this.schemaLock=null;this.historyActor=null;this.recentChanges=[];this.historySeq=0;this.historyPruned=false;}
 
   // A failed write must not restore a snapshot taken before another edit.
   enqueueWrite(operation){const result=this.writePromise.then(operation);this.writePromise=result.catch(()=>{});return result;}
@@ -524,11 +525,33 @@ export class Store{
     }
   }
 
+  // Historique des fiches (n° 130) : écrit seulement APRÈS un enregistrement réussi, donc jamais en lecture seule
+  // ni sous verrou de version. Un échec (quota, base ancienne) n’annule jamais la modification déjà enregistrée.
+  async _recordHistory(changes,{label='',action=null}={}){
+    try{
+      const remote=action==='remote',by=remote?'remote':String((typeof this.historyActor==='function'?this.historyActor():this.historyActor)||''),at=now(),entries=[];
+      for(const change of changes){
+        if(!shouldRecordHistory(change.type))continue;
+        const seq=++this.historySeq,entry=buildHistoryEntry({workspaceId:this.workspaceId,type:change.type,before:change.before,after:change.after,action:action||change.action||'update',by,label,at,seq});
+        if(!isMeaningfulEntry(entry))continue;
+        entries.push(entry);
+        // Copie complète (géométrie comprise) gardée en mémoire seulement, pour « Annuler » et Ctrl+Z.
+        if(!remote)this.recentChanges.push({seq,id:entry.id,type:change.type,entityId:entry.entityId,before:change.before?clone(change.before):null,at,label,action:entry.action,workspaceId:this.workspaceId,undone:false});
+      }
+      if(this.recentChanges.length>HISTORY_MAX_PER_ENTITY)this.recentChanges=this.recentChanges.slice(-HISTORY_MAX_PER_ENTITY);
+      if(entries.length&&typeof this.storage.historyAdd==='function'){
+        await this.storage.historyAdd(entries,{maxPerEntity:HISTORY_MAX_PER_ENTITY});
+        if(!this.historyPruned&&typeof this.storage.historyPrune==='function'){this.historyPruned=true;await this.storage.historyPrune(at-HISTORY_MAX_AGE_DAYS*86400000);}
+      }
+      return entries;
+    }catch(error){console.warn('[Parcelles] historique non conservé ; la modification est bien enregistrée.',error);return[];}
+  }
+
   get(type,id,{includeDeleted=false}={}){return(this.state[type]||[]).find(item=>item.id===id&&(includeDeleted||!item.deletedAt));}
   list(type,{includeDeleted=false}={}){return(this.state[type]||[]).filter(item=>includeDeleted||!item.deletedAt);}
 
   upsert(type,entity,options={}){return this.enqueueWrite(()=>this._upsert(type,entity,options));}
-  async _upsert(type,entity,{label,queue=true}={}){
+  async _upsert(type,entity,{label,queue=true,historyAction=null}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     const existing=entity.id?this.get(type,entity.id,{includeDeleted:true}):null;
     const normalized=normalizeEntity(type,entity,existing);
@@ -537,10 +560,13 @@ export class Store{
       const duplicate=this.state.rotations.find(item=>!item.deletedAt&&item.id!==normalized.id&&item.parcelId===normalized.parcelId&&item.campaignId===normalized.campaignId);
       if(duplicate)throw new Error('Une rotation existe déjà pour cette parcelle et cette campagne.');
     }
-    await this._mutate(label||`${existing?'Modification':'Création'} ${type}`,state=>{
+    let before=null;const mutationLabel=label||`${existing?'Modification':'Création'} ${type}`;
+    await this._mutate(mutationLabel,state=>{
       const index=state[type].findIndex(item=>item.id===normalized.id);
+      before=index>=0?clone(state[type][index]):null;
       if(index>=0)state[type][index]=normalized;else state[type].push(normalized);
     },{entity:type,entityId:normalized.id,action:existing?'update':'create',payload:normalized,queue});
+    await this._recordHistory([{type,before,after:normalized}],{label:mutationLabel,action:historyAction});
     return normalized;
   }
 
@@ -553,8 +579,11 @@ export class Store{
     const previous=this.snapshot();
     try{
       const normalized=entities.map(entity=>{const existing=entity.id?this.get(type,entity.id,{includeDeleted:true}):null;const value=normalizeEntity(type,entity,existing);const errors=validate(type,value);if(errors.length)throw new Error(errors.join(' — '));return{value,existing};});
-      for(const {value,existing} of normalized){const index=this.state[type].findIndex(item=>item.id===value.id);if(index>=0)this.state[type][index]=value;else this.state[type].push(value);this.queue({entity:type,entityId:value.id,action:existing?'update':'create',payload:value});}
-      this.state.metadata.revision+=1;this.log('modification',label,{count:normalized.length,type});await this.persist();this.notify({label,kind:'batch',entity:type,count:normalized.length});return normalized.map(x=>x.value);
+      const changes=[];
+      for(const {value,existing} of normalized){const index=this.state[type].findIndex(item=>item.id===value.id);changes.push({type,before:index>=0?clone(this.state[type][index]):null,after:value});if(index>=0)this.state[type][index]=value;else this.state[type].push(value);this.queue({entity:type,entityId:value.id,action:existing?'update':'create',payload:value});}
+      this.state.metadata.revision+=1;this.log('modification',label,{count:normalized.length,type});await this.persist();this.notify({label,kind:'batch',entity:type,count:normalized.length});
+      await this._recordHistory(changes,{label});
+      return normalized.map(x=>x.value);
     }catch(error){
       if(error?.name==='StaleStateError'&&!options.staleRetry){
         // Recharge la version de l’autre fenêtre puis rejoue la saisie groupée une seule fois.
@@ -568,15 +597,18 @@ export class Store{
 
   async remove(type,id){
     const found=this.get(type,id);if(!found)throw new Error('Élément introuvable.');
-    const deletedAt=now();
-    await this.mutate(`${type.slice(0,-1)} placé dans la corbeille.`,state=>{
-      const item=state[type].find(value=>value.id===id);item.deletedAt=deletedAt;item.updatedAt=deletedAt;item.version=(item.version||0)+1;
+    const deletedAt=now(),label=`${type.slice(0,-1)} placé dans la corbeille.`;let before=null,after=null;
+    await this.mutate(label,state=>{
+      const item=state[type].find(value=>value.id===id);before=clone(item);item.deletedAt=deletedAt;item.updatedAt=deletedAt;item.version=(item.version||0)+1;after=clone(item);
     },{entity:type,entityId:id,action:'delete',payload:{id,deletedAt}});
+    await this._recordHistory([{type,before,after,action:'delete'}],{label});
   }
 
   async restore(type,id){
     const found=this.get(type,id,{includeDeleted:true});if(!found?.deletedAt)throw new Error('Élément introuvable dans la corbeille.');
-    await this.mutate(`${type.slice(0,-1)} restauré.`,state=>{const item=state[type].find(v=>v.id===id);item.deletedAt=null;item.updatedAt=now();item.version=(item.version||0)+1;},{entity:type,entityId:id,action:'update',payload:{id,deletedAt:null}});
+    const label=`${type.slice(0,-1)} restauré.`;let before=null,after=null;
+    await this.mutate(label,state=>{const item=state[type].find(v=>v.id===id);before=clone(item);item.deletedAt=null;item.updatedAt=now();item.version=(item.version||0)+1;after=clone(item);},{entity:type,entityId:id,action:'update',payload:{id,deletedAt:null}});
+    await this._recordHistory([{type,before,after,action:'restore'}],{label});
   }
 
   async purge(type,id){
@@ -608,15 +640,18 @@ export class Store{
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     const incoming=clone(entity);
     const errors=validate(type,incoming);if(errors.length&&!incoming.deletedAt)throw new Error(errors.join(' — '));
+    let before=null;
     const applied=await this.mutate(`Synchronisation distante : ${type}`,state=>{
       if(expectedQueueId!==undefined){
         const pending=state.queue.find(item=>item.entity===type&&item.entityId===incoming.id&&['pending','error','conflict'].includes(item.status));
         if((pending?.id||null)!==expectedQueueId)return false;
       }
       const index=state[type].findIndex(item=>item.id===incoming.id);
+      before=index>=0?clone(state[type][index]):null;
       if(index>=0)state[type][index]=incoming;else state[type].push(incoming);
       return true;
     },{entity:type,entityId:incoming.id,action:'remote',queue:false,log:false,bypassPermissions:true});
+    if(applied)await this._recordHistory([{type,before,after:incoming}],{label:'Synchronisation',action:'remote'});
     return applied?incoming:null;
   }
 

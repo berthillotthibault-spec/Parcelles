@@ -52,7 +52,7 @@ function cultureCard(row,campaign,canWrite){
 export function createSalesUI(host){
   const {store,modal,toast,openStatistics}=host;
   const data=()=>store.snapshot();
-  const writable=()=>!store.writeGuard||store.writeGuard({entity:'integrationImports',action:'create'});
+  const writable=()=>!store.writeGuard||store.writeGuard({entity:'integrationImports',action:'create',farmKind:'salesContract'});
   let current=campaignFor();
   const back=(campaign=current)=>{openStatistics(campaign);requestAnimationFrame(()=>document.querySelector('#sales-title')?.scrollIntoView({block:'start'}));};
 

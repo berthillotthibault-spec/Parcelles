@@ -17,7 +17,7 @@ export function parcelGrazingHtml(sessions,parcelId,{compact=false,date=new Date
   return `<section class="panel parcel-grazing" data-parcel-grazing="${escapeHtml(parcelId)}"><div class="panel-heading"><h2>${escapeHtml(title)}</h2><button class="text-button" data-action="open-grazing-parcel" data-id="${escapeHtml(parcelId)}">Gérer le pâturage</button></div>${summary.groups.map(group=>{const days=group.startDate?Math.max(0,Math.floor((new Date(grazingDate(date)+'T12:00:00')-new Date(String(group.startDate).slice(0,10)+'T12:00:00'))/86400000)):null;return `<article class="grazing-group grazing-lot"><div class="grazing-lot-head"><div><p class="eyebrow">Animaux au pré</p><strong>${escapeHtml(group.type)} · ${formatNumber(group.total,0)} ${group.total===1?'animal':'animaux'}</strong></div>${days!==null?`<span class="grazing-days">${days} j</span>`:''}</div>${group.note?`<p>${escapeHtml(group.note)}</p>`:''}${group.animals.length?`<ul class="grazing-animals">${group.animals.map(animalHtml).join('')}</ul>`:''}${group.animalDescription?`<p>${escapeHtml(group.animalDescription)}</p>`:''}${group.unidentifiedCount?`<p class="form-note">${group.unidentifiedCount} ${(group.unidentifiedCount)>1?'animaux':'animal'} sans numéro enregistré.</p>`:''}<small>Entrés le ${group.startDate?localDate(group.startDate):'(date non renseignée)'}</small><div class="grazing-lot-actions"><button type="button" class="button primary" data-action="move-grazing" data-id="${escapeHtml(group.id)}">Déplacer le lot</button><button type="button" class="button secondary" data-action="end-grazing" data-id="${escapeHtml(group.id)}">Sortir</button></div></article>`;}).join('')||`<div class="empty-state">Pas d’animaux sur cette parcelle.<br><button type="button" class="text-button" data-action="open-grazing-parcel" data-id="${escapeHtml(parcelId)}">Mettre au pré</button></div>`}</section>`;
 }
 
-export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelete,today}){
+export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=null,formDraft=null,confirmDelete,today}){
   let filters={status:'current',parcelId:'',animalType:'',gestation:'all',query:''};
   const $=selector=>document.querySelector(selector);
   const active=key=>(state()[key]||[]).filter(row=>!row.deletedAt);
@@ -55,6 +55,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelet
     $('#grazing-back').onclick=()=>openList({reset:false});
     $('#delete-grazing')?.addEventListener('click',()=>confirmDelete('grazingSessions',row.id,'cette session de pâturage'));
     const form=$('#grazing-form'),button=$('#save-grazing');
+    const draft=formDraft?.(form,session?row.id:null);
     if(!parcels.some(parcel=>parcel.id===row.parcelId)){
       const option=document.createElement('option');option.value='';option.textContent='Parcelle indisponible — choisir une parcelle';option.selected=true;
       form.querySelector('[name="parcelId"]').prepend(option);
@@ -77,7 +78,8 @@ export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelet
         button.disabled=true;
         if(session&&!store.get('grazingSessions',row.id))throw new Error('Ce lot n’est plus disponible.');
         await saveGrazingSession(store,{parcelId:values.parcelId,animalType:values.animalType.trim()||'Non précisé',startDate:values.startDate,endDate:values.endDate||null,animals,additionalAnimalsCount,note:values.note},{id:session?row.id:null,expected:session});
-        if(form.isConnected)openList({reset:false});toast('Pâturage enregistré.');
+        draft?.clear();
+        if(form.isConnected)openList({reset:false});(savedToast||toast)('Pâturage enregistré.');
       }catch(error){button.disabled=false;toast(error.message,'error');}
     };
   }
@@ -97,7 +99,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,confirmDelet
         await endGrazingSession(store,session.id,{date:values.date});
         try{await saveGrazingSession(store,moved);}
         catch(failure){await saveGrazingSession(store,{parcelId:session.parcelId,animalType:session.animalType??grazingType(session),startDate:String(session.startDate).slice(0,10),endDate:null,animals:session.animals??[],additionalAnimalsCount:Number(session.additionalAnimalsCount)||0,note:session.note||''},{id:session.id}).catch(()=>{});throw failure;}
-        closeModal();toast(`Lot déplacé vers ${active('parcelles').find(p=>p.id===values.parcelId)?.nom||'la parcelle'}.`);
+        closeModal();(savedToast||toast)(`Lot déplacé vers ${active('parcelles').find(p=>p.id===values.parcelId)?.nom||'la parcelle'}.`);
       }catch(failure){button.disabled=false;error.textContent=failure.message;error.hidden=false;}
     };
   }

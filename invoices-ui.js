@@ -71,7 +71,7 @@ export function statusPill(status){return`<span class="inv-pill is-${e(status)}"
 
 export function createInvoicesUI({store,modal,closeModal,toast}){
   const state=()=>store.state||store.snapshot();
-  const canWrite=()=>!store.writeGuard||store.writeGuard({entity:'integrationImports',action:'update'});
+  const canWrite=()=>!store.writeGuard||store.writeGuard({entity:'integrationImports',action:'update',farmKind:'invoice'});
   let filter='all',prep={clientId:'',from:'',to:isoDay(),fuel:true},draftLines=new Map();
 
   // ---------- Liste ----------

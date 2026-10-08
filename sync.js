@@ -71,7 +71,7 @@ export class SyncService{
   serverTimestamp(){return this.firebaseSdk()?.firestore?.FieldValue?.serverTimestamp?.()??null;}
   serverTimeAt(ms){return this.firebaseSdk()?.firestore?.Timestamp?.fromMillis?.(ms)??null;}
   can(capability){return roleCan(this.role,capability);}
-  canWriteEntity(entity,action){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action});}
+  canWriteEntity(entity,action,farmKind){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action,farmKind});}
   queueSummary(){return queueStats(this.store.snapshot().queue);}
   networkAllows({attachments=false}={}){const p=this.store.snapshot().preferences,kind=connectionKind();if(!navigator.onLine)return false;if((p.syncWifiOnly||attachments&&p.syncAttachmentsWifiOnly)&&['cellular','2g','3g','4g','5g'].includes(kind))return false;return true;}
 
@@ -159,7 +159,7 @@ export class SyncService{
     if(!this.can('sync'))return{sent,conflicts,merged,errors,waiting};
     for(const operation of pending){
       try{
-        if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}if(!this.canWriteEntity(operation.entity,operation.action)){await this.markQueueDone(operation.id);continue;}
+        if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}if(!this.canWriteEntity(operation.entity,operation.action,operation.payload?.farmKind??this.store.get?.(operation.entity,operation.entityId,{includeDeleted:true})?.farmKind)){await this.markQueueDone(operation.id);continue;}
         const localEntity=this.store.get(operation.entity,operation.entityId,{includeDeleted:true});const localPayload=localEntity||operation.payload||{id:operation.entityId,deletedAt:Date.now()};const remote=await this.remoteRef(operation.entity,operation.entityId).get(),remoteData=remote.exists?decodeCloudDocument(remote.data()):null;
         if(remoteData?.payload&&this.remoteChangedSinceLastPull(remoteData,snapshot.metadata.lastSyncAt)&&canonicalData(remoteData.payload)!==canonicalData(clean(localPayload))){const suggestion=safeMergeEntity(localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.store.applyRemote(operation.entity,suggestion.merged,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload);await this.markQueueConflict(operation.id);conflicts++;continue;}
         await this.writeRemoteEntity(operation.entity,operation.entityId,localPayload,operation.action);await this.markQueueDone(operation.id);await this.audit(operation.action,operation.entity,operation.entityId);sent++;

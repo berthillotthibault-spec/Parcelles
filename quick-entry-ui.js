@@ -6,7 +6,7 @@ import {haptic} from './motion.js';
 import {escapeHtml, formatNumber} from './utils.js';
 
 const SVG = path => `<svg class="quick-glyph" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${path}</svg>`;
-const GLYPHS = {
+export const GLYPHS = {
   spray: SVG('<path d="M12 3c3 4 6 7.4 6 11a6 6 0 0 1-12 0c0-3.6 3-7 6-11z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/>'),
   harvest: SVG('<path d="M12 21V7"/><path d="M12 7c-2-.8-3-2.6-3-4.5 2 .2 3 2 3 4.5zm0 0c2-.8 3-2.6 3-4.5-2 .2-3 2-3 4.5z"/><path d="M12 12.5c-2.2-.6-3.6-2.2-3.6-4.2 2.2.1 3.6 1.8 3.6 4.2zm0 0c2.2-.6 3.6-2.2 3.6-4.2-2.2.1-3.6 1.8-3.6 4.2z"/><path d="M12 18c-2.2-.6-3.6-2.2-3.6-4.2 2.2.1 3.6 1.8 3.6 4.2zm0 0c2.2-.6 3.6-2.2 3.6-4.2-2.2.1-3.6 1.8-3.6 4.2z"/>'),
   mow: SVG('<path d="M3 20h18"/><path d="M5 20c.6-4.4 2.2-7.6 4.5-10"/><path d="M10 20c0-5 .8-9 3-12.5"/><path d="M15 20c0-4 .8-7 3-9.5"/><path d="M19.5 20c0-2.6.2-4.6 1-6.5"/>'),

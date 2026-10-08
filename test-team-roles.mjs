@@ -146,3 +146,15 @@ test('nouveaux fichiers servis listés dans sw.js et runtime.js', () => {
     assert.ok(src.includes("'./team-roles.js'") && src.includes("'./team-roles-ui.js'"), f);
   }
 });
+
+test('factures et ventes : comptabilité oui, opérateur terrain non ; capteurs : opérateur oui, comptabilité non', async () => {
+  const {canMutate} = await import('./permissions.js');
+  for (const farmKind of ['invoice', 'salesContract']) {
+    assert.equal(canMutate('accountant', {entity: 'integrationImports', action: 'update', farmKind}), true);
+    assert.equal(canMutate('operator', {entity: 'integrationImports', action: 'update', farmKind}), false);
+    assert.equal(canMutate('operator', {entity: 'integrationImports', action: 'create', payload: {farmKind}}), false);
+  }
+  assert.equal(canMutate('operator', {entity: 'integrationImports', action: 'update', farmKind: 'sensor'}), true);
+  assert.equal(canMutate('accountant', {entity: 'integrationImports', action: 'update', farmKind: 'sensor'}), false);
+  assert.equal(canMutate('editor', {entity: 'integrationImports', action: 'update', farmKind: 'invoice'}), true);
+});

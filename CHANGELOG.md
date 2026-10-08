@@ -1,5 +1,17 @@
 # Changelog
 
+## 10.12.0 · terrain, formulaires et historique — 2026-10-08
+
+- ma tournée du jour : « Démarrer ma journée » enchaîne travaux, tâches, lots à déplacer et entretiens dans l’ordre le plus court, étape par étape (Y aller, Commencer, Fini), avec un récapitulatif du soir ;
+- QR codes sur les engins, portails et abreuvoirs : un scan ouvre heures compteur, plein, entretien ou panne avec photo ; planche A4 d’étiquettes en PDF ;
+- créneaux météo : chaque travail en attente indique son prochain créneau favorable (vent, rafales, Delta T, pluie), à titre indicatif ; modèle d’automatisation « Créneaux météo du jour » ;
+- Travaux : Liste, Calendrier, Tâches et Chantiers deviennent des onglets de l’écran au lieu de fenêtres ; la date des cases du calendrier n’est plus décalée d’un jour ;
+- formulaires de travail et de tâche en pastilles (parcelle, type, date, statut, priorité), erreurs affichées sous le champ ; brouillons enregistrés automatiquement et proposés à la reprise ;
+- historique de chaque fiche et « Annuler » sur toute modification ;
+- synchronisation : pastille à 5 états, file d’envoi lisible et rappel après 48 h sans envoi ;
+- ouverture instantanée, et invitation à installer l’application sur l’écran d’accueil au bon moment ;
+- sécurité : factures et contrats de vente réservés à la comptabilité, plus à l’opérateur terrain (règles Firestore à republier).
+
 ## 10.11.1 · factures PDF, équipe, carte et accessibilité — 2026-10-08
 
 - factures et avoirs : vrai fichier PDF à partager, imprimer ou enregistrer depuis l’iPhone (Safari et application installée), nouvelle mise en page, logo et couleur de l’entreprise ; un avoir total est exactement égal à la facture ; dossier de campagne, dossier de contrôle et rapports aussi en PDF (sans graphiques) ;

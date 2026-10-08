@@ -1,5 +1,6 @@
 const DB_NAME='parcelles-app';
-const DB_VERSION=2;
+// v3 : ajout de l’object store « history » (historique des fiches, hors de l’état synchronisé).
+const DB_VERSION=3;
 
 function requestAsPromise(request){return new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 function transactionDone(tx){return new Promise((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Transaction annulée'));});}
@@ -32,6 +33,10 @@ export class StorageService{
           if(!db.objectStoreNames.contains('app'))db.createObjectStore('app');
           if(!db.objectStoreNames.contains('blobs'))db.createObjectStore('blobs');
           if(!db.objectStoreNames.contains('backups'))db.createObjectStore('backups',{keyPath:'id'});
+          // Ajout seulement : les stores existants (app, blobs, backups) ne sont jamais vidés ni recréés.
+          const history=db.objectStoreNames.contains('history')?request.transaction.objectStore('history'):db.createObjectStore('history',{keyPath:'id'});
+          if(!history.indexNames.contains('key'))history.createIndex('key','key');
+          if(!history.indexNames.contains('at'))history.createIndex('at','at');
         };
         request.onsuccess=()=>finish(null,request.result);
         request.onerror=()=>finish(request.error||new Error('Stockage local indisponible.'));
@@ -108,6 +113,31 @@ export class StorageService{
     const keys=await this.blobKeys();
     const values=await Promise.all(keys.map(key=>this.blobGet(key)));
     return keys.map((key,index)=>({id:String(key),blob:values[index]}));
+  }
+
+  // Historique des fiches : jamais bloquant. Sans IndexedDB ou sans store (ancienne base ouverte ailleurs), rien n’est conservé.
+  hasHistory(){return Boolean(!this.usingFallback&&this.db?.objectStoreNames?.contains('history'));}
+  async historyAdd(rows,{maxPerEntity=50}={}){
+    if(!this.hasHistory()||!rows?.length)return;
+    const tx=this.transaction('history','readwrite'),store=tx.objectStore('history'),index=store.index('key');
+    for(const row of rows)store.put(row);
+    for(const key of new Set(rows.map(row=>row.key))){
+      // Plafond par fiche : les versions les plus anciennes au-delà de la limite sont retirées.
+      const request=index.getAll(key);
+      request.onsuccess=()=>{const extra=(request.result||[]).sort((a,b)=>((b.at||0)-(a.at||0))||((b.seq||0)-(a.seq||0))).slice(maxPerEntity);for(const row of extra)store.delete(row.id);};
+    }
+    await transactionDone(tx);
+  }
+  async historyList(key){
+    if(!this.hasHistory())return[];
+    const rows=await requestAsPromise(this.transaction('history','readonly').objectStore('history').index('key').getAll(key));
+    return (rows||[]).sort((a,b)=>((b.at||0)-(a.at||0))||((b.seq||0)-(a.seq||0)));
+  }
+  async historyPrune(cutoff){
+    if(!this.hasHistory())return 0;
+    const tx=this.transaction('history','readwrite'),request=tx.objectStore('history').index('at').openCursor(IDBKeyRange.upperBound(cutoff,true));let count=0;
+    request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;cursor.delete();count+=1;cursor.continue();};
+    await transactionDone(tx);return count;
   }
 
   async backupPut(backup){

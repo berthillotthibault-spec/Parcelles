@@ -1,10 +1,12 @@
 import {agendaDate,isPending,localDay,grazingWatch,maintenanceRemaining,isLowStock} from './home-priorities.js';
 import {isoDate,normalize,toNumber,uid} from './utils.js';
+import {favorableToday,SLOT_DISCLAIMER} from './work-weather.js';
 
 export const AUTOMATION_KINDS={
   grazing_duration:{label:'Durée au pâturage',description:'Signaler les lots présents depuis le nombre de jours défini, sans les déplacer.'},
   task_overdue:{label:'Tâches en retard',description:'Alerter lorsqu’une tâche dépasse son échéance.'},
   work_today:{label:'Travaux du jour',description:'Alerter lorsqu’un travail planifié arrive aujourd’hui.'},
+  weather_window:{label:'Créneaux météo',description:'Signaler une fois par jour les travaux en attente qui ont un créneau météo favorable (indicatif).'},
   stock_low:{label:'Stock faible',description:'Alerter lorsqu’un article atteint son seuil.'},
   maintenance_due:{label:'Entretien matériel',description:'Alerter lorsqu’un entretien est dû ou proche.'},
   urgent_observation:{label:'Observation urgente',description:'Alerter sur les observations terrain urgentes non résolues.'},
@@ -56,6 +58,7 @@ export const AUTOMATION_FIELDS={
 export function automationTemplates(){return [
   {kind:'grazing_duration',name:'Durée au pâturage',threshold:7,cooldownHours:24,trigger:'daily',actions:[{type:'notify'}]},
   {kind:'task_overdue',name:'Tâches en retard',threshold:1,cooldownHours:12,trigger:'interval',actions:[{type:'notify'}]},
+  {kind:'weather_window',name:'Créneaux météo du jour',threshold:1,cooldownHours:20,trigger:'daily',actions:[{type:'notify'}]},
   {kind:'stock_low',name:'Stocks faibles',threshold:1,cooldownHours:12,trigger:'entity_change',triggerEntity:'stockItems',actions:[{type:'notify'}]},
   {kind:'maintenance_due',name:'Entretien matériel',threshold:20,cooldownHours:24,trigger:'interval',actions:[{type:'notify'}]},
   {kind:'urgent_observation',name:'Observations urgentes',threshold:1,cooldownHours:6,trigger:'entity_change',triggerEntity:'observations',actions:[{type:'notify'}]},
@@ -111,13 +114,14 @@ export function genericAutomationMatches(rule,state,nowMs=Date.now()){
   }));
 }
 
-export function automationMatches(rule,state,nowMs=Date.now()){
+export function automationMatches(rule,state,nowMs=Date.now(),context={}){
   if(!rule?.enabled)return[];
   if(rule.target)return genericAutomationMatches(rule,state,nowMs);
   const today=localDay(new Date(nowMs)),threshold=toNumber(rule.threshold);
   if(rule.kind==='grazing_duration')return grazingWatch(state,today,threshold).map(row=>({entity:'grazingSessions',entityId:row.id,title:'Pâturage à surveiller',message:row.label,label:row.label,data:row}));
   if(rule.kind==='task_overdue')return active(state,'tasks').filter(x=>isPending(x,'task')&&agendaDate(x,'task')&&agendaDate(x,'task')<today).map(x=>({entity:'tasks',entityId:x.id,title:'Tâche en retard',message:x.title||'Tâche',label:x.title||'Tâche',data:x}));
   if(rule.kind==='work_today')return active(state,'interventions').filter(x=>isPending(x)&&agendaDate(x)===today).map(x=>({entity:'interventions',entityId:x.id,title:'Travail prévu aujourd’hui',message:x.type||'Travail',label:x.type||'Travail',data:x}));
+  if(rule.kind==='weather_window'){const rows=favorableToday(active(state,'interventions'),context.weather,{now:nowMs});if(rows.length<Math.max(1,threshold))return[];const n=rows.length,first=rows[0];return[{entity:n===1?'interventions':'weather',entityId:n===1?first.work.id:'',title:`Créneau favorable pour ${n} ${n>1?'travaux':'travail'}`,message:`${n===1?`${first.work.type||'Travail'} · ${first.slot.text}`:`${n} travaux en attente ont un créneau favorable aujourd’hui`}. ${SLOT_DISCLAIMER}`,label:'Créneaux météo',data:{count:n,ids:rows.map(r=>r.work.id)}}];}
   if(rule.kind==='stock_low')return active(state,'stockItems').filter(isLowStock).map(x=>({entity:'stockItems',entityId:x.id,title:Number(x.quantity)<=0?'Stock épuisé':'Stock faible',message:`${x.name||'Article'} · ${x.quantity??0} ${x.unit||''}`,label:x.name||'Article',data:x}));
   if(rule.kind==='maintenance_due')return active(state,'materiels').filter(x=>maintenanceRemaining(x)!==null&&maintenanceRemaining(x)<=threshold).map(x=>({entity:'materiels',entityId:x.id,title:'Entretien matériel',message:`${x.nom||'Matériel'} · ${Math.round(maintenanceRemaining(x))} h restantes`,label:x.nom||'Matériel',data:x}));
   if(rule.kind==='urgent_observation')return active(state,'observations').filter(x=>x.status!=='Résolu'&&x.severity==='urgent').map(x=>({entity:'observations',entityId:x.id,title:'Observation terrain urgente',message:x.title||x.type||'Observation',label:x.title||x.type||'Observation',data:x}));
@@ -147,7 +151,7 @@ export function evaluateAutomationRules(state,nowMs=Date.now(),context={}){
   const results=[];
   for(const rule of active(state,'automationRules')){
     if(!automationDue(rule,nowMs,context))continue;
-    const matches=automationMatches(rule,state,nowMs);
+    const matches=automationMatches(rule,state,nowMs,context);
     if(matches.length)results.push({rule,matches,runKey:`${rule.id}:${isoDate(nowMs)}:${Math.floor(nowMs/3600000)}`});
   }
   return results;

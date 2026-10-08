@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f5f0">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="application-name" content="Parcelles 10.10">
-  <meta name="parcelles-build" content="2026.10.08-v10.11.1">
+  <meta name="parcelles-build" content="2026.10.08-v10.12.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="./public-works.css">
   <link rel="stylesheet" href="./motion.css">
   <link rel="stylesheet" href="./personalization.css">
-  <link rel="stylesheet" href="./design-v3.css?v=4.0">
+  <link rel="stylesheet" href="./design-v3.css?v=4.1">
   <title>Parcelles</title>
 </head>
 <body>
@@ -122,7 +122,7 @@
           <div id="home-custom-empty" class="home-custom-empty hidden">Votre accueil est épuré. Retrouvez vos outils dans les onglets ou ajoutez des blocs avec <button class="text-button" data-action="personalize">Personnaliser</button>.</div>
           <div class="today-grid">
             <article class="panel weather-card" data-home-card="weather"><div class="panel-heading"><h2>Météo</h2><button class="text-button" data-action="open-weather">Voir</button></div><div id="weather-content" class="weather-content"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></article>
-            <article class="panel" data-home-card="today"><div class="panel-heading"><h2>À faire maintenant</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="today-work-list" class="stack-list"></div></article>
+            <article class="panel" data-home-card="today"><div class="panel-heading"><h2>À faire maintenant</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="day-route-entry"></div><div id="today-work-list" class="stack-list"></div></article>
             <article class="panel" data-home-card="tasks"><div class="panel-heading"><h2>Autres tâches</h2><button class="text-button" data-action="open-tasks">Tout voir</button></div><div id="today-task-list" class="stack-list"></div></article>
             <article class="panel" data-home-card="alerts"><div class="panel-heading"><h2>À surveiller</h2><button class="text-button" data-action="open-notifications">Voir</button></div><div id="alerts-list" class="stack-list"></div></article>
             <article class="panel" data-home-card="recent"><div class="panel-heading"><h2>Activité récente</h2><button class="text-button" data-view="work">Historique</button></div><div id="recent-list" class="stack-list"></div></article>
@@ -182,12 +182,15 @@
       <section id="view-work" class="view" aria-labelledby="work-title">
         <div class="page-container">
           <div class="view-heading"><div><h1 id="work-title">Travaux</h1><p class="lead">Planifier, réaliser, retrouver.</p></div><button class="button primary icon-only" data-action="new-work" aria-label="Nouveau travail"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
-          <nav class="context-tools" aria-label="Organisation des travaux"><button class="small-button" data-action="open-calendar">Calendrier</button><button class="small-button" data-action="open-tasks">Tâches</button><button class="small-button" data-action="open-chantiers">Chantiers</button><button class="small-button" data-action="open-equipment">Matériel</button><button class="small-button" data-action="batch-work">Travail groupé</button></nav>
+          <div class="segmented work-subviews" id="work-subviews" role="tablist" aria-label="Affichage des travaux"><button id="work-subview-tab-list" data-tab="list" role="tab" aria-selected="true" aria-controls="work-panel-list" class="is-active">Liste</button><button id="work-subview-tab-calendar" data-tab="calendar" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Calendrier</button><button id="work-subview-tab-tasks" data-tab="tasks" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Tâches</button><button id="work-subview-tab-chantiers" data-tab="chantiers" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Chantiers</button></div>
+          <nav class="context-tools" aria-label="Organisation des travaux"><button class="small-button" data-action="open-equipment">Matériel</button><button class="small-button" data-action="batch-work">Travail groupé</button></nav>
+          <div id="work-panel-list" role="tabpanel" aria-labelledby="work-subview-tab-list">
           <div id="work-priority-notice" class="work-priority-notice hidden" role="status"></div>
           <div class="segmented" id="work-tabs" aria-label="Période des travaux"><button class="is-active" data-work-tab="today">Aujourd’hui</button><button data-work-tab="upcoming">Planifiés</button><button data-work-tab="overdue">En retard <span id="work-overdue-count" class="work-tab-count"></span></button><button data-work-tab="history">Historique</button></div>
           <div class="toolbar-panel compact-toolbar"><label class="search-field"><svg class="ui-icon" width="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="work-search" type="search" placeholder="Type, parcelle, produit…"></label><button class="button secondary icon-only" data-action="work-filters" aria-label="Filtres"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M7 12h10M10 19h4"/></svg></button></div>
           <div id="work-filter-summary" class="active-filters"></div>
-          <div id="work-list" class="work-list"></div>
+          <div id="work-list" class="work-list"></div></div>
+          <div id="work-panel-sub" class="work-subview" role="tabpanel" tabindex="-1" hidden></div>
         </div>
       </section>
 
