@@ -1,5 +1,39 @@
 # Changelog
 
+## 10.11.0 · sécurité et grandes améliorations — 2026-10-08
+
+Sécurité et protection des données (à accompagner du déploiement des règles Firebase) :
+- invitations : le rôle de l’invitation est imposé, l’invitation ne sert qu’une fois et ne peut jamais donner le rôle propriétaire ;
+- cloud : forme des documents contrôlée, suppression définitive des données et des pièces jointes réservée au propriétaire ; les rôles responsable, opérateur terrain et comptabilité peuvent enfin envoyer leurs saisies ;
+- un seul onglet écrit à la fois (« Parcelles est déjà ouvert dans une autre fenêtre · Utiliser ici »), les autres se mettent à jour ;
+- des données venant d’une version plus récente restent consultables mais ne sont plus réécrites ; copie de sécurité avant chaque migration ;
+- rappel « Sauvegarder maintenant » après 14 jours sans sauvegarde hors de l’appareil, partage du ZIP depuis le téléphone, dossier de sauvegarde sur ordinateur ;
+- synchronisation fondée sur l’heure du serveur : un appareil à l’heure fausse ne fait plus perdre de modifications ; décalage d’horloge affiché dans le Diagnostic ;
+- les fichiers de données réelles et les anciens fichiers inutilisés sont retirés du site publié.
+
+Aujourd’hui :
+- salutation selon l’heure, phrase qui résume la journée et carte « Ce matin » (créneau météo, lot au pré, observation urgente, stock bas, entretien), lisible à voix haute ;
+- célébration sobre et vibration discrète quand on coche un travail, « Journée bouclée » quand tout est fait ;
+- premier lancement « carte d’abord » : parcelles PAC retrouvées et ajoutées en quelques touches ;
+- sur grand écran, Aujourd’hui et Travaux en colonnes.
+
+Terrain et carte :
+- saisie express « J’ai fait… » en deux gestes ;
+- saisie vocale de bout en bout avec fiche de vérification, mémos vocaux gardés hors connexion ;
+- suivi GPS continu dans le mode terrain, parcelle et chantier reconnus automatiquement ;
+- fonds IGN (photo, plan), surcouche cadastre et création de parcelle depuis le cadastre ;
+- carte de l’exploitation téléchargeable pour un usage hors connexion ;
+- polices disponibles hors connexion.
+
+Gestion :
+- portance des sols et bilan hydrique « Peut-on rentrer dans la parcelle ? » (estimation) ;
+- coût de revient €/t, prix d’équilibre et assistant « Compléter les coûts » ;
+- commercialisation : contrats de vente et prix moyen réellement obtenu ;
+- dossier de campagne imprimable pour la banque, le centre de gestion ou la coopérative ;
+- facturation des prestations et des chantiers TP : numérotation continue, avoirs, relance des retards, export CSV ;
+- « Prêt pour un contrôle ? » : état des obligations et dossier de contrôle imprimable (indicatif) ;
+- consignes aux salariés, « Mes tâches du jour » et pointage des heures, feuille d’heures CSV.
+
 ## 10.10.9 · fiabilisation — 2026-10-07
 
 - hors connexion : l’installation du service worker échouait sur un hébergement HTTP/1.1 (téléchargements bloqués, « Cache incomplet ») ; l’invite « Mettre à jour » reste affichée jusqu’au choix ;

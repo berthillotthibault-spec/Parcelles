@@ -153,3 +153,15 @@ export async function withProgress(label, operation, {button, ...options} = {}) 
     }
   }
 }
+
+// Retour haptique discret : plugin natif (Capacitor) s’il existe, sinon navigator.vibrate (PWA Android).
+// Jamais bloquant : un appareil sans vibration renvoie simplement false.
+export const HAPTIC_PATTERNS = {tick: 12, success: [12, 70, 24]};
+export async function haptic(kind = 'tick', {enabled = true, native = null, nav = globalThis.navigator} = {}) {
+  if (!enabled) return false;
+  try {
+    if (native?.capabilities?.haptics && await native.haptic(kind === 'success' ? 'medium' : 'light')) return true;
+  } catch {}
+  try {return Boolean(nav?.vibrate?.(HAPTIC_PATTERNS[kind] ?? HAPTIC_PATTERNS.tick));}
+  catch {return false;}
+}

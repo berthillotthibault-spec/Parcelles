@@ -61,8 +61,8 @@ await check('Commun', 'pastille synchro', () => !!document.querySelector('#netwo
 // Aujourd'hui
 await go('today'); await shot('01-aujourdhui');
 await check('Aujourd’hui', 'date (jour de la semaine)', () => /lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche/i.test(document.querySelector('#today-label')?.textContent || ''));
-await check('Aujourd’hui', 'titre Bonjour en Instrument Serif', () => /Bonjour/.test(document.querySelector('#today-title').textContent) && /Instrument Serif/.test(getComputedStyle(document.querySelector('#today-title')).fontFamily));
-await check('Aujourd’hui', 'phrase « … aujourd’hui »', () => /aujourd’hui/.test(document.querySelector('#today-subtitle')?.textContent || ''));
+await check('Aujourd’hui', 'titre de salutation en Instrument Serif', () => /Bonjour|Bonsoir|Bonne nuit/.test(document.querySelector('#today-title').textContent) && /Instrument Serif/.test(getComputedStyle(document.querySelector('#today-title')).fontFamily));
+await check('Aujourd’hui', 'phrase « … aujourd’hui » ou « … ce soir »', () => /aujourd’hui|ce soir/.test(document.querySelector('#today-subtitle')?.textContent || ''));
 await check('Aujourd’hui', '« + Travail » avant « Personnaliser »', () => document.querySelector('.today-primary-action').firstElementChild.dataset.action === 'new-work');
 await check('Aujourd’hui', 'carte prochaine action', () => !!document.querySelector('#next-action .next-action-card'));
 await check('Aujourd’hui', 'résumé : 3 cartes cliquables', () => document.querySelectorAll('#today-summary .summary-card[data-action]').length === 3);

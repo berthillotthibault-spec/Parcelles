@@ -6,14 +6,13 @@
   <meta name="theme-color" content="#f7f5f0">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="application-name" content="Parcelles 10.10">
-  <meta name="parcelles-build" content="2026.10.07-v10.10.9">
+  <meta name="parcelles-build" content="2026.10.08-v10.11.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Instrument+Serif&display=swap">
+  <link rel="preload" href="./instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./instrument-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./leaflet.min.css">
   <link rel="stylesheet" href="./base.css">
   <link rel="stylesheet" href="./tokens.css">
@@ -28,7 +27,7 @@
   <link rel="stylesheet" href="./public-works.css">
   <link rel="stylesheet" href="./motion.css">
   <link rel="stylesheet" href="./personalization.css">
-  <link rel="stylesheet" href="./design-v3.css?v=3.8">
+  <link rel="stylesheet" href="./design-v3.css?v=3.9">
   <title>Parcelles</title>
 </head>
 <body>
@@ -79,6 +78,14 @@
     <div id="offline-banner" class="offline-banner hidden" role="status">
       <span>Hors connexion · vos données locales restent disponibles</span>
     </div>
+    <div id="tab-banner" class="offline-banner tab-banner hidden" role="status">
+      <span>Parcelles est déjà ouvert dans une autre fenêtre · lecture seule ici</span>
+      <button type="button" class="tab-banner-action" data-tab-takeover>Utiliser ici</button>
+    </div>
+    <div id="schema-banner" class="offline-banner tab-banner hidden" role="alert">
+      <span>Vos données viennent d’une version plus récente de Parcelles · lecture seule en attendant</span>
+      <button type="button" class="tab-banner-action" data-schema-update>Mettre à jour</button>
+    </div>
 
     <aside class="desktop-sidebar" aria-label="Navigation principale ordinateur">
       <button class="desktop-brand" data-view="today" aria-label="Accueil Parcelles">
@@ -110,6 +117,7 @@
           <div id="next-action" class="next-action"></div>
           <div id="today-summary" class="today-summary" aria-label="Résumé du jour"></div>
           <div id="today-quick-actions" class="quick-action-strip" aria-label="Actions rapides"></div>
+          <div id="backup-reminder" class="backup-reminder hidden" role="status" aria-live="polite"></div>
           <section id="morning-brief" class="morning-brief" aria-label="Briefing du matin"></section>
           <div id="home-custom-empty" class="home-custom-empty hidden">Votre accueil est épuré. Retrouvez vos outils dans les onglets ou ajoutez des blocs avec <button class="text-button" data-action="personalize">Personnaliser</button>.</div>
           <div class="today-grid">

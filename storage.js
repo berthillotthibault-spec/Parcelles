@@ -6,6 +6,8 @@ function transactionDone(tx){return new Promise((resolve,reject)=>{tx.oncomplete
 function safeLocalGet(key){try{return localStorage.getItem(key);}catch(error){console.warn(`[Parcelles] localStorage inaccessible : ${key}`,error);return null;}}
 function safeLocalSet(key,value){try{localStorage.setItem(key,value);return true;}catch(error){console.warn(`[Parcelles] écriture localStorage impossible : ${key}`,error);return false;}}
 function storageBusyError(message){const error=new Error(message);error.name='StorageBusyError';return error;}
+// Une autre fenêtre a enregistré l’état depuis sa dernière lecture ici : l’écriture est refusée plutôt que d’effacer ses saisies.
+export function staleStateError(){const error=new Error('Parcelles a été modifié dans une autre fenêtre. Les données affichées ont été rechargées : recommencez votre dernière action.');error.name='StaleStateError';return error;}
 
 async function jsonChecksum(value){
   const bytes=new TextEncoder().encode(JSON.stringify(value));
@@ -57,6 +59,23 @@ export class StorageService{
   async set(key,value){
     if(this.usingFallback){const copy=structuredClone(value),serialized=JSON.stringify(copy);if(!safeLocalSet(`parcelles:${key}`,serialized))throw new Error('Enregistrement impossible : le stockage local est plein ou désactivé.');this.memory.set(key,copy);return;}
     const tx=this.transaction('app','readwrite');tx.objectStore('app').put(value,key);await transactionDone(tx);
+  }
+  // Lecture qui ignore la copie mémoire du repli localStorage, partagée par les autres onglets.
+  async getStored(key){
+    if(this.usingFallback){
+      try{const raw=safeLocalGet(`parcelles:${key}`);if(raw!==null)return JSON.parse(raw);}catch(error){console.warn(`[Parcelles] donnée locale corrompue ignorée : ${key}`,error);}
+      return this.memory.has(key)?structuredClone(this.memory.get(key)):null;
+    }
+    return this.get(key);
+  }
+  // Écrit seulement si la valeur stockée est toujours celle que cet onglet connaît.
+  // Lecture et écriture partagent la même transaction readwrite : aucun autre onglet ne peut s’intercaler.
+  async setIfCurrent(key,value,isCurrent){
+    if(this.usingFallback){if(!isCurrent(await this.getStored(key)))throw staleStateError();return this.set(key,value);}
+    const tx=this.transaction('app','readwrite'),objectStore=tx.objectStore('app');let stale=false;
+    const request=objectStore.get(key);
+    request.onsuccess=()=>{let current=false;try{current=Boolean(isCurrent(request.result));}catch(error){console.warn('[Parcelles] vérification de révision impossible.',error);}if(!current){stale=true;tx.abort();return;}objectStore.put(value,key);};
+    try{await transactionDone(tx);}catch(error){if(stale)throw staleStateError();throw error;}
   }
   async appKeys(){
     if(this.usingFallback){

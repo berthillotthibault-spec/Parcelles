@@ -3,6 +3,7 @@ import {parcelSituation,localDay} from './home-priorities.js';
 import {parcelGrazingHtml} from './grazing-ui.js';
 import {escapeHtml, formatNumber, geometryCentroid, geometryAreaHa, haversineMeters, normalize} from './utils.js';
 import {fetchRpgFeatures, rpgFeatureId} from './rpg.js';
+import {baseLayerDefinition,CADASTRE_OVERLAY,normalizeCadastreOpacity,cadastreQueryUrl,parseCadastreResponse,cadastreReference} from './basemaps.js';
 
 const DEFAULT_CENTER=[46.31,4.95];
 const CULTURE_PALETTE=['#287a4a','#4b8f6a','#7a9d44','#b08a32','#7f6bb2','#3f83a8','#bd6f4a','#699b8a','#9a6d3f','#557a9c','#8c7a3f','#a36d8e'];
@@ -39,6 +40,8 @@ export class ParcelMap{
     L.control.zoom({position:'bottomright'}).addTo(this.map);
     for(const [name,zIndex] of [['rpgPane',350],['parcelPane',410],['selectedParcelPane',430],['mapPointPane',500],['editingPane',550]]){this.map.createPane(name).style.zIndex=String(zIndex);}
     this.layers.parcels=L.featureGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);
+    this.map.createPane('cadastrePane').style.zIndex='300';this.map.getPane('cadastrePane').style.pointerEvents='none';
+    this.map.on('click',event=>this.handleCadastreClick(event));
     this.setBaseLayer('osm');
   }
 
@@ -59,15 +62,54 @@ export class ParcelMap{
 
   setBaseLayer(name='osm'){
     this.init();if(!this.map)return;
-    name=name==='satellite'?'satellite':'osm';
-    if(this.baseLayer&&this.baseLayerName===name)return;
+    const def=baseLayerDefinition(name);
+    if(this.baseLayer&&this.baseLayerName===def.id)return;
     if(this.baseLayer)this.map.removeLayer(this.baseLayer);
-    if(name==='satellite'){
-      this.baseLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,attribution:'Tiles © Esri — Sources Esri, Maxar, Earthstar Geographics'});
-    }else{
-      this.baseLayer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap contributors'});
-    }
-    this.baseLayer.addTo(this.map);this.baseLayerName=name;
+    this.baseLayer=L.tileLayer(def.url,{maxZoom:def.maxZoom,...(def.maxNativeZoom?{maxNativeZoom:def.maxNativeZoom}:{}),attribution:def.attribution});
+    this.baseLayer.addTo(this.map);this.baseLayerName=def.id;
+  }
+
+  // Surcouche cadastrale IGN (Parcellaire Express). Le clic sur la carte
+  // interroge API Carto uniquement quand cette surcouche est visible.
+  setCadastreOverlay(visible,opacity){
+    this.init();if(!this.map)return;
+    const value=normalizeCadastreOpacity(opacity??this.cadastreOpacity);this.cadastreOpacity=value;
+    if(!visible){if(this.cadastreLayer){this.map.removeLayer(this.cadastreLayer);this.cadastreLayer=null;}this.clearCadastreSelection();return;}
+    if(this.cadastreLayer){this.cadastreLayer.setOpacity(value);return;}
+    this.cadastreLayer=L.tileLayer(CADASTRE_OVERLAY.url,{pane:'cadastrePane',opacity:value,maxZoom:CADASTRE_OVERLAY.maxZoom,maxNativeZoom:CADASTRE_OVERLAY.maxNativeZoom,attribution:CADASTRE_OVERLAY.attribution}).addTo(this.map);
+  }
+  setCadastreOpacity(value){this.cadastreOpacity=normalizeCadastreOpacity(value);this.cadastreLayer?.setOpacity(this.cadastreOpacity);}
+  getCadastreInfo(idu){return this.cadastreInfo&&this.cadastreInfo.idu===idu?structuredClone(this.cadastreInfo):null;}
+  clearCadastreSelection(){this.cadastreController?.abort();this.cadastreController=null;this.cadastreHighlight?.remove();this.cadastreHighlight=null;if(this.cadastrePopup){const popup=this.cadastrePopup;this.cadastrePopup=null;this.map?.closePopup(popup);}}
+  cadastrePopupHtml(info){
+    const area=info.contenanceM2===null?'':`Contenance : ${formatNumber(info.contenanceM2/10000)} ha (${new Intl.NumberFormat('fr-FR').format(info.contenanceM2)} m²)`;
+    return`<div class="rpg-popup cadastre-popup"><strong>Parcelle cadastrale</strong><small>${escapeHtml(cadastreReference(info))}${info.commune?` · ${escapeHtml(info.commune)}`:''}</small>${area?`<small>${area}</small>`:''}<small class="cadastre-note">Indicatif : le cadastre n’a pas de valeur de bornage.</small>${info.geometry&&info.idu?`<button type="button" data-action="add-cadastre-parcel" data-id="${escapeHtml(info.idu)}">Créer une parcelle depuis ce contour</button>`:''}</div>`;
+  }
+  async handleCadastreClick(event){
+    if(!this.cadastreLayer||!this.map||this.mapToolActive()||this.multiple)return;
+    const target=event?.originalEvent?.target;
+    if(target?.closest?.('.leaflet-interactive,.leaflet-marker-icon,.leaflet-popup,.leaflet-control'))return;
+    const latlng=event?.latlng;if(!latlng)return;
+    this.clearCadastreSelection();
+    const popup=L.popup({...this.mapPopupPadding(),maxWidth:320}).setLatLng(latlng);this.cadastrePopup=popup;
+    popup.on('remove',()=>{if(this.cadastrePopup===popup){this.cadastrePopup=null;this.cadastreController?.abort();this.cadastreController=null;this.cadastreHighlight?.remove();this.cadastreHighlight=null;}});
+    const show=html=>{if(this.cadastrePopup===popup){popup.setContent(html);if(!this.map.hasLayer(popup))popup.openOn(this.map);}};
+    if(typeof navigator!=='undefined'&&navigator.onLine===false){show('<div class="rpg-popup cadastre-popup"><strong>Cadastre indisponible</strong><small>Hors connexion : la consultation cadastrale reprendra au retour du réseau.</small></div>');return;}
+    show('<div class="rpg-popup cadastre-popup" role="status"><strong>Cadastre</strong><small>Recherche de la parcelle cadastrale…</small></div>');
+    const controller=new AbortController();this.cadastreController=controller;const timer=setTimeout(()=>controller.abort(),12000);
+    try{
+      const response=await fetch(cadastreQueryUrl(latlng.lat,latlng.lng),{signal:controller.signal,headers:{Accept:'application/json'}});
+      if(!response.ok)throw new Error(`HTTP ${response.status}`);
+      const info=parseCadastreResponse(await response.json());
+      if(this.cadastreController!==controller)return;
+      if(!info){show('<div class="rpg-popup cadastre-popup"><strong>Aucune parcelle cadastrale</strong><small>Ce point n’est pas couvert par une parcelle cadastrée (route, cours d’eau, domaine public…).</small></div>');return;}
+      this.cadastreInfo=info;
+      if(info.geometry)this.cadastreHighlight=L.geoJSON(info.geometry,{pane:'editingPane',interactive:false,style:{color:'#b3261e',weight:3,dashArray:'6 4',fill:true,fillOpacity:.08}}).addTo(this.map);
+      show(this.cadastrePopupHtml(info));
+    }catch(error){
+      if(this.cadastreController!==controller)return;
+      show('<div class="rpg-popup cadastre-popup"><strong>Cadastre injoignable</strong><small>Le service cadastral de l’IGN ne répond pas pour le moment. Réessayez dans un instant.</small></div>');
+    }finally{clearTimeout(timer);if(this.cadastreController===controller)this.cadastreController=null;}
   }
 
   setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.render(this.lastState);}

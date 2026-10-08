@@ -31,3 +31,7 @@ html[data-view="map"] .offline-banner{position:relative;top:auto;flex:none;margi
   html[data-view="map"].is-offline{--map-top-inset:0px}
   html[data-view="map"] .offline-banner{padding-top:calc(6px + var(--safe-top))}
 }
+/* Bandeau « déjà ouvert dans une autre fenêtre » : même apparence que le bandeau hors connexion, avec une action. */
+.tab-banner{flex-wrap:wrap;text-align:center}.tab-banner-action{min-height:30px;padding:4px 14px;border:1px solid currentColor;border-radius:999px;background:transparent;color:inherit;font-weight:700}.tab-banner-action:disabled{opacity:.6}
+/* Rappel « sauvegarde hors de l’appareil » sur Aujourd’hui (au-delà de 14 jours) : teinte avertissement, lisible en mode sombre. */
+.backup-reminder{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 14px;margin:4px 0 14px;padding:12px 14px;border-radius:16px;background:var(--warning-soft);color:var(--text-primary);border:1px solid color-mix(in srgb,var(--warning) 35%,transparent)}.backup-reminder.hidden{display:none}.backup-reminder>div:first-child{display:grid;gap:3px;min-width:0;flex:1 1 240px}.backup-reminder strong{color:var(--warning);font-size:14px}.backup-reminder small{color:var(--text-secondary);font-size:12.5px;line-height:1.4}.backup-reminder-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}

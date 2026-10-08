@@ -5,8 +5,8 @@ const REQUIRED_ASSETS = [
   './index.html',
   './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css','./assistant-launcher.css','./grazing.css','./public-works.css',
   './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
-  './shapefile-fallback.js','./zip-lite.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
-  './text-encoding.js','./text-repair.js','./rpg.js','./map-records.js','./grazing.js','./grazing-ui.js','./grazing-records.js','./public-works.js','./public-works-ui.js',
+  './shapefile-fallback.js','./zip-lite.js','./tab-coordinator.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js',
+  './text-encoding.js','./text-repair.js','./rpg.js','./map-records.js','./basemaps.js','./field-tracker.js','./field-tracker-ui.js','./voice-notes.js','./voice-notes-ui.js','./offline-map.js','./offline-map-ui.js','./costs.js','./costs-ui.js','./sales.js','./sales-ui.js','./dossier.js','./dossier-ui.js','./invoices.js','./invoices-ui.js','./grazing.js','./grazing-ui.js','./grazing-records.js','./celebration.js','./celebration-ui.js','./quick-entry.js','./quick-entry-ui.js','./soil-water.js','./soil-water-ui.js','./team-work.js','./team-work-ui.js','./home-story.js','./home-story-ui.js','./rpg-onboarding.js','./rpg-onboarding-ui.js','./compliance.js','./compliance-ui.js','./public-works.js','./public-works-ui.js','./wide-layout.js','./wide-layout-ui.js',
   './manifest.webmanifest','./parcelles.svg','./config.js'
   ,'./leaflet.min.css','./leaflet.min.js','./xlsx.full.min.js','./shp.min.js'
 ];

@@ -291,13 +291,73 @@ function validate(type,entity){
   return [];
 }
 
+// Empreinte de la dernière écriture d’un état (révision + horodatage) : sert à détecter
+// qu’un autre onglet a enregistré entre-temps. null quand rien n’est stocké.
+export function stateStamp(value){if(!value||typeof value!=='object')return null;const meta=value.metadata||{};return `${Math.max(0,Number(meta.revision)||0)}:${meta.updatedAt??''}`;}
+export const TAB_READ_ONLY_MESSAGE='Parcelles est ouvert dans une autre fenêtre : celle-ci est en lecture seule. Touchez « Utiliser ici » pour y travailler.';
+function concurrentWriteError(cause){const error=new Error('Parcelles a été modifié dans une autre fenêtre. Les données affichées ont été rechargées : recommencez votre dernière action.');error.name='StaleStateError';error.cause=cause;return error;}
+function tabReadOnlyError(message){const error=new Error(message||TAB_READ_ONLY_MESSAGE);error.name='TabReadOnlyError';return error;}
+
+// Garde de version du schéma : des données écrites par une version plus récente de Parcelles
+// ne sont ni migrées ni réécrites par ce build (elles seraient rétrogradées sans avertissement).
+export function storedSchemaVersion(value){const version=Number(value?.version);return Number.isFinite(version)&&version>0?Math.floor(version):null;}
+export function isNewerSchema(value){const version=storedSchemaVersion(value);return version!==null&&version>APP_VERSION;}
+export const NEWER_SCHEMA_MESSAGE='Vos données viennent d’une version plus récente de Parcelles. Mettez à jour l’application pour les modifier : rien n’est enregistré ici en attendant.';
+export function newerSchemaError(version,message=NEWER_SCHEMA_MESSAGE){const error=new Error(message);error.name='SchemaVersionError';error.storedVersion=version??null;error.appVersion=APP_VERSION;return error;}
+// Instantanés pris avant une migration montante : jamais élagués par la rotation quotidienne, 2 au plus par espace.
+export const PRE_MIGRATION_BACKUP_LIMIT=2;
+
+// Sauvegarde hors de l’appareil (export ZIP ou JSON) : rappel au-delà de 14 jours, masquable 7 jours.
+// Sans aucun export, le délai court depuis la première donnée saisie (pas de rappel le premier jour).
+export const EXTERNAL_BACKUP_REMINDER_DAYS=14;
+export const EXTERNAL_BACKUP_SNOOZE_DAYS=7;
+export function externalBackupStatus(data,at=now()){
+  const meta=data?.metadata||{},day=86400000,last=Number(meta.lastExternalBackupAt)||null;
+  let since=last;
+  if(!since)for(const type of ENTITY_TYPES)for(const item of Array.isArray(data?.[type])?data[type]:[]){const created=Number(item?.createdAt)||0;if(!item?.deletedAt&&created>0&&(!since||created<since))since=created;}
+  const elapsed=since?Math.max(0,at-since):0;
+  return {lastAt:last,never:!last,days:Math.floor(elapsed/day),due:Boolean(since)&&elapsed>EXTERNAL_BACKUP_REMINDER_DAYS*day,hidden:(Number(meta.externalBackupReminderHiddenUntil)||0)>at};
+}
+
 export class Store{
-  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';this.writePromise=Promise.resolve();this.backupRetryAt=0;}
+  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';this.writePromise=Promise.resolve();this.backupRetryAt=0;this.persistedStamp=null;this.tabReadOnly=null;this.onPersisted=null;this.schemaLock=null;}
 
   // A failed write must not restore a snapshot taken before another edit.
   enqueueWrite(operation){const result=this.writePromise.then(operation);this.writePromise=result.catch(()=>{});return result;}
 
   setWriteGuard(fn){this.writeGuard=typeof fn==='function'?fn:null;}
+  // Lecture seule imposée quand une autre fenêtre détient le verrou d’écriture (y compris pour la synchronisation).
+  setTabReadOnly(message){this.tabReadOnly=message?String(message===true?TAB_READ_ONLY_MESSAGE:message):null;}
+  assertTabWritable(){if(this.tabReadOnly)throw tabReadOnlyError(this.tabReadOnly);this.assertSchemaWritable();}
+  // Données d’une version plus récente : lecture seule tant que l’application n’est pas mise à jour.
+  assertSchemaWritable(){if(this.schemaLock)throw newerSchemaError(this.schemaLock.storedVersion);}
+  // Charge un état enregistré sans jamais le rétrograder : une version plus récente est affichée telle quelle, en lecture seule.
+  _loadSaved(saved){
+    if(saved&&isNewerSchema(saved)){
+      const storedVersion=storedSchemaVersion(saved),view=migrateData(saved);
+      // Version d’origine conservée en mémoire : un export ou une restauration ultérieure reste reconnu comme plus récent.
+      view.version=storedVersion;
+      this.schemaLock={storedVersion,appVersion:APP_VERSION,storageKey:this.storageKey,detectedAt:now()};
+      return view;
+    }
+    this.schemaLock=null;
+    return migrateData(saved||emptyState());
+  }
+  // Instantané de l’état tel qu’il est stocké, pris avant toute migration montante.
+  async _backupBeforeMigration(saved,workspaceId=this.workspaceId){
+    const from=storedSchemaVersion(saved)||1;
+    if(!saved||from>=APP_VERSION)return null;
+    const createdAt=now(),id=`pre_migration_v${from}_${createdAt}`;
+    try{
+      await this.storage.backupPut({id,workspaceId,period:'migration',fromVersion:from,toVersion:APP_VERSION,createdAt,state:clone(saved)});
+      await this.storage.pruneBackups?.({migration:PRE_MIGRATION_BACKUP_LIMIT});
+      return id;
+    }catch(error){
+      // Sans espace disponible, la migration se fait quand même : bloquer l’ouverture serait pire.
+      console.warn('[Parcelles] instantané avant migration impossible.',error);
+      return null;
+    }
+  }
   workspaceStorageKey(id='local'){const value=String(id||'local').trim();return value&&value!=='local'?`state:workspace:${value.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';}
   workspaceContext(){return {id:this.workspaceId,key:this.storageKey,isLocal:this.workspaceId==='local'};}
 
@@ -310,10 +370,15 @@ export class Store{
     // Compatibilité : les données historiques vivent dans `state`.
     if(!saved&&this.workspaceId==='local')saved=await this.storage.get('state');
     const savedVersion=saved?.version;
-    this.state=migrateData(saved||emptyState());
+    this.persistedStamp=stateStamp(saved);
+    this.state=this._loadSaved(saved);
     if(this.workspaceId!=='local')this.state.preferences.workspaceId=this.workspaceId;
-    if(saved && savedVersion!==this.state.version)this.log('migration',`Données mises à jour vers le format v${this.state.version}.`,{from:savedVersion,to:this.state.version});
-    await this.persist();
+    // Données plus récentes que ce build : ni migration ni écriture.
+    if(this.schemaLock)return this.state;
+    const backupId=saved?await this._backupBeforeMigration(saved):null;
+    if(saved && savedVersion!==this.state.version)this.log('migration',`Données mises à jour vers le format v${this.state.version}.`,{from:savedVersion,to:this.state.version,backupId});
+    // Une autre fenêtre a écrit pendant l’ouverture : on reprend sa version plutôt que de l’écraser.
+    try{await this.persist();}catch(error){if(error?.name!=='StaleStateError')throw error;await this._reloadFromStorage({notify:false});}
     return this.state;
   }
 
@@ -321,11 +386,25 @@ export class Store{
   async _switchWorkspace(id,{seed=null,name=''}={}){
     const nextId=String(id||'local').trim()||'local';
     if(nextId===this.workspaceId)return this.state;
-    await this.persist();
+    if(this.tabReadOnly)throw tabReadOnlyError(this.tabReadOnly);
+    // Tout est déjà enregistré après chaque modification : si une autre fenêtre a écrit depuis, sa version est conservée.
+    // Un espace verrouillé (version plus récente) n’est jamais réécrit : on peut seulement le quitter.
+    if(!this.schemaLock){try{await this.persist();}catch(error){if(error?.name!=='StaleStateError')throw error;}}
     const nextKey=this.workspaceStorageKey(nextId);
-    let saved=await this.storage.get(nextKey);
-    if(!saved&&seed){saved=clone(seed);saved.queue=[];saved.syncConflicts=[];saved.preferences={...(saved.preferences||{}),workspaceId:nextId,cloudRole:null,syncEnabled:true};saved.metadata={...(saved.metadata||{}),lastSyncAt:null,lastSyncError:null,syncFailureCount:0,syncBackoffUntil:null,syncCursors:{}};}
-    const previous={workspaceId:this.workspaceId,storageKey:this.storageKey,state:this.state};
+    let saved=await this.storage.get(nextKey);const savedFromStorage=Boolean(saved);
+    if(!saved&&seed){saved=clone(seed);saved.queue=[];saved.syncConflicts=[];saved.preferences={...(saved.preferences||{}),workspaceId:nextId,cloudRole:null,syncEnabled:true};saved.metadata={...(saved.metadata||{}),lastSyncAt:null,lastSyncError:null,syncFailureCount:0,syncBackoffUntil:null,syncCursors:{},syncServerCursors:{}};}
+    const previous={workspaceId:this.workspaceId,storageKey:this.storageKey,state:this.state,persistedStamp:this.persistedStamp,schemaLock:this.schemaLock};
+    if(saved&&isNewerSchema(saved)){
+      // Destination écrite par une version plus récente : affichée en lecture seule, jamais réécrite.
+      try{
+        await this.storage.set('active-workspace',{id:nextId,updatedAt:now()});
+        this.workspaceId=nextId;this.storageKey=nextKey;this.backupRetryAt=0;this.persistedStamp=stateStamp(saved);
+        this.state=this._loadSaved(saved);this.state.preferences.workspaceId=nextId==='local'?'':nextId;
+      }catch(error){Object.assign(this,previous);throw error;}
+      this.notify({label:'Espace de travail changé.',kind:'workspace-switch',entity:'state',workspaceId:nextId});
+      return this.state;
+    }
+    const migrationBackupId=savedFromStorage?await this._backupBeforeMigration(saved,nextId):null;
     const next=migrateData(saved||emptyState());
     next.preferences.workspaceId=nextId==='local'?'':nextId;
     next.preferences.cloudRole=null;
@@ -335,8 +414,9 @@ export class Store{
       // Persist the destination before changing the startup pointer.
       await this.storage.set(nextKey,next);
       await this.storage.set('active-workspace',{id:nextId,updatedAt:now()});
-      this.workspaceId=nextId;this.storageKey=nextKey;this.state=next;this.backupRetryAt=0;
+      this.workspaceId=nextId;this.storageKey=nextKey;this.state=next;this.backupRetryAt=0;this.persistedStamp=stateStamp(next);this.schemaLock=null;
     }catch(error){Object.assign(this,previous);throw error;}
+    if(migrationBackupId)this.log('migration','Instantané conservé avant la mise à jour du format des données.',{backupId:migrationBackupId});
     this.notify({label:'Espace de travail changé.',kind:'workspace-switch',entity:'state',workspaceId:nextId});
     return this.state;
   }
@@ -345,9 +425,20 @@ export class Store{
   subscribe(listener){this.listeners.add(listener);return()=>this.listeners.delete(listener);}
   notify(event){for(const listener of this.listeners){try{const result=listener(this.snapshot(),event);if(result?.catch)result.catch(error=>console.error('[Parcelles] Mise à jour de l’affichage impossible.',error));}catch(error){console.error('[Parcelles] Mise à jour de l’affichage impossible.',error);}}}
 
+  // Écrit l’état seulement si personne d’autre ne l’a enregistré depuis la dernière lecture ou écriture de cet onglet.
+  async _writeState(){
+    // Dernier rempart : des données plus récentes ne sont jamais écrasées par ce build.
+    this.assertSchemaWritable();
+    const expected=this.persistedStamp;
+    if(typeof this.storage.setIfCurrent==='function')await this.storage.setIfCurrent(this.storageKey,this.state,stored=>stateStamp(stored)===expected);
+    else await this.storage.set(this.storageKey,this.state);
+    this.persistedStamp=stateStamp(this.state);
+  }
+
   async persist(){
     this.state.metadata.updatedAt=now();
-    await this.storage.set(this.storageKey,this.state);
+    await this._writeState();
+    this._announcePersisted();
     if(this.state.preferences.autoBackup&&now()>=this.backupRetryAt){
       const day=new Date().toISOString().slice(0,10);
       if(this.state.metadata.lastAutoBackupDay!==day){
@@ -361,7 +452,7 @@ export class Store{
           await this.storage.pruneBackups?.({daily:7,weekly:4,monthly:3});
           this.state.metadata.lastAutoBackupDay=day;
           this.state.metadata.lastAutoBackupError=null;
-          await this.storage.set(this.storageKey,this.state);
+          await this._writeState();
         }catch(error){
           // The primary write above already succeeded. A secondary backup failure
           // must neither block startup nor roll back that saved change in memory.
@@ -372,6 +463,28 @@ export class Store{
       }
     }
   }
+
+  _announcePersisted(){try{this.onPersisted?.({storageKey:this.storageKey,workspaceId:this.workspaceId,revision:Number(this.state.metadata?.revision)||0,stamp:this.persistedStamp});}catch(error){console.warn('[Parcelles] annonce d’enregistrement impossible.',error);}}
+
+  // Recharge l’état enregistré par une autre fenêtre. Sans changement d’empreinte, rien n’est fait.
+  reloadFromStorage(options={}){return this.enqueueWrite(()=>this._reloadFromStorage(options));}
+  async _reloadFromStorage({notify=true}={}){
+    const saved=typeof this.storage.getStored==='function'?await this.storage.getStored(this.storageKey):await this.storage.get(this.storageKey);
+    if(!saved)return false;
+    const stamp=stateStamp(saved);
+    if(stamp===this.persistedStamp)return false;
+    // Une fenêtre plus récente a enregistré un format plus récent : on l’affiche sans jamais le réécrire.
+    const wasLocked=Boolean(this.schemaLock);
+    if(!isNewerSchema(saved))await this._backupBeforeMigration(saved);
+    const next=this._loadSaved(saved);
+    if(this.workspaceId!=='local')next.preferences.workspaceId=this.workspaceId;
+    this.state=next;this.persistedStamp=stamp;
+    if(notify&&this.schemaLock&&!wasLocked)this.notify({label:NEWER_SCHEMA_MESSAGE,kind:'schema-lock',entity:'state',queue:false});
+    else if(notify)this.notify({label:'Données mises à jour depuis une autre fenêtre.',kind:'external-reload',entity:'state',queue:false});
+    return true;
+  }
+  // Après un refus pour cause d’écriture concurrente : recharger, puis signaler l’échec si le rechargement échoue aussi.
+  async _recoverStale(previous){try{await this._reloadFromStorage();}catch(reloadError){console.warn('[Parcelles] rechargement après écriture concurrente impossible.',reloadError);this.state=previous;}}
 
   log(type,message,details=null){
     this.state.journal.unshift({id:uid('log'),type,message,details,createdAt:now()});
@@ -389,6 +502,7 @@ export class Store{
 
   mutate(label,fn,options={}){return this.enqueueWrite(()=>this._mutate(label,fn,options));}
   async _mutate(label,fn,options={}){
+    this.assertTabWritable();
     if(!options.bypassPermissions&&this.writeGuard&&!this.writeGuard(options))throw new Error('Votre rôle ne permet pas cette modification.');
     const previous=this.snapshot();
     try{
@@ -399,7 +513,15 @@ export class Store{
       await this.persist();
       this.notify({label,...options});
       return result;
-    }catch(error){this.state=previous;throw error;}
+    }catch(error){
+      // Une autre fenêtre a enregistré entre-temps : on repart de sa version et on rejoue la modification une fois.
+      if(error?.name==='StaleStateError'&&!options.staleRetry){
+        try{await this._reloadFromStorage();}catch(reloadError){this.state=previous;console.warn('[Parcelles] rechargement après écriture concurrente impossible.',reloadError);throw error;}
+        return this._mutate(label,fn,{...options,staleRetry:true});
+      }
+      if(error?.name==='StaleStateError'){await this._recoverStale(previous);throw concurrentWriteError(error);}
+      this.state=previous;throw error;
+    }
   }
 
   get(type,id,{includeDeleted=false}={}){return(this.state[type]||[]).find(item=>item.id===id&&(includeDeleted||!item.deletedAt));}
@@ -423,15 +545,25 @@ export class Store{
   }
 
   upsertMany(type,entities,options={}){return this.enqueueWrite(()=>this._upsertMany(type,entities,options));}
-  async _upsertMany(type,entities,{label='Mise à jour groupée'}={}){
+  async _upsertMany(type,entities,options={}){
+    const {label='Mise à jour groupée'}=options;
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
+    this.assertTabWritable();
     if(this.writeGuard&&!this.writeGuard({entity:type,action:'update'}))throw new Error('Votre rôle ne permet pas cette modification.');
     const previous=this.snapshot();
     try{
       const normalized=entities.map(entity=>{const existing=entity.id?this.get(type,entity.id,{includeDeleted:true}):null;const value=normalizeEntity(type,entity,existing);const errors=validate(type,value);if(errors.length)throw new Error(errors.join(' — '));return{value,existing};});
       for(const {value,existing} of normalized){const index=this.state[type].findIndex(item=>item.id===value.id);if(index>=0)this.state[type][index]=value;else this.state[type].push(value);this.queue({entity:type,entityId:value.id,action:existing?'update':'create',payload:value});}
       this.state.metadata.revision+=1;this.log('modification',label,{count:normalized.length,type});await this.persist();this.notify({label,kind:'batch',entity:type,count:normalized.length});return normalized.map(x=>x.value);
-    }catch(error){this.state=previous;throw error;}
+    }catch(error){
+      if(error?.name==='StaleStateError'&&!options.staleRetry){
+        // Recharge la version de l’autre fenêtre puis rejoue la saisie groupée une seule fois.
+        try{await this._reloadFromStorage();}catch(reloadError){this.state=previous;console.warn('[Parcelles] rechargement après écriture concurrente impossible.',reloadError);throw error;}
+        return this._upsertMany(type,entities,{...options,staleRetry:true});
+      }
+      if(error?.name==='StaleStateError'){await this._recoverStale(previous);throw concurrentWriteError(error);}
+      this.state=previous;throw error;
+    }
   }
 
   async remove(type,id){
@@ -488,12 +620,18 @@ export class Store{
     return applied?incoming:null;
   }
 
+  // Export ZIP/JSON réussi : date conservée localement (non synchronisée), quel que soit le rôle.
+  recordExternalBackup(kind='zip'){return this.mutate('Sauvegarde hors de l’appareil effectuée.',state=>{state.metadata.lastExternalBackupAt=now();state.metadata.lastExternalBackupKind=String(kind||'zip');state.metadata.externalBackupReminderHiddenUntil=null;},{queue:false,kind:'backup',entity:'preferences',action:'update',bypassPermissions:true});}
+  snoozeExternalBackupReminder(days=EXTERNAL_BACKUP_SNOOZE_DAYS){return this.mutate('Rappel de sauvegarde masqué.',state=>{state.metadata.externalBackupReminderHiddenUntil=now()+Math.max(1,Number(days)||EXTERNAL_BACKUP_SNOOZE_DAYS)*86400000;},{queue:false,log:false,kind:'settings',entity:'preferences',action:'update',bypassPermissions:true});}
   async setPreferences(patch){return this.mutate('Préférences mises à jour.',state=>Object.assign(state.preferences,patch),{queue:false,kind:'settings',entity:'preferences',action:'update'});}
   async setExploitation(patch){return this.mutate('Informations de l’exploitation mises à jour.',state=>Object.assign(state.exploitation,patch,{updatedAt:now()}),{queue:false,kind:'settings',entity:'exploitation',action:'update'});}
 
   replaceState(next,label='Données remplacées',options={}){return this.enqueueWrite(()=>this._replaceState(next,label,options));}
   async _replaceState(next,label='Données remplacées',{kind='restore',log=true,bypassPermissions=false}={}){
+    this.assertTabWritable();
     if(!bypassPermissions&&this.writeGuard&&!this.writeGuard({entity:'state',action:'restore'}))throw new Error('Votre rôle ne permet pas de restaurer les données.');
+    // Une sauvegarde d’une version plus récente serait rétrogradée : refus, rien n’est modifié.
+    if(isNewerSchema(next))throw newerSchemaError(storedSchemaVersion(next),'Cette sauvegarde vient d’une version plus récente de Parcelles. Mettez à jour l’application avant de la restaurer.');
     const migrated=migrateData(next);
     const previous=this.snapshot();
     try{
@@ -502,6 +640,10 @@ export class Store{
       if(log)this.log(kind,label);
       await this.persist();
       this.notify({label,kind,queue:false});
-    }catch(error){this.state=previous;throw error;}
+    }catch(error){
+      // Une restauration n’est jamais rejouée en silence : on affiche la version de l’autre fenêtre et on demande de recommencer.
+      if(error?.name==='StaleStateError'){await this._recoverStale(previous);throw concurrentWriteError(error);}
+      this.state=previous;throw error;
+    }
   }
 }

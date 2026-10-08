@@ -1,5 +1,5 @@
 import {APP_VERSION, BUILD_ID, ENTITY_TYPES, campaignFor, checksum, clone, escapeHtml, geometryAreaHa, normalize, parseImportDate, toNullableNumber, uid, validateGeometry, validateIntervention, validateParcel} from './utils.js';
-import {migrateData, normalizeEntity} from './state.js';
+import {migrateData, newerSchemaError, normalizeEntity, storedSchemaVersion} from './state.js';
 import {dbfEncoding, parseDbf, parseShpDbf} from './shapefile-fallback.js';
 import {readImportText} from './text-encoding.js';
 import {createZip, readZip} from './zip-lite.js';
@@ -271,9 +271,15 @@ export async function rollbackImportSession(store,sessionId){
 export async function makeBackup(state){
   const data=clone(state);const payload={format:'parcelles-backup-json',formatVersion:APP_VERSION,buildId:BUILD_ID,createdAt:Date.now(),application:'Parcelles',counts:ENTITY_TYPES.reduce((acc,type)=>{acc[type]=data[type]?.filter(x=>!x.deletedAt).length||0;return acc;},{}),data};payload.checksum=await checksum(payload.data);return payload;
 }
+// Une sauvegarde écrite par une version plus récente serait rétrogradée par migrateData : refus avant toute lecture.
+function assertBackupNotNewer(formatVersion,data){
+  const version=Math.max(Number(formatVersion)||0,storedSchemaVersion(data)||0);
+  if(version>APP_VERSION)throw newerSchemaError(version,`Cette sauvegarde vient d’une version plus récente de Parcelles (format v${version}, cette application lit jusqu’au v${APP_VERSION}). Mettez à jour l’application avant de la restaurer.`);
+}
 export async function validateBackup(raw){
   if(!raw||!['parcelles-backup-json','parcelles-backup'].includes(raw.format)||!raw.data)throw new Error('Ce fichier n’est pas une sauvegarde Parcelles valide.');
   const validChecksum=!raw.checksum||raw.checksum===await checksum(raw.data);if(!validChecksum)throw new Error('La somme de contrôle ne correspond pas : le fichier peut être altéré.');
+  assertBackupNotNewer(raw.formatVersion,raw.data);
   return{data:migrateData(raw.data),meta:{createdAt:raw.createdAt,counts:raw.counts||{},formatVersion:raw.formatVersion,validChecksum,complete:false}};
 }
 
@@ -298,6 +304,7 @@ export async function parseCompleteBackup(file){
   if(!manifestEntry||!stateEntry)throw new Error('Sauvegarde ZIP incomplète : manifest.json ou state.json absent.');
   const manifest=JSON.parse(await manifestEntry.text());if(manifest.format!=='parcelles-backup-complete')throw new Error('Format de sauvegarde ZIP non reconnu.');
   const rawState=JSON.parse(await stateEntry.text());if(manifest.stateChecksum&&manifest.stateChecksum!==await checksum(rawState))throw new Error('L’état de la sauvegarde a échoué au contrôle d’intégrité.');
+  assertBackupNotNewer(manifest.formatVersion,rawState);
   const blobs=[];const missing=[];const invalid=[];
   for(const meta of manifest.attachments||[]){
     const entry=byName.get(meta.path);if(!entry){missing.push(meta.path);continue;}

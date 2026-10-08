@@ -7,15 +7,29 @@ service firebase.storage {
     function isMember(workspaceId) {
       return request.auth != null && firestore.exists(memberPath(workspaceId));
     }
-    function canEdit(workspaceId) {
-      return isMember(workspaceId) && firestore.get(memberPath(workspaceId)).data.role in ['owner','editor'];
+    // Même périmètre que permissions.js (canMutate) : opérateur terrain photos et documents, comptabilité documents.
+    function canWriteAttachment(workspaceId, entityType) {
+      let role = firestore.get(memberPath(workspaceId)).data.role;
+      return isMember(workspaceId) && (role in ['owner','manager','editor']
+        || (role == 'operator' && entityType in ['photos','documents'])
+        || (role == 'accountant' && entityType == 'documents'));
+    }
+    function isOwner(workspaceId) {
+      return isMember(workspaceId) && firestore.get(memberPath(workspaceId)).data.role == 'owner';
     }
 
+    // Pièces jointes déposées par sync.js (syncAttachments) : chemin attachments/{photos|documents}/{id},
+    // métadonnées entityId/entityType cohérentes avec le chemin, 25 Mo au plus.
+    // L'application ne supprime jamais une pièce jointe distante : la suppression est réservée au propriétaire.
     match /workspaces/{workspaceId}/attachments/{entityType}/{fileId} {
       allow read: if isMember(workspaceId);
-      allow create, update: if canEdit(workspaceId)
-        && request.resource.size < 25 * 1024 * 1024;
-      allow delete: if canEdit(workspaceId);
+      allow create, update: if canWriteAttachment(workspaceId, entityType)
+        && entityType in ['photos','documents']
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.metadata != null
+        && request.resource.metadata.entityId == fileId
+        && request.resource.metadata.entityType == entityType;
+      allow delete: if isOwner(workspaceId);
     }
   }
 }

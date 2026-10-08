@@ -1,17 +1,21 @@
-const BUILD='2026.10.07-v10.10.9';
+const BUILD='2026.10.08-v10.11.0';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
 const STATIC=`${PREFIX}static-${BUILD}`;
 const RUNTIME=`${PREFIX}runtime-${BUILD}`;
+// Carte hors connexion : cache des tuiles IGN indépendant de BUILD (une mise à jour ne le vide pas),
+// rempli par la page (offline-map-ui.js) et jamais listé dans CORE.
+const TILES=`${PREFIX}tiles-v1`;
 const CORE=[
- './machine-export.js','./application-coverage.js','./spatial-analysis.js','./spatial-ui.js','./work-effects.js','./work-effects-ui.js','./farm-context.js','./weather-decision.js','./farm-memory.js','./farm-planner.js','./farm-ui.js','./farm-extension-ui.js','./management-zones.js','./prescriptions.js','./farm-records.js','./advanced-economics.js','./connections.js','./scanner.js','./precision-ui.js','./application-map.js','./application-ui.js','./operations-ui.js','./connections-ui.js','./farm-agent.js','./economic-ui.js','./harvest-traceability.js','./harvest-ui.js','./yield.js','./yield-ui.js','./satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css','./design-v3.css',
+ './machine-export.js','./application-coverage.js','./spatial-analysis.js','./spatial-ui.js','./work-effects.js','./work-effects-ui.js','./costs.js','./costs-ui.js','./sales.js','./sales-ui.js','./dossier.js','./dossier-ui.js','./invoices.js','./invoices-ui.js','./farm-context.js','./weather-decision.js','./farm-memory.js','./farm-planner.js','./farm-ui.js','./farm-extension-ui.js','./management-zones.js','./prescriptions.js','./farm-records.js','./advanced-economics.js','./connections.js','./scanner.js','./precision-ui.js','./application-map.js','./application-ui.js','./operations-ui.js','./connections-ui.js','./farm-agent.js','./economic-ui.js','./harvest-traceability.js','./harvest-ui.js','./yield.js','./yield-ui.js','./satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css','./design-v3.css',
  './','./index.html','./manifest.webmanifest','./parcelles.svg','./config.js',
  './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css','./assistant-launcher.css','./grazing.css','./public-works.css',
- './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js',
- './text-encoding.js','./text-repair.js','./rpg.js','./map-records.js','./grazing.js','./grazing-ui.js','./grazing-records.js','./public-works.js','./public-works-ui.js',
+ './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js','./sync.js','./permissions.js','./utils.js','./runtime.js','./performance.js','./field-ops.js','./traceability.js','./native.js','./automations.js','./insights.js','./notifications.js','./reports.js','./statistics.js','./pilotage.js','./remote-ai.js','./zip-lite.js','./shapefile-fallback.js','./tab-coordinator.js',
+ './text-encoding.js','./text-repair.js','./rpg.js','./map-records.js','./basemaps.js','./field-tracker.js','./field-tracker-ui.js','./voice-notes.js','./voice-notes-ui.js','./offline-map.js','./offline-map-ui.js','./grazing.js','./grazing-ui.js','./grazing-records.js','./celebration.js','./celebration-ui.js','./quick-entry.js','./quick-entry-ui.js','./soil-water.js','./soil-water-ui.js','./team-work.js','./team-work-ui.js','./home-story.js','./home-story-ui.js','./rpg-onboarding.js','./rpg-onboarding-ui.js','./compliance.js','./compliance-ui.js','./public-works.js','./public-works-ui.js','./wide-layout.js','./wide-layout-ui.js',
  './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png',
- './leaflet.min.css','./leaflet.min.js','./marker-icon.png','./marker-icon-2x.png','./marker-shadow.png','./layers.png','./layers-2x.png','./xlsx.full.min.js','./shp.min.js'
+ './leaflet.min.css','./leaflet.min.js','./marker-icon.png','./marker-icon-2x.png','./marker-shadow.png','./layers.png','./layers-2x.png','./xlsx.full.min.js','./shp.min.js',
+ './instrument-sans-latin.woff2','./instrument-sans-latin-ext.woff2','./instrument-serif-latin.woff2','./instrument-serif-latin-ext.woff2'
 ];
 
 async function fetchWithTimeout(request,ms=4500){
@@ -34,7 +38,7 @@ async function warmCore(){
 self.addEventListener('install',event=>event.waitUntil(warmCore()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
  const keys=await caches.keys();
- await Promise.all(keys.filter(k=>k.startsWith(PREFIX)&&!([STATIC,RUNTIME].includes(k))).map(k=>caches.delete(k)));
+ await Promise.all(keys.filter(k=>k.startsWith(PREFIX)&&!([STATIC,RUNTIME,TILES].includes(k))).map(k=>caches.delete(k)));
  await self.clients.claim();
 })()));
 
@@ -67,6 +71,11 @@ async function staleWhileRevalidate(request,event){
  return cached||await refresh||new Response('',{status:504,statusText:'Offline'});
 }
 
+async function tileResponse(request){
+ try{const cached=await (await caches.open(TILES)).match(request.url);if(cached)return cached;}catch{}
+ return fetch(request).catch(()=>new Response('',{status:504,statusText:'Offline'}));
+}
+
 async function coreAssetResponse(request){
  const cache=await caches.open(STATIC);
  const cached=await cache.match(request,{ignoreSearch:true});
@@ -84,6 +93,7 @@ self.addEventListener('fetch',event=>{
    const isCore=CORE.some(path=>url.pathname===new URL(path,self.registration.scope).pathname);
    event.respondWith(isCore?coreAssetResponse(req):staleWhileRevalidate(req,event));return;
  }
+ if(url.hostname==='data.geopf.fr'&&url.pathname==='/wmts'&&url.searchParams.get('REQUEST')==='GetTile'){event.respondWith(tileResponse(req));return;}
  const dependencyHost=['cdnjs.cloudflare.com','unpkg.com','www.gstatic.com'].includes(url.hostname);
  if(dependencyHost){event.respondWith(staleWhileRevalidate(req,event));return;}
  event.respondWith(fetch(req).catch(()=>caches.match(req)));

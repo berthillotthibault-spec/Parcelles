@@ -6,8 +6,18 @@ service cloud.firestore {
     function isMember(workspaceId) { return signedIn() && exists(memberPath(workspaceId, request.auth.uid)); }
     function memberRole(workspaceId) { return get(memberPath(workspaceId, request.auth.uid)).data.role; }
     function isOwner(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) == 'owner'; }
-    function canEdit(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) in ['owner','editor']; }
+    // Écriture des données selon le rôle, même périmètre que permissions.js (canMutate) :
+    // propriétaire, responsable et collaborateur partout ; opérateur terrain et comptabilité sur leurs entités.
+    function canWriteData(workspaceId, entityType) {
+      let role = memberRole(workspaceId);
+      return isMember(workspaceId) && (role in ['owner','manager','editor']
+        || (role == 'operator' && entityType in ['interventions','tasks','observations','fieldSessions','chantiers','points','photos','documents','routeSessions','gpsTracks','integrationImports'])
+        || (role == 'accountant' && entityType in ['clients','documents','stockItems','stockMovements','products','maintenanceRecords']));
+    }
     function invitePath(token) { return /databases/$(database)/documents/invites/$(token); }
+    // Rôles connus de l'application (permissions.js : ROLES / assignableRoles).
+    function validRole(role) { return role in ['owner','manager','editor','operator','accountant','viewer']; }
+    function invitableRole(role) { return role in ['manager','editor','operator','accountant','viewer']; }
     function validInvite(token, workspaceId) {
       return signedIn() && token is string && exists(invitePath(token))
         && get(invitePath(token)).data.workspaceId == workspaceId
@@ -30,17 +40,59 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMember(workspaceId);
+        // Trois chemins de création, chacun limité au rôle qu'il a le droit d'attribuer :
+        // - propriétaire existant : n'importe quel rôle connu ;
+        // - créateur de l'exploitation (createWorkspace) : son propre document, rôle owner ;
+        // - invité (acceptInvite) : son propre document, rôle EXACT de l'invitation,
+        //   clés limitées, et l'invitation doit être supprimée dans le même lot (usage unique).
         allow create: if signedIn() && (
-          isOwner(workspaceId)
-          || (request.auth.uid == uid && getAfter(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid)
-          || (request.auth.uid == uid && validInvite(request.resource.data.inviteToken, workspaceId))
+          (isOwner(workspaceId) && validRole(request.resource.data.role))
+          || (request.auth.uid == uid
+              && getAfter(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid
+              && request.resource.data.uid == uid
+              && request.resource.data.role == 'owner'
+              && request.resource.data.keys().hasOnly(['uid','email','role','joinedAt','displayName']))
+          || (request.auth.uid == uid
+              && request.resource.data.uid == uid
+              && request.resource.data.keys().hasOnly(['uid','email','role','joinedAt','inviteToken'])
+              && validInvite(request.resource.data.inviteToken, workspaceId)
+              && invitableRole(request.resource.data.role)
+              && request.resource.data.role == get(invitePath(request.resource.data.inviteToken)).data.role
+              && request.resource.data.email == get(invitePath(request.resource.data.inviteToken)).data.email
+              && !existsAfter(invitePath(request.resource.data.inviteToken)))
         );
-        allow update, delete: if isOwner(workspaceId);
+        allow update: if isOwner(workspaceId) && validRole(request.resource.data.get('role', 'viewer'));
+        allow delete: if isOwner(workspaceId);
       }
 
-      match /data/{entityId} {
+      // Documents écrits par writeRemoteEntity (sync.js), toujours en set complet (merge:false).
+      // - identifiant du document = `${entityType}__${entityId}` ;
+      // - modifiedBy = auteur authentifié (impossible d'écrire au nom d'un autre membre) ;
+      // - clés limitées à celles de writeRemoteEntity (+ serverUpdatedAt, réservé à l'heure serveur) ;
+      // - tailles bornées (Firestore plafonne déjà un document à 1 Mio).
+      // L'application ne supprime jamais en dur (elle écrit deletedAt) : la suppression définitive
+      // est réservée au propriétaire (purge).
+      function validEntityDoc(workspaceId, docId) {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['entityType','entityId','payload','payloadEncoding','version','updatedAt','deletedAt',
+            'modifiedBy','modifiedEmail','deviceId','build','action','serverUpdatedAt'])
+          && d.modifiedBy == request.auth.uid
+          // serverUpdatedAt sert de curseur de synchronisation : seule l'heure du serveur est acceptée (FieldValue.serverTimestamp()).
+          && (!('serverUpdatedAt' in d) || d.serverUpdatedAt == request.time)
+          && d.entityType is string && d.entityType.size() > 0 && d.entityType.size() <= 64
+          && (d.entityId is string || d.entityId is number)
+          && string(d.entityId).size() > 0 && string(d.entityId).size() <= 256
+          && docId == d.entityType + '__' + string(d.entityId)
+          && (d.payload == null || (d.payload is map && d.payload.keys().size() <= 500))
+          && d.get('modifiedEmail', '') is string && d.get('modifiedEmail', '').size() <= 320
+          && d.get('deviceId', '') is string && d.get('deviceId', '').size() <= 128
+          && d.get('build', '') is string && d.get('build', '').size() <= 64
+          && d.get('action', '') is string && d.get('action', '').size() <= 64;
+      }
+      match /data/{docId} {
         allow read: if isMember(workspaceId);
-        allow create, update, delete: if canEdit(workspaceId);
+        allow create, update: if canWriteData(workspaceId, request.resource.data.entityType) && validEntityDoc(workspaceId, docId);
+        allow delete: if isOwner(workspaceId);
       }
 
       match /devices/{deviceId} {
@@ -57,7 +109,13 @@ service cloud.firestore {
     }
 
     match /invites/{token} {
-      allow create: if signedIn() && isOwner(request.resource.data.workspaceId);
+      // Une invitation n'attribue jamais le rôle owner et expire sous 31 jours au plus.
+      allow create: if signedIn() && isOwner(request.resource.data.workspaceId)
+        && invitableRole(request.resource.data.role)
+        && request.resource.data.email is string
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.expiresAt is number
+        && request.resource.data.expiresAt <= request.time.toMillis() + 31 * 86400000;
       allow read: if signedIn() && request.auth.token.email != null && request.auth.token.email == resource.data.email;
       allow delete: if signedIn() && (
         (request.auth.token.email != null && request.auth.token.email == resource.data.email)

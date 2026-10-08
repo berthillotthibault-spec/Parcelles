@@ -6,6 +6,15 @@ const FIREBASE_VERSION='10.14.1';
 const CLOUD_ENTITY_TYPES=ENTITY_TYPES.filter(type=>!['syncConflicts','devices','members','assistantMessages','automationRuns','platformJobs','platformEvents'].includes(type));
 const clean=value=>JSON.parse(JSON.stringify(value??null));
 const emailKey=value=>String(value||'').trim().toLocaleLowerCase('fr');
+// Heure serveur Firestore (Timestamp, {seconds,nanoseconds} ou nombre) en millisecondes ; null si absente.
+export function serverMillis(value){
+  if(value===null||value===undefined)return null;
+  if(typeof value.toMillis==='function'){const ms=Number(value.toMillis());return Number.isFinite(ms)?ms:null;}
+  if(typeof value==='number')return Number.isFinite(value)?value:null;
+  if(typeof value.seconds==='number')return value.seconds*1000+Math.floor(Number(value.nanoseconds||0)/1e6);
+  return null;
+}
+const CURSOR_MARGIN_MS=5000,PAGE_SIZE=500;
 
 // Firestore rejects directly nested arrays (GeoJSON coordinates, rasters).
 // Only their transport representation changes; local records retain their shape.
@@ -55,6 +64,11 @@ export class SyncService{
   get role(){const p=this.store.snapshot().preferences;if(this.status.connected&&this.workspaceId)return this.member?.role||'viewer';if(p.syncEnabled&&p.workspaceId&&p.cloudRole)return p.cloudRole;return 'owner';}
   get roleName(){return roleLabel(this.role);}
   get syncCursor(){return Number(this.store.snapshot().metadata?.syncCursors?.[this.workspaceId]||0);}
+  // Curseur fondé sur l’heure du serveur (serverUpdatedAt) : 0 tant que la transition n’a pas eu lieu sur cet appareil.
+  get serverCursor(){return Number(this.store.snapshot().metadata?.syncServerCursors?.[this.workspaceId]||0);}
+  firebaseSdk(){return this.firebase||(typeof window!=='undefined'?window.firebase:null)||null;}
+  serverTimestamp(){return this.firebaseSdk()?.firestore?.FieldValue?.serverTimestamp?.()??null;}
+  serverTimeAt(ms){return this.firebaseSdk()?.firestore?.Timestamp?.fromMillis?.(ms)??null;}
   can(capability){return roleCan(this.role,capability);}
   canWriteEntity(entity,action){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action});}
   queueSummary(){return queueStats(this.store.snapshot().queue);}
@@ -66,7 +80,7 @@ export class SyncService{
     const config=window.PARCELLES_FIREBASE_CONFIG;
     if(!config?.apiKey||!config?.projectId){this.reset('Synchronisation demandée, mais Firebase n’est pas configuré.',true);return this.status;}
     try{
-      const firebase=await ensureFirebase();if(!firebase.apps?.length)firebase.initializeApp(config);
+      const firebase=await ensureFirebase();this.firebase=firebase;if(!firebase.apps?.length)firebase.initializeApp(config);
       this.auth=firebase.auth();this.db=firebase.firestore();this.storage=firebase.storage();try{this.db.settings({ignoreUndefinedProperties:true});}catch{}
       this.user=this.auth.currentUser||await new Promise(resolve=>{let done=false;const stop=this.auth.onAuthStateChanged(user=>{if(done)return;done=true;stop();resolve(user);});setTimeout(()=>{if(!done){done=true;stop();resolve(this.auth.currentUser);}},2500);});
       if(!this.user){this.status={configured:true,connected:false,message:'Firebase configuré. Connectez-vous pour synchroniser.'};return this.status;}
@@ -90,18 +104,37 @@ export class SyncService{
   async listDevices(){if(!this.db||!this.workspaceId)return[];const snap=await this.db.collection('workspaces').doc(this.workspaceId).collection('devices').orderBy('lastSeen','desc').limit(50).get();return snap.docs.map(d=>({id:d.id,...d.data()}));}
   async listActivity(limit=50){if(!this.db||!this.workspaceId)return[];const snap=await this.db.collection('workspaces').doc(this.workspaceId).collection('audit').orderBy('createdAt','desc').limit(limit).get();return snap.docs.map(d=>({id:d.id,...d.data()}));}
 
-  async heartbeat(){if(!this.user||!this.db||!this.workspaceId)return;this.deviceId=this.deviceId||localDeviceId();await this.db.collection('workspaces').doc(this.workspaceId).collection('devices').doc(this.deviceId).set({deviceId:this.deviceId,name:safeLocalGet('parcelles:device-name')||defaultDeviceName(),userId:this.user.uid,email:emailKey(this.user.email),lastSeen:Date.now(),build:BUILD_ID,userAgent:String(navigator.userAgent||'').slice(0,300)},{merge:true});}
+  async heartbeat(){if(!this.user||!this.db||!this.workspaceId)return;this.deviceId=this.deviceId||localDeviceId();const stamp=this.serverTimestamp();await this.db.collection('workspaces').doc(this.workspaceId).collection('devices').doc(this.deviceId).set({deviceId:this.deviceId,name:safeLocalGet('parcelles:device-name')||defaultDeviceName(),userId:this.user.uid,email:emailKey(this.user.email),lastSeen:Date.now(),build:BUILD_ID,userAgent:String(navigator.userAgent||'').slice(0,300),...(stamp?{serverSeenAt:stamp}:{})},{merge:true});}
+  // Décalage d’horloge de l’appareil : heure serveur posée par le heartbeat, comparée au milieu de l’aller-retour.
+  // deviceOffsetMs > 0 : l’appareil avance ; < 0 : il retarde. Un échec de lecture n’interrompt pas la synchronisation.
+  async measureClockOffset(){
+    const t0=Date.now();await this.heartbeat();const t1=Date.now();
+    if(!this.user||!this.db||!this.workspaceId||!this.serverTimestamp())return null;
+    try{
+      const snap=await this.db.collection('workspaces').doc(this.workspaceId).collection('devices').doc(this.deviceId).get(),server=serverMillis(snap.data()?.serverSeenAt);
+      if(server===null)return null;
+      this.clockSkew={deviceOffsetMs:Math.round((t0+t1)/2-server),uncertaintyMs:Math.max(0,Math.round((t1-t0)/2)),measuredAt:Date.now()};return this.clockSkew;
+    }catch{return null;}
+  }
   async renameDevice(name){const value=String(name||'').trim();if(!value)throw new Error('Nom requis.');if(!safeLocalSet('parcelles:device-name',value))throw new Error('Impossible d’enregistrer le nom de l’appareil localement.');await this.heartbeat();await this.audit('device-rename','device',this.deviceId,{name:value});}
   async removeDeviceRecord(deviceId){if(!this.db||!this.workspaceId)throw new Error('Cloud indisponible.');const devices=await this.listDevices(),device=devices.find(x=>x.id===deviceId);if(!device)throw new Error('Appareil introuvable.');if(device.userId!==this.user?.uid&&!this.can('manage-members'))throw new Error('Droit insuffisant.');await this.db.collection('workspaces').doc(this.workspaceId).collection('devices').doc(deviceId).delete();await this.audit('device-remove','device',deviceId,{note:'Suppression de la fiche appareil uniquement ; ne révoque pas la session Firebase distante.'});}
 
   async createInvite(email,role='editor'){if(!this.can('manage-members'))throw new Error('Seul le propriétaire peut inviter des membres.');const target=emailKey(email);if(!target||!target.includes('@'))throw new Error('Adresse email invalide.');if(!assignableRoles().includes(role))throw new Error('Rôle invalide.');const token=[...crypto.getRandomValues(new Uint32Array(4))].map(n=>n.toString(36)).join('').slice(0,28),invite={workspaceId:this.workspaceId,workspaceName:this.workspace?.name||'Parcelles',email:target,role,createdBy:this.user.uid,createdAt:Date.now(),expiresAt:Date.now()+7*86400000};await this.db.collection('invites').doc(token).set(invite);await this.audit('invite-create','member',target,{role});return{token,...invite};}
-  async acceptInvite(token){if(!this.user||!this.db)throw new Error('Connectez-vous avant d’accepter une invitation.');const ref=this.db.collection('invites').doc(String(token||'').trim()),snap=await ref.get();if(!snap.exists)throw new Error('Invitation introuvable ou expirée.');const invite=snap.data();if(invite.expiresAt<Date.now())throw new Error('Cette invitation a expiré.');if(emailKey(invite.email)!==emailKey(this.user.email))throw new Error('Cette invitation est destinée à une autre adresse email.');const ws=this.db.collection('workspaces').doc(invite.workspaceId),member=ws.collection('members').doc(this.user.uid),userWs=this.db.collection('users').doc(this.user.uid).collection('workspaces').doc(invite.workspaceId);const batch=this.db.batch();batch.set(member,{uid:this.user.uid,email:emailKey(this.user.email),role:invite.role,joinedAt:Date.now(),inviteToken:ref.id});batch.set(userWs,{workspaceId:invite.workspaceId,name:invite.workspaceName||'Parcelles',role:invite.role,updatedAt:Date.now()});batch.delete(ref);await batch.commit();await this.store.switchWorkspace?.(invite.workspaceId,{name:invite.workspaceName||'Parcelles'});await this.store.setPreferences({workspaceId:invite.workspaceId,syncEnabled:true});await this.refreshMembership();await this.heartbeat();await this.audit('invite-accept','member',this.user.uid);return this.workspace;}
+  async acceptInvite(token){if(!this.user||!this.db)throw new Error('Connectez-vous avant d’accepter une invitation.');const ref=this.db.collection('invites').doc(String(token||'').trim()),snap=await ref.get();if(!snap.exists)throw new Error('Invitation introuvable ou expirée.');const invite=snap.data();if(invite.expiresAt<Date.now())throw new Error('Cette invitation a expiré.');if(emailKey(invite.email)!==emailKey(this.user.email))throw new Error('Cette invitation est destinée à une autre adresse email.');if(!assignableRoles().includes(invite.role))throw new Error('Invitation invalide : rôle non attribuable. Demandez une nouvelle invitation au propriétaire.');const ws=this.db.collection('workspaces').doc(invite.workspaceId),member=ws.collection('members').doc(this.user.uid),userWs=this.db.collection('users').doc(this.user.uid).collection('workspaces').doc(invite.workspaceId);const batch=this.db.batch();batch.set(member,{uid:this.user.uid,email:emailKey(this.user.email),role:invite.role,joinedAt:Date.now(),inviteToken:ref.id});batch.set(userWs,{workspaceId:invite.workspaceId,name:invite.workspaceName||'Parcelles',role:invite.role,updatedAt:Date.now()});batch.delete(ref);await batch.commit();await this.store.switchWorkspace?.(invite.workspaceId,{name:invite.workspaceName||'Parcelles'});await this.store.setPreferences({workspaceId:invite.workspaceId,syncEnabled:true});await this.refreshMembership();await this.heartbeat();await this.audit('invite-accept','member',this.user.uid);return this.workspace;}
   async updateMemberRole(uidValue,role){if(!this.can('manage-members'))throw new Error('Droit insuffisant.');if(uidValue===this.user.uid)throw new Error('Le propriétaire ne peut pas modifier son propre rôle ici.');if(!assignableRoles().includes(role))throw new Error('Rôle invalide.');const ref=this.db.collection('workspaces').doc(this.workspaceId).collection('members').doc(uidValue);await ref.set({role,updatedAt:Date.now()},{merge:true});await this.audit('member-role','member',uidValue,{role});}
   async removeMember(uidValue){if(!this.can('manage-members'))throw new Error('Droit insuffisant.');if(uidValue===this.user.uid)throw new Error('Impossible de retirer le propriétaire connecté.');await this.db.collection('workspaces').doc(this.workspaceId).collection('members').doc(uidValue).delete();await this.audit('member-remove','member',uidValue);}
 
   async audit(action,entity='',entityId='',details=null){if(!this.db||!this.workspaceId||!this.user||this.store.snapshot().preferences.securityAuditEnabled===false)return;try{await this.db.collection('workspaces').doc(this.workspaceId).collection('audit').add({action,entity,entityId,userId:this.user.uid,email:emailKey(this.user.email),deviceId:this.deviceId||'',build:BUILD_ID,details:details?clean(details):null,createdAt:Date.now()});}catch{}}
   remoteRef(entity,entityId){return this.db.collection('workspaces').doc(this.workspaceId).collection('data').doc(`${entity}__${entityId}`);}
-  async writeRemoteEntity(entity,entityId,payload,action='update'){const safe=clean(payload);await this.remoteRef(entity,entityId).set({entityType:entity,entityId,payload:encodeCloudPayload(safe),payloadEncoding:'nested-arrays-v1',version:Number(safe?.version||0),updatedAt:Number(safe?.updatedAt||safe?.deletedAt||Date.now()),deletedAt:safe?.deletedAt||null,modifiedBy:this.user.uid,modifiedEmail:emailKey(this.user.email),deviceId:this.deviceId||'',build:BUILD_ID,action},{merge:false});}
+  // updatedAt reste la date métier (horloge de l’appareil) ; serverUpdatedAt est posée par le serveur et sert au curseur.
+  async writeRemoteEntity(entity,entityId,payload,action='update'){const safe=clean(payload),stamp=this.serverTimestamp(),doc={entityType:entity,entityId,payload:encodeCloudPayload(safe),payloadEncoding:'nested-arrays-v1',version:Number(safe?.version||0),updatedAt:Number(safe?.updatedAt||safe?.deletedAt||Date.now()),deletedAt:safe?.deletedAt||null,modifiedBy:this.user.uid,modifiedEmail:emailKey(this.user.email),deviceId:this.deviceId||'',build:BUILD_ID,action};if(stamp)doc.serverUpdatedAt=stamp;await this.remoteRef(entity,entityId).set(doc,{merge:false});}
+  // Le document distant a-t-il changé depuis le dernier pull ? Heure serveur quand elle est connue (document et curseur),
+  // sinon l’ancienne règle (horloge des appareils). Une écriture de cet appareil, dernière en date, n’est pas un changement distant.
+  remoteChangedSinceLastPull(remoteData,lastSyncAt){
+    const remoteServer=serverMillis(remoteData?.serverUpdatedAt),cursor=this.serverCursor;
+    if(remoteServer!==null&&cursor>1)return remoteServer>cursor&&!(remoteData.modifiedBy===this.user?.uid&&remoteData.deviceId===(this.deviceId||''));
+    return Number(remoteData?.updatedAt||0)>Number(lastSyncAt||0);
+  }
 
   async bootstrapWorkspace(){if(!this.db||!this.workspaceId||this.syncCursor>0)return{seeded:0,remoteEmpty:false};const ref=this.db.collection('workspaces').doc(this.workspaceId).collection('data'),probe=await ref.limit(1).get();if(!probe.empty)return{seeded:0,remoteEmpty:false};if(!this.can('write'))return{seeded:0,remoteEmpty:true};let seeded=0;const snapshot=this.store.snapshot();for(const type of CLOUD_ENTITY_TYPES){if(!this.canWriteEntity(type,'create'))continue;for(const entity of(snapshot[type]||[])){if(!entity?.id)continue;await this.writeRemoteEntity(type,entity.id,entity,'bootstrap');seeded++;}}if(seeded)await this.audit('bootstrap','workspace',this.workspaceId,{seeded});return{seeded,remoteEmpty:true};}
 
@@ -118,44 +151,63 @@ export class SyncService{
       try{
         if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}if(!this.canWriteEntity(operation.entity,operation.action)){await this.markQueueDone(operation.id);continue;}
         const localEntity=this.store.get(operation.entity,operation.entityId,{includeDeleted:true});const localPayload=localEntity||operation.payload||{id:operation.entityId,deletedAt:Date.now()};const remote=await this.remoteRef(operation.entity,operation.entityId).get(),remoteData=remote.exists?decodeCloudDocument(remote.data()):null;
-        if(remoteData?.payload&&Number(remoteData.updatedAt||0)>Number(snapshot.metadata.lastSyncAt||0)&&canonicalData(remoteData.payload)!==canonicalData(clean(localPayload))){const suggestion=safeMergeEntity(localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.store.applyRemote(operation.entity,suggestion.merged,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload);await this.markQueueConflict(operation.id);conflicts++;continue;}
+        if(remoteData?.payload&&this.remoteChangedSinceLastPull(remoteData,snapshot.metadata.lastSyncAt)&&canonicalData(remoteData.payload)!==canonicalData(clean(localPayload))){const suggestion=safeMergeEntity(localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.store.applyRemote(operation.entity,suggestion.merged,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload);await this.markQueueConflict(operation.id);conflicts++;continue;}
         await this.writeRemoteEntity(operation.entity,operation.entityId,localPayload,operation.action);await this.markQueueDone(operation.id);await this.audit(operation.action,operation.entity,operation.entityId);sent++;
       }catch(error){await this.markQueueFailure(operation.id,error);errors++;}
     }
     return{sent,conflicts,merged,errors,waiting};
   }
 
+  async collectDocs(query){const docs=[];let lastDocument=null;while(true){const snap=await (lastDocument?query.startAfter(lastDocument):query).get();docs.push(...snap.docs);if(snap.docs.length<PAGE_SIZE)break;lastDocument=snap.docs[snap.docs.length-1];}return docs;}
+
+  // Deux lectures complémentaires :
+  // - curseur serveur (serverUpdatedAt > dernier curseur serveur) : insensible à l’horloge des appareils ;
+  // - ancien curseur (updatedAt, horloge des appareils) : documents écrits par des versions pas encore à jour.
+  // Premier passage à l’heure serveur sur cet appareil : l’ancien curseur repart de zéro une fois (pull complet),
+  // ce qui rattrape aussi les documents manqués autrefois à cause d’une horloge en retard.
   async pullRemote(){
-    const last=this.syncCursor,since=Math.max(0,last-5000);
-    const query=this.db.collection('workspaces').doc(this.workspaceId).collection('data').where('updatedAt','>',since).orderBy('updatedAt','asc').limit(500);
-    let pulled=0,conflicts=0,merged=0,cursor=last,lastDocument=null;
-    while(true){
-      const snap=await (lastDocument?query.startAfter(lastDocument):query).get();
-      for(const doc of snap.docs){
-        const remote=decodeCloudDocument(doc.data());
-        cursor=Math.max(cursor,Number(remote.updatedAt)||0);
-        if(!CLOUD_ENTITY_TYPES.includes(remote.entityType)||!remote.payload?.id)continue;
-        // Retry failures and unresolved conflicts are still unsent local edits.
-        const p=this.store.snapshot().queue.find(q=>['pending','error','conflict'].includes(q.status)&&q.entity===remote.entityType&&q.entityId===remote.entityId);
-        const local=this.store.get(remote.entityType,remote.entityId,{includeDeleted:true});
-        const differs=canonicalData(clean(local||p?.payload))!==canonicalData(clean(remote.payload));
-        if((p&&differs)||(last===0&&local&&differs)){
-          const suggestion=safeMergeEntity(local||p?.payload,remote.payload);
-          if(this.store.snapshot().preferences.syncAutoMerge!==false&&suggestion.canMerge){
-            const applied=await this.store.applyRemote(remote.entityType,suggestion.merged,{expectedQueueId:p?.id||null});
-            if(applied){if(this.can('write'))await this.writeRemoteEntity(remote.entityType,remote.entityId,suggestion.merged,'auto-merge');merged++;pulled++;}
-            continue;
-          }
-          await this.createConflict(remote.entityType,remote.entityId,local||p?.payload,remote.payload);conflicts++;continue;
+    const last=this.syncCursor,serverLast=this.serverCursor,data=this.db.collection('workspaces').doc(this.workspaceId).collection('data');
+    const serverReady=Boolean(this.serverTimeAt(0)),transition=serverReady&&serverLast<=0;
+    const legacyDocs=await this.collectDocs(data.where('updatedAt','>',transition?0:Math.max(0,last-CURSOR_MARGIN_MS)).orderBy('updatedAt','asc').limit(PAGE_SIZE));
+    const serverDocs=serverReady?await this.collectDocs(data.where('serverUpdatedAt','>',this.serverTimeAt(Math.max(0,serverLast-CURSOR_MARGIN_MS))).orderBy('serverUpdatedAt','asc').limit(PAGE_SIZE)):[];
+    let pulled=0,conflicts=0,merged=0,cursor=last,serverCursor=serverLast;
+    for(const doc of legacyDocs)cursor=Math.max(cursor,Number(doc.data()?.updatedAt)||0);
+    // Le curseur serveur ne s’appuie que sur la lecture ordonnée par serverUpdatedAt (aucun trou possible).
+    for(const doc of serverDocs)serverCursor=Math.max(serverCursor,serverMillis(doc.data()?.serverUpdatedAt)||0);
+    if(transition)serverCursor=Math.max(serverCursor,1);
+    // Un même document lu deux fois n’est traité qu’une fois (version la plus récente, lue en dernier).
+    const docs=new Map();for(const doc of [...legacyDocs,...serverDocs])docs.set(doc.id,doc);
+    for(const doc of docs.values()){
+      const remote=decodeCloudDocument(doc.data());
+      if(!CLOUD_ENTITY_TYPES.includes(remote.entityType)||!remote.payload?.id)continue;
+      // Retry failures and unresolved conflicts are still unsent local edits.
+      const p=this.store.snapshot().queue.find(q=>['pending','error','conflict'].includes(q.status)&&q.entity===remote.entityType&&q.entityId===remote.entityId);
+      const local=this.store.get(remote.entityType,remote.entityId,{includeDeleted:true});
+      const differs=canonicalData(clean(local||p?.payload))!==canonicalData(clean(remote.payload));
+      // Arrivé au serveur depuis le dernier pull mais daté avant la copie locale : horloge d’appareil en retard
+      // (successeur direct si sa version est supérieure) ou modification locale non envoyée (fusion ou conflit, jamais ignoré).
+      const remoteServer=serverMillis(remote.serverUpdatedAt),fresh=remoteServer!==null&&remoteServer>serverLast;
+      const datedBeforeLocal=Boolean(local)&&Number(remote.updatedAt||0)<Number(local.updatedAt||0);
+      const successor=Boolean(local)&&Number(remote.payload.version||remote.version||0)>Number(local.version||0);
+      // Sans droit d’écriture sur ce type, aucune modification locale n’est possible : la version du serveur fait foi.
+      const canWrite=this.canWriteEntity(remote.entityType,'update');
+      const ambiguous=!p&&fresh&&datedBeforeLocal&&differs&&!successor&&canWrite;
+      if((p&&differs)||(last===0&&local&&differs)||ambiguous){
+        const suggestion=safeMergeEntity(local||p?.payload,remote.payload);
+        if(this.store.snapshot().preferences.syncAutoMerge!==false&&suggestion.canMerge){
+          const applied=await this.store.applyRemote(remote.entityType,suggestion.merged,{expectedQueueId:p?.id||null});
+          if(applied){if(canWrite)await this.writeRemoteEntity(remote.entityType,remote.entityId,suggestion.merged,'auto-merge');merged++;pulled++;}
+          continue;
         }
-        if(!local||Number(remote.updatedAt||0)>=Number(local.updatedAt||0)){
-          if(await this.store.applyRemote(remote.entityType,remote.payload,{expectedQueueId:p?.id||null}))pulled++;
-        }
+        await this.createConflict(remote.entityType,remote.entityId,local||p?.payload,remote.payload);conflicts++;continue;
       }
-      if(snap.docs.length<500)break;
-      lastDocument=snap.docs[snap.docs.length-1];
+      // Copie locale déjà identique : rien à écrire (évite un enregistrement complet par document relu).
+      if(local&&!differs)continue;
+      if(!local||Number(remote.updatedAt||0)>=Number(local.updatedAt||0)||(!p&&fresh&&(successor||!canWrite))){
+        if(await this.store.applyRemote(remote.entityType,remote.payload,{expectedQueueId:p?.id||null}))pulled++;
+      }
     }
-    return{pulled,conflicts,merged,cursor};
+    return{pulled,conflicts,merged,cursor,serverCursor};
   }
 
   async syncAttachmentBlobs(){
@@ -167,10 +219,10 @@ export class SyncService{
   async _sync({force=false}={}){
     if(!force&&Number(this.store.snapshot().metadata.syncBackoffUntil||0)>Date.now())throw new Error('Synchronisation automatique temporairement différée après un échec réseau.');
     if(!this.status.connected||!this.user||!this.db||!this.workspaceId)throw new Error('Synchronisation indisponible : compte et exploitation cloud requis.');if(!this.networkAllows())throw new Error('Synchronisation différée par le réglage réseau.');
-    await this.refreshMembership();if(!this.member)throw new Error('Vous n’êtes plus membre de cette exploitation.');await this.heartbeat();
+    await this.refreshMembership();if(!this.member)throw new Error('Vous n’êtes plus membre de cette exploitation.');await this.measureClockOffset();
     try{
       const bootstrap=await this.bootstrapWorkspace(),pushed=await this.pushPending(),pulled=await this.pullRemote(),attachments=await this.syncAttachmentBlobs(),completedAt=Date.now();
-      await this.store.mutate('Synchronisation terminée.',state=>{for(const conflict of state.syncConflicts||[]){if(conflict.status==='open'&&canonicalData(conflict.local)===canonicalData(conflict.remote)){conflict.status='resolved';conflict.resolution='identical';conflict.resolvedAt=completedAt;for(const item of state.queue){if(item.status==='conflict'&&item.entity===conflict.entity&&item.entityId===conflict.entityId){item.status='pending';item.nextRetryAt=0;}}}}state.metadata.lastSyncAt=completedAt;state.metadata.lastSyncError=null;state.metadata.syncFailureCount=0;state.metadata.syncBackoffUntil=null;state.metadata.syncCursors=state.metadata.syncCursors||{};state.metadata.syncCursors[this.workspaceId]=pulled.cursor;state.queue=state.queue.filter(item=>item.status!=='done');},{queue:false,log:false,bypassPermissions:true});
+      await this.store.mutate('Synchronisation terminée.',state=>{for(const conflict of state.syncConflicts||[]){if(conflict.status==='open'&&canonicalData(conflict.local)===canonicalData(conflict.remote)){conflict.status='resolved';conflict.resolution='identical';conflict.resolvedAt=completedAt;for(const item of state.queue){if(item.status==='conflict'&&item.entity===conflict.entity&&item.entityId===conflict.entityId){item.status='pending';item.nextRetryAt=0;}}}}state.metadata.lastSyncAt=completedAt;state.metadata.lastSyncError=null;state.metadata.syncFailureCount=0;state.metadata.syncBackoffUntil=null;state.metadata.syncCursors=state.metadata.syncCursors||{};state.metadata.syncCursors[this.workspaceId]=pulled.cursor;state.metadata.syncServerCursors={...(state.metadata.syncServerCursors||{}),[this.workspaceId]:pulled.serverCursor};if(this.clockSkew)state.metadata.clockSkew=clone(this.clockSkew);state.queue=state.queue.filter(item=>item.status!=='done');},{queue:false,log:false,bypassPermissions:true});
       this.lastResult={...bootstrap,...pushed,...pulled,...attachments,at:completedAt,queue:this.queueSummary()};return this.lastResult;
     }catch(error){const message=sanitizeCloudError(error);await this.store.mutate('Synchronisation interrompue.',state=>{state.metadata.lastSyncError=message;state.metadata.syncFailureCount=Number(state.metadata.syncFailureCount||0)+1;state.metadata.syncBackoffUntil=Date.now()+syncRetryDelay(Math.min(8,state.metadata.syncFailureCount),15);},{queue:false,log:false,bypassPermissions:true});await this.audit('sync-error','sync',this.workspaceId,{message});throw new Error(message);}
   }
