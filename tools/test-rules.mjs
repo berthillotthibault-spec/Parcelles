@@ -456,3 +456,20 @@ storageTest('FAILLE : un éditeur ne peut plus supprimer une pièce jointe ; le 
   await assertFails(st.deleteObject(attRef(asStorage('ed', 'ed@ex.fr'))));
   await assertSucceeds(st.deleteObject(attRef(asStorage('owner', 'owner@ex.fr'))));
 });
+
+test('factures et contrats de vente : la comptabilité écrit, l’opérateur terrain non ; capteurs et imports restent à l’opérateur', async () => {
+  const imp = (uid, farmKind, id = 'r1') => remoteDoc(uid, {entityType: 'integrationImports', entityId: id, payload: {id, farmKind, name: farmKind, version: 1, updatedAt: 5}});
+  const ref = (db, id = 'r1') => dataRef(db, 'integrationImports__' + id);
+  const op = as('op', 'op@ex.fr'), ac = as('ac', 'ac@ex.fr');
+  for (const kind of ['invoice', 'salesContract']) {
+    await assertSucceeds(setDoc(ref(ac, kind), imp('ac', kind, kind)));
+    await assertFails(setDoc(ref(op, kind), imp('op', kind, kind)));
+  }
+  await assertSucceeds(setDoc(ref(op, 's1'), imp('op', 'sensor', 's1')));
+  await assertFails(setDoc(ref(ac, 's2'), imp('ac', 'sensor', 's2')));
+  // Ni l’un ni l’autre ne peut changer le type d’un enregistrement existant pour contourner la règle.
+  await assertFails(setDoc(ref(op, 'invoice'), imp('op', 'sensor', 'invoice')));
+  await assertFails(setDoc(ref(ac, 's1'), imp('ac', 'invoice', 's1')));
+  // Collaborateur et propriétaire : tout.
+  await assertSucceeds(setDoc(ref(as('ed', 'ed@ex.fr'), 'invoice'), imp('ed', 'invoice', 'invoice')));
+});

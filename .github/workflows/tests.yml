@@ -1,0 +1,31 @@
+# Tests uniquement : GitHub Pages reste en « Deploy from a branch » (main, racine).
+name: Tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - name: Syntaxe et tests Node
+        run: npm test
+      - name: Audit Playwright de la maquette
+        run: |
+          npx playwright install --with-deps chromium
+          npx http-server -p 8080 -c-1 -s . &
+          npx wait-on -t 30000 http://localhost:8080/index.html || sleep 5
+          npm run audit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit
+          path: audit/
