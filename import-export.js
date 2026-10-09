@@ -3,6 +3,7 @@ import {migrateData, newerSchemaError, normalizeEntity, storedSchemaVersion} fro
 import {dbfEncoding, parseDbf, parseShpDbf} from './shapefile-fallback.js';
 import {readImportText} from './text-encoding.js';
 import {createZip, readZip} from './zip-lite.js';
+import {kmlToGeoJson} from './parcel-formats.js';
 
 const IMPORT_ENGINE_BUILD=`import-${BUILD_ID}`;
 
@@ -146,6 +147,15 @@ async function zipContent(file){
   }
   return outputs;
 }
+// KML ou KMZ (ZIP contenant doc.kml) : seuls les polygones sont proposés comme parcelles.
+async function kmlContent(file,ext){
+  let text;
+  if(ext==='.kmz'){const entries=await readZipEntries(file);const entry=entries.find(e=>/(^|\/)doc\.kml$/i.test(e.name))||entries.find(e=>/\.kml$/i.test(e.name));if(!entry)throw new Error('Aucun fichier KML dans ce KMZ.');text=await readImportText(entry);}
+  else text=await readImportText(file);
+  const value=kmlToGeoJson(text);
+  if(!value.features.length)throw new Error('Aucun polygone dans ce KML. Pour une trace GPS ou des points, utilisez Plus › Intégrations agricoles.');
+  return value;
+}
 async function looseShapefileContent(group){
   const {shp,dbf,prj,cpg}=group.files;if(!shp||!dbf)throw new Error(`Jeu SHP incomplet « ${group.base} » : .shp et .dbf sont obligatoires.`);
   return parseShapefileParts({name:`${group.base}.shp`,shp:await shp.arrayBuffer(),dbf:await dbf.arrayBuffer(),prj:prj?await prj.text():'',cpg:cpg?await cpg.text():''});
@@ -184,6 +194,7 @@ export async function inspectFiles(files,state,mapping={}){
       else if(['.xlsx','.xls'].includes(ext)){const sets=await spreadsheetRows(await file.arrayBuffer());sources=sets.map(s=>({file:file.name,type:'sheet',...s,hasGeometry:false,engine:'SheetJS'}));}
       else if(['.json','.geojson'].includes(ext)){const value=JSON.parse(await readImportText(file)),rows=flattenGeoJson(value);sources=[{file:file.name,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:rows.some(r=>r.geometry),engine:'JSON'}];}
       else if(ext==='.xml'){const sets=xmlRows(await readImportText(file));sources=sets.map(s=>({file:file.name,type:'xml',...s,hasGeometry:false,engine:'DOMParser'}));}
+      else if(ext==='.kml'||ext==='.kmz'){const value=await kmlContent(file,ext),rows=flattenGeoJson(value);sources=[{file:file.name,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:true,engine:'KML'}];}
       else if(ext==='.zip'){const inputs=await zipContent(file);for(const input of inputs){if(input.type==='csv'){const sets=csvRows(input.value);sources.push(...sets.map(s=>({file:`${file.name}/${input.name}`,type:'csv',...s,hasGeometry:false,engine:'PapaParse'})));}else{const rows=flattenGeoJson(input.value);sources.push({file:`${file.name}/${input.name}`,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:true,engine:input.engine,diagnostic:input.diagnostic});}}}
       else throw new Error(`Format ${ext||'sans extension'} non pris en charge.`);
       parsed.push(...sources);

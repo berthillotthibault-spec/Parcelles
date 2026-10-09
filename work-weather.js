@@ -44,7 +44,7 @@ export function workWeatherSlot(work, weather, {now = Date.now(), rules = null} 
   const chosen = good || watch;
   const suffix = stale ? ' · données anciennes' : '';
   const why = chosen?.hours?.[0]?.why?.slice(0, 7).join(' · ') || '';
-  const base = `Seuils « ${rule} ». ${SLOT_DISCLAIMER}${stale ? ' Prévisions de plus de 6 h : à actualiser.' : ''}`;
+  const base = `Seuils « ${rule} ».${rule === 'Pulvérisation' ? ' Limite légale : 19 km/h (3 Beaufort).' : ''} ${SLOT_DISCLAIMER}${stale ? ' Prévisions de plus de 6 h : à actualiser.' : ''}`;
   if (!chosen) return {tone: 'none', stale, rule, text: `Pas de créneau sur 3 jours${suffix}`, title: base};
   return {
     tone: stale ? 'none' : good ? 'good' : 'watch', stale, rule, start: chosen.start, end: chosen.end,

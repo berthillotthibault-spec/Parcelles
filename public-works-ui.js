@@ -1,3 +1,4 @@
+import {validateForm} from './form-chips-ui.js';
 import {escapeHtml} from './utils.js';
 import {TP_STATUSES,isPublicWorks,savePublicWorksProject,savePublicWorksLog,deletePublicWorksLog,publicWorksTotals,filterPublicWorksProjects} from './public-works.js';
 
@@ -20,7 +21,7 @@ export function createPublicWorksUI({store,state,modal,closeModal,toast,confirmD
   let filters={status:'',clientId:'',equipmentId:'',query:''};
 
   async function save(button,form,operation,onSuccess){
-    if(button.disabled||!form.reportValidity())return;
+    if(button.disabled||!validateForm(form))return;
     button.disabled=true;
     try{const saved=await operation(Object.fromEntries(new FormData(form)));if(form.isConnected){onSuccess(saved);toast('Enregistré.');}}
     catch(error){if(form.isConnected){const target=form.querySelector('[data-tp-error]');if(target){target.textContent=error.message||'Enregistrement impossible.';target.hidden=false;}toast(error.message||'Enregistrement impossible.','error');}}

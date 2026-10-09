@@ -5,6 +5,10 @@ import {campaignFor,escapeHtml,formatNumber,isoDate,localDate,normalize,toNumber
 import {active,completed} from './farm-memory.js';
 import {phytosanitaryRegister} from './advanced-economics.js';
 import {parcelFollowupScore} from './harvest-traceability.js';
+import {hasInAppPlan,nitrogenComplianceChecks} from './nitrogen.js';
+import {pacComplianceChecks} from './pac.js';
+import {coverComplianceChecks} from './covers.js';
+import {phytoComplianceCheck} from './phyto.js';
 
 export const COMPLIANCE_DISCLAIMER='Établi à partir des données saisies dans Parcelles : ne vaut pas attestation de conformité. Les règles varient selon le département (programme d’actions nitrates, arrêtés locaux) ; vérifiez auprès de votre DDT ou de votre conseiller.';
 
@@ -81,12 +85,13 @@ function nitrogenCheck(state,campaign,settings,today){
   const incomplete=works.filter(w=>!w.date||!w.product||!(toNumber(w.dose)>0)||!w.parcelId);
   const since=isoDate(new Date(toDay(today).getTime()-365*dayMs));
   const ppf=active(state,'documents').filter(d=>PPF.test(normalize(`${d.name||''} ${d.category||''} ${(d.tags||[]).join(' ')} ${d.note||''}`))&&String(d.documentDate||isoDate(d.createdAt))>=since).sort((a,b)=>String(b.documentDate||'').localeCompare(String(a.documentDate||'')));
-  const parts=[ppf.length?`PPF : ${ppf[0].name||'document'} (${localDate(ppf[0].documentDate||ppf[0].createdAt)}).`:'Aucun plan prévisionnel de fumure (PPF) daté de moins d’un an dans les documents.',
+  const inApp=hasInAppPlan(state,campaign);
+  const parts=[ppf.length?`PPF : ${ppf[0].name||'document'} (${localDate(ppf[0].documentDate||ppf[0].createdAt)}).`:inApp?`PPF calculé dans Parcelles pour la campagne ${campaign}.`:'Aucun plan prévisionnel de fumure (PPF) daté de moins d’un an dans les documents.',
     works.length?`Cahier : ${plural(works.length,'apport enregistré','apports enregistrés')}${incomplete.length?`, ${plural(incomplete.length,'incomplet','incomplets')}`:''}.`:'Cahier : aucun apport enregistré cette campagne.'];
-  const status=worst([ppf.length?'ok':'ko',incomplete.length?'warn':'ok']);
+  const status=worst([ppf.length||inApp?'ok':'ko',incomplete.length?'warn':'ok']);
   return check('nitrogen','PPF et cahier d’enregistrement azote',status,parts.join(' '),{
     items:incomplete.map(w=>({label:`${localDate(w.date)} · ${w.product||w.type||'Apport'}`,note:'Produit, dose, date ou parcelle manquant',action:'edit-work',id:w.id})),
-    action:ppf.length?null:{type:'documents',label:'Ajouter le PPF'},hint:'Nommez le document « PPF … » ou ajoutez le tag « PPF » pour qu’il soit reconnu.'});
+    action:ppf.length||inApp?null:{type:'nitrogen',label:'Calculer le PPF'},hint:'Calculez le PPF dans Parcelles (Azote), ou nommez un document « PPF … » pour qu’il soit reconnu.'});
 }
 
 export function sprayers(state){
@@ -179,18 +184,25 @@ function followupCheck(state){
   return check('followup','Complétude du suivi des travaux',average>=80&&!low.length?'ok':'warn',`Complétude moyenne ${formatNumber(average)} % (dates, coûts, surfaces, opérateurs) : ce n’est pas une note réglementaire.`,{items:low.map(x=>({label:x.p.nom,note:`${formatNumber(x.s.score)} % · ${x.s.criteria.filter(c=>c.known<c.total).map(c=>c.label.toLowerCase()).join(', ')}`,action:'open-parcel',id:x.p.id}))});
 }
 
+// n° 62 — contrôles des traitements (dose, applications, DAR, AMM retirée) d’après les fiches produit.
+function phytoControlsCheck(state,today){const c=phytoComplianceCheck(state,{today});return{...c,statusLabel:STATUS_LABELS[c.status]};}
+
 /** Liste [{id,label,status,statusLabel,detail,items,action}] ; status ∈ ko, warn, unknown, ok, na. */
 export function complianceChecks(state,{today=isoDate(new Date())}={}){
   const settings=complianceSettings(state),campaign=campaignFor(today);
   const hasPhyto=phytosanitaryRegister(state).some(r=>completed(r.work));
   return[
     phytoCheck(state,campaign),
+    phytoControlsCheck(state,today),
     nitrogenCheck(state,campaign,settings,today),
+    ...nitrogenComplianceChecks(state,{today,campaign}), // v5b n° 63
     sprayerCheck(state,settings,today,hasPhyto),
     certiphytoCheck(state,settings,today,hasPhyto),
     coverCheck(state,settings,today),
+    ...coverComplianceChecks(state,{today}), // v5b n° 74
     bdniCheck(state),
     rotationCheck(state,settings,campaign),
+    ...pacComplianceChecks(state,{today,campaign}), // v5b n° 58
     followupCheck(state)
   ];
 }

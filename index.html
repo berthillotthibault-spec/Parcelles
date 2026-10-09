@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f5f0">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="application-name" content="Parcelles 10.10">
-  <meta name="parcelles-build" content="2026.10.08-v10.12.0">
+  <meta name="parcelles-build" content="2026.10.10-v10.13.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="./public-works.css">
   <link rel="stylesheet" href="./motion.css">
   <link rel="stylesheet" href="./personalization.css">
-  <link rel="stylesheet" href="./design-v3.css?v=4.1">
+  <link rel="stylesheet" href="./design-v3.css?v=4.2">
   <title>Parcelles</title>
 </head>
 <body>
@@ -182,7 +182,7 @@
       <section id="view-work" class="view" aria-labelledby="work-title">
         <div class="page-container">
           <div class="view-heading"><div><h1 id="work-title">Travaux</h1><p class="lead">Planifier, réaliser, retrouver.</p></div><button class="button primary icon-only" data-action="new-work" aria-label="Nouveau travail"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
-          <div class="segmented work-subviews" id="work-subviews" role="tablist" aria-label="Affichage des travaux"><button id="work-subview-tab-list" data-tab="list" role="tab" aria-selected="true" aria-controls="work-panel-list" class="is-active">Liste</button><button id="work-subview-tab-calendar" data-tab="calendar" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Calendrier</button><button id="work-subview-tab-tasks" data-tab="tasks" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Tâches</button><button id="work-subview-tab-chantiers" data-tab="chantiers" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Chantiers</button></div>
+          <div class="segmented work-subviews" id="work-subviews" role="tablist" aria-label="Affichage des travaux"><button id="work-subview-tab-list" data-tab="list" role="tab" aria-selected="true" aria-controls="work-panel-list" class="is-active">Liste</button><button id="work-subview-tab-week" data-tab="week" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Semaine</button><button id="work-subview-tab-calendar" data-tab="calendar" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Calendrier</button><button id="work-subview-tab-tasks" data-tab="tasks" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Tâches</button><button id="work-subview-tab-chantiers" data-tab="chantiers" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Chantiers</button></div>
           <nav class="context-tools" aria-label="Organisation des travaux"><button class="small-button" data-action="open-equipment">Matériel</button><button class="small-button" data-action="batch-work">Travail groupé</button></nav>
           <div id="work-panel-list" role="tabpanel" aria-labelledby="work-subview-tab-list">
           <div id="work-priority-notice" class="work-priority-notice hidden" role="status"></div>
@@ -246,7 +246,7 @@
 
   </aside>
   <script>document.getElementById('assistant-dock').setAttribute('inert','');</script>
-  <input id="import-file-input" hidden type="file" multiple accept=".csv,.xlsx,.xls,.xml,.json,.geojson,.zip,.shp,.dbf,.shx,.prj,.cpg,.gpx,.kml,.txt">
+  <input id="import-file-input" hidden type="file" multiple accept=".csv,.xlsx,.xls,.xml,.json,.geojson,.zip,.shp,.dbf,.shx,.prj,.cpg,.gpx,.kml,.kmz,.txt">
   <input id="restore-file-input" hidden type="file" accept=".zip,.json">
 
   <script src="./leaflet.min.js"></script>

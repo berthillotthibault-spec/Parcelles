@@ -1,6 +1,7 @@
 import {clone} from './utils.js';
 import {normalizeEntity} from './state.js';
 import {grazingAnimalList,grazingDate,grazingStatus} from './grazing.js';
+import {grazingReentryConflict} from './phyto.js';
 
 const fields=['parcelId','animalType','startDate','endDate','animals','additionalAnimalsCount','animalsCount','note'];
 const revision=row=>JSON.stringify(fields.map(key=>row?.[key]??null));
@@ -51,3 +52,6 @@ export function endGrazingSession(store,id,{date=grazingDate()}={}){
     return persist(store,{id,endDate:day},current,'Sortie de pâturage enregistrée.');
   });
 }
+
+// n° 62 — mise au pâturage pendant le délai de rentrée d’un traitement : alerte (pas de blocage).
+export function grazingReentryAlert(state,parcelId,startDate,options={}){return grazingReentryConflict(state,parcelId,startDate,options);}

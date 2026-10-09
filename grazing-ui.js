@@ -1,10 +1,21 @@
+import {validateForm} from './form-chips-ui.js';
 import {escapeHtml,formatNumber,localDate} from './utils.js';
 import {grazingDate,grazingAnimalList,grazingAnimalText,grazingTotal,grazingType,grazingStatus,filterGrazingSessions,summarizeParcelGrazing,parseGrazingAnimals} from './grazing.js';
-import {saveGrazingSession,endGrazingSession} from './grazing-records.js';
+import {saveGrazingSession,endGrazingSession,grazingReentryAlert} from './grazing-records.js';
 
 const labels={current:'Au pré',planned:'Prévu',ended:'Sorti',invalid:'Dates à vérifier'};
 const animalLabel=animal=>[animal.number,animal.name].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · ')||'Animal sans numéro';
 function animalHtml(animal){return `<li>${escapeHtml(animalLabel(animal))}${animal.gestation?' <span class="badge success">Gestante</span>':''}</li>`;}
+// n° 62 — délai de rentrée : premier clic = alerte sous le formulaire, second clic = confirmation.
+function reentryGate(store,form,button,parcelId,startDate){
+  const alert=grazingReentryAlert(store.state,parcelId,startDate),key=`${parcelId}|${startDate}`;
+  form.querySelector('.phyto-dre-alert')?.remove();
+  if(!alert||button.dataset.dreAck===key)return true;
+  button.dataset.dreAck=key;
+  const note=document.createElement('p');note.className='notice warning phyto-dre-alert span-2';note.setAttribute('role','alert');
+  note.textContent=`${alert.message} Touchez à nouveau le bouton pour confirmer.`;form.append(note);note.scrollIntoView?.({block:'nearest'});
+  return false;
+}
 export function parcelGrazingHtml(sessions,parcelId,{compact=false,date=new Date()}={}){
   const summary=summarizeParcelGrazing(sessions,parcelId,{date});
   const title=summary.total?`${formatNumber(summary.total,0)} ${summary.total===1?'animal':'animaux'} au pré`:'Aucun animal au pré';
@@ -61,11 +72,12 @@ export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=n
       form.querySelector('[name="parcelId"]').prepend(option);
     }
     button.onclick=async()=>{
-      if(button.disabled||!form.reportValidity())return;
+      if(button.disabled||!validateForm(form))return;
       const values=Object.fromEntries(new FormData(form));
       try{
         if(values.endDate&&values.endDate<values.startDate)throw new Error('La sortie doit être postérieure ou égale à l’entrée.');
         if(!active('parcelles').some(p=>p.id===values.parcelId))throw new Error('La parcelle n’est plus disponible.');
+        if((!session||values.parcelId!==row.parcelId||values.startDate!==String(row.startDate||'').slice(0,10))&&!reentryGate(store,form,button,values.parcelId,values.startDate))return;
         const additionalAnimalsCount=Number(values.additionalAnimalsCount);
         if(!Number.isSafeInteger(additionalAnimalsCount)||additionalAnimalsCount<0)throw new Error('Indiquez un nombre entier d’animaux sans numéro.');
         const unchanged=values.animals===text;
@@ -93,6 +105,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=n
       if(button.disabled)return;
       const values=Object.fromEntries(new FormData(form));
       if(!values.parcelId||!values.date){error.textContent=`Champ obligatoire : ${!values.parcelId?'Vers la parcelle':'Date du déplacement'}.`;error.hidden=false;return;}
+      if(!reentryGate(store,form,button,values.parcelId,values.date))return;
       button.disabled=true;
       const animals=grazingAnimalList(session),moved={parcelId:values.parcelId,animalType:grazingType(session),startDate:values.date,endDate:null,animals,additionalAnimalsCount:Math.max(0,total-animals.length),note:session.note||''};
       try{

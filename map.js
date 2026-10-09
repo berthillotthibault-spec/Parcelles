@@ -1,8 +1,14 @@
 import {mapEconomics,economicColor} from './pilotage.js';
 import {parcelSituation,localDay} from './home-priorities.js';
 import {parcelGrazingHtml} from './grazing-ui.js';
-import {escapeHtml, formatNumber, geometryCentroid, geometryAreaHa, haversineMeters, normalize} from './utils.js';
+import {escapeHtml, formatNumber, geometryCentroid, geometryAreaHa, haversineMeters, normalize, pointInGeometry} from './utils.js';
+import {labelPoint,labelLevel,labelLines,resolveLabelCollisions} from './map-labels.js';
+import {legendGroups,legendLine,legendStyle,groupBounds} from './map-legend.js';
 import {fetchRpgFeatures, rpgFeatureId} from './rpg.js';
+import {bcae7ColorInfo} from './pac.js'; // v5b n° 58
+import {activeReentries} from './phyto.js';
+import {parcelIft,iftColor} from './ift.js';
+import {windToward,windTowardWater,compass,forecastAge} from './spray-window.js';
 import {baseLayerDefinition,CADASTRE_OVERLAY,normalizeCadastreOpacity,cadastreQueryUrl,parseCadastreResponse,cadastreReference} from './basemaps.js';
 
 const DEFAULT_CENTER=[46.31,4.95];
@@ -39,7 +45,7 @@ export class ParcelMap{
     this.map=L.map('map',{zoomControl:false,preferCanvas:false,doubleClickZoom:false}).setView(DEFAULT_CENTER,12);
     L.control.zoom({position:'bottomright'}).addTo(this.map);
     for(const [name,zIndex] of [['rpgPane',350],['parcelPane',410],['selectedParcelPane',430],['mapPointPane',500],['editingPane',550]]){this.map.createPane(name).style.zIndex=String(zIndex);}
-    this.layers.parcels=L.featureGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);
+    this.layers.parcels=L.featureGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);this.layers.labels=L.layerGroup().addTo(this.map);this.labelEntries=[];this.map.on('moveend resize',()=>this.updateLabels());
     this.map.createPane('cadastrePane').style.zIndex='300';this.map.getPane('cadastrePane').style.pointerEvents='none';
     this.map.on('click',event=>this.handleCadastreClick(event));
     this.setBaseLayer('osm');
@@ -112,9 +118,11 @@ export class ParcelMap{
     }finally{clearTimeout(timer);if(this.cadastreController===controller)this.cadastreController=null;}
   }
 
-  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.render(this.lastState);}
+  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin','ift','bcae7'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.legendFocus=null;this.render(this.lastState);}
   colorInfo(parcel){
+    if(this.colorMode==='bcae7')return bcae7ColorInfo(this.lastState,parcel); // v5b n° 58
     if(['cost','margin'].includes(this.colorMode)){const row=this.economics?.get(parcel.id);return economicColor(row?.[this.colorMode==='cost'?'costHa':'marginHa'],this.colorMode);}
+    if(this.colorMode==='ift'){const r=this.ift?.get(parcel.id);return iftColor(!r?null:r.treatments&&r.missing===r.treatments?null:r.total);}
     const context=this.situations.get(parcel.id),status=context?.status;
     if(this.colorMode==='status')return {label:status?.label||'Rien d’urgent signalé',color:status?.color||'#2f8054'};
     if(this.colorMode==='animals')return {label:context?.grazing.length?'Animaux présents':'Sans animaux',color:context?.grazing.length?'#3178c6':'#778579'};
@@ -124,6 +132,18 @@ export class ParcelMap{
     return {label,color:cultureColor(label)};
   }
   colorFor(parcel){return this.colorInfo(parcel).color;}
+  // n° 60 — vent actuel (prévision de l’exploitation) : flèche sur la parcelle sélectionnée.
+  setWind(wind){this.wind=wind&&Number.isFinite(Number(wind.direction))?wind:null;}
+  drawWind(){
+    if(!this.map)return;this.layers.wind??=L.layerGroup().addTo(this.map);this.layers.wind.clearLayers();
+    const parcel=this.wind&&!this.multiple?(this.lastState.parcelles||[]).find(p=>p.id===this.selectedId&&!p.deletedAt&&p.geometry):null;if(!parcel)return;
+    const c=geometryCentroid(parcel.geometry);if(!c)return;
+    const from=Number(this.wind.direction),toward=windToward(from),water=windTowardWater(parcel,(this.lastState.points||[]).filter(p=>!p.deletedAt),from),speed=Number(this.wind.speed);
+    const age=this.wind.loadedAt&&Date.now()-this.wind.loadedAt>3600000?` · ${forecastAge({loadedAt:this.wind.loadedAt},Date.now(),{online:navigator.onLine!==false})}`:'';
+    const text=`Vent ${Number.isFinite(speed)?formatNumber(Math.round(speed)):'?'} km/h du ${compass(from)}${water?' · vent vers le cours d’eau':''}`;
+    const html=`<div class="map-wind${water?' is-water':''}" role="img" aria-label="${escapeHtml(text+age)}"><svg viewBox="0 0 24 24" aria-hidden="true" style="transform:rotate(${Math.round(toward)}deg)"><path d="M12 2l6 9h-4.2v11h-3.6V11H6z"/></svg><span>${escapeHtml(`Vent ${Number.isFinite(speed)?formatNumber(Math.round(speed)):'?'} km/h du ${compass(from)}`)}<small>${escapeHtml([water?'Vers le cours d’eau':'',age.replace(/^ · /,'')].filter(Boolean).join(' · '))}</small></span></div>`;
+    L.marker([c.latitude,c.longitude],{interactive:false,keyboard:false,icon:L.divIcon({className:'map-wind-icon',html,iconSize:null})}).addTo(this.layers.wind);
+  }
   toggleMultiple(enabled=!this.multiple){
     this.cancelPointPlacement();this.cancelPolygonDrawing();this.cancelMeasurement();this.multiple=enabled;
     if(!enabled){this.selectedIds.clear();this.restorePopups();}this.map?.closePopup();this.render(this.lastState);this.notifySelection();
@@ -131,20 +151,20 @@ export class ParcelMap{
   notifySelection(){document.dispatchEvent(new CustomEvent('parcelles:selection',{detail:{enabled:this.multiple,ids:[...this.selectedIds]}}));}
 
   render(state){
-    this.lastState=state;this.economics=['cost','margin'].includes(this.colorMode)?mapEconomics(state):null;
+    this.lastState=state;try{this.reentries=activeReentries(state);}catch{this.reentries=new Map();}this.economics=['cost','margin'].includes(this.colorMode)?mapEconomics(state):null;this.ift=this.colorMode==='ift'?new Map((state.parcelles||[]).filter(p=>!p.deletedAt).map(p=>[p.id,parcelIft(state,p.id)])):null;
     const grouped=new Map((state.parcelles||[]).filter(p=>!p.deletedAt).map(p=>[p.id,{}]));
     for(const type of ['interventions','tasks','grazingSessions','observations'])for(const row of state[type]||[]){const group=grouped.get(row.parcelId);if(group)(group[type]??=[]).push(row);}
     this.situations=new Map([...grouped].map(([id,group])=>[id,parcelSituation(group,id,localDay())]));
     for(const id of this.selectedIds)if(!grouped.has(id))this.selectedIds.delete(id);
     this.init();if(!this.map)return;
     const parcels=(state.parcelles||[]).filter(item=>!item.deletedAt),points=(state.points||[]).filter(item=>!item.deletedAt);const forget=layer=>{this.suspendedPopups.delete(layer);layer.eachLayer?.(forget);};forget(this.layers.parcels);forget(this.layers.points);this.layers.parcels.clearLayers();this.layers.points.clearLayers();this.pointMarkers.clear();
-    parcels.filter(parcel=>parcel.geometry).forEach(parcel=>this.addParcel(parcel));
+    this.labelEntries=[];parcels.filter(parcel=>parcel.geometry).forEach(parcel=>this.addParcel(parcel));this.updateLabels();
     points.filter(point=>point.latitude!==null&&point.latitude!==undefined&&point.latitude!==''&&point.longitude!==null&&point.longitude!==undefined&&point.longitude!==''&&Number.isFinite(Number(point.latitude))&&Number.isFinite(Number(point.longitude))).forEach(point=>{
       const marker=L.circleMarker([Number(point.latitude),Number(point.longitude)],{pane:'mapPointPane',radius:9,color:'#fff',weight:3,fillColor:'#824510',fillOpacity:1}).addTo(this.layers.points),id=escapeHtml(point.id),note=point.note??point.notes;
       this.bindMapPopup(marker,`<div class="map-point-popup"><strong>${escapeHtml(point.nom||point.name||point.type||'Point')}</strong><small>${escapeHtml(point.type||'Point repéré')}</small>${note?`<p>${escapeHtml(note)}</p>`:''}<div class="map-popup-actions"><button type="button" data-action="edit-map-point" data-id="${id}">Modifier</button><button type="button" data-action="move-map-point" data-id="${id}">Déplacer</button><button type="button" class="danger" data-action="delete-map-point" data-id="${id}">Supprimer</button></div></div>`,{maxWidth:320});
       this.pointMarkers.set(String(point.id),marker);
     });
-    this.setLegend();
+    this.setLegend();this.drawWind();
   }
 
   // Leaflet's native popup click handler stops propagation. Unbinding during a
@@ -182,19 +202,66 @@ export class ParcelMap{
       const selected=this.multiple?this.selectedIds.has(parcel.id):parcel.id===this.selectedId,color=this.colorFor(parcel);
       const pane=selected?'selectedParcelPane':'parcelPane';
       if(selected)L.geoJSON(parcel.geometry,{pane,interactive:false,style:{color:'#fff',weight:9,opacity:1,fill:false}}).addTo(this.layers.parcels);
-      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>({color:selected?'#092c1c':color,weight:selected?5:3,opacity:1,fillColor:color,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:(selected?.52:.3)}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
+      const dimmed=this.legendFocus!=null&&!selected&&this.colorInfo(parcel).label!==this.legendFocus;
+      const reentry=this.reentries?.get(parcel.id);
+      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>legendStyle({color:selected?'#092c1c':reentry?'#b3261e':color,weight:selected?5:3,opacity:1,...(reentry&&!selected?{dashArray:'7 5'}:{}),fillColor:color,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:(selected?.52:.3)},{focus:dimmed?this.legendFocus:null,label:''}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
       layer.on('click',()=>{if(this.pointPlacementHandler||this.polygonDraw||this.measure)return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
-      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(this.colorInfo(parcel).label)}</small>${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
-      if(parcel.nom&&parcel.geometry?.type!=='Point')layer.bindTooltip(escapeHtml(parcel.nom),{permanent:true,direction:'center',className:'parcel-label',interactive:false,opacity:1});
+      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(this.colorInfo(parcel).label)}</small>${reentry?`<small class="map-reentry">${escapeHtml(reentry.label)}</small>`:''}${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
+      if(parcel.nom&&parcel.geometry?.type!=='Point')if(!dimmed)this.labelEntries.push({parcel,selected,reentry,point:labelPoint(parcel.geometry),areaHa:Number(parcel.surfaceHa)||geometryAreaHa(parcel.geometry)||0});
       layer.addTo(this.layers.parcels);
     }catch(error){console.warn('[Parcelles] Géométrie ignorée',parcel.id,error);}
+  }
+
+  // n° 45 : étiquettes selon le zoom, au pôle d'inaccessibilité, masquées si elles chevauchent ou débordent.
+  updateLabels(){
+    const group=this.layers?.labels;if(!this.map||!group)return;group.clearLayers();
+    if(document.documentElement.classList.contains('hide-parcel-labels'))return;
+    const size=this.map.getSize();if(!size.x||!size.y)return;
+    const zoom=this.map.getZoom(),view=this.map.getBounds().pad(.2),box=this.map.getContainer().getBoundingClientRect(),items=[];
+    for(const entry of this.labelEntries||[]){
+      if(!entry.point)continue;const latlng=L.latLng(entry.point[1],entry.point[0]);if(!view.contains(latlng))continue;
+      const lines=labelLines(entry.parcel,{level:labelLevel(zoom,entry.areaHa),colorMode:this.colorMode,grazingSessions:this.lastState.grazingSessions,areaHa:entry.areaHa});if(!lines.length)continue;
+      const html=`<span class="pl-name">${escapeHtml(lines[0])}</span>${lines[1]?`<span class="pl-sub">${escapeHtml(lines[1])}</span>`:''}${entry.reentry?`<span class="parcel-label-reentry">${escapeHtml(entry.reentry.label)}</span>`:''}`;
+      const tooltip=L.tooltip({permanent:true,direction:'center',className:entry.reentry?'parcel-label has-reentry':'parcel-label',interactive:false,opacity:1}).setLatLng(latlng).setContent(html);group.addLayer(tooltip);
+      items.push({id:entry.parcel.id,tooltip,geometry:entry.parcel.geometry,priority:(entry.selected?1e9:0)+entry.areaHa});
+    }
+    // Mesure en une passe après insertion, pour ne forcer qu'une mise en page.
+    for(const item of items){const r=item.tooltip.getElement()?.getBoundingClientRect();item.rect=r&&r.width?{x:r.left-box.left,y:r.top-box.top,w:r.width,h:r.height}:null;}
+    const fits=item=>{const {x,y,w,h}=item.rect;if(x<0||y<0||x+w>size.x||y+h>size.y)return false;return [[x+1,y+1],[x+w-1,y+1],[x+1,y+h-1],[x+w-1,y+h-1],[x+w/2,y+h/2]].every(([px,py])=>{const ll=this.map.containerPointToLatLng([px,py]);return pointInGeometry(ll.lng,ll.lat,item.geometry);});};
+    const visible=resolveLabelCollisions(items,{fits});
+    for(const item of items)if(!visible.has(item.id))item.tooltip.getElement()?.classList.add('is-label-hidden');
+  }
+
+  // n° 53 : appui = isoler la catégorie et cadrer ; appui long (ou Maj + Entrée) = liste filtrée. Affichage seulement.
+  bindLegend(legend){
+    if(legend.dataset.legendBound)return;legend.dataset.legendBound='1';let timer=null,longPressed=false;
+    const groupOf=target=>this.legendValues?.[Number(target?.closest?.('[data-legend-index]')?.dataset.legendIndex)];
+    const openList=group=>{if(group)document.dispatchEvent(new CustomEvent('parcelles:legend-filter',{detail:{label:group.label,ids:[...group.ids],mode:this.colorMode}}));};
+    const cancel=()=>{clearTimeout(timer);timer=null;};
+    legend.addEventListener('pointerdown',event=>{const group=groupOf(event.target);if(!group)return;longPressed=false;cancel();timer=setTimeout(()=>{longPressed=true;timer=null;openList(group);},550);});
+    for(const type of ['pointerup','pointerleave','pointercancel'])legend.addEventListener(type,cancel);
+    legend.addEventListener('contextmenu',event=>{if(groupOf(event.target))event.preventDefault();});
+    legend.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.shiftKey){const group=groupOf(event.target);if(group){event.preventDefault();openList(group);}}});
+    legend.addEventListener('click',event=>{
+      if(event.target.closest('[data-legend-reset]')){this.isolateLegend(null);return;}
+      const group=groupOf(event.target);if(!group)return;
+      if(longPressed){longPressed=false;event.preventDefault();return;}
+      this.isolateLegend(this.legendFocus===group.label?null:group.label);
+    });
+  }
+  isolateLegend(label){
+    this.legendFocus=label??null;this.render(this.lastState);
+    const group=label!=null?this.legendValues?.find(v=>v.label===label):null;
+    const bounds=group&&groupBounds(this.lastState.parcelles,group.ids);
+    if(this.map&&bounds){try{this.map.fitBounds(L.latLngBounds(bounds).pad(.15),{maxZoom:17});}catch{}}
+    document.querySelector('#map-legend [aria-pressed="true"]')?.focus({preventScroll:true});
   }
 
   setLegend(){
     const legend=document.querySelector('#map-legend');if(!legend)return;
     const parcels=(this.lastState.parcelles||[]).filter(p=>!p.deletedAt&&p.geometry);
-    const values=[...new Map(parcels.map(p=>{const info=this.colorInfo(p);return[info.label,info];})).values()];
-    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha'}[this.colorMode]}${['cost','margin'].includes(this.colorMode)?` · ${this.economics?.values().next().value?.campaign||''}`:''}</button><div class="legend-content">${values.map(info=>`<div class="legend-item"><span class="legend-dot" style="background:${info.color}"></span>${escapeHtml(info.label)}</div>`).join('')}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
+    const values=legendGroups(parcels,p=>this.colorInfo(p));this.legendValues=values;if(this.legendFocus!=null&&!values.some(v=>v.label===this.legendFocus))this.legendFocus=null;this.bindLegend(legend);
+    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha',ift:'IFT',bcae7:'BCAE 7'}[this.colorMode]}${['cost','margin','bcae7'].includes(this.colorMode)?` · ${this.economics?.values().next().value?.campaign||''}`:''}</button><div class="legend-content">${this.legendFocus!=null?'<button type="button" class="legend-reset" data-legend-reset="1">Tout afficher</button>':''}${values.map((info,index)=>`<button type="button" class="legend-item legend-filter${this.legendFocus===info.label?' is-focused':''}${this.legendFocus!=null&&this.legendFocus!==info.label?' is-dimmed':''}" data-legend-index="${index}" aria-pressed="${this.legendFocus===info.label}" title="Appui : isoler sur la carte · appui long : voir la liste"><span class="legend-dot" style="background:${info.color}"></span><span class="legend-text">${escapeHtml(legendLine(info))}</span></button>`).join('')}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
   }
 
   select(id,{zoom=true}={}){

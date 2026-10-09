@@ -11,3 +11,7 @@ window.PARCELLES_FIREBASE_CONFIG = {
   storageBucket: 'votre-projet.appspot.com',
   appId: 'VOTRE_APP_ID'
 };
+
+// Catalogue phyto E-Phy (n° 59) : URL publique d’un service (Worker) qui renvoie l’export E-Phy
+// en CSV ou JSON. Vide : import manuel d’un fichier. Aucune clé ici.
+window.PARCELLES_EPHY_ENDPOINT = "";

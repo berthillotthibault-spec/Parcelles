@@ -13,3 +13,7 @@ window.PARCELLES_FIREBASE_CONFIG = {
 
 // Public URL only. CDSE credentials belong in Worker secrets (SATELLITE_SETUP.md).
 window.PARCELLES_SATELLITE_ENDPOINT = "https://parcelles-satellite.berthillotthibault.workers.dev";
+
+// Catalogue phyto E-Phy (n° 59) : URL publique d’un service (Worker) qui renvoie l’export E-Phy
+// en CSV ou JSON. Vide : import manuel d’un fichier. Aucune clé ici.
+window.PARCELLES_EPHY_ENDPOINT = "";

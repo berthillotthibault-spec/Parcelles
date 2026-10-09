@@ -1,12 +1,35 @@
 # Changelog
 
+## 10.13.0 · réglementation, intelligence et carte — 2026-10-10
+
+Réglementation (aides indicatives : les tables sont datées et sourcées, et les valeurs par défaut sont à vérifier) :
+- registre phyto : fiche produit (dose max, nombre d’applications, DAR, DRE, ZNT), contrôle avant validation d’un traitement avec motif obligatoire pour passer outre, « Accès interdit jusqu’à … » sur la carte et l’accueil pendant le délai de rentrée, registre par campagne en PDF et CSV ;
+- catalogue E-Phy hors connexion : import d’un fichier E-Phy (ou service à configurer), remplissage de la fiche produit par AMM ou nom, alerte sur les AMM retirées ;
+- IFT par parcelle, culture et campagne, avec un mode couleur IFT sur la carte ;
+- fenêtre de traitement : risque d’inversion de température, rappel des 19 km/h, flèche de vent sur la carte, météo de la fenêtre réelle copiée au registre ;
+- azote : plan prévisionnel de fumure par parcelle, cahier d’enregistrement rempli automatiquement, alertes zone vulnérable (périodes d’interdiction, 170 kg N organique) ;
+- assistant PAC : déclaration par îlot à recopier dans Telepac, contrôle BCAE 7 (mode couleur sur la carte), simulation de l’éco-régime ;
+- couverts et intercultures (CIPAN) : saisie dans les rotations et alertes.
+
+Intelligence et visuel :
+- questions en langage naturel (« combien d’azote sur le blé cette campagne ? ») avec le détail du calcul et un export CSV ;
+- Travaux › Semaine : « Organise ma semaine » propose un planning selon la météo, la proximité et le matériel, puis l’applique en un geste, avec « Annuler » ;
+- graphiques : anneau d’assolement, tendances sur 7 jours de l’accueil, frise de pâturage et courbe NDVI dans la fiche parcelle ;
+- transitions fluides entre les écrans (désactivées si l’appareil réduit les animations).
+
+Carte, exports et raccourcis :
+- étiquettes de parcelle selon le zoom, sans chevauchement ; légende interactive avec surfaces, qui isole une catégorie d’un appui ;
+- export des parcelles en Shapefile, KML (Google Earth) et ISOXML ; import de parcelles depuis un KML ou un KMZ ;
+- « Ajouter à mon agenda » et export .ics des 30 prochains jours avec alarmes ; rappels en arrière-plan sur Android ;
+- raccourcis de l’icône (Terrain, J’ai fait, Photo, Dicter) et liens directs vers le mode terrain ; le mode plein soleil est mémorisé.
+
 ## 10.12.0 · terrain, formulaires et historique — 2026-10-08
 
 - ma tournée du jour : « Démarrer ma journée » enchaîne travaux, tâches, lots à déplacer et entretiens dans l’ordre le plus court, étape par étape (Y aller, Commencer, Fini), avec un récapitulatif du soir ;
 - QR codes sur les engins, portails et abreuvoirs : un scan ouvre heures compteur, plein, entretien ou panne avec photo ; planche A4 d’étiquettes en PDF ;
 - créneaux météo : chaque travail en attente indique son prochain créneau favorable (vent, rafales, Delta T, pluie), à titre indicatif ; modèle d’automatisation « Créneaux météo du jour » ;
 - Travaux : Liste, Calendrier, Tâches et Chantiers deviennent des onglets de l’écran au lieu de fenêtres ; la date des cases du calendrier n’est plus décalée d’un jour ;
-- formulaires de travail et de tâche en pastilles (parcelle, type, date, statut, priorité), erreurs affichées sous le champ ; brouillons enregistrés automatiquement et proposés à la reprise ;
+- formulaires de travail et de tâche en pastilles (parcelle, type, date, statut, priorité), erreurs affichées sous le champ dans tous les formulaires (matériel, chantier, client, stock, récolte, pâturage, sauvegardes…) ; brouillons enregistrés automatiquement et proposés à la reprise ;
 - historique de chaque fiche et « Annuler » sur toute modification ;
 - synchronisation : pastille à 5 états, file d’envoi lisible et rappel après 48 h sans envoi ;
 - ouverture instantanée, et invitation à installer l’application sur l’écran d’accueil au bon moment ;

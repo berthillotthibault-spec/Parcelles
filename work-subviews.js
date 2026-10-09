@@ -1,7 +1,7 @@
 // n° 36 — Calendrier, Tâches et Chantiers en sous-vues de Travaux : logique pure (routes).
-// #work = liste des travaux ; #work/calendar, #work/tasks, #work/chantiers = sous-vues intégrées.
-export const WORK_SUBVIEWS = ['list', 'calendar', 'tasks', 'chantiers'];
-export const WORK_SUBVIEW_LABELS = {list: 'Liste', calendar: 'Calendrier', tasks: 'Tâches', chantiers: 'Chantiers'};
+// #work = liste des travaux ; #work/week (n° 107), #work/calendar, #work/tasks, #work/chantiers = sous-vues intégrées.
+export const WORK_SUBVIEWS = ['list', 'week', 'calendar', 'tasks', 'chantiers'];
+export const WORK_SUBVIEW_LABELS = {list: 'Liste', week: 'Semaine', calendar: 'Calendrier', tasks: 'Tâches', chantiers: 'Chantiers'};
 export const CALENDAR_MODES = ['month', 'week', 'list'];
 
 export const normalizeSubview = value => (WORK_SUBVIEWS.includes(value) ? value : 'list');
