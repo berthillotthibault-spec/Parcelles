@@ -160,6 +160,7 @@ export class ParcelMap{
     const parcels=(state.parcelles||[]).filter(item=>!item.deletedAt),points=(state.points||[]).filter(item=>!item.deletedAt);const forget=layer=>{this.suspendedPopups.delete(layer);layer.eachLayer?.(forget);};forget(this.layers.parcels);forget(this.layers.points);this.layers.parcels.clearLayers();this.layers.points.clearLayers();this.pointMarkers.clear();
     this.labelEntries=[];parcels.filter(parcel=>parcel.geometry).forEach(parcel=>this.addParcel(parcel));this.updateLabels();
     points.filter(point=>point.latitude!==null&&point.latitude!==undefined&&point.latitude!==''&&point.longitude!==null&&point.longitude!==undefined&&point.longitude!==''&&Number.isFinite(Number(point.latitude))&&Number.isFinite(Number(point.longitude))).forEach(point=>{
+      if(point.geometry&&['Polygon','MultiPolygon'].includes(point.geometry.type))L.geoJSON(point.geometry,{pane:'parcelPane',interactive:false,style:()=>({color:'#824510',weight:2,dashArray:'5 4',fillColor:'#c98a4b',fillOpacity:.14})}).addTo(this.layers.points); // v6a n° 50 : zone mesurée
       const marker=L.circleMarker([Number(point.latitude),Number(point.longitude)],{pane:'mapPointPane',radius:9,color:'#fff',weight:3,fillColor:'#824510',fillOpacity:1}).addTo(this.layers.points),id=escapeHtml(point.id),note=point.note??point.notes;
       this.bindMapPopup(marker,`<div class="map-point-popup"><strong>${escapeHtml(point.nom||point.name||point.type||'Point')}</strong><small>${escapeHtml(point.type||'Point repéré')}</small>${note?`<p>${escapeHtml(note)}</p>`:''}<div class="map-popup-actions"><button type="button" data-action="edit-map-point" data-id="${id}">Modifier</button><button type="button" data-action="move-map-point" data-id="${id}">Déplacer</button><button type="button" class="danger" data-action="delete-map-point" data-id="${id}">Supprimer</button></div></div>`,{maxWidth:320});
       this.pointMarkers.set(String(point.id),marker);
@@ -169,7 +170,7 @@ export class ParcelMap{
 
   // Leaflet's native popup click handler stops propagation. Unbinding during a
   // map tool keeps parcel/RPG/point clicks available to the placement handler.
-  mapToolActive(){return Boolean(this.pointPlacementHandler||this.polygonDraw||this.measure);}
+  mapToolActive(){return Boolean(this.pointPlacementHandler||this.polygonDraw||this.measure||this.editing);}
   suspendPopups(layer){
     const visit=item=>{const popup=item.getPopup?.();if(popup){this.suspendedPopups.set(item,popup);item.unbindPopup();}item.eachLayer?.(visit);};
     if(layer)visit(layer);else for(const group of Object.values(this.layers))visit(group);
@@ -205,8 +206,8 @@ export class ParcelMap{
       const dimmed=this.legendFocus!=null&&!selected&&this.colorInfo(parcel).label!==this.legendFocus;
       const reentry=this.reentries?.get(parcel.id);
       const layer=L.geoJSON(parcel.geometry,{pane,style:()=>legendStyle({color:selected?'#092c1c':reentry?'#b3261e':color,weight:selected?5:3,opacity:1,...(reentry&&!selected?{dashArray:'7 5'}:{}),fillColor:color,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:(selected?.52:.3)},{focus:dimmed?this.legendFocus:null,label:''}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
-      layer.on('click',()=>{if(this.pointPlacementHandler||this.polygonDraw||this.measure)return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
-      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(this.colorInfo(parcel).label)}</small>${reentry?`<small class="map-reentry">${escapeHtml(reentry.label)}</small>`:''}${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
+      layer.on('click',()=>{if(this.mapToolActive())return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
+      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(this.colorInfo(parcel).label)}</small>${reentry?`<small class="map-reentry">${escapeHtml(reentry.label)}</small>`:''}${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true,state:this.lastState})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
       if(parcel.nom&&parcel.geometry?.type!=='Point')if(!dimmed)this.labelEntries.push({parcel,selected,reentry,point:labelPoint(parcel.geometry),areaHa:Number(parcel.surfaceHa)||geometryAreaHa(parcel.geometry)||0});
       layer.addTo(this.layers.parcels);
     }catch(error){console.warn('[Parcelles] Géométrie ignorée',parcel.id,error);}
@@ -360,8 +361,8 @@ export class ParcelMap{
   startPolygonDrawing({onUpdate,onComplete,onCancel}={}){
     if(this.multiple)this.toggleMultiple(false);
     this.init();if(!this.map){this.onToast?.('La carte doit être disponible pour dessiner une parcelle.','error');onCancel?.();return;}this.cancelPolygonDrawing(false);this.cancelPointPlacement();this.cancelMeasurement();this.map.closePopup();
-    const points=[];const click=event=>{points.push([event.latlng.lng,event.latlng.lat]);this.layers.drawing.clearLayers();const latlngs=points.map(([lng,lat])=>[lat,lng]);if(points.length>=3)L.polygon(latlngs,{pane:'editingPane',color:'#17663f',weight:3,fillColor:'#61b985',fillOpacity:.2,dashArray:'6 5'}).addTo(this.layers.drawing);else if(points.length>=2)L.polyline(latlngs,{pane:'editingPane',color:'#17663f',weight:3,dashArray:'6 5'}).addTo(this.layers.drawing);points.forEach(([lng,lat],index)=>L.circleMarker([lat,lng],{pane:'editingPane',radius:5,color:'#fff',weight:2,fillColor:'#17663f',fillOpacity:1}).bindTooltip(String(index+1),{permanent:false}).addTo(this.layers.drawing));onUpdate?.(points.length);};
-    this.polygonDraw={points,click,onUpdate,onComplete,onCancel};this.suspendPopups();this.map.on('click',click);this.map.getContainer().classList.add('is-drawing');onUpdate?.(0);
+    const points=[],snaps=[];const click=event=>{const snapped=this.snapper?.(event.latlng),ll=snapped?.snapped?snapped.latlng:event.latlng;points.push([ll.lng,ll.lat]);snaps.push(snapped?.snapped?snapped:null);this.layers.drawing.clearLayers();const latlngs=points.map(([lng,lat])=>[lat,lng]);if(points.length>=3)L.polygon(latlngs,{pane:'editingPane',color:'#17663f',weight:3,fillColor:'#61b985',fillOpacity:.2,dashArray:'6 5'}).addTo(this.layers.drawing);else if(points.length>=2)L.polyline(latlngs,{pane:'editingPane',color:'#17663f',weight:3,dashArray:'6 5'}).addTo(this.layers.drawing);points.forEach(([lng,lat],index)=>L.circleMarker([lat,lng],{pane:'editingPane',radius:5,color:'#fff',weight:2,fillColor:'#17663f',fillOpacity:1}).bindTooltip(String(index+1),{permanent:false}).addTo(this.layers.drawing));onUpdate?.(points.length);this.onDrawPoint?.();};
+    this.polygonDraw={points,snaps,click,onUpdate,onComplete,onCancel};this.suspendPopups();this.map.on('click',click);this.map.getContainer().classList.add('is-drawing');onUpdate?.(0);this.onDrawPoint?.();
   }
   finishPolygonDrawing(){
     if(!this.polygonDraw)return null;const {points,onComplete}=this.polygonDraw;if(points.length<3)throw new Error('Ajoutez au moins 3 points pour dessiner la parcelle.');const ring=[...points,points[0]];const geometry={type:'Polygon',coordinates:[ring]};this.cancelPolygonDrawing(false);onComplete?.(geometry);return geometry;
@@ -369,7 +370,7 @@ export class ParcelMap{
   cancelPolygonDrawing(notify=true){
     if(!this.polygonDraw)return;const {click,onCancel}=this.polygonDraw;this.map?.off('click',click);this.layers.drawing?.clearLayers();this.map?.getContainer()?.classList.remove('is-drawing');this.polygonDraw=null;this.restorePopups();if(notify)onCancel?.();
   }
-  undoPolygonPoint(){if(!this.polygonDraw?.points.length)return 0;this.polygonDraw.points.pop();const pts=[...this.polygonDraw.points],cfg={...this.polygonDraw};this.cancelPolygonDrawing(false);this.startPolygonDrawing({onUpdate:cfg.onUpdate,onComplete:cfg.onComplete,onCancel:cfg.onCancel});for(const [lng,lat] of pts){const event={latlng:{lng,lat}};this.polygonDraw.click(event);}return pts.length;}
+  undoPolygonPoint(){if(!this.polygonDraw?.points.length)return 0;this.polygonDraw.points.pop();this.polygonDraw.snaps?.pop();const pts=[...this.polygonDraw.points],cfg={...this.polygonDraw};this.cancelPolygonDrawing(false);this.startPolygonDrawing({onUpdate:cfg.onUpdate,onComplete:cfg.onComplete,onCancel:cfg.onCancel});for(const [lng,lat] of pts){const event={latlng:{lng,lat}};this.polygonDraw.click(event);}return pts.length;}
 
   startMeasurement(kind='distance',{onUpdate,onComplete,onCancel}={}){
     if(this.multiple)this.toggleMultiple(false);

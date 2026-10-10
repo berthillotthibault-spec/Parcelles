@@ -1,6 +1,7 @@
 const DB_NAME='parcelles-app';
 // v3 : ajout de l’object store « history » (historique des fiches, hors de l’état synchronisé).
-const DB_VERSION=3;
+// v4 : ajout de l’object store « syncBase » (dernière version synchronisée de chaque fiche, fusion à trois voies).
+const DB_VERSION=4;
 
 function requestAsPromise(request){return new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 function transactionDone(tx){return new Promise((resolve,reject)=>{tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Transaction annulée'));});}
@@ -37,6 +38,7 @@ export class StorageService{
           const history=db.objectStoreNames.contains('history')?request.transaction.objectStore('history'):db.createObjectStore('history',{keyPath:'id'});
           if(!history.indexNames.contains('key'))history.createIndex('key','key');
           if(!history.indexNames.contains('at'))history.createIndex('at','at');
+          if(!db.objectStoreNames.contains('syncBase'))db.createObjectStore('syncBase',{keyPath:'key'});
         };
         request.onsuccess=()=>finish(null,request.result);
         request.onerror=()=>finish(request.error||new Error('Stockage local indisponible.'));
@@ -138,6 +140,22 @@ export class StorageService{
     const tx=this.transaction('history','readwrite'),request=tx.objectStore('history').index('at').openCursor(IDBKeyRange.upperBound(cutoff,true));let count=0;
     request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;cursor.delete();count+=1;cursor.continue();};
     await transactionDone(tx);return count;
+  }
+
+  // Base de fusion (n° 134) : jamais bloquante. Sans store (ancienne base ouverte ailleurs), la fusion à deux voies reste utilisée.
+  hasSyncBase(){return Boolean(!this.usingFallback&&this.db?.objectStoreNames?.contains('syncBase'));}
+  async syncBaseGet(key){
+    if(!this.hasSyncBase())return null;
+    const row=await requestAsPromise(this.transaction('syncBase','readonly').objectStore('syncBase').get(key));
+    return row?.value??null;
+  }
+  async syncBasePut(key,value){
+    if(!this.hasSyncBase())return;
+    const tx=this.transaction('syncBase','readwrite');tx.objectStore('syncBase').put({key,value,at:Date.now()});await transactionDone(tx);
+  }
+  async syncBaseDelete(key){
+    if(!this.hasSyncBase())return;
+    const tx=this.transaction('syncBase','readwrite');tx.objectStore('syncBase').delete(key);await transactionDone(tx);
   }
 
   async backupPut(backup){

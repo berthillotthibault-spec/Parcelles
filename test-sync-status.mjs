@@ -49,7 +49,7 @@ test('the pill keeps offline and read-only states first, then the five sync stat
   assert.equal(syncPillState({data: data(), tabReadOnly: true, now: NOW}).label, 'Lecture seule · autre fenêtre');
   assert.equal(syncPillState({data: data(), viewer: true, cloud: true, now: NOW}).label, 'Lecture seule · Cloud');
   const conflicts = [{status: 'open'}, {status: 'open'}, {status: 'resolved'}];
-  assert.deepEqual(['conflict', '2 conflits'], Object.values((({tone, label}) => ({tone, label}))(syncPillState({data: data({syncConflicts: conflicts, queue: [{status: 'error'}]}), cloud: true, now: NOW}))));
+  assert.deepEqual(['conflict', '2 conflits à régler'], Object.values((({tone, label}) => ({tone, label}))(syncPillState({data: data({syncConflicts: conflicts, queue: [{status: 'error'}]}), cloud: true, now: NOW}))));
   assert.equal(syncPillState({data: data({queue: [{status: 'error'}]}), cloud: true, now: NOW}).label, 'Erreur — toucher pour réessayer');
   assert.equal(syncPillState({data: data({metadata: {lastSyncError: 'x'}}), cloud: true, now: NOW}).tone, 'error');
   assert.equal(syncPillState({data: data({metadata: {lastSyncError: 'x'}}), cloud: false, now: NOW}).tone, 'local', 'a stale error without cloud is not shown');

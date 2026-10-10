@@ -2106,3 +2106,272 @@ html[data-vt="back"]::view-transition-new(main-view){animation:vt-in-left .32s c
 .map-wind span{display:grid}.map-wind small{font-weight:400;opacity:.8}.map-wind small:empty{display:none}
 .map-wind.is-water{background:rgba(179,38,30,.92)}.map-wind.is-water svg{fill:#fff}
 .phyto-window-warnings li{color:var(--danger)}
+
+/* v6b n° 78 chargement UGB/ha et bilan de pâturage */
+.grazing-stocking-panel{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:8px 0 12px}
+.grazing-stocking-panel>div{background:var(--surface-secondary);border:1px solid var(--border-subtle);border-radius:12px;padding:8px 12px;display:grid;gap:2px}
+.grazing-stocking-panel small{color:var(--text-secondary)}
+.grazing-stocking-panel strong{color:var(--text-primary)}
+.grazing-stocking-panel .is-resting{border-color:var(--warning);background:var(--warning-soft)}
+.grazing-stocking-panel .is-rested{border-color:var(--success)}
+.grazing-ugb-warn{grid-column:1/-1;color:var(--warning)}
+.grazing-map-summary .grazing-stocking{display:block;color:var(--text-secondary)}
+.grazing-gantt{overflow-x:auto;max-width:100%}
+.grazing-gantt .chart-row-label{fill:var(--text-primary);font-size:11px}
+.grazing-ugb-table summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600}
+.grazing-ugb-table label small{display:block;color:var(--text-tertiary);font-weight:400}
+.grazing-ugb-table .button{min-height:44px;margin-top:8px}
+
+/* v6b n° 77 pâturage en un geste depuis le terrain */
+.field-grazing-card{display:grid;gap:12px;margin-top:12px}
+.field-grazing-card h2{margin:0}
+.field-grazing-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.field-grazing-big{min-height:64px;border-radius:16px;border:1px solid var(--border-strong);background:var(--surface-secondary);color:var(--text-primary);font:inherit;font-weight:600;padding:8px;cursor:pointer}
+.field-grazing-big.is-active{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+.field-grazing-big:disabled{opacity:.45;cursor:not-allowed}
+.field-grazing-panel{display:grid;gap:8px}
+.field-grazing-card .chip-row{display:flex;flex-wrap:wrap;gap:8px}
+.field-grazing-card .chip{min-height:44px;min-width:44px;padding:6px 14px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text-primary);font:inherit;cursor:pointer;display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center}
+.field-grazing-card .chip small{color:var(--text-secondary);font-size:12px}
+.field-grazing-card .chip[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand)}
+.field-grazing-counter{grid-template-columns:64px 1fr 64px;align-items:center;text-align:center}
+.field-grazing-counter .span-all{grid-column:1/-1}
+.field-grazing-counter output{display:grid;gap:2px}
+.field-grazing-counter output strong{font-size:32px;line-height:1.1}
+.field-grazing-step{min-height:64px;border-radius:16px;border:1px solid var(--border-strong);background:var(--surface-secondary);color:var(--text-primary);font-size:28px;cursor:pointer}
+.field-grazing-checks{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center}
+.field-grazing-checks .chip{align-items:center}
+@media (max-width:360px){.field-grazing-actions{grid-template-columns:1fr}}
+
+/* v6b n° 76 carnet sanitaire d'élevage */
+.herd-home{margin:0 0 12px}
+.herd-home-card{display:flex;gap:12px;align-items:flex-start;width:100%;min-height:56px;text-align:left;padding:12px 14px;border-radius:16px;border:1px solid var(--danger);background:var(--danger-soft);color:var(--text-primary);font:inherit;cursor:pointer}
+.herd-home-card strong{display:block}
+.herd-home-card small{display:block;color:var(--text-secondary);margin-top:2px}
+.herd-home-icon{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--danger);color:#fff;font-weight:700}
+.herd-withdrawal p{margin:0}
+.herd-reminders{list-style:none;margin:0 0 4px;padding:0;display:grid;gap:4px}
+.herd-reminders li{padding:6px 10px;border-radius:10px;background:var(--surface-secondary);color:var(--text-primary)}
+.herd-reminders li.is-late{background:var(--warning-soft);color:var(--text-primary)}
+.herd-years{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.herd-years .choice-chip{min-height:44px;min-width:56px}
+
+/* v6b n° 85 moteur de marge unique */
+.margin-model{display:grid;gap:8px;margin-bottom:8px}
+.margin-headline{margin:0;padding:10px 12px;border-radius:12px;background:var(--surface-secondary);color:var(--text-primary)}
+.margin-headline.is-good{border-left:4px solid var(--success)}
+.margin-headline.is-mid{border-left:4px solid var(--warning)}
+.margin-headline.is-low{border-left:4px solid var(--danger)}
+.margin-gauge{height:8px;border-radius:99px;background:var(--surface-tertiary,var(--surface-secondary));overflow:hidden}
+.margin-gauge span{display:block;height:100%;background:var(--brand);border-radius:99px}
+.margin-rules summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600}
+.margin-rules ul{margin:0;padding-left:20px;color:var(--text-secondary)}
+.margin-lines{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.margin-lines li{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:8px 12px;border-radius:10px;background:var(--surface-secondary)}
+.margin-lines li small{grid-column:1/-1;color:var(--text-secondary)}
+.margin-lines li.is-inconnu,.margin-lines li.is-partiel{border-left:4px solid var(--warning)}
+.margin-lines li.is-connu{border-left:4px solid var(--success)}
+
+/* v6b n° 88 carte Ma campagne */
+.campaign-figures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 8px}
+.campaign-figures>div{background:var(--surface-secondary);border-radius:12px;padding:8px 12px;display:grid;gap:2px}
+.campaign-figures dt{color:var(--text-secondary);font-size:13px}
+.campaign-figures dd{margin:0;font-weight:700;font-size:18px;color:var(--text-primary)}
+.campaign-figures small{color:var(--text-tertiary)}
+.campaign-reveal{min-height:44px;min-width:44px;border:0;background:none;color:inherit;font:inherit;padding:0;cursor:pointer;text-align:left}
+.campaign-unreliable{color:var(--text-secondary);margin:0 0 8px}
+.campaign-action{width:100%;min-height:44px;border-radius:12px;border:1px solid var(--border-strong);background:var(--surface);color:var(--brand);font:inherit;font-weight:600;cursor:pointer;text-align:left;padding:8px 12px}
+.campaign-toggle{min-height:44px}
+@media (min-width:900px){.campaign-figures{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* v6b n° 89 simulateur Et si */
+.sim-form{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.sim-slider{display:grid;gap:4px}
+.sim-slider span{display:flex;justify-content:space-between;gap:8px}
+.sim-slider output{font-weight:700;color:var(--text-primary)}
+.sim-slider input[type=range]{width:100%;min-height:44px;accent-color:var(--brand)}
+.sim-result{display:grid;gap:2px;margin:12px 0;padding:12px 14px;border-radius:14px;background:var(--surface-secondary);border-left:4px solid var(--border-strong)}
+.sim-result strong{font-size:26px;color:var(--text-primary)}
+.sim-result small{color:var(--text-secondary)}
+.sim-result.is-up{border-left-color:var(--success)}
+.sim-result.is-down{border-left-color:var(--danger)}
+.sim-matrix-wrap{overflow-x:auto;max-width:100%}
+.sim-matrix{border-collapse:separate;border-spacing:3px;font-size:13px;width:100%;min-width:340px}
+.sim-matrix th{color:var(--text-secondary);font-weight:600;padding:4px;text-align:center}
+.sim-matrix td{padding:8px 4px;text-align:center;border-radius:8px;color:var(--text-primary);background:var(--surface-secondary)}
+.sim-matrix td.is-up{background:color-mix(in srgb,var(--success) 28%,var(--surface))}
+.sim-matrix td.is-down{background:color-mix(in srgb,var(--warning) 30%,var(--surface))}
+.sim-matrix td.is-loss{background:color-mix(in srgb,var(--danger) 35%,var(--surface))}
+.sim-matrix td.is-base{outline:2px solid var(--brand);font-weight:700}
+/* v6c n° 116 : choisir mes activités (pastilles à choix multiple) et lien « Afficher tous les outils » */
+.activity-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin:6px 0}
+.activity-chips .activity-chip{height:auto;min-height:56px;padding:10px 14px;border-radius:14px;text-align:left;display:flex;align-items:center;gap:10px}
+.activity-chips .activity-chip span{display:grid;gap:2px}
+.activity-chips .activity-chip small{font-weight:400;color:var(--text-secondary);font-size:12.5px}
+.activity-chips .activity-chip::before{content:'';flex:none;width:20px;height:20px;border-radius:6px;border:2px solid var(--border-strong)}
+.activity-chips .activity-chip[aria-pressed="true"]{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,var(--surface))}
+.activity-chips .activity-chip[aria-pressed="true"]::before{background:var(--brand) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3 3 7-7' fill='none' stroke='%23fff' stroke-width='2.4'/%3E%3C/svg%3E") center/16px no-repeat;border-color:var(--brand)}
+.more-modules-note{margin:14px 0 4px;padding:12px 14px;border-radius:14px;background:var(--surface-secondary);display:grid;gap:10px;font-size:14px;color:var(--text-secondary)}
+.more-modules-note p{margin:0}
+.more-modules-note .button{min-height:44px;justify-self:start}
+.more-modules-note .text-button{min-height:44px;padding:0 4px}
+
+/* v6c n° 119 : liste « Bien démarrer » */
+.getting-started{margin:12px 0;padding:16px;border-radius:20px;display:grid;gap:10px}
+.getting-started .gs-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.getting-started h2{margin:0;font-size:18px}
+.getting-started .gs-head p{margin:2px 0 0;color:var(--text-secondary);font-size:14px}
+.getting-started .gs-hide{width:44px;height:44px;min-width:44px;border-radius:22px;font-size:22px;line-height:1;background:transparent;border:0;color:var(--text-secondary);cursor:pointer}
+.gs-bar{height:8px;border-radius:4px;background:var(--surface-secondary);overflow:hidden}
+.gs-bar span{display:block;height:100%;border-radius:4px;background:var(--brand);transition:width .4s ease}
+.gs-steps{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.gs-row{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:6px 8px;border:0;border-radius:12px;background:transparent;color:var(--text-primary);font:inherit;text-align:left}
+button.gs-row{cursor:pointer}button.gs-row:hover{background:var(--surface-secondary)}
+.gs-row>span:nth-child(2){display:grid;flex:1}
+.gs-row small{color:var(--text-secondary);font-size:13px}
+.gs-row b{color:var(--text-secondary);font-weight:400}
+.gs-check{flex:none;width:24px;height:24px;border-radius:12px;border:2px solid var(--border-strong);display:grid;place-items:center;font-size:14px;color:#fff}
+.gs-steps .is-done .gs-check{background:var(--brand);border-color:var(--brand)}
+.gs-steps .is-done strong{color:var(--text-secondary);text-decoration:line-through;font-weight:500}
+@media (prefers-reduced-motion:reduce){.gs-bar span{transition:none}}
+
+/* v6c n° 128 : Nouveautés et mise à jour sans perte de saisie */
+.whatsnew{display:grid;gap:16px}
+.whatsnew h3{margin:0 0 6px;font-size:16px}
+.whatsnew h3 small{font-weight:500;color:var(--text-secondary);font-size:13px;margin-left:6px}
+.whatsnew ul{margin:0;padding-left:20px;display:grid;gap:6px;line-height:1.45}
+.update-guard{grid-column:1/-1;margin:0 0 12px;padding:12px 14px;border-radius:14px;border:1px solid color-mix(in srgb,var(--brand) 40%,transparent);background:color-mix(in srgb,var(--brand) 10%,var(--surface));display:grid;gap:10px}
+.update-guard p{margin:0}
+.update-guard-actions{display:flex;flex-wrap:wrap;gap:8px}
+.update-guard-actions .button{min-height:44px}
+
+/* v6c n° 126 : toast d'erreur avec deux actions (Détails, Copier le rapport) */
+.toast:has(button + button){flex-wrap:wrap;row-gap:8px}
+.toast:has(button + button)>span{flex:1 1 100%}
+.toast:has(button + button)>button{white-space:nowrap;min-height:44px}
+
+/* v6c n° 125 : aide contextuelle « ? » et astuces au premier usage */
+.modal-help,.view-help{flex:none;width:44px;height:44px;border-radius:22px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text-primary);font:600 18px/1 inherit;cursor:pointer;display:grid;place-items:center}
+.modal-header .modal-help{margin-left:auto;margin-right:6px}
+.view-heading .view-help{margin-left:auto;margin-right:8px}
+.modal-help[aria-expanded="true"]{background:var(--ink);border-color:var(--ink);color:var(--on-ink)}
+.modal-help-panel{margin:0 0 14px;padding:12px 14px;border-radius:14px;background:var(--surface-secondary);font-size:14px}
+.help-points{margin:6px 0;padding-left:20px;display:grid;gap:6px;line-height:1.45}
+.help-link{min-height:44px;padding:0}
+.help-tip{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:10px 12px;border-radius:14px;background:color-mix(in srgb,var(--brand) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--brand) 35%,transparent);font-size:14px}
+.help-tip span{flex:1}.help-tip .text-button{min-height:44px;padding:0 6px}
+.help-general{display:grid;gap:14px}.help-general h3{margin:0;font-size:16px}
+.help-faq{border-top:1px solid var(--border);padding:4px 0}.help-faq summary{min-height:44px;display:flex;align-items:center;font-weight:600;cursor:pointer}.help-faq p{margin:0 0 10px;line-height:1.5}
+.help-actions{display:flex;flex-wrap:wrap;gap:8px}.help-actions .button{min-height:44px}
+
+/* v6c n° 32 : sombre adouci, « cabine de nuit » et fond de carte assombri */
+.theme-dark .toast.error{background:#4a2420;color:#ffd9d3;border:1px solid #6b3029}
+.theme-dark .toast.error button{background:rgba(255,255,255,.1);color:#ffd9d3}
+.theme-dark .notice.danger,.theme-dark .backup-reminder{background:color-mix(in srgb,var(--danger) 14%,var(--surface));color:#efb3ac}
+.theme-dark .phyto-reentry-card{background:color-mix(in srgb,var(--danger) 10%,var(--surface));border-color:color-mix(in srgb,var(--danger) 40%,transparent)}
+.theme-dark .offline-banner{background:color-mix(in srgb,var(--warning) 14%,var(--surface))}
+/* Cabine de nuit : surfaces plus sombres, texte moins lumineux, rouges et ambres atténués. */
+:root.theme-night{
+  --bg:#080a09;--surface:#0e1210;--surface-secondary:#131815;--surface-tertiary:#19201b;
+  --text-primary:#c4ccc6;--text-secondary:#8a958d;--text-tertiary:#6b756e;
+  --brand:#4f9471;--brand-hover:#5ea380;--brand-soft:#11281d;
+  --success:#56996f;--warning:#a8823f;--danger:#a8615b;
+  --border-subtle:#1c241f;--border-strong:#2a342e;--chip-border:#252e28;
+  --ink:#c4ccc6;--warning-soft:#211a0b;--danger-soft:#251311;--muted-text:#8a958d
+}
+.theme-night .toast.error{background:#2e1715;color:#e0b4ae;border-color:#45211d}
+.theme-night .notice.danger,.theme-night .backup-reminder{color:#cf9c96}
+.theme-night .header-status[data-count]:not([data-count="0"])::after{background:#8f4a44}
+.theme-night img:not(.leaflet-tile){filter:brightness(.82)}
+.theme-dark .leaflet-tile-pane{filter:brightness(.72) contrast(1.08) saturate(.8)}
+.theme-night .leaflet-tile-pane{filter:brightness(.5) contrast(1.1) saturate(.6)}
+.theme-dark .leaflet-container{background:#1b211d}.theme-night .leaflet-container{background:#0e1210}
+
+/* v6c n° 33 : KPI cliquables (flèche discrète, état pressé) et chiffres animés */
+.today-summary .summary-card{position:relative;cursor:pointer;transition:transform .12s ease,background-color .12s ease,border-color .12s ease}
+.today-summary .summary-card .kpi-arrow{position:absolute;top:10px;right:12px;font-weight:400;font-size:18px;line-height:1;color:var(--text-tertiary,var(--text-secondary));transition:transform .12s ease}
+.today-summary .summary-card:hover{border-color:var(--border-strong)}
+.today-summary .summary-card:hover .kpi-arrow{transform:translateX(2px);color:var(--text-primary)}
+.today-summary .summary-card:active{transform:scale(.97);background:var(--surface-secondary)}
+.today-summary .summary-card:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.today-summary .summary-card strong[data-counting]{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){.today-summary .summary-card,.today-summary .summary-card .kpi-arrow{transition:none}.today-summary .summary-card:active{transform:none}}
+/* v6a n° 41 : modification d'un contour sommet par sommet */
+.edit-handle{display:grid;place-items:center;background:transparent;border:0;cursor:grab;touch-action:none}
+.edit-handle span{width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid #17663f;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.edit-handle.is-ghost span{width:12px;height:12px;background:rgba(255,255,255,.7);border:2px dashed #17663f;box-shadow:none}
+.edit-handle.is-snapped span{border-color:#1f9d55;box-shadow:0 0 0 4px rgba(31,157,85,.45)}
+.edit-handle:active{cursor:grabbing}
+.map-edit-panel .edit-area{font-weight:600;font-variant-numeric:tabular-nums;color:inherit}
+.map-edit-panel .edit-hint{opacity:.75}
+.map-edit-panel .map-mode-confirm{flex-basis:100%;display:grid;gap:8px}
+.map-edit-panel .map-mode-confirm>div{display:flex;gap:8px;flex-wrap:wrap}
+.map-edit-panel .small-button{min-height:44px}
+.map-edit-panel button[disabled]{opacity:.5}
+@media (pointer:coarse){.edit-handle span{width:22px;height:22px}.edit-handle.is-ghost span{width:18px;height:18px}}
+@media (prefers-reduced-motion:reduce){.edit-handle span{transition:none}}
+/* v6a n° 44 : accrochage aux limites (aimant) */
+.snap-toggle{min-height:44px}
+.snap-toggle.is-active{background:var(--brand-soft);color:inherit;border-color:var(--brand)}
+.snap-toggle:not(.is-active){text-decoration:line-through;opacity:.8}
+.leaflet-interactive.snap-indicator{stroke-dasharray:none}
+/* v6a n° 50 : mesure en marchant */
+.map-walk-panel .walk-stats{font-weight:600;font-variant-numeric:tabular-nums}
+.map-walk-panel .walk-accuracy.is-warn,.map-walk-panel .walk-accuracy.is-bad{color:inherit;font-weight:600;border-radius:6px;padding:2px 6px;justify-self:start}
+.map-walk-panel .walk-accuracy.is-warn{background:rgba(240,170,0,.28)}
+.map-walk-panel .walk-accuracy.is-bad{background:rgba(214,60,40,.28)}
+.map-walk-panel .small-button{min-height:44px}
+.map-walk-panel .map-mode-confirm{flex-basis:100%;display:grid;gap:8px}
+.map-walk-panel .map-mode-confirm>div{display:flex;gap:8px;flex-wrap:wrap}
+.walk-result-choices{display:grid;gap:8px}
+/* v6a n° 51 : découpe et fusion de parcelles */
+.map-split-panel .small-button{min-height:44px}
+/* v6a n° 46 : guidage d'approche, « Où suis-je ? », entrée de champ */
+.map-whereami{position:absolute;z-index:41;left:50%;transform:translateX(-50%);top:calc(72px + var(--map-top-inset,0px));width:min(560px,calc(100% - 20px));display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;background:var(--surface);color:inherit;border:1px solid var(--border-subtle);border-radius:14px;box-shadow:var(--shadow-pop)}
+.map-whereami .whereami-text{flex:1;min-width:160px;font-weight:600}
+.map-whereami .whereami-actions{display:flex;gap:6px}
+.map-whereami .small-button{min-height:44px}
+html[data-map-mode] .map-whereami,.map-whereami.hidden{display:none}
+.approach{display:grid;justify-items:center;gap:6px;text-align:center}
+.approach-dial{width:min(220px,60vw);aspect-ratio:1;border-radius:50%;border:3px solid var(--border-subtle);display:grid;place-items:center}
+.approach-arrow{width:70%;height:70%;fill:var(--brand);transition:transform .25s ease-out}
+.approach.is-far .approach-arrow,.approach.is-arrived .approach-arrow{opacity:.25}
+.approach-distance{font-size:1.6rem;font-weight:700;margin:0;font-variant-numeric:tabular-nums}
+.approach-side,.approach-status{margin:0}
+.approach .button{min-height:44px}
+.parcel-entry-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:12px}
+.parcel-entry-row .button{min-height:44px}
+@media (prefers-reduced-motion:reduce){.approach-arrow{transition:none}}
+/* v6D n° 131 : conflit de synchronisation champ par champ */
+.conflict-sheet{display:grid;gap:12px}
+.conflict-sheet-sources{display:flex;flex-wrap:wrap;gap:8px}
+.sync-source{display:inline-flex;align-items:center;min-height:32px;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid var(--border-strong)}
+.sync-source-local{background:var(--brand-soft);color:var(--brand-hover);border-color:transparent}
+.sync-source-remote{background:var(--surface-secondary);color:var(--text-primary)}
+.conflict-sheet-summary{margin:0;color:var(--text-secondary)}
+.conflict-sheet-all{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px;color:var(--text-secondary)}
+.conflict-sheet-all .choice-chip{min-height:44px}
+.conflict-sheet-fields{display:grid;gap:10px}
+.conflict-sheet-field{border:1px solid var(--border-strong);border-radius:14px;padding:12px;background:var(--surface);min-width:0}
+.conflict-sheet-field.conflict-sheet-conflict{border-color:var(--warning)}
+.conflict-sheet-field .fc-chip{min-height:44px;max-width:100%;white-space:normal;text-align:left;overflow-wrap:anywhere}
+.conflict-sheet-note{display:block;color:var(--text-secondary);margin-top:4px}
+.conflict-sheet-same summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--text-secondary)}
+.conflict-sheet-same dl{display:grid;gap:6px;margin:0}.conflict-sheet-same dl div{display:flex;gap:8px;justify-content:space-between;border-bottom:1px solid var(--line);padding:4px 0}
+.conflict-sheet-same dt{color:var(--text-secondary)}.conflict-sheet-same dd{margin:0;text-align:right;overflow-wrap:anywhere}
+.sidebar-sync[data-action]{cursor:pointer}.sidebar-sync[data-action]:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+/* v6D n° 133 : restauration avec aperçu et restauration sélective */
+.restore-sentence{font-size:17px;font-weight:600;margin:0 0 12px;color:var(--text-primary)}
+.restore-table-wrap{overflow-x:auto;margin-bottom:12px}
+.restore-table{width:100%;border-collapse:collapse;font-size:14px}
+.restore-table th,.restore-table td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.restore-table th[scope="row"],.restore-table thead th:first-child{text-align:left;white-space:normal}
+.restore-table thead th{color:var(--text-secondary);font-weight:600}
+.restore-select{display:grid;gap:10px}
+.restore-group{border:1px solid var(--border-strong);border-radius:14px;padding:6px 12px;margin:0;min-width:0}
+.restore-group legend{padding:0}
+.restore-group summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--text-secondary)}
+.restore-items{display:grid;gap:2px;padding-bottom:6px}
+.restore-check{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
+.restore-check input{width:22px;height:22px;flex:none;accent-color:var(--brand)}
+.restore-check small{color:var(--text-secondary);margin-left:4px}

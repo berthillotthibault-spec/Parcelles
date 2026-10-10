@@ -1,4 +1,5 @@
 import {isPending} from './home-priorities.js';
+import {normalizeActiveModules} from './activity-modules.js';
 
 // Stable keys are shared by the editor, rendering and imported preferences.
 export const HOME_CARDS = [
@@ -6,7 +7,8 @@ export const HOME_CARDS = [
   {id:'today', label:'Travaux du jour', detail:'Les interventions à réaliser aujourd’hui'},
   {id:'tasks', label:'Tâches', detail:'Vos échéances et rappels'},
   {id:'alerts', label:'À surveiller', detail:'Les alertes utiles à votre journée'},
-  {id:'recent', label:'Activité récente', detail:'Les derniers travaux enregistrés'}
+  {id:'recent', label:'Activité récente', detail:'Les derniers travaux enregistrés'},
+  {id:'campaign', label:'Ma campagne', detail:'Marge estimée, ventes et montants à facturer (masqués au rôle lecture seule)'}
 ];
 export const HOME_SHORTCUTS = [
   {id:'new-work',label:'Travail',icon:'plus'},
@@ -44,7 +46,8 @@ export function normalizePersonalization(preferences={}){
   const cards=HOME_CARDS.map(item=>item.id),shortcuts=HOME_SHORTCUTS.map(item=>item.id);
   const order=knownUnique(preferences.homeCardOrder,cards,cards);
   return {
-    homeCards:knownUnique(preferences.homeCards,cards,cards),
+    // v6b n° 88 : une carte nouvelle (absente de l’ordre enregistré) est affichée une première fois.
+    homeCards:(list=>Array.isArray(preferences.homeCardOrder)&&['weather','today','tasks','alerts','recent'].every(k=>preferences.homeCardOrder.includes(k))&&!preferences.homeCardOrder.includes('campaign')&&!list.includes('campaign')?[...list,'campaign']:list)(knownUnique(preferences.homeCards,cards,cards)),
     homeCardOrder:[...order,...cards.filter(key=>!order.includes(key))],
     homeShortcuts:knownUnique(preferences.homeShortcuts,shortcuts,PERSONALIZATION_DEFAULTS.homeShortcuts),
     homeSummary:preferences.homeSummary!==false,
@@ -53,6 +56,8 @@ export function normalizePersonalization(preferences={}){
     nativeHaptics:preferences.nativeHaptics!==false,
     // Plein champ : grands boutons, texte agrandi et contraste renforcé (champ facultatif, désactivé par défaut).
     pleinChamp:preferences.pleinChamp===true,
+    // n° 116 : activités de l'exploitation ('all' = tout afficher, défaut).
+    activeModules:normalizeActiveModules(preferences.activeModules),
     startupDuration:normalizeStartupDuration(preferences),
     startupDurationVersion:3
   };
