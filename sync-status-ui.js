@@ -3,6 +3,7 @@
 import {escapeHtml} from './utils.js';
 import {sanitizeCloudError} from './security.js';
 import {readableQueue, staleSyncReminder, syncPillState, durationAgo, entityLabel} from './sync-status.js';
+import {entityTitle, fieldLabel} from './sync-conflict.js';
 
 const TONES = ['ok', 'sending', 'pending', 'error', 'conflict', 'offline', 'readonly', 'local'];
 const MAX_ROWS = 60;
@@ -49,6 +50,12 @@ export function createSyncStatusUI({store, sync, modal, closeModal, toast, openS
     for (const id of ['#network-label', '#desktop-network-label']) {const el = $(id);if (el && el.textContent !== state.label) el.textContent = state.label;}
     const side = $('#desktop-network-dot')?.parentElement;
     if (side) TONES.forEach(tone => side.classList.toggle(`sync-${tone}`, state.tone === tone));
+    // n° 131 : la pastille du bureau ouvre aussi la file (et les conflits à régler).
+    if (side && !side.dataset.action) {
+      side.dataset.action = 'network-details';side.setAttribute('role', 'button');side.tabIndex = 0;
+      side.addEventListener('keydown', event => {if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();side.click();}});
+    }
+    if (side) side.setAttribute('aria-label', `Synchronisation : ${state.label}. Ouvrir la file de synchronisation.`);
     $('#desktop-network-dot')?.classList.toggle('offline', state.tone === 'offline');
     if (!timer) timer = setInterval(() => {if (!document.hidden) render();}, 60000);
     return state;
@@ -80,7 +87,7 @@ export function createSyncStatusUI({store, sync, modal, closeModal, toast, openS
     const last = Number(snapshot.metadata?.lastSyncAt) || 0, lastError = snapshot.metadata?.lastSyncError;
     const head = `<div class="sync-sheet-state sync-${state.tone}" role="status"><span class="sync-sheet-dot" aria-hidden="true"></span><div><strong>${escapeHtml(state.label)}</strong><small>${escapeHtml(state.detail || '')}${last ? ` Dernière synchronisation réussie ${escapeHtml(durationAgo(Date.now() - last))}.` : cloudActive() ? ' Aucune synchronisation réussie pour l’instant.' : ''}</small></div></div>`;
     const errorNotice = lastError && cloudActive() ? `<div class="notice warning sync-last-error"><strong>Dernière erreur</strong> <button type="button" class="text-button" data-sync-error="last" aria-expanded="false" aria-controls="sync-error-last">Voir l’erreur</button><p class="sync-op-error" id="sync-error-last" hidden>${escapeHtml(sanitizeCloudError(lastError))}</p></div>` : '';
-    const conflictList = conflicts.length ? `<h3 class="sync-sheet-title">À arbitrer</h3><div class="stack-list">${conflicts.map(c => `<button class="menu-row" data-action="open-sync-conflict" data-id="${escapeHtml(c.id)}"><span>≠</span><span><strong>${escapeHtml([entityLabel(c.entity), c.local?.type || c.local?.nom || c.local?.title || c.local?.name].filter(Boolean).join(' · '))}</strong><small>${escapeHtml((c.conflictFields || []).length ? `Champs : ${c.conflictFields.join(', ')}` : 'Deux versions différentes')}</small></span><b>›</b></button>`).join('')}</div>` : '';
+    const conflictList = conflicts.length ? `<h3 class="sync-sheet-title">À arbitrer</h3><div class="stack-list">${conflicts.map(c => `<button class="menu-row" data-action="open-sync-conflict" data-id="${escapeHtml(c.id)}"><span>≠</span><span><strong>${escapeHtml(`${entityLabel(c.entity)} · ${entityTitle(c.entity, c.local || c.remote)}`)}</strong><small>${escapeHtml((c.conflictFields || []).length ? `À choisir : ${c.conflictFields.map(fieldLabel).join(', ')}` : 'Deux versions différentes')}</small></span><b>›</b></button>`).join('')}</div>` : '';
     const list = rows.length
       ? `<h3 class="sync-sheet-title">${rows.length > 1 ? `${rows.length} opérations à envoyer` : '1 opération à envoyer'}</h3><ul class="sync-op-list">${rows.slice(0, MAX_ROWS).map(rowHtml).join('')}</ul>${rows.length > MAX_ROWS ? `<p class="form-note">Et ${rows.length - MAX_ROWS} autres, envoyées dans l’ordre.</p>` : ''}`
       : `<p class="sync-empty">${cloudActive() ? 'Rien en attente : tout ce que vous avez saisi est envoyé.' : 'Synchronisation cloud non activée : vos données restent sur cet appareil.'}</p>`;

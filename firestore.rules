@@ -10,6 +10,7 @@ service cloud.firestore {
     // propriétaire, responsable et collaborateur partout ; opérateur terrain et comptabilité sur leurs entités.
     // Factures et contrats de vente (integrationImports, payload.farmKind) : comptabilité, pas opérateur terrain.
     function financeKind(d) { return d.payload is map && d.payload.get('farmKind', '') in ['invoice','salesContract']; }
+    // vetTreatments (carnet sanitaire, n° 76) : propriétaire, responsable et collaborateur seulement.
     function canWriteData(workspaceId, entityType, d) {
       let role = memberRole(workspaceId);
       return isMember(workspaceId) && (role in ['owner','manager','editor']

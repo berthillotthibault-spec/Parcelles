@@ -88,7 +88,7 @@ export function queueStats(queue=[]){
   };
 }
 
-const ignoredMergeKeys=new Set(['updatedAt','version','cloudSyncedAt','modifiedBy','modifiedEmail','deviceId']);
+export const ignoredMergeKeys=new Set(['updatedAt','version','cloudSyncedAt','modifiedBy','modifiedEmail','deviceId']);
 const empty=value=>value===null||value===undefined||value===''||(Array.isArray(value)&&!value.length);
 // Firestore map ordering is not significant; array ordering remains significant.
 export const canonicalData=value=>JSON.stringify(value??null,(_key,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);

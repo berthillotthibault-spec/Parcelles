@@ -1,9 +1,11 @@
 import {HOME_CARDS,HOME_SHORTCUTS,HOME_PRESETS,normalizePersonalization,moveHomeCard} from './personalization.js';
+import {activityChipsHtml,bindActivityChips} from './activity-modules-ui.js';
 
 export function openPersonalization({preferences,modal,closeModal,save,toast}){
   let draft=normalizePersonalization(preferences);
   modal('Personnaliser mon espace','Un accueil adapté à votre façon de travailler.',`
     <form id="personalization-form" class="personalization-form">
+      <fieldset id="personalization-activities"><legend>Mes activités</legend><p class="form-note">Plus, les raccourcis et la recherche n’affichent que les outils utiles à vos activités. Tout cocher affiche tous les outils.</p>${activityChipsHtml(draft.activeModules)}</fieldset>
       <fieldset><legend>Un point de départ</legend><p class="form-note">Choisissez un profil, puis ajustez chaque élément.</p><div class="personalization-presets">${Object.entries(HOME_PRESETS).map(([id,preset])=>`<button type="button" class="button secondary" data-preset="${id}">${preset.label}</button>`).join('')}</div></fieldset>
       <div class="home-preview" aria-label="Aperçu de votre accueil"><span class="eyebrow">Votre accueil</span><div id="home-preview-content" aria-live="polite"></div></div>
       <fieldset><legend>En haut de l’accueil</legend><label class="personalization-toggle"><input type="checkbox" name="homeNextAction">Prochaine action à réaliser</label><label class="personalization-toggle"><input type="checkbox" name="homeSummary">Repères : surface, parcelles et travaux</label></fieldset>
@@ -28,6 +30,7 @@ export function openPersonalization({preferences,modal,closeModal,save,toast}){
     form.querySelectorAll('[name="homeShortcut"]').forEach(input=>input.checked=draft.homeShortcuts.includes(input.value));
     renderCards();preview();
   };
+  bindActivityChips(document.getElementById('personalization-activities'),value=>{draft.activeModules=value;});
   form.addEventListener('change',()=>{
     for(const key of ['homeNextAction','homeSummary','assistantDock','nativeHaptics','pleinChamp'])draft[key]=form.elements[key].checked;
     draft.startupDuration=Number(form.elements.startupDuration.value);

@@ -3,7 +3,7 @@
 
 export const SYNC_STALE_MS = 48 * 3600 * 1000;
 
-const TYPE_LABELS = {parcelles:'Parcelle',interventions:'Travail',tasks:'Tâche',rotations:'Rotation',grazingSessions:'Pâturage',materiels:'Matériel',products:'Produit',clients:'Client',documents:'Document',photos:'Photo',points:'Point',templates:'Modèle',observations:'Observation',stockItems:'Stock',stockMovements:'Mouvement de stock',maintenanceRecords:'Entretien',routeSessions:'Tournée',harvests:'Récolte',invoices:'Facture',sales:'Vente',preferences:'Réglages'};
+const TYPE_LABELS = {parcelles:'Parcelle',interventions:'Travail',tasks:'Tâche',rotations:'Rotation',grazingSessions:'Pâturage',vetTreatments:'Soin vétérinaire',materiels:'Matériel',products:'Produit',clients:'Client',documents:'Document',photos:'Photo',points:'Point',templates:'Modèle',observations:'Observation',stockItems:'Stock',stockMovements:'Mouvement de stock',maintenanceRecords:'Entretien',routeSessions:'Tournée',harvests:'Récolte',invoices:'Facture',sales:'Vente',preferences:'Réglages'};
 const ACTION_LABELS = {create:'création',update:'modification',delete:'suppression',restore:'restauration'};
 
 export function entityLabel(type) {return TYPE_LABELS[type] || 'Donnée';}
@@ -66,7 +66,7 @@ export function syncPillState({data = {}, offline = false, schemaLock = false, t
   if (schemaLock) return {...base, tone: 'readonly', label: 'Lecture seule · version plus récente', detail: 'Mettez l’application à jour pour modifier.'};
   if (tabReadOnly) return {...base, tone: 'readonly', label: 'Lecture seule · autre fenêtre', detail: 'Parcelles est ouvert dans une autre fenêtre.'};
   if (viewer) return {...base, tone: 'readonly', label: 'Lecture seule · Cloud', detail: 'Votre rôle permet la consultation.'};
-  if (conflicts) return {...base, tone: 'conflict', label: plural(conflicts, 'conflit', 'conflits'), detail: 'Choisissez la bonne version.'};
+  if (conflicts) return {...base, tone: 'conflict', label: `${plural(conflicts, 'conflit', 'conflits')} à régler`, detail: 'Choisissez la bonne version.'};
   if (errors || lastError) return {...base, tone: 'error', label: 'Erreur — toucher pour réessayer', detail: errors ? `${plural(errors, 'opération', 'opérations')} en échec` : 'La dernière synchronisation a échoué.'};
   if (syncing) {
     const total = Math.max(0, Number(syncing.total) || 0), done = Math.min(total, Math.max(0, Number(syncing.done) || 0));
