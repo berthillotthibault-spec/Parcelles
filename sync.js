@@ -2,6 +2,7 @@ import {BUILD_ID, ENTITY_TYPES, clone, uid} from './utils.js';
 import {assignableRoles, canMutate, normalizeRole, roleCan, roleLabel} from './permissions.js';
 import {assignableRolesFor, canLeave, canManageMember, canRevokeInvite, canTransferOwnership} from './team-roles.js';
 import {canonicalData, queueStats, safeMergeEntity, sanitizeCloudError, syncRetryDelay} from './security.js';
+import {syncBaseKey, threeWayMerge} from './sync-merge.js';
 
 const FIREBASE_VERSION='10.14.1';
 const CLOUD_ENTITY_TYPES=ENTITY_TYPES.filter(type=>!['syncConflicts','devices','members','assistantMessages','automationRuns','platformJobs','platformEvents'].includes(type));
@@ -15,6 +16,8 @@ export function serverMillis(value){
   if(typeof value.seconds==='number')return value.seconds*1000+Math.floor(Number(value.nanoseconds||0)/1e6);
   return null;
 }
+// n° 131 : auteur et heure de la version du cloud, pour l’écran de conflit (jamais de jeton ni d’uid).
+export function conflictRemoteMeta(doc){if(!doc||typeof doc!=='object')return null;return {modifiedEmail:String(doc.modifiedEmail||'').slice(0,320),deviceId:String(doc.deviceId||'').slice(0,128),updatedAt:Number(doc.updatedAt)||null,serverUpdatedAt:serverMillis(doc.serverUpdatedAt)};}
 const CURSOR_MARGIN_MS=5000,PAGE_SIZE=500;
 
 // Firestore rejects directly nested arrays (GeoJSON coordinates, rasters).
@@ -146,13 +149,20 @@ export class SyncService{
     return Number(remoteData?.updatedAt||0)>Number(lastSyncAt||0);
   }
 
-  async bootstrapWorkspace(){if(!this.db||!this.workspaceId||this.syncCursor>0)return{seeded:0,remoteEmpty:false};const ref=this.db.collection('workspaces').doc(this.workspaceId).collection('data'),probe=await ref.limit(1).get();if(!probe.empty)return{seeded:0,remoteEmpty:false};if(!this.can('write'))return{seeded:0,remoteEmpty:true};let seeded=0;const snapshot=this.store.snapshot();for(const type of CLOUD_ENTITY_TYPES){if(!this.canWriteEntity(type,'create'))continue;for(const entity of(snapshot[type]||[])){if(!entity?.id)continue;await this.writeRemoteEntity(type,entity.id,entity,'bootstrap');seeded++;}}if(seeded)await this.audit('bootstrap','workspace',this.workspaceId,{seeded});return{seeded,remoteEmpty:true};}
+  async bootstrapWorkspace(){if(!this.db||!this.workspaceId||this.syncCursor>0)return{seeded:0,remoteEmpty:false};const ref=this.db.collection('workspaces').doc(this.workspaceId).collection('data'),probe=await ref.limit(1).get();if(!probe.empty)return{seeded:0,remoteEmpty:false};if(!this.can('write'))return{seeded:0,remoteEmpty:true};let seeded=0;const snapshot=this.store.snapshot();for(const type of CLOUD_ENTITY_TYPES){if(!this.canWriteEntity(type,'create'))continue;for(const entity of(snapshot[type]||[])){if(!entity?.id)continue;await this.writeRemoteEntity(type,entity.id,entity,'bootstrap');await this.saveBase(type,entity);seeded++;}}if(seeded)await this.audit('bootstrap','workspace',this.workspaceId,{seeded});return{seeded,remoteEmpty:true};}
 
   async markQueueDone(id){await this.store.mutate('Opération synchronisée.',state=>{const item=state.queue.find(q=>q.id===id);if(item){item.status='done';item.lastError=null;item.nextRetryAt=0;}},{queue:false,log:false,bypassPermissions:true});}
   async markQueueConflict(id){await this.store.mutate('Opération en conflit.',state=>{const item=state.queue.find(q=>q.id===id);if(item){item.status='conflict';item.lastError=null;item.nextRetryAt=0;}},{queue:false,log:false,bypassPermissions:true});}
   async markQueueFailure(id,error){const p=this.store.snapshot().preferences,max=Math.max(1,Number(p.syncRetryMax||5)),base=Math.max(5,Number(p.syncRetryBaseSeconds||15)),message=sanitizeCloudError(error);await this.store.mutate('Échec temporaire de synchronisation.',state=>{const item=state.queue.find(q=>q.id===id);if(!item)return;item.attempts=Number(item.attempts||0)+1;item.lastError=message;item.lastAttemptAt=Date.now();item.nextRetryAt=Date.now()+syncRetryDelay(item.attempts,base);item.status=item.attempts>=max?'error':'pending';},{queue:false,log:false,bypassPermissions:true});return message;}
   async retryFailed(){await this.store.mutate('Nouvelle tentative de synchronisation.',state=>{for(const item of state.queue){if(item.status==='error'){item.status='pending';item.attempts=0;item.lastError=null;item.nextRetryAt=0;}}},{queue:false,log:false,bypassPermissions:true});}
-  async createConflict(entity,entityId,local,remote){const exists=this.store.list('syncConflicts').find(c=>c.status==='open'&&c.entity===entity&&c.entityId===entityId);if(exists)return exists;const suggestion=safeMergeEntity(local,remote);return this.store.upsert('syncConflicts',{entity,entityId,local:clone(local),remote:clone(remote),suggestedMerge:suggestion.canMerge?suggestion.merged:null,conflictFields:suggestion.conflicts,status:'open',detectedAt:Date.now()},{label:'Conflit de synchronisation détecté.',queue:false});}
+  async createConflict(entity,entityId,local,remote,remoteDoc=null,suggested=null){const exists=this.store.list('syncConflicts').find(c=>c.status==='open'&&c.entity===entity&&c.entityId===entityId);if(exists)return exists;const suggestion=suggested||safeMergeEntity(local,remote);return this.store.upsert('syncConflicts',{entity,entityId,local:clone(local),remote:clone(remote),remoteMeta:conflictRemoteMeta(remoteDoc),suggestedMerge:suggestion.canMerge?suggestion.merged:null,conflictFields:suggestion.conflicts,...(suggestion.threeWay?{autoFields:suggestion.autoFields,mergeMode:'three-way'}:{}),status:'open',detectedAt:Date.now()},{label:'Conflit de synchronisation détecté.',queue:false});}
+
+  // n° 134 : base de fusion = dernière version connue identique des deux côtés. Jamais bloquante.
+  baseKey(entity,entityId){return syncBaseKey(this.workspaceId,entity,entityId);}
+  async loadBase(entity,entityId){try{return (await this.store.storage?.syncBaseGet?.(this.baseKey(entity,entityId)))??null;}catch{return null;}}
+  async saveBase(entity,payload){if(!payload?.id)return;try{await this.store.storage?.syncBasePut?.(this.baseKey(entity,payload.id),clean(payload));}catch{}}
+  // Fusion à trois voies quand la base est connue ; sinon l’ancienne fusion sûre (valeurs vides complétées).
+  async suggestMerge(entity,entityId,local,remote){const base=await this.loadBase(entity,entityId),three=base?threeWayMerge(base,clean(local),clean(remote)):null;return three?{...three,threeWay:true}:{...safeMergeEntity(local,remote),threeWay:false};}
 
   async pushPending(){
     const snapshot=this.store.snapshot(),now=Date.now(),pending=snapshot.queue.filter(item=>item.status==='pending'&&Number(item.nextRetryAt||0)<=now);let sent=0,conflicts=0,merged=0,errors=0,waiting=snapshot.queue.filter(item=>item.status==='pending'&&Number(item.nextRetryAt||0)>now).length;
@@ -161,8 +171,8 @@ export class SyncService{
       try{
         if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}if(!this.canWriteEntity(operation.entity,operation.action,operation.payload?.farmKind??this.store.get?.(operation.entity,operation.entityId,{includeDeleted:true})?.farmKind)){await this.markQueueDone(operation.id);continue;}
         const localEntity=this.store.get(operation.entity,operation.entityId,{includeDeleted:true});const localPayload=localEntity||operation.payload||{id:operation.entityId,deletedAt:Date.now()};const remote=await this.remoteRef(operation.entity,operation.entityId).get(),remoteData=remote.exists?decodeCloudDocument(remote.data()):null;
-        if(remoteData?.payload&&this.remoteChangedSinceLastPull(remoteData,snapshot.metadata.lastSyncAt)&&canonicalData(remoteData.payload)!==canonicalData(clean(localPayload))){const suggestion=safeMergeEntity(localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.store.applyRemote(operation.entity,suggestion.merged,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload);await this.markQueueConflict(operation.id);conflicts++;continue;}
-        await this.writeRemoteEntity(operation.entity,operation.entityId,localPayload,operation.action);await this.markQueueDone(operation.id);await this.audit(operation.action,operation.entity,operation.entityId);sent++;
+        if(remoteData?.payload&&this.remoteChangedSinceLastPull(remoteData,snapshot.metadata.lastSyncAt)&&canonicalData(remoteData.payload)!==canonicalData(clean(localPayload))){const suggestion=await this.suggestMerge(operation.entity,operation.entityId,localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.saveBase(operation.entity,suggestion.merged);await this.store.applyRemote(operation.entity,suggestion.merged,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload,remoteData,suggestion);await this.markQueueConflict(operation.id);conflicts++;continue;}
+        await this.writeRemoteEntity(operation.entity,operation.entityId,localPayload,operation.action);await this.saveBase(operation.entity,localPayload);await this.markQueueDone(operation.id);await this.audit(operation.action,operation.entity,operation.entityId);sent++;
       }catch(error){await this.markQueueFailure(operation.id,error);errors++;}
     }
     return{sent,conflicts,merged,errors,waiting};
@@ -203,18 +213,18 @@ export class SyncService{
       const canWrite=this.canWriteEntity(remote.entityType,'update');
       const ambiguous=!p&&fresh&&datedBeforeLocal&&differs&&!successor&&canWrite;
       if((p&&differs)||(last===0&&local&&differs)||ambiguous){
-        const suggestion=safeMergeEntity(local||p?.payload,remote.payload);
+        const suggestion=await this.suggestMerge(remote.entityType,remote.entityId,local||p?.payload,remote.payload);
         if(this.store.snapshot().preferences.syncAutoMerge!==false&&suggestion.canMerge){
           const applied=await this.store.applyRemote(remote.entityType,suggestion.merged,{expectedQueueId:p?.id||null});
-          if(applied){if(canWrite)await this.writeRemoteEntity(remote.entityType,remote.entityId,suggestion.merged,'auto-merge');merged++;pulled++;}
+          if(applied){if(canWrite)await this.writeRemoteEntity(remote.entityType,remote.entityId,suggestion.merged,'auto-merge');await this.saveBase(remote.entityType,canWrite?suggestion.merged:remote.payload);merged++;pulled++;}
           continue;
         }
-        await this.createConflict(remote.entityType,remote.entityId,local||p?.payload,remote.payload);conflicts++;continue;
+        await this.createConflict(remote.entityType,remote.entityId,local||p?.payload,remote.payload,remote,suggestion);conflicts++;continue;
       }
       // Copie locale déjà identique : rien à écrire (évite un enregistrement complet par document relu).
-      if(local&&!differs)continue;
+      if(local&&!differs){await this.saveBase(remote.entityType,remote.payload);continue;}
       if(!local||Number(remote.updatedAt||0)>=Number(local.updatedAt||0)||(!p&&fresh&&(successor||!canWrite))){
-        if(await this.store.applyRemote(remote.entityType,remote.payload,{expectedQueueId:p?.id||null}))pulled++;
+        if(await this.store.applyRemote(remote.entityType,remote.payload,{expectedQueueId:p?.id||null})){await this.saveBase(remote.entityType,remote.payload);pulled++;}
       }
     }
     return{pulled,conflicts,merged,cursor,serverCursor};
@@ -222,7 +232,7 @@ export class SyncService{
 
   async syncAttachmentBlobs(){
     const prefs=this.store.snapshot().preferences;if(!this.storage||!prefs.syncAttachments)return{uploaded:0,downloaded:0,attachmentErrors:0,attachmentsDeferred:false};if(!this.networkAllows({attachments:true}))return{uploaded:0,downloaded:0,attachmentErrors:0,attachmentsDeferred:true};
-    let uploaded=0,downloaded=0,attachmentErrors=0;for(const type of ['photos','documents'])for(const entity of this.store.list(type)){try{const localBlob=await this.store.storage.blobGet(entity.id);if(localBlob&&!entity.cloudPath&&this.canWriteEntity(type,'update')){const path=`workspaces/${this.workspaceId}/attachments/${type}/${entity.id}`,ref=this.storage.ref(path);await ref.put(localBlob,{contentType:localBlob.type||entity.mime||'application/octet-stream',customMetadata:{entityId:entity.id,entityType:type}});const updated={...entity,cloudPath:path,cloudSyncedAt:Date.now(),updatedAt:Date.now(),version:Number(entity.version||0)+1};await this.store.applyRemote(type,updated);await this.writeRemoteEntity(type,entity.id,updated,'attachment');uploaded++;}else if(!localBlob&&entity.cloudPath){const url=await this.storage.ref(entity.cloudPath).getDownloadURL(),response=await fetch(url);if(response.ok){await this.store.storage.blobPut(entity.id,await response.blob());downloaded++;}}}catch{attachmentErrors++;}}
+    let uploaded=0,downloaded=0,attachmentErrors=0;for(const type of ['photos','documents'])for(const entity of this.store.list(type)){try{const localBlob=await this.store.storage.blobGet(entity.id);if(localBlob&&!entity.cloudPath&&this.canWriteEntity(type,'update')){const path=`workspaces/${this.workspaceId}/attachments/${type}/${entity.id}`,ref=this.storage.ref(path);await ref.put(localBlob,{contentType:localBlob.type||entity.mime||'application/octet-stream',customMetadata:{entityId:entity.id,entityType:type}});const updated={...entity,cloudPath:path,cloudSyncedAt:Date.now(),updatedAt:Date.now(),version:Number(entity.version||0)+1};await this.store.applyRemote(type,updated);await this.writeRemoteEntity(type,entity.id,updated,'attachment');await this.saveBase(type,updated);uploaded++;}else if(!localBlob&&entity.cloudPath){const url=await this.storage.ref(entity.cloudPath).getDownloadURL(),response=await fetch(url);if(response.ok){await this.store.storage.blobPut(entity.id,await response.blob());downloaded++;}}}catch{attachmentErrors++;}}
     return{uploaded,downloaded,attachmentErrors,attachmentsDeferred:false};
   }
 

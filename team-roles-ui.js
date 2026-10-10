@@ -23,7 +23,7 @@ function ago(ms, now) {
 const badge = role => `<span class="tr-badge tr-role-${e(normalizeRole(role))}">${e(roleLabel(role))}</span>`;
 const initial = m => e(String(m.displayName || m.email || m.uid || m.id || '?').trim().charAt(0).toLocaleUpperCase('fr') || '?');
 
-export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyText = async () => false, bindChipChoices = () => {}, openAccount = () => {}, openSync = () => {}, afterLeave = () => {}, now = () => Date.now(), win = globalThis.window} = {}) {
+export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyText = async () => false, bindChipChoices = () => {}, openAccount = () => {}, openSync = () => {}, afterLeave = () => {}, onInvite = () => {}, now = () => Date.now(), win = globalThis.window} = {}) {
   let cache = {members: [], invites: [], devices: [], activity: []};
   const prefs = () => state()?.preferences || {};
   const myUid = () => sync?.user?.uid || '';
@@ -160,7 +160,7 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
         const err = form.querySelector('.form-error'), email = String(form.elements.email.value || '').trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = 'Saisissez une adresse e-mail valide.'; err.classList.remove('hidden'); form.elements.email.focus(); return; }
         const submit = form.querySelector('[type=submit]'); submit.disabled = true;
-        try { const invite = await sync.createInvite(email, form.elements.role.value); await load(); inviteDone(invite); }
+        try { const invite = await sync.createInvite(email, form.elements.role.value); try { await onInvite(invite); } catch {} await load(); inviteDone(invite); }
         catch (error) { err.textContent = error.message; err.classList.remove('hidden'); submit.disabled = false; }
       };
     }

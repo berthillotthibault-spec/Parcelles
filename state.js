@@ -11,11 +11,11 @@ export function emptyState(){
       createdAt:timestamp,updatedAt:timestamp
     },
     campagnes:[],
-    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],fieldSessions:[],chantiers:[],members:[],assistantMessages:[],devices:[],automationRules:[],automationRuns:[],gpsTracks:[],integrationImports:[],weatherStations:[],platformJobs:[],platformEvents:[],
+    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],fieldSessions:[],chantiers:[],members:[],assistantMessages:[],devices:[],automationRules:[],automationRuns:[],gpsTracks:[],integrationImports:[],weatherStations:[],platformJobs:[],platformEvents:[],vetTreatments:[],
     preferences:{
       ...PERSONALIZATION_DEFAULTS,mapLayer:'osm',mapColorMode:'culture',theme:'system',gpsConsent:false,
       autoBackup:true,syncEnabled:false,workspaceId:'',cloudRole:null,syncAttachments:true,syncWifiOnly:false,syncAttachmentsWifiOnly:false,syncRetryMax:5,syncRetryBaseSeconds:15,syncAutoMerge:true,weatherDays:7,
-      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,assistantLocalFirst:true,assistantVoiceReplies:false,assistantTerrainContext:true,integrationAutoMatch:true,stationWeatherEnabled:false,platformBackendEnabled:false,platformApiEndpoint:'',platformAutoJobs:false,platformIsolation:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeNotificationActions:true,nativeHaptics:true,nativeCameraEnabled:true,nativeStatusBar:true,biometricLock:false,biometricLockMinutes:5,automationEventTriggers:true,automationMaxActionsPerRun:25,securityAuditEnabled:true,encryptedExportIterations:250000
+      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent','campaign'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,assistantLocalFirst:true,assistantVoiceReplies:false,assistantTerrainContext:true,integrationAutoMatch:true,stationWeatherEnabled:false,platformBackendEnabled:false,platformApiEndpoint:'',platformAutoJobs:false,platformIsolation:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeNotificationActions:true,nativeHaptics:true,nativeCameraEnabled:true,nativeStatusBar:true,biometricLock:false,biometricLockMinutes:5,automationEventTriggers:true,automationMaxActionsPerRun:25,securityAuditEnabled:true,encryptedExportIterations:250000
     },
     metadata:{
       createdAt:timestamp,updatedAt:timestamp,lastImportAt:null,lastSyncAt:null,lastWeatherAt:null,
@@ -267,6 +267,11 @@ export function migrateData(input){
     data.metadata.lastWorkspaceSwitchAt=data.metadata.lastWorkspaceSwitchAt||null;
     data.version=16;
   }
+  if(data.version<17){
+    // v17 : carnet sanitaire (n° 76), nouvelle collection vetTreatments.
+    if(!Array.isArray(data.vetTreatments))data.vetTreatments=[];
+    data.version=17;
+  }
 
   data={...base,...data,
     version:APP_VERSION,
@@ -274,6 +279,8 @@ export function migrateData(input){
     preferences:{...base.preferences,...data.preferences},
     metadata:{...base.metadata,...data.metadata}
   };
+  // v6b n° 76 — carnet sanitaire : collection absente des anciennes sauvegardes.
+  if(!Array.isArray(data.vetTreatments))data.vetTreatments=[];
   ensureArrays(data);
   sanitizeCurrentShape(data);
   return data;

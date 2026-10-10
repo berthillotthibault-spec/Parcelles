@@ -71,15 +71,16 @@ export function assolement(state,campaign){
 
 // Cascade : produit brut − charges opérationnelles = marge brute − charges de structure = marge après structure.
 export function cascade(pilotage,costs){
-  const structure=costs.rows.reduce((s,r)=>s+(r.structure||0),0);
+  // n° 85 : marginModel exclut de la marge les parcelles sans produit ; la cascade reste additive.
+  const structure=costs.rows.reduce((s,r)=>s+(r.structure||0),0),margin=pilotage.grossProduct-pilotage.charges;
   const steps=[
     {id:'product',label:'Produit brut estimé',value:pilotage.grossProduct,kind:'total'},
     {id:'charges',label:'Charges opérationnelles',value:-pilotage.charges,kind:'delta'},
-    {id:'margin',label:'Marge brute',value:pilotage.margin,kind:'total'},
+    {id:'margin',label:'Marge brute',value:margin,kind:'total'},
     {id:'structure',label:'Charges de structure',value:-structure,kind:'delta'},
-    {id:'net',label:'Marge après structure',value:pilotage.margin-structure,kind:'total'}
+    {id:'net',label:'Marge après structure',value:margin-structure,kind:'total'}
   ];
-  return{steps,structure,net:pilotage.margin-structure};
+  return{steps,structure,net:margin-structure};
 }
 
 // Ventilation des charges de la campagne (travaux réalisés, prévus et charges €/ha saisies).
@@ -141,7 +142,7 @@ export function expectedReceipts(state,campaign){
 export function dossierModel(state,{campaign=campaignFor(),preset='banque',sections=null,today=new Date()}={}){
   const p=presetById(preset),list=(sections||p.sections).filter(id=>DOSSIER_SECTIONS.some(s=>s.id===id));
   const pilotage=buildPilotage(state,{campaign}),costs=costPriceByCulture(state,{campaign}),parcels=ownParcels(state);
-  const history=[campaignShift(campaign,-2),campaignShift(campaign,-1),campaign].map(c=>{const b=buildPilotage(state,{campaign:c});const hasData=b.charges>0||b.grossProduct>0;return{campaign:c,grossProduct:b.grossProduct,charges:b.charges,margin:b.margin,area:b.area,hasData};});
+  const history=[campaignShift(campaign,-2),campaignShift(campaign,-1),campaign].map(c=>{const b=buildPilotage(state,{campaign:c});const hasData=b.charges>0||b.grossProduct>0;return{campaign:c,grossProduct:b.grossProduct,charges:b.charges,margin:b.grossProduct-b.charges,area:b.area,hasData};});
   const charges=chargesDetail(state,campaign);
   return{
     farm:{name:String(state.exploitation?.nom||'').trim()||'Mon exploitation',commune:String(state.exploitation?.commune||'').trim()},
@@ -312,7 +313,7 @@ export function dossierHtml(state,{campaign=campaignFor(),preset='banque',sectio
   const foot=i=>`<footer class="dz-foot"><span>${esc(footer)}</span><span>page ${i}/${total}</span></footer>`;
   const cover=`<section class="page dz-cover" aria-label="Couverture"><div class="dz-body"><p class="dz-eyebrow">Dossier de campagne · ${esc(m.preset.label)}</p><h1>${esc(m.farm.name)}</h1><p class="dz-sub">Campagne ${esc(m.campaign)}${m.farm.commune?` · ${esc(m.farm.commune)}`:''}</p>
 ${map?`<figure>${map}<ul class="dz-legend">${legend}</ul><figcaption>Parcellaire de l’exploitation, coloré par culture.</figcaption></figure>`:'<p class="dz-note">Aucune parcelle dessinée : la carte miniature n’est pas disponible.</p>'}
-<div class="dz-kpis">${kpi(ha(m.assolement.total),plural(m.parcels.length,'parcelle','parcelles'))}${kpi(eur(m.pilotage.grossProduct),'produit brut estimé')}${kpi(eur(m.pilotage.margin),'marge brute estimée',m.pilotage.margin<0)}</div>
+<div class="dz-kpis">${kpi(ha(m.assolement.total),plural(m.parcels.length,'parcelle','parcelles'))}${kpi(eur(m.pilotage.grossProduct),'produit brut estimé')}${kpi(eur(m.cascade.net+m.cascade.structure),'marge brute estimée',m.cascade.net+m.cascade.structure<0)}</div>
 <h3>Sommaire</h3><ol class="dz-toc">${m.sections.map(id=>`<li>${esc(sectionLabel(id))}</li>`).join('')}</ol>
 <p class="muted"><small>Généré le ${esc(longDate(m.generatedAt))} par Parcelles, hors connexion, à partir des données saisies. Montants indicatifs.</small></p></div>${foot(1)}</section>`;
   const pages=m.sections.map((id,i)=>`<section class="page" id="dz-${id}" aria-labelledby="dz-h-${id}"><div class="dz-body"><h2 id="dz-h-${id}">${i+1}. ${esc(sectionLabel(id))}</h2>${SECTION_RENDER[id](m)}</div>${foot(i+2)}</section>`).join('');

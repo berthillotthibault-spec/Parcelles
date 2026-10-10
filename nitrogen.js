@@ -5,6 +5,7 @@
 import {campaignFor,formatNumber,isoDate,localDate,normalize,toNumber} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {farmRecords} from './farm-records.js';
+import {grazingNitrogen} from './grazing.js';
 
 export const NITROGEN_DISCLAIMER='Calcul indicatif établi à partir des données saisies et d’une table de références à vérifier : il ne remplace ni l’arrêté GREN ni le programme d’actions applicables à votre exploitation, ni le conseil de votre technicien.';
 
@@ -260,9 +261,12 @@ export function nitrogenAlerts(state,{today=isoDate(new Date()),campaign=campaig
     const n=nitrogenPerHa(w,fert),parcel=parcels.get(w.parcelId),area=num(w.surfaceWorked)??toNumber(parcel?.surfaceHa);
     if(n)organic+=n.nTotal*area;
   }
+  // n° 78 — azote déposé par les animaux au pâturage pendant la campagne (jusqu’à aujourd’hui).
+  const y=Number(String(campaign).slice(0,4)),end=`${y+1}-07-31`,grazing=Number.isFinite(y)?grazingNitrogen(state,{from:`${y}-08-01`,to:end<today?end:today}):{total:0,unknown:0};
+  organic+=grazing.total;
   const perHa=sau>0?round(organic/sau,1):0;
-  if(sau>0&&perHa>refs.organicCap)alerts.push({kind:'cap',status:'ko',label:`${formatNumber(perHa)} kg N organique/ha SAU en ${campaign}`,note:`Plafond de ${formatNumber(refs.organicCap)} kg N/ha SAU dépassé (apports prévus et réalisés ; effluents des animaux au pâturage non comptés).`});
-  return{alerts,organic:{total:round(organic),perHa,sau:round(sau,2),cap:refs.organicCap}};
+  if(sau>0&&perHa>refs.organicCap)alerts.push({kind:'cap',status:'ko',label:`${formatNumber(perHa)} kg N organique/ha SAU en ${campaign}`,note:`Plafond de ${formatNumber(refs.organicCap)} kg N/ha SAU dépassé (apports prévus et réalisés, et ${formatNumber(grazing.total)} kg N déposés au pâturage).`});
+  return{alerts,organic:{total:round(organic),perHa,sau:round(sau,2),cap:refs.organicCap,grazing:grazing.total,grazingUnknown:grazing.unknown}};
 }
 
 // ---------- Synthèse par campagne ----------
@@ -316,5 +320,5 @@ export function registerPdfBlocks(state,{today=isoDate(new Date()),campaign=camp
     {type:'table',head:['Date','Parcelle','Produit','Type','Dose','Quantité','N total/ha','N eff./ha','Manquant'],rows:rows.length?rows:[['Aucun apport terminé','','','','','','','','']],align:['','','','','right','right','right','right','']},
     {type:'h2',text:'Écart au prévisionnel'},
     {type:'table',head:['Parcelle','Culture','Prévu (kg N/ha)','Réalisé (N eff.)','Écart'],rows:gauges.length?gauges:[['—','','','','']],align:['','','right','right','']},
-    {type:'p',text:`Azote organique : ${formatNumber(o.organic.perHa)} kg N/ha SAU (plafond ${formatNumber(o.organic.cap)}). Table ${o.refs.label}.`,small:true}];
+    {type:'p',text:`Azote organique : ${formatNumber(o.organic.perHa)} kg N/ha SAU (plafond ${formatNumber(o.organic.cap)}), dont ${formatNumber(o.organic.grazing||0)} kg N déposés au pâturage. Table ${o.refs.label}.`,small:true}];
 }

@@ -195,3 +195,25 @@ test('rôle sans droit d’écriture sur ce type : la version du serveur est app
   assert.equal(db.docs.get(`workspaces/${WS}/data/parcelles__p1`).modifiedBy,'A','l’opérateur n’a rien réécrit');
   assert.equal(result.conflicts,0);
 });
+
+// n° 134 : avec une base mémorisée (store « syncBase »), deux champs différents modifiés sur deux appareils ne font plus de conflit.
+function withSyncBase(dev){const bases=new Map();Object.assign(dev.store.storage,{async syncBaseGet(k){return bases.has(k)?structuredClone(bases.get(k)):null;},async syncBasePut(k,v){bases.set(k,structuredClone(v));}});dev.bases=bases;return dev;}
+test('fusion à trois voies : champs différents → fusion ; même champ → conflit avec choix limité à ce champ',async()=>{
+  const db=cloud(),a=withSyncBase(await device(db,'A')),b=withSyncBase(await device(db,'B'));
+  await a.run(()=>a.store.upsert('tasks',{id:'t9',title:'Clôture',note:'Pré bas',priority:'Normale'}));
+  await a.syncNow();await b.syncNow();
+  assert.ok(b.bases.size>0,'base mémorisée au premier pull');
+  await pause(5);await a.run(()=>a.store.upsert('tasks',{...task(a,'t9'),title:'Clôture électrique'}));await a.syncNow();
+  await pause(5);await b.run(()=>b.store.upsert('tasks',{...task(b,'t9'),note:'Pré haut'}));
+  const r=await b.syncNow();
+  assert.equal(r.conflicts,0);
+  assert.equal(task(b,'t9').title,'Clôture électrique');assert.equal(task(b,'t9').note,'Pré haut');
+  await a.syncNow();assert.equal(task(a,'t9').note,'Pré haut');assert.equal(task(a,'t9').title,'Clôture électrique');
+  // Même champ des deux côtés : conflit, en mode trois voies, sur ce seul champ.
+  await pause(5);await a.run(()=>a.store.upsert('tasks',{...task(a,'t9'),priority:'Haute'}));await a.syncNow();
+  await pause(5);await b.run(()=>b.store.upsert('tasks',{...task(b,'t9'),priority:'Basse',note:'Pré haut, côté route'}));
+  const r2=await b.syncNow();assert.equal(r2.conflicts,1);
+  const c=b.store.list('syncConflicts').find(x=>x.status==='open');
+  assert.deepEqual(c.conflictFields,['priority']);assert.equal(c.mergeMode,'three-way');assert.equal(c.autoFields.note,'local');
+  assert.equal(task(b,'t9').priority,'Basse','rien n’est écrasé en attendant le choix');
+});

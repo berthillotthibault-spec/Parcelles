@@ -5,21 +5,27 @@
 //  - multiple : sélection multiple de parcelles (barre sombre en bas) ;
 //  - measure  : mesure de distance ou de surface (y compris le résultat affiché) ;
 //  - draw     : dessin du contour d’une parcelle ;
-//  - point    : placement ou déplacement d’un repère.
+//  - point    : placement ou déplacement d’un repère ;
+//  - edit     : modification d’un contour sommet par sommet (n° 41) ;
+//  - walk     : mesure en marchant au GPS (n° 50) ;
+//  - split    : découpe d’une parcelle par une ligne (n° 51).
 //
 // Règle : entrer dans un mode quitte le précédent ; toute action extérieure au
 // mode (autre outil, Couches, recherche, onglet, fiche, mode terrain, micro…)
 // le quitte aussi. Un mode « modifié » (tracé non enregistré significatif) n’est
 // jamais abandonné en silence : leave() demande d’abord une confirmation.
 
-export const MAP_MODE_LABELS=Object.freeze({multiple:'Sélection multiple',measure:'Mesure',draw:'Dessin de parcelle',point:'Placement d’un repère'});
+export const MAP_MODE_LABELS=Object.freeze({multiple:'Sélection multiple',measure:'Mesure',draw:'Dessin de parcelle',point:'Placement d’un repère',edit:'Modification de contour',walk:'Mesure en marchant',split:'Découpe de parcelle'});
 
 // Actions qui appartiennent à un mode : elles ne le quittent pas.
 export const MAP_MODE_ACTIONS=Object.freeze({
-  multiple:Object.freeze(['map-multiple','map-multiple-cancel','map-multiple-work','map-multiple-task','map-multiple-info']),
+  multiple:Object.freeze(['map-multiple','map-multiple-cancel','map-multiple-work','map-multiple-task','map-multiple-info','map-multiple-merge']),
   measure:Object.freeze(['undo-measure-point','cancel-measure','finish-measure']),
-  draw:Object.freeze(['undo-draw-point','cancel-parcel-draw','finish-parcel-draw','map-mode-keep','map-mode-discard']),
-  point:Object.freeze(['cancel-map-point'])
+  draw:Object.freeze(['undo-draw-point','cancel-parcel-draw','finish-parcel-draw','map-mode-keep','map-mode-discard','map-snap-toggle','draw-follow-boundary']),
+  point:Object.freeze(['cancel-map-point']),
+  edit:Object.freeze(['edit-contour-undo','edit-contour-save','edit-contour-cancel','edit-contour-ring','edit-contour-keep','edit-contour-discard','map-snap-toggle']),
+  walk:Object.freeze(['walk-undo','walk-finish','walk-cancel','walk-keep','walk-discard']),
+  split:Object.freeze(['split-undo','split-cancel','split-cut','map-snap-toggle'])
 });
 
 // Actions sans effet sur le mode en cours (affichage seulement).

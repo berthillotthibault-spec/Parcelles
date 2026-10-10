@@ -1,5 +1,35 @@
 # Changelog
 
+## 10.14.0 · carte, élevage, gestion et fiabilité des données — 2026-10-10
+
+Données : le schéma passe en version 17 (nouvelle collection du carnet sanitaire). La migration est automatique, et une version plus ancienne de l’application restée en cache passe en lecture seule au lieu d’écraser les données.
+
+Carte :
+- modifier un contour sommet par sommet, avec la surface avant et après en direct, et refus d’un contour qui se croise ;
+- accrochage (« Aimant ») aux limites des parcelles et du RPG, et « Suivre la limite » ;
+- mesurer en marchant au GPS, puis créer une parcelle, remplacer un contour ou enregistrer une zone ;
+- découper et fusionner des parcelles (la parcelle d’origine est archivée avec ses travaux) ;
+- boussole d’approche jusqu’à la parcelle, pastille « Vous êtes dans … » et « Définir l’entrée ici ».
+
+Élevage et gestion :
+- chargement UGB/ha, jours de repos et bilan de pâturage (l’azote déposé au pâturage compte dans le plafond de 170 kg N) ;
+- pâturage en un geste depuis le mode terrain (amener, sortir, compter un lot ; contrôle abreuvoir et clôture) ;
+- carnet sanitaire : soins, ordonnances, délais d’attente viande et lait rappelés sur l’accueil, registre PDF ;
+- un seul moteur de marge : un coût inconnu s’affiche « — » au lieu de 0 €, les parcelles sans produit connu sortent du total, les charges manuelles €/ha ne servent plus que de forfait quand aucun travail n’est chiffré, et chaque marge indique sa fiabilité ;
+- carte « Ma campagne » sur l’accueil (montants masqués par défaut) et simulateur « Et si… ».
+
+Interface :
+- choisir ses activités pour n’afficher que les outils utiles ; carte « Bien démarrer » ;
+- feuille « Nouveautés » après chaque mise à jour, sans perte d’une saisie en cours ;
+- messages d’erreur compréhensibles avec l’action à faire ; bouton « ? » par écran et aide réécrite ;
+- thème Auto, Clair, Sombre ou « Cabine de nuit » ; compteurs animés sur l’accueil.
+
+Synchronisation et sauvegardes :
+- conflits réglés champ par champ dans un écran lisible, et fusion automatique des champs modifiés d’un seul côté ;
+- restauration avec aperçu des différences et restauration sélective ; dans un espace cloud, restauration complète réservée au propriétaire ;
+- export « format ouvert » : CSV, GeoJSON et tableur lisibles sans l’application ;
+- ouverture plus rapide (un tiers de JavaScript en moins au démarrage) et rendu limité à l’écran visible.
+
 ## 10.13.0 · réglementation, intelligence et carte — 2026-10-10
 
 Réglementation (aides indicatives : les tables sont datées et sourcées, et les valeurs par défaut sont à vérifier) :

@@ -40,7 +40,8 @@ test('échéances et campagnes', ()=>{
 
 test('exploitation vide : rien n’est déclaré « à jour » sans donnée', ()=>{
   const checks=complianceChecks(emptyState(),{today:TODAY});
-  assert.equal(checks.length,12); // + registre phyto (n° 62, v5a), entrées azote (n° 63), BCAE 7 (n° 58) et CIPAN (n° 74) de la v5b
+  assert.equal(checks.length,13); // + registre phyto (n° 62, v5a), entrées azote (n° 63), BCAE 7 (n° 58) et CIPAN (n° 74) de la v5b, carnet sanitaire (n° 76, v6b)
+  assert.equal(byId(checks,'herd-health').status,'na');
   assert.equal(byId(checks,'phyto').status,'ok');
   assert.equal(byId(checks,'sprayer').status,'na');
   assert.equal(byId(checks,'nitrogen').status,'na');

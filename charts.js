@@ -51,14 +51,17 @@ export function cropSegments(parcels, color) {
 
 // --- 2) Frise de pâturage -----------------------------------------------------
 // rows : [{label, sessions:[{start, end, count, type}]}] sur [from, to] (jours ISO).
-export function grazingTimeline(rows, {from, to, width = 320, rowHeight = 22, today = isoDay(new Date())} = {}) {
-  const left = 0, top = 4, axis = 18, span = Math.max(1, dayMs(to) - dayMs(from));
-  const x = day => r2(left + (Math.min(Math.max(dayMs(day), dayMs(from)), dayMs(to)) - dayMs(from)) / span * width);
+// labelWidth > 0 : diagramme de Gantt, libellé de chaque ligne à gauche (n° 78).
+export function grazingTimeline(rows, {from, to, width = 320, rowHeight = 22, today = isoDay(new Date()), labelWidth = 0} = {}) {
+  const left = labelWidth, top = 4, axis = 18, span = Math.max(1, dayMs(to) - dayMs(from)), plot = Math.max(40, width - left);
+  const x = day => r2(left + (Math.min(Math.max(dayMs(day), dayMs(from)), dayMs(to)) - dayMs(from)) / span * plot);
+  const clip = t => { const max = Math.max(4, Math.floor(labelWidth / 6.5)); return t.length > max ? `${t.slice(0, max - 1)}…` : t; };
   const height = top + rows.length * (rowHeight + 6) + axis;
   const parts = [], spoken = [];
   rows.forEach((row, i) => {
     const y = top + i * (rowHeight + 6);
-    parts.push(`<rect class="chart-track-fill" x="0" y="${y}" width="${width}" height="${rowHeight}" rx="4"/>`);
+    if (labelWidth) parts.push(`<text class="chart-axis chart-row-label" x="0" y="${y + rowHeight / 2 + 4}">${esc(clip(String(row.label || '')))}<title>${esc(row.label)}</title></text>`);
+    parts.push(`<rect class="chart-track-fill" x="${left}" y="${y}" width="${plot}" height="${rowHeight}" rx="4"/>`);
     for (const s of row.sessions) {
       const end = s.end || today;
       if (end < from || s.start > to) continue;

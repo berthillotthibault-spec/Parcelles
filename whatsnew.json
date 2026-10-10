@@ -1,0 +1,37 @@
+{
+  "versions": [
+    {
+      "version": "10.14.0",
+      "date": "2026-10-10",
+      "title": "Carte, élevage et confiance",
+      "items": [
+        "Carte : modifier un contour point par point, découper ou fusionner des parcelles, mesurer en marchant.",
+        "Élevage : chargement UGB/ha, pâturage en un geste depuis le terrain et carnet sanitaire avec délais d’attente.",
+        "Marges plus fiables (indice de fiabilité), carte « Ma campagne » et simulateur « Et si… ».",
+        "Conflits de synchronisation réglés champ par champ, restauration avec aperçu et export lisible sans l’application."
+      ]
+    },
+    {
+      "version": "10.13.0",
+      "date": "2026-10-10",
+      "title": "Réglementation et carte",
+      "items": [
+        "Registre phyto : contrôle avant de valider un traitement, délai de rentrée affiché sur la carte et l’accueil (aide indicative).",
+        "Plan de fumure azote, assistant PAC et couverts d’interculture, avec des alertes à vérifier.",
+        "« Organise ma semaine » propose un planning selon la météo, à appliquer en un geste.",
+        "Export des parcelles pour Google Earth, Shapefile et consoles de tracteur."
+      ]
+    },
+    {
+      "version": "10.12.0",
+      "date": "2026-10-08",
+      "title": "Terrain et formulaires",
+      "items": [
+        "« Démarrer ma journée » enchaîne travaux, tâches et lots à déplacer dans l’ordre le plus court.",
+        "QR codes sur les engins et abreuvoirs : un scan ouvre heures, plein, entretien ou panne.",
+        "Chaque travail en attente indique son prochain créneau météo favorable (indicatif).",
+        "Saisie en pastilles, brouillons gardés automatiquement et « Annuler » sur toute modification."
+      ]
+    }
+  ]
+}

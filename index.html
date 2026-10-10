@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f5f0">
   <meta name="description" content="Gestion parcellaire agricole, mobile, hors connexion et multi-appareils.">
   <meta name="application-name" content="Parcelles 10.10">
-  <meta name="parcelles-build" content="2026.10.10-v10.13.0">
+  <meta name="parcelles-build" content="2026.10.10-v10.14.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="./public-works.css">
   <link rel="stylesheet" href="./motion.css">
   <link rel="stylesheet" href="./personalization.css">
-  <link rel="stylesheet" href="./design-v3.css?v=4.2">
+  <link rel="stylesheet" href="./design-v3.css?v=4.3">
   <title>Parcelles</title>
 </head>
 <body>
@@ -146,7 +146,7 @@
             <button class="map-circle-button map-tools-launcher" data-action="map-tools" aria-label="Outils de carte" aria-haspopup="dialog"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3z"/></svg><span>Outils</span></button>
           </div>
           <div id="map-legend" class="map-legend"></div>
-          <div id="map-draw-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong>Dessiner la parcelle</strong><small id="map-draw-count">Touchez la carte pour placer les sommets.</small></div><button class="small-button" data-action="undo-draw-point">Annuler le point</button><button class="small-button" data-action="cancel-parcel-draw">Quitter</button><button class="button primary" data-action="finish-parcel-draw">Terminer</button></div>
+          <div id="map-draw-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong>Dessiner la parcelle</strong><small id="map-draw-count">Touchez la carte pour placer les sommets.</small></div><button class="small-button snap-toggle is-active" data-action="map-snap-toggle" aria-pressed="true">Aimant activé</button><button class="small-button hidden" data-action="draw-follow-boundary">Suivre la limite</button><button class="small-button" data-action="undo-draw-point">Annuler le point</button><button class="small-button" data-action="cancel-parcel-draw">Quitter</button><button class="button primary" data-action="finish-parcel-draw">Terminer</button></div>
           <div id="map-measure-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong id="measure-title">Mesure</strong><small id="measure-value">Touchez la carte.</small></div><button class="small-button" data-action="undo-measure-point">Annuler le point</button><button class="small-button" data-action="cancel-measure">Quitter</button><button class="button primary" data-action="finish-measure">Terminer</button></div>
           <div id="map-point-panel" class="map-draw-panel hidden" aria-live="polite"><div><strong id="point-placement-title">Placer un point</strong><small>Touchez le nouvel emplacement sur la carte, puis confirmez.</small></div><button class="button secondary" data-action="cancel-map-point">Annuler</button></div>
           <aside id="map-selection" class="map-selection hidden" aria-live="polite"></aside>
@@ -250,8 +250,6 @@
   <input id="restore-file-input" hidden type="file" accept=".zip,.json">
 
   <script src="./leaflet.min.js"></script>
-  <script src="./xlsx.full.min.js" defer></script>
-  <script src="./shp.min.js" defer></script>
   <script>window.addEventListener('error',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.message} — ${e.filename||''}:${e.lineno||''}`});window.addEventListener('unhandledrejection',e=>{const el=document.querySelector('#boot-error');if(el)el.textContent=`Erreur : ${e.reason?.message||e.reason}`});</script>
   <script>setTimeout(function(){if(document.documentElement.dataset.appReady==='1')return;var e=document.getElementById('boot-error');if(e){e.className='boot-fallback';e.innerHTML="<strong>Parcelles n’a pas terminé son démarrage.</strong><br><span>Vos données locales ne sont pas supprimées.</span><br><button onclick='location.reload()'>Réessayer</button> <button id='boot-reset'>Réinitialiser cache/PWA</button>";var b=document.getElementById('boot-reset');if(b)b.onclick=async function(){try{if('caches'in window){var ks=await caches.keys();var prefix='parcelles-'+encodeURIComponent(new URL('./',location.href).pathname)+'-';await Promise.all(ks.filter(function(k){return k.indexOf(prefix)===0||/^parcelles-(static|runtime)-/.test(k)}).map(function(k){return caches.delete(k)}));}if('serviceWorker'in navigator){var rs=await navigator.serviceWorker.getRegistrations();var appScope=new URL('./',location.href).href;await Promise.all(rs.filter(function(r){return r.scope===appScope}).map(function(r){return r.unregister()}));}}finally{location.reload();}};}},9000);</script>
   <script src="./config.js"></script>

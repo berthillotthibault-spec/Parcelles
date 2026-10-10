@@ -6,6 +6,7 @@ import {active,completed} from './farm-memory.js';
 import {phytosanitaryRegister} from './advanced-economics.js';
 import {parcelFollowupScore} from './harvest-traceability.js';
 import {hasInAppPlan,nitrogenComplianceChecks} from './nitrogen.js';
+import {herdHealthComplianceChecks} from './herd-health.js';
 import {pacComplianceChecks} from './pac.js';
 import {coverComplianceChecks} from './covers.js';
 import {phytoComplianceCheck} from './phyto.js';
@@ -201,6 +202,7 @@ export function complianceChecks(state,{today=isoDate(new Date())}={}){
     coverCheck(state,settings,today),
     ...coverComplianceChecks(state,{today}), // v5b n° 74
     bdniCheck(state),
+    ...herdHealthComplianceChecks(state,{today}), // v6b n° 76
     rotationCheck(state,settings,campaign),
     ...pacComplianceChecks(state,{today,campaign}), // v5b n° 58
     followupCheck(state)

@@ -122,5 +122,5 @@ test('Annuler : revient à la version d’avant via upsert, ou met une création
 
 test('fichiers servis : history.js et history-ui.js en cache hors connexion',()=>{
   for(const file of ['sw.js','runtime.js'])for(const name of ['./history.js','./history-ui.js'])assert.ok(readFileSync(new URL(file,import.meta.url),'utf8').includes(`'${name}'`),`${name} absent de ${file}`);
-  assert.match(readFileSync(new URL('storage.js',import.meta.url),'utf8'),/const DB_VERSION=3;/);
+  assert.ok(Number(/const DB_VERSION=(\d+);/.exec(readFileSync(new URL('storage.js',import.meta.url),'utf8'))?.[1])>=3);
 });

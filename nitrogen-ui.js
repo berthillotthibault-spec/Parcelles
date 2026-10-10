@@ -42,7 +42,7 @@ export function createNitrogenUI({store,modal,toast,bindChipChoices}){
     if(options.campaign)campaign=options.campaign;
     const o=nitrogenOverview(store.state,{today:today(),campaign});
     const chips=[shift(campaignFor(),-1),campaignFor(),shift(campaignFor(),1)].map(c=>`<button type="button" class="choice-chip${c===campaign?' is-on':''}" data-nz="campaign" data-value="${e(c)}" aria-pressed="${c===campaign}">${e(c)}</button>`).join('');
-    const alerts=o.alerts.length?`<ul class="nz-alerts" role="list">${o.alerts.map(a=>`<li class="nz-alert">${a.workId?`<button type="button" class="nz-alert-button" data-action="edit-work" data-id="${e(a.workId)}">`:'<div>'}<strong>${e(a.label)}</strong><small>${e(a.note)}</small>${a.workId?'</button>':'</div>'}</li>`).join('')}</ul>`:`<p class="nz-ok">Aucun épandage prévu en période d’interdiction · ${formatNumber(o.organic.perHa)} kg N organique/ha SAU (plafond ${formatNumber(o.organic.cap)}).</p>`;
+    const alerts=o.alerts.length?`<ul class="nz-alerts" role="list">${o.alerts.map(a=>`<li class="nz-alert">${a.workId?`<button type="button" class="nz-alert-button" data-action="edit-work" data-id="${e(a.workId)}">`:'<div>'}<strong>${e(a.label)}</strong><small>${e(a.note)}</small>${a.workId?'</button>':'</div>'}</li>`).join('')}</ul>`:`<p class="nz-ok">Aucun épandage prévu en période d’interdiction · ${formatNumber(o.organic.perHa)} kg N organique/ha SAU (plafond ${formatNumber(o.organic.cap)})${o.organic.grazing?`, dont ${formatNumber(o.organic.grazing)} kg N déposés au pâturage`:''}.</p>`;
     modal('Azote : PPF et cahier',`Méthode du bilan simplifiée, campagne ${campaign}.`,
       `<div class="nitrogen">
         <div class="chip-choices nz-campaigns" role="group" aria-label="Campagne">${chips}</div>

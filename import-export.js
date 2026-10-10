@@ -4,6 +4,8 @@ import {dbfEncoding, parseDbf, parseShpDbf} from './shapefile-fallback.js';
 import {readImportText} from './text-encoding.js';
 import {createZip, readZip} from './zip-lite.js';
 import {kmlToGeoJson} from './parcel-formats.js';
+import {readableEntries} from './open-export.js';
+import {loadVendor} from './vendor-loader.js';
 
 const IMPORT_ENGINE_BUILD=`import-${BUILD_ID}`;
 
@@ -75,7 +77,9 @@ async function spreadsheetRowsInternal(buffer){
   if(!sources.length)throw new Error('Le classeur ne contient aucune ligne exploitable.');return sources;
 }
 async function spreadsheetRows(buffer){
-  if(window.XLSX){const workbook=window.XLSX.read(buffer,{type:'array',cellDates:true});const sources=[];for(const name of workbook.SheetNames){const rows=window.XLSX.utils.sheet_to_json(workbook.Sheets[name],{defval:'',raw:true});if(rows.length)sources.push({sheet:name,rows,headers:Object.keys(rows[0]||{})});}if(sources.length)return sources;}
+  // n° 144 : SheetJS chargé seulement au premier import de tableur ; sinon lecteur interne.
+  const XLSX=await loadVendor('xlsx').catch(()=>null);
+  if(XLSX){const workbook=XLSX.read(buffer,{type:'array',cellDates:true});const sources=[];for(const name of workbook.SheetNames){const rows=XLSX.utils.sheet_to_json(workbook.Sheets[name],{defval:'',raw:true});if(rows.length)sources.push({sheet:name,rows,headers:Object.keys(rows[0]||{})});}if(sources.length)return sources;}
   return spreadsheetRowsInternal(buffer);
 }
 function xmlRows(text){
@@ -101,8 +105,8 @@ function groupLooseShapefiles(files){
 }
 
 async function tryShpJs(payload){
-  if(!window.shp)return null;
-  try{return typeof payload==='object'&&!(payload instanceof ArrayBuffer)?await window.shp(payload):(window.shp.parseZip?await window.shp.parseZip(payload):await window.shp(payload));}
+  const shp=await loadVendor('shp').catch(()=>null);if(!shp)return null;
+  try{return typeof payload==='object'&&!(payload instanceof ArrayBuffer)?await shp(payload):(shp.parseZip?await shp.parseZip(payload):await shp(payload));}
   catch(error){console.warn('[Parcelles] shpjs a échoué, bascule vers le lecteur interne.',error);return null;}
 }
 async function parseShapefileParts({name,shp,dbf,prj='',cpg=''}){
@@ -305,7 +309,9 @@ export async function createCompleteBackup(store){
       attachments.push({id:item.id,type,path,name:item.name||'',mimeType:item.mimeType||blob.type||'',size:blob.size,checksum:await checksumBlob(blob)});
     }
   }
-  const manifest={format:'parcelles-backup-complete',formatVersion:APP_VERSION,buildId:BUILD_ID,createdAt:Date.now(),stateChecksum,attachments,counts:{parcelles:state.parcelles.filter(x=>!x.deletedAt).length,interventions:state.interventions.filter(x=>!x.deletedAt).length,photos:state.photos.filter(x=>!x.deletedAt).length,documents:state.documents.filter(x=>!x.deletedAt).length}};
+  // n° 138 : dossier lisible/ (CSV, GeoJSON, xlsx si SheetJS est chargé, LISEZMOI) ; ignoré à la restauration.
+  const createdAt=Date.now(),readable=readableEntries(state,{createdAt,xlsx:await loadVendor('xlsx').catch(()=>null)});entries.push(...readable);
+  const manifest={format:'parcelles-backup-complete',formatVersion:APP_VERSION,buildId:BUILD_ID,createdAt,stateChecksum,attachments,readable:readable.map(entry=>entry.name),counts:{parcelles:state.parcelles.filter(x=>!x.deletedAt).length,interventions:state.interventions.filter(x=>!x.deletedAt).length,photos:state.photos.filter(x=>!x.deletedAt).length,documents:state.documents.filter(x=>!x.deletedAt).length}};
   entries.unshift({name:'manifest.json',data:JSON.stringify(manifest,null,2)},{name:'state.json',data:stateText});
   return{blob:await createZip(entries),manifest};
 }
