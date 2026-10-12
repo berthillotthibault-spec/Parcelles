@@ -54,3 +54,6 @@ export function roleScope(role){
   if(r==='accountant')return {all:false,entities:[...ACCOUNTANT_ENTITIES]};
   return {all:false,entities:[]};
 }
+
+// n° 141 : en exploitation cloud, seule la personne propriétaire purge la corbeille (suppression définitive).
+export function canPurgeTrash({role,cloud=false}={}){return !cloud||normalizeRole(role)==='owner';}

@@ -1,4 +1,4 @@
-import {answerFarmQuestion} from './farm-agent.js';
+import {answerFarmQuestion} from './farm-agent.js';import {answerAgroQuestion} from './agro-assistant.js';
 import {agendaDate,isPending,localDay,maintenanceRemaining,isLowStock} from './home-priorities.js';
 import {campaignFor, isoDate, normalize, toNumber} from './utils.js';
 
@@ -127,6 +127,7 @@ export function assistantActionRequiresConfirmation(action){return ['create_work
 
 export function answerLocalIntelligence(question,state,context={}){
   const farm=answerFarmQuestion(question,state,context);if(farm)return farm;
+  const agro=answerAgroQuestion(question,state,context);if(agro)return agro;
   const raw=String(question||'').trim(),q=norm(raw),parcels=active(state,'parcelles'),works=active(state,'interventions');
   if(!q)return{recognized:false,answer:'',actions:[],intent:'empty'};
   const parcel=findParcelFromQuestion(raw,state,context);

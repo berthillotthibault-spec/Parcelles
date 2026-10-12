@@ -10,6 +10,7 @@ import {activeReentries} from './phyto.js';
 import {parcelIft,iftColor} from './ift.js';
 import {windToward,windTowardWater,compass,forecastAge} from './spray-window.js';
 import {baseLayerDefinition,CADASTRE_OVERLAY,normalizeCadastreOpacity,cadastreQueryUrl,parseCadastreResponse,cadastreReference} from './basemaps.js';
+import {ownerColorInfo} from './land.js'; // v7b n° 93
 
 const DEFAULT_CENTER=[46.31,4.95];
 const CULTURE_PALETTE=['#287a4a','#4b8f6a','#7a9d44','#b08a32','#7f6bb2','#3f83a8','#bd6f4a','#699b8a','#9a6d3f','#557a9c','#8c7a3f','#a36d8e'];
@@ -118,9 +119,10 @@ export class ParcelMap{
     }finally{clearTimeout(timer);if(this.cadastreController===controller)this.cadastreController=null;}
   }
 
-  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin','ift','bcae7'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.legendFocus=null;this.render(this.lastState);}
+  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin','ift','bcae7','owner'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.legendFocus=null;this.render(this.lastState);}
   colorInfo(parcel){
     if(this.colorMode==='bcae7')return bcae7ColorInfo(this.lastState,parcel); // v5b n° 58
+    if(this.colorMode==='owner')return ownerColorInfo(parcel); // v7b n° 93
     if(['cost','margin'].includes(this.colorMode)){const row=this.economics?.get(parcel.id);return economicColor(row?.[this.colorMode==='cost'?'costHa':'marginHa'],this.colorMode);}
     if(this.colorMode==='ift'){const r=this.ift?.get(parcel.id);return iftColor(!r?null:r.treatments&&r.missing===r.treatments?null:r.total);}
     const context=this.situations.get(parcel.id),status=context?.status;

@@ -180,6 +180,8 @@ export function flowPdf(blocks,{title='',footer='',accent='#2f6b4a',author=''}={
   };
   for(const b of blocks){
     if(b.type==='pagebreak'){if(y>M+1)newPage();continue;}
+    // v7b n° 94 — photo JPEG insérée telle quelle (DCTDecode, aucune recompression).
+    if(b.type==='jpeg'){const img=doc.addJpeg(b.bytes),maxH=BOTTOM-M-24;let w=Math.min(W,b.maxWidth||W),h=w*img.height/img.width;if(h>maxH){h=maxH;w=h*img.width/img.height;}ensure(h+(b.caption?18:8));page.image(img,M,y,w,h);y+=h+4;if(b.caption)para(b.caption,{size:8,color:'#59625b'});else y+=4;continue;}
     if(b.type==='rule'){ensure(8);page.line(M,y+3,M+W,y+3,{color:'#d9d4c7',width:0.6});y+=10;continue;}
     if(b.type==='h1'){ensure(60);para(b.text,{font:'times',size:22,gap:8,lead:1.15});continue;}
     if(b.type==='h2'){ensure(70);y+=6;para(b.text,{font:'times',size:15,gap:2,lead:1.2});page.line(M,y,M+W,y,{color:accent,width:0.8});y+=8;continue;}

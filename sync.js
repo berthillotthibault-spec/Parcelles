@@ -76,7 +76,7 @@ export class SyncService{
   can(capability){return roleCan(this.role,capability);}
   canWriteEntity(entity,action,farmKind){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action,farmKind});}
   queueSummary(){return queueStats(this.store.snapshot().queue);}
-  networkAllows({attachments=false}={}){const p=this.store.snapshot().preferences,kind=connectionKind();if(!navigator.onLine)return false;if((p.syncWifiOnly||attachments&&p.syncAttachmentsWifiOnly)&&['cellular','2g','3g','4g','5g'].includes(kind))return false;return true;}
+  networkAllows({attachments=false,live=false}={}){const p=this.store.snapshot().preferences,kind=connectionKind();if(!navigator.onLine)return false;if((p.syncWifiOnly||attachments&&p.syncAttachmentsWifiOnly||live&&p.syncLiveWifiOnly)&&['cellular','2g','3g','4g','5g'].includes(kind))return false;return true;}
 
   async init(){
     const prefs=this.store.snapshot().preferences;
@@ -197,7 +197,15 @@ export class SyncService{
     if(transition)serverCursor=Math.max(serverCursor,1);
     // Un même document lu deux fois n’est traité qu’une fois (version la plus récente, lue en dernier).
     const docs=new Map();for(const doc of [...legacyDocs,...serverDocs])docs.set(doc.id,doc);
-    for(const doc of docs.values()){
+    const applied=await this.applyPulledDocs([...docs.values()],{last,serverLast});
+    return{...applied,cursor,serverCursor};
+  }
+
+  // Chemin d’application commun au pull et au temps réel (n° 136) : fusion à trois voies, conflits, applyRemote.
+  // changes : ce qui a réellement changé ici (pour le toast et le liseré), avec l’état local d’avant.
+  async applyPulledDocs(docList,{last=this.syncCursor,serverLast=this.serverCursor}={}){
+    let pulled=0,conflicts=0,merged=0;const changes=[];
+    for(const doc of docList){
       const remote=decodeCloudDocument(doc.data());
       if(!CLOUD_ENTITY_TYPES.includes(remote.entityType)||!remote.payload?.id)continue;
       // Retry failures and unresolved conflicts are still unsent local edits.
@@ -216,7 +224,7 @@ export class SyncService{
         const suggestion=await this.suggestMerge(remote.entityType,remote.entityId,local||p?.payload,remote.payload);
         if(this.store.snapshot().preferences.syncAutoMerge!==false&&suggestion.canMerge){
           const applied=await this.store.applyRemote(remote.entityType,suggestion.merged,{expectedQueueId:p?.id||null});
-          if(applied){if(canWrite)await this.writeRemoteEntity(remote.entityType,remote.entityId,suggestion.merged,'auto-merge');await this.saveBase(remote.entityType,canWrite?suggestion.merged:remote.payload);merged++;pulled++;}
+          if(applied){if(canWrite)await this.writeRemoteEntity(remote.entityType,remote.entityId,suggestion.merged,'auto-merge');await this.saveBase(remote.entityType,canWrite?suggestion.merged:remote.payload);merged++;pulled++;changes.push({entityType:remote.entityType,entityId:remote.entityId,before:local||null,after:suggestion.merged,modifiedBy:remote.modifiedBy||'',modifiedEmail:remote.modifiedEmail||'',deviceId:remote.deviceId||'',action:remote.action||'update',merged:true});}
           continue;
         }
         await this.createConflict(remote.entityType,remote.entityId,local||p?.payload,remote.payload,remote,suggestion);conflicts++;continue;
@@ -224,10 +232,24 @@ export class SyncService{
       // Copie locale déjà identique : rien à écrire (évite un enregistrement complet par document relu).
       if(local&&!differs){await this.saveBase(remote.entityType,remote.payload);continue;}
       if(!local||Number(remote.updatedAt||0)>=Number(local.updatedAt||0)||(!p&&fresh&&(successor||!canWrite))){
-        if(await this.store.applyRemote(remote.entityType,remote.payload,{expectedQueueId:p?.id||null})){await this.saveBase(remote.entityType,remote.payload);pulled++;}
+        if(await this.store.applyRemote(remote.entityType,remote.payload,{expectedQueueId:p?.id||null})){await this.saveBase(remote.entityType,remote.payload);pulled++;changes.push({entityType:remote.entityType,entityId:remote.entityId,before:local||null,after:remote.payload,modifiedBy:remote.modifiedBy||'',modifiedEmail:remote.modifiedEmail||'',deviceId:remote.deviceId||'',action:remote.action||'update'});}
       }
     }
-    return{pulled,conflicts,merged,cursor,serverCursor};
+    if(changes.length)try{this.onRemoteChanges?.(changes);}catch{}
+    return{pulled,conflicts,merged,changes};
+  }
+
+  // Temps réel (n° 136) : documents dont serverUpdatedAt dépasse le curseur serveur. Ne fait rien si une
+  // synchronisation complète est en cours (elle relira ces documents) ; avance le curseur serveur ensuite.
+  liveQuery(){if(!this.db||!this.workspaceId)return null;const from=this.serverTimeAt(Math.max(0,this.serverCursor-CURSOR_MARGIN_MS));if(!from)return null;return this.db.collection('workspaces').doc(this.workspaceId).collection('data').where('serverUpdatedAt','>',from).orderBy('serverUpdatedAt','asc');}
+  async applyLiveDocs(docs){
+    if(this.syncPromise||!docs?.length||this.serverCursor<=0)return{pulled:0,conflicts:0,merged:0,changes:[],skipped:true};
+    const own=doc=>{const d=doc.data?.()||{};return d.modifiedBy===this.user?.uid&&d.deviceId===(this.deviceId||'');};
+    const serverLast=this.serverCursor;let serverCursor=serverLast;
+    for(const doc of docs)serverCursor=Math.max(serverCursor,serverMillis(doc.data?.()?.serverUpdatedAt)||0);
+    const result=await this.applyPulledDocs(docs.filter(doc=>!own(doc)),{serverLast});
+    if(serverCursor>serverLast&&this.workspaceId){const ws=this.workspaceId;await this.store.mutate('Modifications reçues en direct.',state=>{state.metadata.syncServerCursors={...(state.metadata.syncServerCursors||{}),[ws]:Math.max(serverCursor,Number(state.metadata.syncServerCursors?.[ws]||0))};},{queue:false,log:false,bypassPermissions:true});}
+    return result;
   }
 
   async syncAttachmentBlobs(){
@@ -243,7 +265,7 @@ export class SyncService{
     try{
       const bootstrap=await this.bootstrapWorkspace(),pushed=await this.pushPending(),pulled=await this.pullRemote(),attachments=await this.syncAttachmentBlobs(),completedAt=Date.now();
       await this.store.mutate('Synchronisation terminée.',state=>{for(const conflict of state.syncConflicts||[]){if(conflict.status==='open'&&canonicalData(conflict.local)===canonicalData(conflict.remote)){conflict.status='resolved';conflict.resolution='identical';conflict.resolvedAt=completedAt;for(const item of state.queue){if(item.status==='conflict'&&item.entity===conflict.entity&&item.entityId===conflict.entityId){item.status='pending';item.nextRetryAt=0;}}}}state.metadata.lastSyncAt=completedAt;state.metadata.lastSyncError=null;state.metadata.syncFailureCount=0;state.metadata.syncBackoffUntil=null;state.metadata.syncCursors=state.metadata.syncCursors||{};state.metadata.syncCursors[this.workspaceId]=pulled.cursor;state.metadata.syncServerCursors={...(state.metadata.syncServerCursors||{}),[this.workspaceId]:pulled.serverCursor};if(this.clockSkew)state.metadata.clockSkew=clone(this.clockSkew);state.queue=state.queue.filter(item=>item.status!=='done');},{queue:false,log:false,bypassPermissions:true});
-      this.lastResult={...bootstrap,...pushed,...pulled,...attachments,at:completedAt,queue:this.queueSummary()};return this.lastResult;
+      const {changes:_changes,...pulledSummary}=pulled;this.lastResult={...bootstrap,...pushed,...pulledSummary,...attachments,at:completedAt,queue:this.queueSummary()};return this.lastResult;
     }catch(error){const message=sanitizeCloudError(error);await this.store.mutate('Synchronisation interrompue.',state=>{state.metadata.lastSyncError=message;state.metadata.syncFailureCount=Number(state.metadata.syncFailureCount||0)+1;state.metadata.syncBackoffUntil=Date.now()+syncRetryDelay(Math.min(8,state.metadata.syncFailureCount),15);},{queue:false,log:false,bypassPermissions:true});await this.audit('sync-error','sync',this.workspaceId,{message});throw new Error(message);}
   }
   async sync(options={}){if(this.syncPromise)return this.syncPromise;this.syncPromise=this._sync(options).finally(()=>{this.syncPromise=null;});return this.syncPromise;}

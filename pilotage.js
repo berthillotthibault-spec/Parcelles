@@ -33,6 +33,8 @@ export function parcelMargin(state,parcel,{campaign=campaignFor(),works=null}={}
   const done=list.filter(w=>DONE.includes(w.status||'Terminé')),planned=list.filter(w=>!done.includes(w));
   const realized=done.reduce((s,w)=>s+(cost(w)||0),0),engaged=planned.reduce((s,w)=>s+(cost(w)||0),0);
   const anyCosted=list.some(w=>cost(w)!==null);
+  // n° 65 — part mécanisation (coût machine + carburant) des travaux chiffrés, bornée au coût du travail.
+  const mechanization=list.reduce((s,w)=>{const c=cost(w);if(c===null)return s;const m=(numOrNull(w.machineCost)||0)+(numOrNull(w.fuelCost)||0);return s+Math.min(c,Math.max(0,m));},0);
   const manualHa=['inputCostHa','operatorCostHa','otherCostHa'].reduce((s,k)=>s+(numOrNull(econ[k])||0),0);
   const forfaitApplied=!anyCosted&&manualHa>0,forfait=forfaitApplied?manualHa*area:0;
   // Avec le forfait, les travaux non chiffrés sont couverts : ils ne comptent pas comme manquants.
@@ -50,15 +52,15 @@ export function parcelMargin(state,parcel,{campaign=campaignFor(),works=null}={}
     {key:'engaged',label:'Charges engagées (prévues)',status:status(planned.length-unknownPlanned,planned.length),value:engaged,missing:unknownPlanned,count:planned.length},
     {key:'forfait',label:'Forfait de charges manuelles',status:forfaitApplied?'connu':manualHa>0?'ignoré':'absent',value:forfait}
   ];
-  return{parcel,parcelId:parcel?.id,culture,area,works:list.length,realized,engaged,forfait,forfaitApplied,manualHa,ignoredManual:!forfaitApplied&&manualHa>0?manualHa*area:0,
+  return{parcel,parcelId:parcel?.id,culture,area,works:list.length,realized,engaged,forfait,mechanization,forfaitApplied,manualHa,ignoredManual:!forfaitApplied&&manualHa>0?manualHa*area:0,
     charges,product,productHa,yield:yieldValue,yieldUnit:econ.yieldUnit||'t/ha',price,
     marginRealized:product===null?null:product-realized-forfait,margin:product===null?null:product-charges,
     unknownRealized,unknownPlanned,reliability:Math.round((costScore+productScore)/2*100),lines};
 }
 
 const sumRows=rows=>{
-  const t=rows.reduce((a,r)=>{a.area+=r.area;a.charges+=r.charges;a.realized+=r.realized;a.engaged+=r.engaged;a.forfait+=r.forfait;a.unknownRealized+=r.unknownRealized;a.unknownPlanned+=r.unknownPlanned;a.weighted+=r.reliability*(r.area||0);if(r.product!==null){a.product+=r.product;a.productArea+=r.area;a.chargesWithProduct+=r.charges;}else a.withoutProduct+=1;return a;},
-    {area:0,charges:0,realized:0,engaged:0,forfait:0,unknownRealized:0,unknownPlanned:0,weighted:0,product:0,productArea:0,chargesWithProduct:0,withoutProduct:0});
+  const t=rows.reduce((a,r)=>{a.area+=r.area;a.charges+=r.charges;a.realized+=r.realized;a.engaged+=r.engaged;a.forfait+=r.forfait;a.unknownRealized+=r.unknownRealized;a.unknownPlanned+=r.unknownPlanned;a.weighted+=r.reliability*(r.area||0);a.mechanization+=r.mechanization||0;if(r.product!==null){a.product+=r.product;a.productArea+=r.area;a.chargesWithProduct+=r.charges;a.mechanizationWithProduct+=r.mechanization||0;}else a.withoutProduct+=1;return a;},
+    {area:0,charges:0,realized:0,engaged:0,forfait:0,mechanization:0,mechanizationWithProduct:0,unknownRealized:0,unknownPlanned:0,weighted:0,product:0,productArea:0,chargesWithProduct:0,withoutProduct:0});
   const reliability=t.area>0?Math.round(t.weighted/t.area):rows.length?Math.round(rows.reduce((s,r)=>s+r.reliability,0)/rows.length):0;
   const margin=t.productArea>0?t.product-t.chargesWithProduct:null;
   return{...t,reliability,margin,marginHa:margin!==null&&t.productArea>0?margin/t.productArea:null,productHa:t.productArea>0?t.product/t.productArea:null,costHa:t.area>0?t.charges/t.area:null,parcels:rows.length};

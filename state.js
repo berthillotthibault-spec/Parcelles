@@ -15,7 +15,7 @@ export function emptyState(){
     preferences:{
       ...PERSONALIZATION_DEFAULTS,mapLayer:'osm',mapColorMode:'culture',theme:'system',gpsConsent:false,
       autoBackup:true,syncEnabled:false,workspaceId:'',cloudRole:null,syncAttachments:true,syncWifiOnly:false,syncAttachmentsWifiOnly:false,syncRetryMax:5,syncRetryBaseSeconds:15,syncAutoMerge:true,weatherDays:7,
-      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent','campaign'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,assistantLocalFirst:true,assistantVoiceReplies:false,assistantTerrainContext:true,integrationAutoMatch:true,stationWeatherEnabled:false,platformBackendEnabled:false,platformApiEndpoint:'',platformAutoJobs:false,platformIsolation:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeNotificationActions:true,nativeHaptics:true,nativeCameraEnabled:true,nativeStatusBar:true,biometricLock:false,biometricLockMinutes:5,automationEventTriggers:true,automationMaxActionsPerRun:25,securityAuditEnabled:true,encryptedExportIterations:250000
+      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent','campaign'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,assistantLocalFirst:true,assistantVoiceReplies:false,assistantTerrainContext:true,integrationAutoMatch:true,stationWeatherEnabled:false,platformBackendEnabled:false,platformApiEndpoint:'',platformAutoJobs:false,platformIsolation:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeNotificationActions:true,nativeHaptics:true,nativeCameraEnabled:true,nativeStatusBar:true,biometricLock:false,biometricLockMinutes:5,automationEventTriggers:true,automationMaxActionsPerRun:25,securityAuditEnabled:true,encryptedExportIterations:600000
     },
     metadata:{
       createdAt:timestamp,updatedAt:timestamp,lastImportAt:null,lastSyncAt:null,lastWeatherAt:null,
@@ -219,7 +219,7 @@ export function migrateData(input){
     data.preferences.syncRetryBaseSeconds=Math.min(300,Math.max(5,Number(data.preferences.syncRetryBaseSeconds??15)||15));
     data.preferences.syncAutoMerge=data.preferences.syncAutoMerge!==false;
     data.preferences.securityAuditEnabled=data.preferences.securityAuditEnabled!==false;
-    data.preferences.encryptedExportIterations=Math.min(1000000,Math.max(100000,Number(data.preferences.encryptedExportIterations??250000)||250000));
+    data.preferences.encryptedExportIterations=Math.min(1000000,Math.max(100000,Number(data.preferences.encryptedExportIterations??600000)||600000));
     data.metadata.lastSyncError=data.metadata.lastSyncError||null;
     data.metadata.syncFailureCount=Number(data.metadata.syncFailureCount||0);
     data.metadata.syncBackoffUntil=data.metadata.syncBackoffUntil||null;
@@ -495,7 +495,9 @@ export class Store{
   async _recoverStale(previous){try{await this._reloadFromStorage();}catch(reloadError){console.warn('[Parcelles] rechargement après écriture concurrente impossible.',reloadError);this.state=previous;}}
 
   log(type,message,details=null){
-    this.state.journal.unshift({id:uid('log'),type,message,details,createdAt:now()});
+    // n° 139 : auteur (si connu) pour le journal d’activité unifié.
+    let by='';try{by=String(this.historyActor?.()||'');}catch{}
+    this.state.journal.unshift({id:uid('log'),type,message,details,createdAt:now(),...(by?{by}:{})});
     this.state.journal=this.state.journal.slice(0,500);
   }
 
@@ -516,7 +518,7 @@ export class Store{
     try{
       const result=await fn(this.state);
       this.state.metadata.revision+=1;
-      if(options.log!==false)this.log(options.kind||'modification',label,options.details);
+      if(options.log!==false)this.log(options.kind||'modification',label,options.entity&&options.entity!=='state'&&options.entityId?{...(options.details||{}),entityType:options.entity,entityId:options.entityId,action:options.action||'update'}:options.details);
       if(options.queue!==false)this.queue({entity:options.entity||'state',entityId:options.entityId||'state',action:options.action||'update',payload:options.payload||null});
       await this.persist();
       this.notify({label,...options});
@@ -588,7 +590,7 @@ export class Store{
       const normalized=entities.map(entity=>{const existing=entity.id?this.get(type,entity.id,{includeDeleted:true}):null;const value=normalizeEntity(type,entity,existing);const errors=validate(type,value);if(errors.length)throw new Error(errors.join(' — '));return{value,existing};});
       const changes=[];
       for(const {value,existing} of normalized){const index=this.state[type].findIndex(item=>item.id===value.id);changes.push({type,before:index>=0?clone(this.state[type][index]):null,after:value});if(index>=0)this.state[type][index]=value;else this.state[type].push(value);this.queue({entity:type,entityId:value.id,action:existing?'update':'create',payload:value});}
-      this.state.metadata.revision+=1;this.log('modification',label,{count:normalized.length,type});await this.persist();this.notify({label,kind:'batch',entity:type,count:normalized.length});
+      this.state.metadata.revision+=1;this.log('modification',label,{count:normalized.length,type,entityType:type,...(normalized.length===1?{entityId:normalized[0].value.id}:{})});await this.persist();this.notify({label,kind:'batch',entity:type,count:normalized.length});
       await this._recordHistory(changes,{label});
       return normalized.map(x=>x.value);
     }catch(error){

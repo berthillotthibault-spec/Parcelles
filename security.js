@@ -37,9 +37,23 @@ async function deriveKey(password,salt,iterations,usage){
   return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations,hash:'SHA-256'},material,{name:'AES-GCM',length:256},false,usage);
 }
 
-export async function encryptJsonPayload(payload,password,{iterations=250000}={}){
+// n° 140 : 600 000 itérations PBKDF2-SHA256 par défaut (recommandation OWASP 2023) ; les anciennes
+// sauvegardes (250 000) restent lisibles car le nombre d'itérations est lu dans le conteneur.
+export const DEFAULT_PBKDF2_ITERATIONS=600000;
+export const LEGACY_PBKDF2_ITERATIONS=250000;
+const MAX_PBKDF2_ITERATIONS=10000000;
+// Indice de phrase secrète : stocké EN CLAIR dans le fichier, il ne doit pas contenir le mot de passe.
+export function normalizeHint(hint,password=''){
+  const value=String(hint||'').replace(/\s+/g,' ').trim().slice(0,120);
+  if(value&&password&&value.toLowerCase().includes(String(password).toLowerCase()))throw new Error('L’indice ne doit pas contenir la phrase secrète.');
+  return value;
+}
+export const encryptedHint=container=>typeof container?.hint==='string'?container.hint.slice(0,120):'';
+
+export async function encryptJsonPayload(payload,password,{iterations=DEFAULT_PBKDF2_ITERATIONS,hint=''}={}){
   const quality=passwordStrength(password);
   if(!quality.ok)throw new Error('Utilisez un mot de passe d’au moins 12 caractères, avec plusieurs types de caractères.');
+  const cleanHint=normalizeHint(hint,password);
   const crypto=cryptoApi(),salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
   const key=await deriveKey(password,salt,iterations,['encrypt']);
   const plaintext=encoder.encode(JSON.stringify(payload));
@@ -53,14 +67,17 @@ export async function encryptJsonPayload(payload,password,{iterations=250000}={}
     salt:bytesToBase64(salt),
     iv:bytesToBase64(iv),
     ciphertext:bytesToBase64(new Uint8Array(encrypted)),
-    createdAt:Date.now()
+    createdAt:Date.now(),
+    ...(cleanHint?{hint:cleanHint}:{})
   };
 }
 
 export async function decryptJsonPayload(container,password){
   if(!container||container.format!=='parcelles-encrypted-v1')throw new Error('Format de sauvegarde chiffrée non reconnu.');
   const crypto=cryptoApi(),salt=base64ToBytes(container.salt),iv=base64ToBytes(container.iv),ciphertext=base64ToBytes(container.ciphertext);
-  const key=await deriveKey(password,salt,Number(container.iterations||250000),['decrypt']);
+  const iterations=Number(container.iterations||LEGACY_PBKDF2_ITERATIONS);
+  if(!Number.isInteger(iterations)||iterations<1000||iterations>MAX_PBKDF2_ITERATIONS)throw new Error('Paramètres de chiffrement invalides.');
+  const key=await deriveKey(password,salt,iterations,['decrypt']);
   try{
     const decrypted=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ciphertext);
     return JSON.parse(decoder.decode(decrypted));

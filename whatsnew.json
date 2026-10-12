@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.15.0",
+      "date": "2026-10-12",
+      "title": "Gestion, terrain et sécurité",
+      "items": [
+        "Gestion : marges par culture avec les aides PAC, stocks par lots, baux et fermages, carburant GNR et estimation TICPE.",
+        "Dossier sinistre (gibier, grêle, sécheresse) depuis une observation, avec PDF pour la fédération ou l’assureur.",
+        "Terrain : trace GPS du chantier, photos géolocalisées sur la carte et stades estimés selon les températures.",
+        "Écran « Activité », corbeille plus claire et verrouillage optionnel de l’application par code ou Face ID."
+      ]
+    },
+    {
       "version": "10.14.0",
       "date": "2026-10-10",
       "title": "Carte, élevage et confiance",

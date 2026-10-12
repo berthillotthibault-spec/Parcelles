@@ -1,4 +1,5 @@
 import {campaignFor, toNumber, normalize} from './utils.js';
+import {validateExtraction, EXTRACT_MODE} from './stock-capture.js';
 
 const ALLOWED_ACTIONS=new Set([
   'create_work','create_task','open_parcel','open_work','open_task','open_equipment',
@@ -55,5 +56,21 @@ export async function askRemoteAssistant({endpoint,question,state,context={},tim
     const data=await response.json(),answer=data.answer||data.text||data.response;
     if(!String(answer||'').trim())throw new Error('Le service IA n’a retourné aucune réponse.');
     return{answer:String(answer).slice(0,6000),actions:(Array.isArray(data.actions)?data.actions:[]).map(sanitizeAction).filter(Boolean).slice(0,6)};
+  }finally{clearTimeout(timer);}
+}
+
+// n° 106 — Extraction d'une facture ou d'une étiquette par le même endpoint IA (mode 'extract-document').
+// L'appelant a recueilli le consentement explicite ; aucune clé n'est envoyée par le client.
+export async function extractDocument({endpoint,file,fetchImpl=(...a)=>fetch(...a),timeoutMs=30000}={}){
+  if(!endpoint)throw new Error('Aucun endpoint IA configuré.');
+  const url=new URL(endpoint,location.href);if(!/^https:$/.test(url.protocol)&&url.hostname!=='localhost')throw new Error('L’endpoint IA doit utiliser HTTPS.');
+  if(!file||!/^image\/|^application\/pdf$/.test(file.type||''))throw new Error('Image ou PDF attendu.');
+  if(file.size>8*1024*1024)throw new Error('Fichier trop lourd (8 Mo au plus).');
+  const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const response=await fetchImpl(url.href,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode:EXTRACT_MODE,client:'Parcelles',document:{name:String(file.name||'document').slice(0,120),mimeType:file.type,dataBase64:btoa(binary)},expected:{lignes:[{produit:'',quantité:0,unité:'',prix:0,AMM:'',lot:''}]}}),signal:controller.signal});
+    if(!response.ok)throw new Error(`Service IA ${response.status}`);
+    return validateExtraction(await response.json());
   }finally{clearTimeout(timer);}
 }

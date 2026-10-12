@@ -29,7 +29,9 @@ export function createViewTransitions({doc = globalThis.document, win = globalTh
     if (!shouldTransition({from, to, supported, reduced: Boolean(reducedQuery?.matches)})) { shared = null; return false; }
     const pair = shared; shared = null;
     clearNames();
-    const hero = doc.querySelector('#view-parcel .detail-hero'), title = doc.querySelector('#parcel-detail-title');
+    // n° 29 : la grande silhouette de l'en-tête prend le relais de l'avatar de la ligne (repli : tout l'en-tête).
+    const heroEl = () => doc.querySelector('#view-parcel .detail-hero .hero-shape') || doc.querySelector('#view-parcel .detail-hero');
+    const hero = heroEl(), title = doc.querySelector('#parcel-detail-title');
     if (pair?.direction === 'open' && to === 'parcel') { setName(pair.avatar, SHARED_NAMES.avatar); setName(pair.name, SHARED_NAMES.name); }
     if (pair?.direction === 'close' && from === 'parcel') { setName(hero, SHARED_NAMES.avatar); setName(title, SHARED_NAMES.name); }
     root.dataset.vt = transitionDirection(from, to);
@@ -38,7 +40,7 @@ export function createViewTransitions({doc = globalThis.document, win = globalTh
       transition = doc.startViewTransition(() => {
         clearNames();
         update();
-        if (pair?.direction === 'open' && to === 'parcel') { setName(hero, SHARED_NAMES.avatar); setName(title, SHARED_NAMES.name); }
+        if (pair?.direction === 'open' && to === 'parcel') { setName(heroEl(), SHARED_NAMES.avatar); setName(title, SHARED_NAMES.name); }
         if (pair?.direction === 'close' && to === 'parcels') {
           const row = doc.querySelector(`#parcel-list [data-id="${CSS.escape(pair.parcelId)}"]`);
           setName(row?.querySelector('.crop-dot'), SHARED_NAMES.avatar); setName(row?.querySelector('.row-main strong'), SHARED_NAMES.name);
