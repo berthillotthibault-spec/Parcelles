@@ -2375,3 +2375,263 @@ html[data-map-mode] .map-whereami,.map-whereami.hidden{display:none}
 .restore-check{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
 .restore-check input{width:22px;height:22px;flex:none;accent-color:var(--brand)}
 .restore-check small{color:var(--text-secondary);margin-left:4px}
+/* v7A n° 42 : trace GPS du chantier et couverture en direct */
+.field-track-fields{border:1px solid var(--border-strong);border-radius:14px;padding:8px 12px 10px;margin:0;display:grid;gap:8px;min-width:0}
+.field-track-fields legend{padding:0 4px;font-weight:600}
+.field-track-fields .check-row{display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
+.field-track-fields .check-row input{width:22px;height:22px;flex:none;accent-color:var(--brand)}
+.field-track-live{grid-column:1/-1;display:grid;gap:6px;margin-top:10px;width:100%}
+.field-track-percent{margin:0;font-size:17px}
+.field-track-map{width:100%;max-height:260px;background:var(--surface-secondary);border-radius:12px}
+.field-track-map .track-parcel{fill:none;stroke:var(--text-primary);stroke-width:1.5}
+.field-track-map .track-swath{fill:#2f82b0;fill-opacity:.35;stroke:none}
+.field-track-map .track-dot{fill:#2f82b0;stroke:var(--surface);stroke-width:2}
+.field-track-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0;font-size:13px;color:var(--text-secondary)}
+.field-track-legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.field-track-legend .lg-swath::before{background:rgba(47,130,176,.45)}.field-track-legend .lg-miss::before{background:#e0892c}.field-track-legend .lg-over::before{background:#c8402f}
+.field-track-summary{border:1px solid var(--border-subtle);border-radius:12px;padding:8px 12px;margin:10px 0}
+.field-track-summary p{margin:4px 0}.field-track-summary .button{min-height:44px}
+/* v7A n° 14 : photos terrain géolocalisées, couche carte et frise avant/après */
+.photo-geo-form{display:grid;gap:12px}
+.photo-geo-pick{display:flex;flex-wrap:wrap;gap:10px}
+.photo-geo-btn{min-height:48px;flex:1 1 160px;justify-content:center;cursor:pointer;position:relative}
+.photo-geo-btn:focus-within{outline:2px solid var(--brand);outline-offset:2px}
+.photo-geo-previews{display:flex;flex-wrap:wrap;gap:8px}
+.photo-geo-prev{position:relative;width:72px;height:72px;border-radius:10px;overflow:hidden;background:var(--surface-secondary)}
+.photo-geo-prev img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-geo-prev .icon-button{position:absolute;top:0;right:0;min-width:44px;min-height:44px;background:rgba(0,0,0,.45);color:#fff;border-radius:0 0 0 10px}
+.photo-geo-tags{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+.photo-geo-tags legend{padding:0 0 6px;font-weight:600}
+.chip-check{position:relative;display:inline-flex}
+.chip-check input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.chip-check span{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--chip-border);background:var(--surface);color:var(--text-primary)}
+.chip-check input:checked+span{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.chip-check input:focus-visible+span{outline:2px solid var(--brand);outline-offset:2px}
+.photo-map-marker{background:none;border:0}
+.photo-map-thumb{display:block;width:44px;height:44px;border-radius:10px;overflow:hidden;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);background:#2f82b0;cursor:pointer}
+.photo-map-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-timeline-root{display:grid!important;gap:12px;grid-template-columns:minmax(0,1fr)!important}
+.photo-tag-filter{display:flex;flex-wrap:wrap;gap:8px}
+.photo-before-after h3{margin:0 0 8px;font-size:15px}
+.photo-before-after>div{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:560px}
+.photo-ba,.photo-timeline .photo-thumb{display:grid;gap:4px;padding:0;border:0;background:none;text-align:left;color:var(--text-secondary);cursor:pointer;min-width:0}
+.photo-ba img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;background:var(--surface-secondary)}
+.photo-ba small,.photo-timeline small{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.photo-timeline{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}
+.photo-timeline .photo-thumb{flex:0 0 132px;scroll-snap-align:start}
+.photo-timeline .photo-thumb img{width:132px;height:100px;object-fit:cover;border-radius:10px;background:var(--surface-secondary)}
+@media (min-width:900px){.photo-timeline{flex-wrap:wrap;overflow:visible}}
+/* v7A n° 61 : riverains, ruchers et établissements sensibles avant traitement */
+.neighbor-contact{border:1px solid var(--border-strong);border-radius:14px;padding:8px 12px 10px;margin:0;display:grid;gap:8px;min-width:0}
+.neighbor-contact legend{padding:0 4px;font-weight:600}
+.neighbor-contact .check-row{display:flex;align-items:flex-start;gap:10px;min-height:44px;cursor:pointer}
+.neighbor-contact .check-row input{width:22px;height:22px;flex:none;margin-top:2px;accent-color:var(--brand)}
+.neighbors-panel{border:1px solid var(--border-strong);border-radius:14px;padding:10px 12px;display:grid;gap:8px}
+.neighbors-panel h3{margin:0;font-size:15px}
+.neighbors-panel p{margin:0}
+.neighbor-summary{color:var(--warning)}
+.neighbor-bee{background:var(--warning-soft);color:var(--text-primary);border-radius:10px;padding:8px 10px}
+.neighbor-radius{display:inline-flex;align-items:center;gap:6px;color:var(--text-secondary);font-weight:400}
+.neighbor-radius select{min-height:44px;width:auto}
+.neighbor-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.neighbor-list li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--border-subtle);padding-top:6px}
+.neighbor-list li>span:first-child{display:grid;min-width:0}
+.neighbor-list small{color:var(--text-secondary)}
+.neighbor-list .button{min-height:44px}
+.neighbor-links{display:flex;gap:6px}
+/* v7A n° 29 : silhouette de parcelle et en-tête héros de la fiche */
+.crop-dot.has-shape{background:color-mix(in srgb,var(--shape) 16%,var(--surface));border:1px solid color-mix(in srgb,var(--shape) 35%,transparent)}
+.crop-dot.has-shape svg{width:100%;height:100%;display:block}
+.crop-dot.has-shape path{fill:var(--shape);fill-opacity:.9;stroke:var(--shape);stroke-width:1;stroke-linejoin:round}
+.detail-hero.has-shape{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:16px;align-items:end}
+.detail-hero.has-shape>*{grid-column:1}
+.detail-hero.has-shape::before{grid-column:1}
+.detail-hero .hero-shape{grid-column:2!important;grid-row:1/span 3;align-self:center;width:112px;height:112px}
+.detail-hero .hero-shape svg{width:100%;height:100%;display:block}
+.detail-hero .hero-shape path{fill:var(--crop);fill-opacity:.85;stroke:color-mix(in srgb,var(--crop) 70%,var(--text-primary));stroke-width:1.5;stroke-linejoin:round}
+.hero-rotation{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;max-width:460px}
+.hero-rotation li{border-top:4px solid var(--rot);padding-top:4px;display:grid;min-width:0}
+.hero-rotation li.is-empty{border-top-style:dashed;border-top-color:var(--border-strong)}
+.hero-rotation small{color:var(--text-secondary);font-size:12px}
+.hero-rotation strong{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero-rotation li.is-current strong{color:var(--text-primary)}
+@media (min-width:900px){.detail-hero .hero-shape{width:150px;height:150px}}
+/* v7A n° 31 : travaux du jour sans date répétée, métadonnées et balayage Fait / Demain */
+.work-row .row-meta{display:flex;flex-wrap:wrap;gap:0;font-size:13px;color:var(--text-secondary);margin-top:2px}
+.work-row .row-meta span:empty{display:none}
+.work-row .row-meta span:not(:empty)~span:not(:empty)::before{content:" · "}
+.work-row[data-swipe]{position:relative;overflow:hidden;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.work-row[data-swipe]>*{position:relative;z-index:1}
+.work-row.is-swiping>*{transform:translateX(var(--swipe-x,0));transition:none}
+.work-row.is-settling>*{transition:transform .2s ease}
+.work-row[data-swipe]::before{content:"";position:absolute;inset:0;z-index:0;display:flex;align-items:center;padding:0 18px;font-weight:700;opacity:0}
+.work-row[data-swipe-dir="done"]::before{content:"Fait";justify-content:flex-start;background:color-mix(in srgb,var(--success) 22%,var(--surface));color:var(--success);opacity:1}
+.work-row[data-swipe-dir="postpone"]::before{content:"Demain";justify-content:flex-end;background:color-mix(in srgb,var(--warning) 22%,var(--surface));color:var(--warning);opacity:1}
+.work-row.is-armed[data-swipe-dir="done"]::before{background:var(--success);color:var(--on-brand)}
+.work-row.is-armed[data-swipe-dir="postpone"]::before{background:var(--warning);color:var(--on-brand)}
+@media (prefers-reduced-motion:reduce){.work-row.is-settling>*{transition:none}}
+@media (min-width:900px){
+  #work-list .work-row .row-meta{display:grid;grid-template-columns:5.5rem minmax(0,10rem) minmax(0,10rem);column-gap:12px}
+  #work-list .work-row .row-meta span:empty{display:block}
+  #work-list .work-row .row-meta span:not(:empty)~span:not(:empty)::before{content:none}
+}
+/* v7A n° 38 : rangée d'actions rapides sans débordement coupé */
+@media (max-width:899px){
+  /* Mobile : défilement aimanté, fondu à droite, et réserve en fin de rangée pour que l'assistant ne masque aucune puce. */
+  html body #today-quick-actions.quick-action-strip.quick-action-strip{scroll-snap-type:x proximity;scroll-padding-inline:20px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
+  /* Pastille de 40 px (maquette) et zone tactile étendue à 44 px. */
+  html body #today-quick-actions .quick-action{scroll-snap-align:start;position:relative}
+  html body #today-quick-actions .quick-action::before{content:"";position:absolute;left:0;right:0;top:-2px;bottom:-2px}
+  html body #today-quick-actions.quick-action-strip::after{content:"";flex:0 0 var(--qa-dock-clearance,150px);height:1px}
+  html[data-assistant-dock="hidden"] body #today-quick-actions.quick-action-strip::after{flex-basis:24px}
+}
+@media (min-width:900px){
+  /* Ordinateur : tuiles en grille qui passent à la ligne, sans défilement horizontal. */
+  html body #today-quick-actions.quick-action-strip.quick-action-strip{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;overflow:visible;margin-left:0;margin-right:0;padding-left:0;padding-right:0;-webkit-mask-image:none;mask-image:none}
+  html body #today-quick-actions .quick-action{height:auto;min-height:64px;flex-direction:column;justify-content:center;align-items:center;gap:6px;padding:10px 8px;border-radius:16px;white-space:normal;text-align:center;min-width:0}
+  html body #today-quick-actions .quick-action strong{font-size:13px;line-height:1.2}
+}
+/* v7c n° 102 : habitudes (mention « habituel » et note du formulaire) */
+.habit-tag{display:inline-block;margin-inline-start:6px;padding:1px 8px;border-radius:999px;background:var(--brand-soft);color:var(--text-primary);font-size:12px;font-weight:600}
+.habit-note{margin:10px 0;padding:10px 12px;border-radius:12px;background:var(--brand-soft);color:var(--text-primary);font-size:14px}
+.habit-note small{color:var(--text-secondary)}
+/* v7c n° 103 : sommes de températures et stades estimés (fiche parcelle) */
+.pheno-flag{padding:2px 10px;border-radius:999px;border:1px dashed var(--border-strong);color:var(--text-secondary);font-size:12px;font-weight:600}
+.pheno-sentence{margin:0 0 10px;color:var(--text-primary)}
+.pheno-bar{position:relative;height:12px;border-radius:999px;background:var(--surface-secondary);overflow:hidden;margin:6px 0 8px}
+.pheno-bar>span{position:absolute;inset-block:0;inset-inline-start:0;background:var(--brand);border-radius:999px}
+.pheno-bar>i{position:absolute;inset-block:0;width:2px;background:var(--surface);opacity:.85}
+.pheno-stages{display:flex;flex-wrap:wrap;gap:4px 12px;list-style:none;margin:0 0 8px;padding:0;font-size:13px;color:var(--text-secondary)}
+.pheno-stages li{display:flex;gap:4px;align-items:baseline}.pheno-stages li small{opacity:.8}
+.pheno-stages li.is-done{color:var(--text-primary)}.pheno-stages li.is-done::before{content:"✓";color:var(--success)}
+.pheno-stages li.is-next{font-weight:700;color:var(--text-primary)}
+.pheno-next,.pheno-note{margin:6px 0;font-size:14px}.pheno-note{color:var(--text-secondary)}
+.pheno-source{margin:8px 0 0;color:var(--text-secondary)}
+.pheno-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.pheno-actions .button{min-height:44px}
+.pheno-empty{margin:0;color:var(--text-secondary)}
+/* v7c n° 108 : alertes sanitaires météo */
+.agro-risk-home{margin-top:10px}
+.agro-risk-line{display:flex;gap:10px;align-items:flex-start;width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--surface);color:var(--text-primary);text-align:start;font:inherit;font-size:14px;cursor:pointer}
+.agro-risk-line small{color:var(--text-secondary)}
+.agro-risk-badge{flex:none;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;background:var(--warning-soft);color:var(--text-primary)}
+.is-risque .agro-risk-badge{background:var(--danger-soft)}
+.agro-risk-item{border:1px solid var(--border-subtle);border-inline-start:4px solid var(--warning);border-radius:12px;padding:12px;margin-bottom:12px}
+.agro-risk-item.is-risque{border-inline-start-color:var(--danger)}
+.agro-risk-item header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.agro-risk-item p{margin:8px 0}
+.agro-risk-item dl{display:grid;gap:4px;margin:0 0 10px;font-size:13px}
+.agro-risk-item dl div{display:grid;grid-template-columns:80px 1fr;gap:8px}
+.agro-risk-item dt{color:var(--text-secondary)}.agro-risk-item dd{margin:0}
+.agro-risk-item .button{min-height:44px}
+.agro-risk-foot{color:var(--text-secondary)}
+/* v7c n° 109 : aide aux dates de semis (température du sol) */
+.sowing-card.is-ready{border-inline-start:4px solid var(--success)}
+.sowing-sentence{margin:0 0 8px;color:var(--text-primary)}
+.sowing-badge{background:var(--brand-soft)}
+/* v7c n° 112 : délais de retour et classement par marge/ha (vue Rotation) */
+.rotation-alerts{margin:0 0 8px;padding:0;list-style:none;display:grid;gap:6px}
+.rotation-alerts li{padding:10px 12px;border-radius:12px;background:var(--warning-soft);color:var(--text-primary);font-size:14px}
+.rotation-ok{color:var(--text-secondary);margin:0 0 8px}
+.rotation-source{color:var(--text-secondary);margin:4px 0 12px}
+.rotation-source .text-button{min-height:44px}
+.margin-rank td.num{text-align:right;white-space:nowrap}.margin-rank td.is-neg{color:var(--danger)}
+/* v7c n° 106 : photo d'étiquette ou de facture vers le stock */
+.stock-capture-box{border:1px solid var(--border-subtle);border-radius:12px;padding:10px 12px;margin:0;display:grid;gap:10px;min-width:0}
+.stock-capture-box legend{padding:0 4px;font-weight:600;color:var(--text-primary)}
+.stock-capture-box .button{min-height:44px}
+.sc-hint{margin:0;color:var(--text-secondary);font-size:14px}
+.sc-consent{display:flex;gap:10px;align-items:flex-start;min-height:44px;font-size:14px}
+.sc-consent input{width:22px;height:22px;flex:none;margin-top:2px}
+.sc-table td{vertical-align:top}.sc-table td small{display:block;color:var(--text-secondary);font-size:12px}
+.sc-table input[type="number"]{width:7em;min-height:44px}.sc-table select{min-height:44px;max-width:16em}
+.sc-table .sc-ok{width:24px;height:24px}
+#sc-result>.button{margin-top:10px;min-height:44px}
+@media (max-width:640px){.sc-table thead{display:none}.sc-table,.sc-table tbody,.sc-table tr,.sc-table td{display:block;width:100%}.sc-table tr{border-bottom:1px solid var(--line);padding:8px 0}.sc-table td{border:0;padding:4px 0}.sc-table td[data-label]::before{content:attr(data-label);display:block;font-size:12px;color:var(--text-secondary)}.sc-table select{max-width:100%;width:100%;box-sizing:border-box}.sc-table td{box-sizing:border-box}}
+/* v7c n° 121 : fichiers reçus d'autres applications (tri « C'est quoi ? ») */
+.share-files{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.share-files li{display:flex;justify-content:space-between;gap:12px;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:12px;overflow-wrap:anywhere}
+.share-files small{color:var(--text-secondary);white-space:nowrap}
+.share-hint{margin:0;color:var(--text-secondary);font-size:14px}
+
+/* v7b n° 65 · Marges par culture */
+.cm-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.cm-tabs .choice-chip{min-height:44px}
+.cm-card{display:none;border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--surface)}
+.cm-card.is-open{display:block}
+.cm-card header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.cm-card h3{margin:0}
+.cm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin:12px 0}
+.cm-cell{display:grid;gap:2px;padding:8px 10px;border-radius:10px;background:var(--surface-secondary)}
+.cm-cell small{color:var(--text-secondary)}
+.cm-cell.is-key strong{color:var(--brand)}
+.cm-history{display:flex;flex-wrap:wrap;gap:4px 14px;color:var(--text-secondary);font-size:13px}
+.cm-partial{color:var(--warning,#b88722);font-weight:600}
+.cm-chart .chart-waterfall{width:100%;max-width:520px}
+.chart-wf-total{fill:var(--brand)}
+.chart-wf-up{fill:#548e61}
+.chart-wf-down{fill:#bf4944}
+.cm-aids{margin-top:14px}
+
+/* v7b n° 66 · Lots, silos et fiche de traçabilité */
+.grain-lot-stock{display:grid;gap:8px;margin:10px 0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-secondary)}
+.grain-lot-stock .button{min-height:44px;justify-self:start}
+.grain-lot-stock p{margin:0}
+.grain-lot-stock .badge{justify-self:start}
+.grain-sheet{display:grid;gap:12px}
+.grain-qr{width:132px;padding:6px;background:#fff;border-radius:10px;justify-self:start}
+.grain-qr svg{display:block;width:100%;height:auto}
+.grain-norms{display:grid;gap:10px}
+.grain-norms fieldset{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px}
+#grain-norms-open{min-height:44px}
+
+/* v7b n° 73 · Lots d'intrants, alertes et inventaire valorisé */
+.stock-lots-summary{margin:14px 0}
+.stock-alerts{list-style:none;margin:8px 0;padding:0;display:grid;gap:6px}
+.stock-alerts li{padding:8px 10px;border-radius:10px;border-left:3px solid var(--line);background:var(--surface-secondary)}
+.stock-alerts li.is-danger{border-left-color:#bf4944}
+.stock-alerts li.is-warning{border-left-color:#b88722}
+.stock-alerts li.is-info{border-left-color:var(--brand)}
+.stock-lots-actions{display:flex;flex-wrap:wrap;gap:8px}
+.stock-lots-actions .button,.stock-lot-actions .small-button{min-height:44px}
+.stock-lot-row>div:first-child{display:grid;gap:2px}
+.stock-lot-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.inventory-table{width:100%;border-collapse:collapse}
+.inventory-table th,.inventory-table td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.inventory-table td small{color:var(--text-secondary)}
+.table-wrap .inventory-table{min-width:0}.inventory-table th,.inventory-table td{white-space:normal;overflow-wrap:anywhere}
+
+/* v7b n° 80 · Atelier bovin */
+.herd-econ-card{margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.herd-econ-card h3{margin-top:0}
+.herd-econ-card .button{min-height:44px}
+
+/* v7b n° 93 · Foncier et fermages */
+.land-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.land-actions .button,.land-index .button,.land-row-actions .small-button{min-height:44px}
+.land-row-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.land-index{margin:12px 0}
+
+/* v7d n° 136 : liseré bref sur une ligne modifiée par un autre membre (temps réel) */
+.live-flash{box-shadow:inset 3px 0 0 var(--brand,#2f6b4f);animation:live-flash-fade 1.6s ease-out}
+@keyframes live-flash-fade{from{background-color:color-mix(in srgb,var(--brand-soft,#e3efe7) 100%,transparent)}to{background-color:transparent}}
+@media (prefers-reduced-motion:reduce){.live-flash{animation:none}}
+
+/* v7d n° 139 : écran Activité (frise unifiée) */
+.activity-filters{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:6px}
+.activity-timeline{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.activity-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;width:100%;min-height:44px;padding:10px 12px;text-align:left;background:var(--surface,#fff);border:1px solid var(--line,#e4dfd3);border-radius:12px;color:inherit;font:inherit;cursor:pointer}
+.activity-row:disabled{cursor:default;opacity:.85}
+.activity-row strong{grid-column:1}
+.activity-row small{grid-column:1;color:var(--muted-text,#4c544f)}
+.activity-source{grid-column:2;grid-row:1/span 2;align-self:center;font-size:.75rem;padding:2px 8px;border-radius:999px;background:var(--brand-soft,#e3efe7);color:var(--brand,#2f6b4f)}
+.activity-source.local{background:transparent;border:1px solid var(--line,#e4dfd3);color:var(--muted-text,#4c544f)}
+
+/* v7d n° 140 : écran de verrouillage */
+.app-lock{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:16px;background:var(--bg,#f6f2e9)}
+.app-lock-card{display:grid;gap:12px;width:min(360px,100%);padding:24px;background:var(--surface,#fff);border:1px solid var(--line,#e4dfd3);border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.08)}
+.app-lock-card h2{margin:0;font-size:1.25rem}
+.app-lock-card input{font-size:1.25rem;letter-spacing:.3em;text-align:center}
+.app-lock-card .button{min-height:44px}
+
+/* v7d n° 141 : corbeille groupée */
+.trash-filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}

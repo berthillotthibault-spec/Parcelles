@@ -3,11 +3,61 @@
 // des fenêtres ouvertes par modal(), pour couvrir les modules sans modifier chacun d'eux.
 
 export const HELP = {
+  'field-photos': {match: /^Photos terrain/i, title: 'Photos terrain', points: [
+    'La position est relevée au moment de la photo et la parcelle est trouvée seule, sans la choisir avant.',
+    'Pour une photo importée, le lieu vient des données GPS de l’image ; les autres informations de l’appareil sont retirées.',
+    'Les étiquettes (adventices, maladie, clôture…) servent de filtre dans la fiche parcelle et sur la couche Photos de la carte.'
+  ]},
   'herd-health': {match: /^Carnet sanitaire/i, title: 'Carnet sanitaire', points: [
     'Chaque soin vétérinaire se note avec le médicament, l’ordonnance et les délais d’attente viande et lait.',
     'Tant qu’un délai court, l’accueil rappelle de ne pas vendre ni abattre les animaux concernés, ou d’écarter le lait.',
     'Le registre de l’année s’imprime en PDF. Les soins sont conservés 5 ans, sans suppression automatique.'
   ], tip: 'Astuce : ajoutez d’abord la photo de l’ordonnance dans Documents pour la relier au soin.'},
+  'crop-margins': {match: /^Marges par culture/i, title: 'Marges par culture', points: [
+    'Produit, charges opérationnelles, marge brute, mécanisation puis marge directe, en €/ha et par culture.',
+    'Les aides découplées et l’éco-régime se saisissent une fois en €/ha ; elles s’ajoutent à la marge directe.',
+    'Un travail sans coût n’est pas compté 0 € : la marge est signalée « partielle ».'
+  ], tip: 'Astuce : le prix d’équilibre vient du coût de revient ; comparez-le à vos contrats.'},
+  'lot-sheet': {match: /^Traçabilité · lot/i, title: 'Fiche de traçabilité du lot', points: [
+    'La fiche reprend les traitements, engrais et semis de la parcelle sur la campagne, jusqu’à la date de récolte.',
+    'Le DAR est comparé au délai entre le traitement et la récolte : « non respecté » signale un délai trop court (indicatif).',
+    'Le QR code ouvre cette fiche dans Parcelles, sur un appareil qui a les données de l’exploitation.'
+  ]},
+  'grain-norms': {match: /^Normes de poids/i, title: 'Normes de poids', points: [
+    'Le poids aux normes corrige l’humidité vers la norme (15 % blé, 15,5 % maïs) puis retire les impuretés en excès.',
+    'Ces valeurs sont modifiables : reprenez celles de votre contrat ou de votre organisme stockeur.',
+    'Le poids aux normes est celui qui entre en stock quand vous appuyez sur « Entrer en stock ».'
+  ]},
+  'stock-lots': {match: /^Lots et alertes d’intrants/i, title: 'Lots et alertes d’intrants', points: [
+    'Le lot, le fournisseur et la date de péremption se notent à l’entrée en stock ; les sorties consomment les lots les plus anciens.',
+    'Un produit périmé ou dont l’AMM est retirée est signalé ; marquez-le « PPNU à évacuer » pour la prochaine collecte ADIVALOR.',
+    'Une dérive de prix est signalée quand le dernier achat s’écarte de plus de 15 % du prix moyen.'
+  ]},
+  inventory: {match: /^Inventaire valorisé/i, title: 'Inventaire valorisé', points: [
+    'Choisissez une date : quantités et valeurs sont recalculées à cette date au coût moyen pondéré (PMP).',
+    'Chaque entrée chiffrée met à jour le PMP ; les sorties sont valorisées au PMP du jour.',
+    'Les coûts déjà enregistrés ne changent qu’après votre confirmation (« Revaloriser »).'
+  ]},
+  'herd-economics': {match: /^Atelier bovin/i, title: 'Atelier bovin', points: [
+    'La marge brute de l’atelier : ventes d’animaux moins achats, aliments sortis du stock, frais vétérinaires et coût des prairies.',
+    'Les aliments sont les sorties de stock de catégorie « Aliment », valorisées au prix moyen du jour ; le coût d’un soin se saisit dans le carnet sanitaire.',
+    'Marge par UGB et coût de l’herbe par animal et par jour s’appuient sur les passages au pâturage.'
+  ]},
+  land: {match: /^Foncier et fermages/i, title: 'Foncier et fermages', points: [
+    'Le bail de chaque parcelle se saisit dans l’onglet « Foncier » de la fiche : bailleur, cadastre, type de bail, dates et fermage.',
+    'L’indice national des fermages se saisit une fois par an ; la valeur pré-remplie est datée et à vérifier.',
+    'Un avis d’échéance PDF par bailleur reprend les fermages et la part de taxe foncière ; les baux à moins de 18 mois de l’échéance sont rappelés.'
+  ]},
+  claims: {match: /^Sinistres|^Sinistre ·|dossier sinistre/i, title: 'Dossiers sinistres', points: [
+    'Un dossier s’ouvre depuis une observation de dégâts (gibier, grêle, sécheresse…) : culture, variété et rendement attendu sont repris de la parcelle.',
+    'Surface touchée saisie, mesurée en marchant ou en part de la parcelle ; la perte est estimée en tonnes et en euros.',
+    'Les photos sont gardées d’origine (EXIF intact) ; la météo du jour vient de l’archive Open-Meteo, à titre indicatif. Le PDF part à la FDC ou à l’assureur.'
+  ]},
+  fuel: {match: /^Carburant GNR|^Plein d|^Cuve de GNR|^Remboursement TICPE/i, title: 'Carburant GNR', points: [
+    'Notez chaque livraison dans la cuve (litres, prix, facture) et chaque plein d’engin avec le compteur horaire.',
+    'La consommation l/h se calcule de plein à plein ; une alerte signale une dérive de +20 % par rapport à la moyenne de l’engin.',
+    'Le niveau de cuve est estimé à partir de la dernière jauge ; le remboursement TICPE est un montant estimé, pas une déclaration.'
+  ]},
   simulator: {match: /^Et si/i, title: 'Simulateur « Et si… »', points: [
     'Les curseurs font varier le rendement, le prix, les engrais et le GNR : la marge se recalcule aussitôt.',
     'La matrice croise rendement et prix pour voir où la marge devient négative.',
@@ -98,6 +148,21 @@ export const HELP = {
     'Sans réseau, tout est gardé sur l’appareil et envoyé plus tard.',
     'Si deux personnes modifient la même fiche, Parcelles vous demande laquelle garder.'
   ], link: {label: 'Équipe et autorisations', action: 'open-team-roles'}, tip: 'Astuce : la pastille en haut de l’écran indique si tout est envoyé.'},
+  activity: {match: /^Activité$/i, title: 'Activité', points: [
+    'Toutes les modifications, de cet appareil et de l’équipe, du plus récent au plus ancien.',
+    'Filtrez par personne, appareil, parcelle, type ou période.',
+    'Touchez une ligne pour ouvrir la fiche concernée et son historique.'
+  ], tip: 'Astuce : l’export PDF « Registre des modifications » garde une trace datée des changements.'},
+  trash: {match: /^(Corbeille|Vider la corbeille|Restaurer aussi)/i, title: 'Corbeille', points: [
+    'Les éléments supprimés y restent jusqu’à ce que vous la vidiez.',
+    'Filtrez par type ou cherchez un nom ; chaque ligne indique quand et par qui l’élément a été supprimé.',
+    'En restaurant une parcelle, Parcelles propose aussi ses travaux et passages supprimés le même jour.'
+  ], link: {label: 'Sauvegarde complète', action: 'export-complete-backup'}, tip: 'Astuce : dans une exploitation partagée, seule la personne propriétaire peut vider la corbeille.'},
+  'app-lock': {match: /^Verrouillage de Parcelles/i, title: 'Verrouillage', points: [
+    'Parcelles demande un code après quelques minutes sans utilisation.',
+    'Face ID ou l’empreinte peuvent remplacer le code ; le code reste toujours possible.',
+    'C’est une protection de l’écran, pas un chiffrement : pour un fichier protégé, faites une sauvegarde chiffrée.'
+  ], link: {label: 'Mes données', action: 'open-data-center'}, tip: 'Astuce : notez votre code en lieu sûr.'},
   stock: {match: /^(Stocks|Mouvement de stock)/i, title: 'Stocks', points: [
     'Suivez semences, engrais et produits : entrées, sorties et valeur.',
     'Un seuil d’alerte prévient avant la rupture.',

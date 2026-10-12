@@ -31,7 +31,10 @@ export function withdrawalEnd(date,delay){const d=grazingDate(date),n=days(delay
 export function normalizeTreatment(input,{state=null}={}){
   const kind=['treatment','prophylaxis','visit'].includes(input?.kind)?input.kind:'treatment';
   const date=grazingDate(input?.date);if(!date)throw new Error('Date du soin invalide.');
-  const out={kind,date,note:text(input?.note),veterinarian:text(input?.veterinarian)};
+  // n° 80 — coût facultatif (€ HT), repris dans l’économie de l’atelier bovin.
+  const cost=input?.cost===undefined||input?.cost===null||String(input.cost).trim()===''?null:Number(String(input.cost).replace(',','.'));
+  if(cost!==null&&(!Number.isFinite(cost)||cost<0))throw new Error('Coût invalide.');
+  const out={kind,date,note:text(input?.note),veterinarian:text(input?.veterinarian),cost};
   if(kind!=='treatment')return{...out,sessionId:input?.sessionId||null,lotLabel:text(input?.lotLabel)};
   const medicine=text(input?.medicine);if(!medicine)throw new Error('Indiquez le médicament.');
   const meat=days(input?.withdrawalMeatDays),milk=days(input?.withdrawalMilkDays);

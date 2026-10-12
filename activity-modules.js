@@ -22,6 +22,7 @@ export const TOOL_MODULES = Object.freeze({
   'open-pac': ['crops', 'livestock'],
   'open-grazing': ['livestock'],
   'open-herd-health': ['livestock'],
+  'open-herd-economics': ['livestock'], // v7b n° 80
   'new-grazing': ['livestock'],
   'open-clients': ['contracting'],
   'open-invoices': ['contracting'],

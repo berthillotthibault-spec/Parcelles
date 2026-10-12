@@ -1,6 +1,8 @@
 import {agendaDate,isPending,localDay,grazingWatch,maintenanceRemaining,isLowStock} from './home-priorities.js';
 import {isoDate,normalize,toNumber,uid} from './utils.js';
 import {favorableToday,SLOT_DISCLAIMER} from './work-weather.js';
+import {evaluateAgroRisks} from './agro-risk.js';
+import {sowingAdvices} from './sowing.js';
 
 export const AUTOMATION_KINDS={
   grazing_duration:{label:'Durée au pâturage',description:'Signaler les lots présents depuis le nombre de jours défini, sans les déplacer.'},
@@ -12,6 +14,8 @@ export const AUTOMATION_KINDS={
   urgent_observation:{label:'Observation urgente',description:'Alerter sur les observations terrain urgentes non résolues.'},
   backup_old:{label:'Sauvegarde ancienne',description:'Alerter si aucune sauvegarde récente n’est enregistrée.'},
   sync_pending:{label:'Synchronisation en attente',description:'Alerter si trop de modifications restent dans la file de synchronisation.'},
+  sowing_conditions:{label:'Conditions de semis',description:'Signaler une fois par jour les semis en attente dont la température du sol atteint le seuil de la culture pour 3 jours (indicatif).'},
+  agro_risk:{label:'Alertes sanitaires météo',description:'Signaler une fois par jour les conditions météo favorables aux maladies (septoriose, maïs, sclérotinia) ou au stress thermique des bovins au pré. Seuil 1 : risques seulement ; 0 : aussi « à surveiller ». Indicatif.'},
   custom:{label:'Règle personnalisée',description:'Combiner plusieurs conditions et plusieurs actions.'}
 };
 
@@ -64,6 +68,8 @@ export function automationTemplates(){return [
   {kind:'urgent_observation',name:'Observations urgentes',threshold:1,cooldownHours:6,trigger:'entity_change',triggerEntity:'observations',actions:[{type:'notify'}]},
   {kind:'backup_old',name:'Sauvegarde à vérifier',threshold:3,cooldownHours:24,trigger:'daily',actions:[{type:'notify'}]},
   {kind:'sync_pending',name:'Synchronisation en attente',threshold:20,cooldownHours:6,trigger:'interval',actions:[{type:'notify'}]},
+  {kind:'sowing_conditions',name:'Conditions de semis réunies',threshold:1,cooldownHours:20,trigger:'daily',actions:[{type:'notify'}]},
+  {kind:'agro_risk',name:'Alertes sanitaires météo',threshold:1,cooldownHours:20,trigger:'daily',actions:[{type:'notify'}]},
   {kind:'custom',name:'Travail planifié aujourd’hui → tâche',target:'interventions',trigger:'entity_change',triggerEntity:'interventions',matchMode:'all',conditions:[{field:'status',operator:'neq',value:'Terminé'},{field:'plannedDate',operator:'on_today',value:''}],actions:[{type:'notify'},{type:'create_task',titleTemplate:'À réaliser : {label}',dueOffsetDays:0}],cooldownHours:1,maxMatches:20}
 ];}
 
@@ -126,6 +132,8 @@ export function automationMatches(rule,state,nowMs=Date.now(),context={}){
   if(rule.kind==='maintenance_due')return active(state,'materiels').filter(x=>maintenanceRemaining(x)!==null&&maintenanceRemaining(x)<=threshold).map(x=>({entity:'materiels',entityId:x.id,title:'Entretien matériel',message:`${x.nom||'Matériel'} · ${Math.round(maintenanceRemaining(x))} h restantes`,label:x.nom||'Matériel',data:x}));
   if(rule.kind==='urgent_observation')return active(state,'observations').filter(x=>x.status!=='Résolu'&&x.severity==='urgent').map(x=>({entity:'observations',entityId:x.id,title:'Observation terrain urgente',message:x.title||x.type||'Observation',label:x.title||x.type||'Observation',data:x}));
   if(rule.kind==='backup_old'){const last=state.metadata?.lastAutoBackupDay;if(!last)return[{entity:'backup',entityId:'',title:'Sauvegarde à vérifier',message:'Aucune sauvegarde automatique datée.',label:'Sauvegarde',data:{}}];const age=(nowMs-new Date(`${last}T12:00:00`).getTime())/86400000;return age>threshold?[{entity:'backup',entityId:'',title:'Sauvegarde ancienne',message:`Dernière sauvegarde il y a ${Math.floor(age)} jours.`,label:'Sauvegarde',data:{age}}]:[];}
+  if(rule.kind==='sowing_conditions')return sowingAdvices(state,context.agroWeather,{today}).filter(a=>a.ready).map(a=>({entity:'interventions',entityId:a.workId,title:'Conditions de semis réunies',message:`${a.parcelName} : ${a.message} Indicatif.`,label:a.parcelName,data:a}));
+  if(rule.kind==='agro_risk')return evaluateAgroRisks(state,context.agroWeather,{now:nowMs}).filter(a=>threshold<1||a.level==='risque').map(a=>({entity:a.grazingId?'grazingSessions':'parcelles',entityId:a.grazingId||a.parcelId||'',title:a.label,message:`${a.message} Niveau : ${a.level} (indicatif).`,label:a.title,data:a}));
   if(rule.kind==='sync_pending'){const count=(state.queue||[]).filter(x=>x.status==='pending').length;return count>=threshold?[{entity:'sync',entityId:'',title:'Synchronisation en attente',message:`${count} modifications attendent la synchronisation.`,label:'Synchronisation',data:{count}}]:[];}
   return[];
 }

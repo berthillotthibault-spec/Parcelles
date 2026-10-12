@@ -1,5 +1,39 @@
 # Changelog
 
+## 10.15.0 · terrain, gestion, agronomie et sécurité des données — 2026-10-12
+
+Données : pas de changement de schéma (version 17). Les nouveaux dossiers (sinistres, carburant, baux) sont des enregistrements d’exploitation déjà prévus.
+
+Terrain :
+- trace GPS du chantier avec la couverture en direct et export GPX ;
+- photos terrain géolocalisées, en rafale, étiquetées et visibles sur la carte ;
+- riverains, ruchers et voisins à prévenir avant un traitement ;
+- silhouette réelle des parcelles dans la liste et en-tête de fiche ; listes du jour plus lisibles avec balayage « Fait » / « Demain » ; actions rapides en tuiles sur ordinateur.
+
+Agronomie et pilotage (aides indicatives, valeurs par défaut à vérifier) :
+- l’application retient vos habitudes de saisie, propose l’étape suivante et préremplit les travaux ;
+- sommes de températures et stades estimés ; dates de semis selon la température du sol ; alertes sanitaires simples à partir de la météo ;
+- alertes de rotation et classement des parcelles par marge/ha ;
+- photo d’étiquette ou de facture vers le stock ; fichiers reçus depuis les autres applications par le partage du téléphone.
+
+Gestion :
+- marges par culture en €/ha avec les aides PAC, prix d’équilibre et cascade ;
+- lot de récolte relié au stock, aux ventes et aux traitements ;
+- stocks par lots avec péremption, PPNU, inventaire valorisé au prix moyen et alerte de dérive de prix ;
+- économie de l’atelier bovin : marge par UGB et coût de l’herbe ;
+- foncier : propriétaires, baux et fermages indexés ;
+- dossier sinistre (gibier, grêle, sécheresse) depuis une observation : surface touchée, photos d’origine, météo du jour, perte estimée, PDF et suivi jusqu’à l’indemnisation ;
+- carburant GNR : cuve, consommation par engin avec alerte de dérive, et estimation du remboursement TICPE (taux daté et modifiable, ce n’est pas une déclaration).
+
+Données et sécurité :
+- écran « Activité » : journal local et cloud réunis, filtres par personne, parcelle, type et période, export CSV ou PDF « Registre des modifications » ;
+- sauvegardes chiffrées renforcées (600 000 itérations ; les anciennes restent lisibles) avec un indice de phrase secrète ;
+- « Verrouiller Parcelles » en option : code obligatoire, Face ID ou empreinte en plus ; c’est une protection d’accès à l’écran, pas un chiffrement ;
+- corbeille groupée par type, avec recherche, auteur de la suppression et restauration liée proposée ; en cloud, purge réservée au propriétaire ;
+- collaboration en temps réel visible ; gabarits HTML échappés et politique de sécurité du contenu (CSP) réelle.
+
+Outillage : publication en une commande (tools/release.mjs), contrôle du fonctionnement hors connexion et budget de performance mesuré.
+
 ## 10.14.0 · carte, élevage, gestion et fiabilité des données — 2026-10-10
 
 Données : le schéma passe en version 17 (nouvelle collection du carnet sanitaire). La migration est automatique, et une version plus ancienne de l’application restée en cache passe en lecture seule au lieu d’écraser les données.

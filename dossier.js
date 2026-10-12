@@ -9,6 +9,7 @@ import {economicSituation} from './advanced-economics.js';
 import {costPriceByCulture,cultureFor,hasCost,isEstimatedCost,machineFixedCosts} from './costs.js';
 import {commercialisation,contracts,contractProgress,toTonnes} from './sales.js';
 import {farmRecords} from './farm-records.js';
+import {claimsTreasury,causeLabel} from './claims.js'; // v7b n° 94
 
 const NB='\u202f';
 const num=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
@@ -148,7 +149,7 @@ export function dossierModel(state,{campaign=campaignFor(),preset='banque',secti
     farm:{name:String(state.exploitation?.nom||'').trim()||'Mon exploitation',commune:String(state.exploitation?.commune||'').trim()},
     campaign,preset:p,sections:list,generatedAt:today,
     parcels,cultureOf:new Map(parcels.map(p=>[p.id,cultureFor(state,p,campaign)])),pilotage,costs,assolement:assolement(state,campaign),cascade:cascade(pilotage,costs),history,charges,
-    sales:commercialisation(state,{campaign}),receipts:expectedReceipts(state,campaign),stocks:stockAt(state,stockDate(campaign,today)),
+    sales:commercialisation(state,{campaign}),receipts:expectedReceipts(state,campaign),claims:claimsTreasury(state),stocks:stockAt(state,stockDate(campaign,today)),
     yields:yieldsByParcel(state,campaign),lots:harvestLots(state,campaign),
     completeness:{unknown:charges.unknown,estimatedCount:charges.estimatedCount,estimated:charges.estimated,withoutYield:costs.rows.reduce((s,r)=>s+r.parcelsWithoutYield,0)}
   };
@@ -281,7 +282,9 @@ ${c.estimatedCount?`<p class="dz-note">${esc(plural(c.estimatedCount,'coût de t
     const main=rows.length?table(['Culture','n:Volume','n:Commercialisé','n:Prix moyen','n:Reste à vendre','n:Produit estimé'],rows.map(r=>tr([esc(r.culture),[r.volume>0?esc(tonnes(r.volume)):'—'],[r.share!==null?esc(pct(r.share)):'—'],[esc(perT(r.averagePrice))],[esc(tonnes(r.remaining))],[esc(eur(r.grossProduct))]]))):'<p class="muted">Aucun volume, vente ou contrat pour cette campagne.</p>';
     const rec=m.receipts,total=rec.reduce((s,r)=>s+(r.amount||0),0);
     const receipts=rec.length?`<h3>Encaissements attendus des contrats</h3>${table(['Échéance','Acheteur','Culture','n:Tonnage restant','n:Prix','n:Montant'],rec.map(r=>tr([esc(dateFr(r.date)),esc(r.contract.buyer||'—'),esc(r.contract.culture||''),[esc(tonnes(r.tonnes))],[r.price!==null?esc(perT(r.price))+(r.firm?'':' <span class="dz-tag">indicatif</span>'):'à fixer'],[esc(eur(r.amount))]])),`<tfoot>${tr(['Total','','','','',[esc(eur(total))]])}</tfoot>`)}`:'';
-    return`${main}${receipts}<p class="dz-note">Produit estimé par priorité : ventes déclarées dans les lots, puis contrats, puis prix de vente estimé des parcelles. Les encaissements suivent la date de paiement du contrat (à défaut, la date de livraison) : ce n’est pas un plan de trésorerie.</p>`;
+    const cl=m.claims?.rows.filter(r=>r.expected!==null&&r.expected>0)||[];
+    const claims=cl.length?`<h3>Indemnités de sinistres attendues</h3>${table(['Date','Nature','Statut','n:Montant'],cl.map(r=>tr([esc(dateFr(r.claim.date)),esc(causeLabel(r.claim.cause)),esc(r.claim.status),[esc(eur(r.expected))+(r.indemnity===null?' <span class="dz-tag">perte estimée</span>':'')]])),`<tfoot>${tr(['Total','','',[esc(eur(m.claims.pending))]])}</tfoot>`)}`:'';
+    return`${main}${receipts}${claims}<p class="dz-note">Produit estimé par priorité : ventes déclarées dans les lots, puis contrats, puis prix de vente estimé des parcelles. Les encaissements suivent la date de paiement du contrat (à défaut, la date de livraison) : ce n’est pas un plan de trésorerie.</p>`;
   },
   stocks(m){
     const s=m.stocks;if(!s.rows.length)return'<p class="muted">Aucun article en stock.</p>';

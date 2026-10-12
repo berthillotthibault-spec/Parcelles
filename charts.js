@@ -131,3 +131,30 @@ export function ndviChart(points, {width = 320, height = 140} = {}) {
   const axis = `<text class="chart-axis" x="${left}" y="${height - 6}">${esc(shortDate(first.date))}</text><text class="chart-axis" x="${width - right}" y="${height - 6}" text-anchor="end">${esc(shortDate(last.date))}</text>`;
   return `<svg class="chart chart-ndvi" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="${esc(label)}">${grid}<path class="chart-line chart-anim" pathLength="1" d="${d}" fill="none"/>${dots}${axis}</svg>`;
 }
+
+// --- Cascade (n° 65) ----------------------------------------------------------
+// steps : [{label, value, kind:'start'|'delta'|'total'}] ; une valeur null est sautée.
+// Les montants sont en €/ha ; les barres négatives et positives ont chacune leur classe.
+export function waterfallChart(steps, {width = 340, height = 180, unit = '€/ha', caption = 'Cascade de marge'} = {}) {
+  const rows = (steps || []).filter(s => s && Number.isFinite(s.value));
+  if (!rows.length) return '';
+  let run = 0;
+  const bars = rows.map(s => {
+    if (s.kind === 'delta') { const from = run; run += s.value; return {...s, from, to: run}; }
+    run = s.value; return {...s, from: 0, to: s.value};
+  });
+  const values = bars.flatMap(b => [b.from, b.to, 0]), lo = Math.min(...values), hi = Math.max(...values), span = hi - lo || 1;
+  const top = 14, bottom = 34, plot = height - top - bottom, step = width / bars.length, bw = Math.max(12, step * 0.6);
+  const y = v => r2(top + (hi - v) / span * plot);
+  const label = `${caption} : ${bars.map(b => `${b.label} ${b.kind === 'delta' && b.value > 0 ? '+' : ''}${fmt(b.value, 0)} ${unit}`).join(', ')}.`;
+  const parts = [`<line class="chart-grid" x1="0" x2="${width}" y1="${y(0)}" y2="${y(0)}"/>`];
+  bars.forEach((b, i) => {
+    const x = r2(i * step + (step - bw) / 2), y0 = y(Math.max(b.from, b.to)), h = Math.max(1, r2(Math.abs(y(b.from) - y(b.to))));
+    const cls = b.kind === 'delta' ? (b.value < 0 ? 'chart-wf-down' : 'chart-wf-up') : (b.to < 0 ? 'chart-wf-down' : 'chart-wf-total');
+    parts.push(`<rect class="${cls}" x="${x}" y="${y0}" width="${r2(bw)}" height="${h}" rx="2"><title>${esc(`${b.label} : ${fmt(b.value, 0)} ${unit}`)}</title></rect>`);
+    parts.push(`<text class="chart-axis" x="${r2(x + bw / 2)}" y="${r2(Math.max(10, y0 - 3))}" text-anchor="middle">${esc(fmt(b.value, 0))}</text>`);
+    parts.push(`<text class="chart-axis" x="${r2(x + bw / 2)}" y="${height - 18}" text-anchor="middle">${esc(b.short || b.label)}</text>`);
+    if (i < bars.length - 1) parts.push(`<line class="chart-today" x1="${r2(x + bw)}" x2="${r2((i + 1) * step + (step - bw) / 2)}" y1="${y(b.to)}" y2="${y(b.to)}"/>`);
+  });
+  return `<svg class="chart chart-waterfall" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(label)}">${parts.join('')}</svg>`;
+}

@@ -57,7 +57,7 @@ export function buildInterventionFromSession(session,parcel,overrides={}){
     status:'Terminé',
     startTime,endTime,
     duration:sessionDurationHours(session,Number(session.endedAt)||Date.now()),
-    surfaceWorked:toNumber(session.surfaceWorked||parcel?.surfaceHa)||null,
+    surfaceWorked:toNumber(session.coveredHa||session.surfaceWorked||parcel?.surfaceHa)||null,
     operator:session.operator||'',
     equipmentId:session.equipmentId||'',
     note:session.note||'',

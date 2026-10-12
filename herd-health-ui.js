@@ -66,6 +66,7 @@ export function createHerdHealthUI({store,modal,closeModal,toast,today}){
       <label>Délai d’attente viande (jours)<input name="withdrawalMeatDays" type="number" min="0" step="1" inputmode="numeric" value="${e(x.withdrawalMeatDays??'')}"></label>
       <label>Délai d’attente lait (jours)<input name="withdrawalMilkDays" type="number" min="0" step="1" inputmode="numeric" value="${e(x.withdrawalMilkDays??'')}"></label>
       <label class="span-2">Note<input name="note" value="${e(x.note||'')}"></label>
+      <label>Coût (€ HT, facultatif)<input name="cost" type="number" min="0" step="any" inputmode="decimal" value="${e(x.cost??'')}"></label>
       <p class="form-error span-2" id="herd-error" role="alert" hidden></p></form>
       <p class="form-note">Ajoutez d’abord la photo de l’ordonnance dans Documents pour la relier ici. Les délais d’attente figurent sur l’ordonnance : ils ne sont pas calculés par l’application.</p>`,
       `<button type="button" class="button secondary" id="herd-back">Retour</button>${t&&canWrite()?'<button type="button" class="button danger" id="herd-delete">Supprimer</button>':''}<button type="button" class="button primary" id="herd-save">Enregistrer</button>`,'large');
@@ -79,6 +80,7 @@ export function createHerdHealthUI({store,modal,closeModal,toast,today}){
       <label>Date *<input name="date" type="date" required value="${e(x.date||today())}"></label>
       <label>Vétérinaire<input name="veterinarian" value="${e(x.veterinarian||'')}"></label>
       <label>Note<input name="note" value="${e(x.note||'')}"></label>
+      <label>Coût (€ HT, facultatif)<input name="cost" type="number" min="0" step="any" inputmode="decimal" value="${e(x.cost??'')}"></label>
       <p class="form-error span-2" id="herd-error" role="alert" hidden></p></form>`,
       `<button type="button" class="button secondary" id="herd-back">Retour</button>${t&&canWrite()?'<button type="button" class="button danger" id="herd-delete">Supprimer</button>':''}<button type="button" class="button primary" id="herd-save">Enregistrer</button>`);
     bind(t,'#herd-event-form',values=>normalizeTreatment(values,{state:data()}));

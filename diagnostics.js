@@ -39,6 +39,11 @@ export function installErrorRecorder({buildId=''}={}){
     buildId,source:'window.error',message:event.message,stack:event.error?.stack,
     filename:event.filename,line:event.lineno,column:event.colno
   }));
+  // n° 152 : violations de la CSP (index.html), visibles dans Diagnostic.
+  document.addEventListener?.('securitypolicyviolation',event=>recordDiagnosticError({
+    buildId,source:'csp',message:`CSP ${event.effectiveDirective||event.violatedDirective} : ${event.blockedURI||'ressource en ligne'} bloqué`,
+    filename:event.sourceFile,line:event.lineNumber,column:event.columnNumber
+  }));
   window.addEventListener('unhandledrejection',event=>{
     const reason=event.reason;
     recordDiagnosticError({buildId,source:'unhandledrejection',message:reason?.message||reason,stack:reason?.stack});
