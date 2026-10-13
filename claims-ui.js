@@ -3,6 +3,7 @@
 import {escapeHtml as e,localDate,uid} from './utils.js';
 import {flowPdf,pdfFile,sharePdf,jpegInfo} from './pdf-lite.js';
 import {saveFarmRecord} from './farm-records.js';
+import {attachmentBlob} from './storage-care.js';
 import {active} from './farm-memory.js';
 import {CLAIM_KIND,CLAIM_CAUSES,CLAIM_STATUSES,causeLabel,claimsFor,claimDraft,claimArea,estimateLoss,validateClaim,nextStatus,weatherUrl,parseWeather,weatherText,WEATHER_SOURCE,claimPdfBlocks,exifDate,claimsTreasury} from './claims.js';
 
@@ -90,7 +91,7 @@ ${(c.statusHistory||[]).length?`<ul class="stack-list">${c.statusHistory.map(h=>
 
   async function pdf(id){
     const d=data(),c=byId(id);if(!c)return;const photos=[];
-    for(const p of photosOf(c)){const blob=await store.storage.blobGet(p.id);if(!blob)continue;const caption=`${p.name||'Photo'}${p.takenAt?` · prise le ${localDate(p.takenAt)}`:''}`;
+    for(const p of photosOf(c)){const blob=await attachmentBlob(store,p.id).catch(()=>null);if(!blob)continue;const caption=`${p.name||'Photo'}${p.takenAt?` · prise le ${localDate(p.takenAt)}`:''}`;
       const bytes=/jpe?g/i.test(p.mimeType||blob.type||'')?new Uint8Array(await blob.arrayBuffer()):null;photos.push({bytes:bytes&&jpegInfo(bytes)?bytes:null,caption});}
     const title=`Dossier sinistre ${causeLabel(c.cause)} ${c.date}`,{blocks}=claimPdfBlocks(d,c,{photos,today:todayIso()});
     const file=pdfFile(flowPdf(blocks,{title,footer:`${title} · estimation de l’exploitant`}),title);

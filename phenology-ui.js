@@ -3,6 +3,7 @@ import {estimatePhenology, sowingFor, cropProfile, PHENO_PROFILES, PHENOLOGY_SOU
 import {AGRO_SOURCE} from './agro-weather.js';
 import {escapeHtml as e, formatNumber, localDate} from './utils.js';
 import {validateForm} from './form-chips-ui.js';
+import {skeletonHtml} from './skeletons.js';
 
 const short = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '');
 const pad = n => String(n).padStart(2, '0');
@@ -35,7 +36,7 @@ export function createPhenologyUI({store, state, modal, closeModal, toast, bindC
     if (r.status === 'no-weather') {
       queueMicrotask(() => agro?.ensure({since: r.sowingDate}));
       const err = agro?.error?.();
-      return wrap(`<p class="pheno-empty">${err ? `Températures indisponibles (${e(err)}). Le calcul reprendra avec le réseau.` : 'Chargement des températures depuis le semis…'}</p>`);
+      return wrap(err ? `<p class="pheno-empty">Températures indisponibles (${e(err)}). Le calcul reprendra avec le réseau.</p>` : skeletonHtml('text', {rows: 3, label: 'Chargement des températures depuis le semis…'}));
     }
     // Les jours manquants (archive pas encore chargée) déclenchent un complément discret.
     if (r.missing > 2) queueMicrotask(() => agro?.ensure({since: r.sowingDate}));

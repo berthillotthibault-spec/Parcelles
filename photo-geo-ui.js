@@ -2,6 +2,7 @@
 // La logique (EXIF, position, rattachement) est dans photo-geo.js.
 import {PHOTO_TAGS,PHOTO_FRESH_MS,readJpegExif,stripJpegMetadata,hasJpegMetadata,isJpeg,choosePhotoLocation,parcelForPhoto,normalizePhotoTags,sortPhotos,beforeAfter,photoTagCounts,geolocatedPhotos} from './photo-geo.js';
 import {escapeHtml as e,uid} from './utils.js';
+import {attachmentBlob} from './storage-care.js';
 
 const day=t=>{const d=new Date(Number(t)||Date.now());return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const shortDate=t=>new Date(Number(t)||Date.now()).toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
@@ -85,7 +86,7 @@ export function createPhotoGeoUI({store,state,active,parcelById,toast,modal,clos
     const map=getMap()?.map;if(!map||typeof L==='undefined'){clearLayer();return;}
     const list=sortPhotos(geolocatedPhotos(active('photos'))).slice(-200),group=L.layerGroup(),urls=[];
     for(const p of list){
-      const blob=await store.storage.blobGet(p.id).catch(()=>null),url=blob?URL.createObjectURL(blob):'';if(url)urls.push(url);
+      const blob=await attachmentBlob(store,p.id).catch(()=>null),url=blob?URL.createObjectURL(blob):'';if(url)urls.push(url);
       const icon=L.divIcon({className:'photo-map-marker',html:`<span class="photo-map-thumb">${url?`<img src="${url}" alt="">`:''}</span>`,iconSize:[44,44],iconAnchor:[22,22]});
       const marker=L.marker([p.latitude,p.longitude],{icon,title:`${(p.tags||[]).join(', ')||'Photo'} · ${shortDate(p.capturedAt)}`,keyboard:true,alt:'Photo'});
       marker.on('click',()=>viewPhoto?.(p.id));group.addLayer(marker);
@@ -105,7 +106,7 @@ export function createPhotoGeoUI({store,state,active,parcelById,toast,modal,clos
     root.classList.add('photo-timeline-root');
     root.innerHTML=`${tags.length?`<div class="photo-tag-filter" role="group" aria-label="Filtrer par étiquette"><button type="button" class="filter-chip${galleryTag?'':' is-active'}" data-photo-tag="" aria-pressed="${!galleryTag}">Toutes</button>${tags.map(([t,n])=>`<button type="button" class="filter-chip${galleryTag===t?' is-active':''}" data-photo-tag="${e(t)}" aria-pressed="${galleryTag===t}">${e(t)} (${n})</button>`).join('')}</div>`:''}${pair?`<section class="photo-before-after" aria-label="Avant et après"><h3>Avant / après · ${pair.days} jour${pair.days>1?'s':''}</h3><div>${thumb(pair.before,'photo-ba')}${thumb(pair.after,'photo-ba')}</div></section>`:''}<div class="photo-timeline">${list.map(p=>thumb(p)).join('')}</div>`;
     root.querySelectorAll('[data-photo-tag]').forEach(b=>b.onclick=()=>{galleryTag=b.dataset.photoTag||null;renderGallery(root,parcelId,photos);});
-    const urls=[];for(const img of root.querySelectorAll('img[data-blob]')){const blob=await store.storage.blobGet(img.dataset.blob).catch(()=>null);if(blob){const u=URL.createObjectURL(blob);urls.push(u);img.src=u;}else img.closest('button')?.classList.add('is-missing');}
+    const urls=[];for(const img of root.querySelectorAll('img[data-blob]')){const blob=await attachmentBlob(store,img.dataset.blob).catch(()=>null);if(blob){const u=URL.createObjectURL(blob);urls.push(u);img.src=u;}else img.closest('button')?.classList.add('is-missing');}
     setTimeout(()=>urls.forEach(u=>URL.revokeObjectURL(u)),60000);
   }
   return{open,requestFix,refreshLayer,setLayer,syncLayer,clearLayer,renderGallery,layerOn:()=>Boolean(state().preferences?.mapPhotos)};

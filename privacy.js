@@ -1,0 +1,73 @@
+// n° 123 : page Confidentialité. Logique pure, fidèle au code (relu le 2026-10-12) :
+// app.js (météo Open-Meteo, géocodage), agro-weather.js / soil-water.js / claims.js (archives météo),
+// basemaps.js / offline-map.js / rpg.js (IGN Géoplateforme, Esri), satellite.js (Worker, contour + jeton),
+// remote-ai.js (assistant distant configuré par l'utilisateur), sync.js (Firebase, SDK chargé depuis gstatic
+// seulement si la synchronisation est activée), utils.js (itinéraires Apple, Google, Waze).
+
+// Ce qui reste sur l'appareil.
+export const LOCAL_ITEMS = [
+  'Parcelles, contours, travaux, tâches, stocks, matériel, clients et observations',
+  'Photos et documents joints',
+  'Votre position GPS en direct (jamais envoyée automatiquement)',
+  'Sauvegardes automatiques et historique des modifications',
+  'Règles d’automatisation, évaluées sur l’appareil'
+];
+
+// Services externes : id, nom, destinataire, données envoyées, quand, pourquoi, réglage éventuel (clé de préférence).
+export function privacyServices(prefs = {}, env = {}) {
+  const p = prefs || {};
+  const firebase = Boolean(env.firebaseConfigured), satellite = Boolean(env.satelliteEndpoint), connected = Boolean(env.cloudConnected);
+  const sync = Boolean(p.syncEnabled);
+  return [
+    {id: 'cloud', name: 'Synchronisation cloud', recipient: 'Google Firebase (projet Parcelles : authentification, base Firestore)',
+      data: 'Votre adresse e-mail de connexion et les données de l’exploitation partagée (parcelles, travaux, observations et leurs positions enregistrées…)',
+      when: 'Seulement si vous activez la synchronisation et vous connectez', why: 'Partager l’exploitation entre appareils et avec l’équipe',
+      state: !firebase ? 'off' : sync ? (connected ? 'on' : 'ready') : 'off', setting: null, manage: 'open-account',
+      note: 'Visible par les membres invités de l’exploitation, selon leur rôle (propriétaire, éditeur, lecteur).'},
+    {id: 'attachments', name: 'Photos et documents dans le cloud', recipient: 'Google Firebase Storage',
+      data: 'Les fichiers joints (photos, PDF…)', when: 'Lors de la synchronisation, si l’option est cochée', why: 'Retrouver les pièces jointes sur les autres appareils',
+      state: sync && p.syncAttachments ? 'on' : 'off', setting: 'syncAttachments', requires: 'cloud'},
+    {id: 'live', name: 'Modifications de l’équipe en direct', recipient: 'Google Firebase (écoute Firestore)',
+      data: 'Aucune donnée en plus : réception des changements des autres membres', when: 'Application ouverte, synchronisation active', why: 'Voir les modifications sans attendre',
+      state: sync && p.syncLive !== false ? 'on' : 'off', setting: 'syncLive', settingDefault: true, requires: 'cloud'},
+    {id: 'weather', name: 'Météo', recipient: 'Open-Meteo (service public de prévisions, sans compte)',
+      data: 'Coordonnées de l’exploitation, ou nom de la commune pour la retrouver ; coordonnées du centre d’une parcelle pour sa météo ou son bilan hydrique',
+      when: `${p.weatherAutoRefresh === false ? 'Quand vous actualisez la météo' : 'Au démarrage et au retour du réseau, quand vous actualisez la météo'} et à l’ouverture d’un écran qui en a besoin (phénologie, bilan hydrique, semis, sinistres)`,
+      why: 'Prévisions, fenêtres de traitement, cumuls et archives de pluie et de températures',
+      state: p.weatherAutoRefresh === false ? 'on-demand' : 'on', setting: 'weatherAutoRefresh', settingDefault: true, settingLabel: 'Actualiser automatiquement au démarrage'},
+    {id: 'map', name: 'Fonds de carte et parcelles PAC', recipient: 'IGN (Géoplateforme, API Carto) ; Esri si vous choisissez le fond « Satellite Esri »',
+      data: 'La zone affichée (numéros de tuiles), le contour d’une zone pour chercher les îlots RPG ou le cadastre',
+      when: 'Quand la carte s’affiche ou que vous lancez une recherche RPG ou cadastre', why: 'Afficher la carte et importer les parcelles déclarées',
+      state: 'on-demand', setting: null},
+    {id: 'satellite', name: 'Satellite (NDVI)', recipient: 'Worker Parcelles (Cloudflare), qui interroge Copernicus Data Space',
+      data: 'Le contour de la parcelle, la période demandée et votre jeton de connexion cloud', when: 'Seulement quand vous cliquez sur « Charger les données »', why: 'Calculer l’indice de végétation de la parcelle',
+      state: !satellite ? 'off' : connected ? 'on-demand' : 'ready', setting: null},
+    {id: 'assistant', name: 'Assistant distant', recipient: p.remoteAiEndpoint ? `Votre service : ${hostOf(p.remoteAiEndpoint)}` : 'Le service HTTPS que vous configurez (aucun par défaut)',
+      data: 'Votre question et un contexte réduit aux données utiles (parcelles citées, travaux, tâches…) ; l’image ou le PDF seulement pour une lecture de document que vous confirmez',
+      when: 'Seulement si vous l’activez et posez une question', why: 'Réponses et lecture de documents par une IA de votre choix',
+      state: p.remoteAiEnabled && p.remoteAiEndpoint ? 'on' : 'off', setting: 'remoteAiEnabled', needsEndpoint: !p.remoteAiEndpoint},
+    {id: 'routes', name: 'Itinéraires', recipient: 'Apple Plans, Google Maps ou Waze (selon votre choix)',
+      data: 'Les coordonnées de la parcelle de destination', when: 'Seulement quand vous touchez « Itinéraire »', why: 'Guider jusqu’à la parcelle',
+      state: 'on-demand', setting: null}
+  ];
+}
+
+function hostOf(url) {try {return new URL(url).hostname;} catch {return 'adresse invalide';}}
+
+export const STATE_LABELS = {on: 'Actif', 'on-demand': 'À la demande', ready: 'Prêt, non connecté', off: 'Désactivé'};
+
+// « 100 % local » : rien n'est stocké hors de l'appareil (cloud et assistant distant éteints).
+export function isLocalOnly(prefs = {}) {
+  return !prefs?.syncEnabled && !(prefs?.remoteAiEnabled && prefs?.remoteAiEndpoint);
+}
+
+// Valeur effective d'un interrupteur (les préférences absentes prennent leur valeur par défaut).
+export function settingValue(prefs, service) {
+  const v = prefs?.[service.setting];
+  return v === undefined ? Boolean(service.settingDefault) : Boolean(v);
+}
+
+// Clés de localStorage propres à Parcelles (pour « Tout effacer de cet appareil »).
+export function ownLocalKeys(keys) {
+  return (keys || []).filter(k => /^parcelles[:.\-_]/i.test(String(k)));
+}

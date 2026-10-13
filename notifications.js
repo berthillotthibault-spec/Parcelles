@@ -1,5 +1,6 @@
 import {toNumber, localDate} from './utils.js';
 import {agendaDate,isPending,localDay,grazingWatch,maintenanceRemaining,isLowStock} from './home-priorities.js';
+import {deadlineNotifications} from './regulated-ops.js'; // v8a n° 72
 
 export function computeNotifications(state){
   const today=localDay(); const rows=[];
@@ -31,6 +32,7 @@ export function computeNotifications(state){
   for(const obs of active('observations')){
     if(obs.severity==='urgent'&&obs.status!=='Résolu')rows.push({id:`observation-${obs.id}`,level:'urgent',title:'Observation terrain urgente',message:obs.title||obs.type||'Observation',entity:'observations',entityId:obs.id,date:obs.date});
   }
+  rows.push(...deadlineNotifications(state,{today})); // v8a n° 72 : Certiphyto, contrôle, assurance, conseil stratégique
   const grazingThresholds=active('automationRules').filter(r=>r.enabled&&r.kind==='grazing_duration'&&Number(r.threshold)>0).map(r=>Number(r.threshold));
   if(grazingThresholds.length)for(const row of grazingWatch(state,today,Math.min(...grazingThresholds)))rows.push({id:`grazing-${row.id}`,level:'warning',title:'Pâturage à surveiller',message:row.label,entity:'grazingSessions',entityId:row.id});
   const pending=(state.queue||[]).filter(x=>x.status==='pending').length;

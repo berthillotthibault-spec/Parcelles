@@ -20,9 +20,16 @@ export const TOOL_MODULES = Object.freeze({
   'open-covers': ['crops'],
   'open-nitrogen': ['crops', 'livestock'],
   'open-pac': ['crops', 'livestock'],
+  'open-telepac-import': ['crops', 'livestock'], // v8a n° 115
+  'open-parcel-check': ['crops', 'livestock'], // v8a n° 47
+  'open-regulated-ops': ['crops', 'livestock', 'contracting'], // v8a n° 72
   'open-grazing': ['livestock'],
   'open-herd-health': ['livestock'],
   'open-herd-economics': ['livestock'], // v7b n° 80
+  'open-forage': ['livestock'], // v8b n° 75
+  'open-seeds': ['crops'], // v8b n° 67
+  'open-soil-analyses': ['crops', 'livestock'], // v8b n° 68
+  'open-hedges': ['crops', 'livestock'], // v8b n° 70
   'new-grazing': ['livestock'],
   'open-clients': ['contracting'],
   'open-invoices': ['contracting'],

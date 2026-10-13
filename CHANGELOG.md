@@ -1,5 +1,44 @@
 # Changelog
 
+## 10.16.0 · PAC, agronomie, gestion et confort — 2026-10-13
+
+Données : pas de changement de schéma (version 17). Les nouveautés utilisent des enregistrements d’exploitation et des réglages déjà prévus.
+
+Réglementation et PAC (aides indicatives : valeurs datées, sourcées et modifiables) :
+- import telepac guidé : le ZIP des parcelles déclarées est reconnu d’office, le numéro PACAGE n’est jamais conservé, et un nouvel import montre ce qui a changé d’une année sur l’autre ;
+- vérification du parcellaire : chevauchements, écarts de surface entre saisie, tracé, déclaration et RPG, contours non fermés ;
+- couches réglementaires sur la carte (cours d’eau BCAE, hydrographie, Natura 2000, zones vulnérables, pentes) et bandeau indicatif sur la fiche parcelle ; bande le long des cours d’eau exclue des préconisations ;
+- Certiphyto des opérateurs, contrôle du pulvérisateur, assurance et conseil stratégique : échéances rappelées sur l’accueil.
+
+Élevage et agronomie :
+- bilan fourrager et calendrier de récolte de l’herbe (ensilage, foin, enrubannage) ;
+- variétés, lots de semence et essai variétal sur plusieurs années ;
+- analyses de sol, grille d’échantillonnage et plan de chaulage, carte « pH du sol » ;
+- haies, mares et bosquets, avec la période d’interdiction de taille.
+
+Gestion :
+- coût réel du matériel à l’heure et à l’hectare, comparé au barème d’entraide que vous saisissez ;
+- marge nette : charges de structure, fermages et aides PAC ;
+- export « Pour mon comptable » en CSV ou Excel, ventilé par compte et TVA (une aide, pas une comptabilité légale) ;
+- comparaison des campagnes sur 3 à 5 ans, par culture et par parcelle.
+
+Confort et données :
+- recherche globale élargie (outils, actions, fautes de frappe tolérées, « travaux semaine dernière ») ;
+- protection du stockage contre l’effacement par le navigateur, et nettoyage proposé quand l’espace manque ;
+- squelettes de chargement au lieu de « Chargement… » ;
+- page Confidentialité qui dit exactement ce qui part sur le réseau, et réglage pour couper l’actualisation météo automatique ;
+- confirmation « enregistré » plus perceptible au champ : vibration, coche en mode terrain, bip en option.
+
+Corrections (relecture avant publication) :
+- carte : la vérification du parcellaire ne bloque plus le dessin et la mesure après une mise en évidence ; la flèche de vent s’affiche dès l’ouverture de la carte ;
+- réimport telepac : une parcelle inchangée (même en L) est mise à jour au lieu d’être dupliquée, et une parcelle renumérotée n’écrase plus sa voisine ;
+- recherche : une parcelle nommée « La Campagne » ou « Champ de Mars » se retrouve même quand le nom ressemble à une période ;
+- photos libérées de l’appareil : rechargées depuis le cloud pour le dossier sinistre, la galerie, les cartes d’application et les mémos ;
+- « Tout effacer de cet appareil » ferme aussi la session cloud ;
+- haies : la dérogation se décoche et le contrôle porte sur la date réellement enregistrée ; IAE dessinées sous les parcelles ;
+- bilan fourrager, semences, analyses de sol, couches réglementaires, Certiphyto et historique des campagnes : calculs et enregistrements corrigés ;
+- accueil sur grand écran : la carte « Bien démarrer » reste en tête.
+
 ## 10.15.0 · terrain, gestion, agronomie et sécurité des données — 2026-10-12
 
 Données : pas de changement de schéma (version 17). Les nouveaux dossiers (sinistres, carburant, baux) sont des enregistrements d’exploitation déjà prévus.

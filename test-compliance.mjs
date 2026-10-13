@@ -40,8 +40,9 @@ test('échéances et campagnes', ()=>{
 
 test('exploitation vide : rien n’est déclaré « à jour » sans donnée', ()=>{
   const checks=complianceChecks(emptyState(),{today:TODAY});
-  assert.equal(checks.length,13); // + registre phyto (n° 62, v5a), entrées azote (n° 63), BCAE 7 (n° 58) et CIPAN (n° 74) de la v5b, carnet sanitaire (n° 76, v6b)
+  assert.equal(checks.length,14); // + échéances administratives (n° 72, v8a), registre phyto (n° 62, v5a), entrées azote (n° 63), BCAE 7 (n° 58) et CIPAN (n° 74) de la v5b, carnet sanitaire (n° 76, v6b)
   assert.equal(byId(checks,'herd-health').status,'na');
+  assert.equal(byId(checks,'admin-deadlines').status,'na');
   assert.equal(byId(checks,'phyto').status,'ok');
   assert.equal(byId(checks,'sprayer').status,'na');
   assert.equal(byId(checks,'nitrogen').status,'na');
@@ -146,4 +147,10 @@ test('accroches : menu Gestion, action et cache hors connexion', ()=>{
   assert.match(app,/action==='open-compliance'/);
   const sw=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
   for(const file of ['./compliance.js','./compliance-ui.js'])assert.ok(sw.includes(`'${file}'`),file);
+});
+
+test('Certiphyto : une fiche sans date mais avec n° ou catégorie est conservée à l’enregistrement (vague 8)', ()=>{
+  const ui=fs.readFileSync(new URL('./compliance-ui.js',import.meta.url),'utf8');
+  assert.doesNotMatch(ui,/\.filter\(c=>c\.nom&&c\.expiresAt\)/);
+  assert.match(ui,/\.filter\(c=>c\.nom&&\(c\.expiresAt\|\|c\.numero\|\|c\.categorie\)\)/);
 });

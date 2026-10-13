@@ -10,6 +10,7 @@ import {herdHealthComplianceChecks} from './herd-health.js';
 import {pacComplianceChecks} from './pac.js';
 import {coverComplianceChecks} from './covers.js';
 import {phytoComplianceCheck} from './phyto.js';
+import {adminDeadlinesCheck} from './regulated-ops.js'; // v8a n° 72
 
 export const COMPLIANCE_DISCLAIMER='Établi à partir des données saisies dans Parcelles : ne vaut pas attestation de conformité. Les règles varient selon le département (programme d’actions nitrates, arrêtés locaux) ; vérifiez auprès de votre DDT ou de votre conseiller.';
 
@@ -199,6 +200,7 @@ export function complianceChecks(state,{today=isoDate(new Date())}={}){
     ...nitrogenComplianceChecks(state,{today,campaign}), // v5b n° 63
     sprayerCheck(state,settings,today,hasPhyto),
     certiphytoCheck(state,settings,today,hasPhyto),
+    adminDeadlinesCheck(state,{today}), // v8a n° 72
     coverCheck(state,settings,today),
     ...coverComplianceChecks(state,{today}), // v5b n° 74
     bdniCheck(state),

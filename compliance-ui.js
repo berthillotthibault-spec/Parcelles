@@ -7,7 +7,7 @@ import {active} from './farm-memory.js';
 
 const e=escapeHtml;
 // Actions globales existantes (gestionnaire délégué d’app.js).
-const GLOBAL_ACTIONS={phytoRegister:'open-phyto-register',register:'open-traceability',documents:'open-documents',rotations:'open-rotations',nitrogen:'open-nitrogen',pac:'open-pac',covers:'open-covers',herdHealth:'open-herd-health'};
+const GLOBAL_ACTIONS={phytoRegister:'open-phyto-register',register:'open-traceability',documents:'open-documents',rotations:'open-rotations',nitrogen:'open-nitrogen',pac:'open-pac',covers:'open-covers',herdHealth:'open-herd-health',regulated:'open-regulated-ops'};
 const ITEMS_SHOWN=5;
 
 export function createComplianceUI({store,modal,closeModal,toast,bindChipChoices,openPrintableReport}){
@@ -148,11 +148,11 @@ export function createComplianceUI({store,modal,closeModal,toast,bindChipChoices
     bindBack();
     const form=$('#compliance-certiphyto');
     $('#compliance-certiphyto-save').onclick=async()=>{
-      const v=Object.fromEntries(new FormData(form)),list=names.map((_,i)=>({nom:String(v[`nom:${i}`]||'').trim(),expiresAt:String(v[`date:${i}`]||'')})).filter(c=>c.nom&&c.expiresAt);
+      const v=Object.fromEntries(new FormData(form)),list=names.map((_,i)=>({nom:String(v[`nom:${i}`]||'').trim(),expiresAt:String(v[`date:${i}`]||'')})).map(c=>{const k=(store.state.exploitation?.conformite?.certiphytos||[]).find(x=>normalize(x?.nom)===normalize(c.nom));return{...c,numero:String(k?.numero||''),categorie:String(k?.categorie||'')};}).filter(c=>c.nom&&(c.expiresAt||c.numero||c.categorie)); // n° 72 : garde n° et catégorie, même sans date (fiche Opérateurs et échéances)
       const extraNom=String(v.extraNom||'').replace(/\s+/g,' ').trim();
       if(v.extraDate&&!extraNom)return showError(form,'Champ obligatoire : nom de l’autre personne.');
       if(extraNom&&!v.extraDate)return showError(form,`Champ obligatoire : date de validité pour ${extraNom}.`);
-      if(extraNom){const i=list.findIndex(c=>normalize(c.nom)===normalize(extraNom));const entry={nom:extraNom,expiresAt:v.extraDate};if(i>=0)list[i]=entry;else list.push(entry);}
+      if(extraNom){const i=list.findIndex(c=>normalize(c.nom)===normalize(extraNom));const k=(store.state.exploitation?.conformite?.certiphytos||[]).find(x=>normalize(x?.nom)===normalize(extraNom));const entry={numero:String(k?.numero||''),categorie:String(k?.categorie||''),...(i>=0?list[i]:{}),nom:extraNom,expiresAt:v.extraDate};if(i>=0)list[i]=entry;else list.push(entry);}
       try{
         await saveSettings({certiphytos:list});
         toast(list.length?`Certiphyto à jour : ${list.length} personne${list.length>1?'s':''}.`:'Certiphyto mis à jour.','success');open();

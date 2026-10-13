@@ -3,6 +3,7 @@
 // Aucune écriture sans validation explicite ; l'audio reste sur l'appareil (sauf synchro des pièces jointes).
 import {escapeHtml, formatNumber, toNullableNumber, uid} from './utils.js';
 import {icon} from './ui.js';
+import {attachmentBlob} from './storage-care.js';
 import {locateParcels} from './field-ops.js';
 import {grazingAnimalList} from './grazing.js';
 import {endGrazingSession, saveGrazingSession} from './grazing-records.js';
@@ -403,7 +404,7 @@ export function createVoiceNotesUI(host){
   async function togglePlay(id,button){
     if(player?.id===id){stopPlayback();return;}
     stopPlayback();
-    const blob=await store.storage.blobGet(id).catch(()=>null);
+    const blob=await attachmentBlob(store,id).catch(()=>null);
     if(!blob)return toast('Audio introuvable sur cet appareil.','error');
     const url=URL.createObjectURL(blob),audio=new Audio(url);
     player={id,audio,url,button};button.setAttribute('aria-pressed','true');button.innerHTML=playIcon(true);button.setAttribute('aria-label','Mettre en pause');
@@ -417,7 +418,7 @@ export function createVoiceNotesUI(host){
   }
   async function openMemo(id){
     stopPlayback();const doc=store.get('documents',id);if(!doc?.voiceMemo)return toast('Mémo introuvable.','error');
-    const blob=await store.storage.blobGet(id).catch(()=>null),meta=memoMeta(doc),url=blob?URL.createObjectURL(blob):'';
+    const blob=await attachmentBlob(store,id).catch(()=>null),meta=memoMeta(doc),url=blob?URL.createObjectURL(blob):'';
     modal('Mémo vocal',`${meta.when}${meta.parcel?` · ${meta.parcel}`:''} · ${meta.duration}`,`<div class="vn-sheet">${url?`<audio class="vn-audio" controls preload="metadata" src="${url}"></audio>`:'<div class="notice warning">Audio introuvable sur cet appareil (il est peut-être sur un autre appareil synchronisé).</div>'}
       <label class="vn-text">Transcription *<textarea id="vn-memo-text" rows="4" placeholder="Réécoutez puis écrivez ou dictez ce que vous avez dit.">${escapeHtml(doc.voiceMemo.transcript||'')}</textarea></label>
       ${canRecognize()?'<button type="button" class="button secondary" id="vn-memo-dictate">'+icon('mic',{size:18})+' Dicter la transcription</button>':'<p class="form-note">Sans réseau, écrivez la transcription ou utilisez la touche micro du clavier.</p>'}

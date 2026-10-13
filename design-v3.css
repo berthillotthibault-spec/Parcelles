@@ -2635,3 +2635,132 @@ html[data-map-mode] .map-whereami,.map-whereami.hidden{display:none}
 
 /* v7d n° 141 : corbeille groupée */
 .trash-filters{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+
+/* v8c n° 87 et 69 : coût réel du matériel */
+.mc-list{display:grid;gap:12px}
+.mc-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--surface)}
+.mc-card header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.mc-compare{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0;font-size:.92rem}
+.mc-gap{font-style:normal;font-weight:600;padding:1px 6px;border-radius:6px}
+.mc-gap.is-good{color:var(--success)}.mc-gap.is-warn{color:var(--warning);background:var(--warning-soft)}.mc-gap.is-bad{color:var(--danger);background:var(--danger-soft)}
+.mc-actions,.mc-confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:8px 0}
+.mc-confirm p{flex-basis:100%;margin:0}
+.mc-client{display:grid;gap:4px;min-width:200px}
+.mc-rate{display:flex;gap:6px}.mc-rate input{flex:1;min-width:0}
+
+/* v8c n° 91, 92, 96 : tableaux économiques */
+.econ-table-wrap{overflow-x:auto;max-width:100%}
+.econ-table{width:100%;border-collapse:collapse;font-size:14px}
+.econ-table th,.econ-table td{padding:8px 6px;border-bottom:1px solid var(--border-subtle);text-align:right;white-space:nowrap}
+.econ-table th[scope=row],.econ-table thead th:first-child{text-align:left;white-space:normal}
+.econ-table small{color:var(--text-secondary);font-weight:400}
+.econ-table .negative{color:var(--danger)}
+@media (max-width:520px){.econ-table{font-size:13px}.econ-table th,.econ-table td{padding:8px 4px}}
+.nm-field{display:flex;gap:6px}.nm-field input{flex:1;min-width:0}.nm-field select{max-width:48%}
+.ch-cell{padding:4px!important}.ch-cell.is-empty{color:var(--text-secondary)}
+.ch-value{display:block;width:100%;min-height:44px;border:0;border-radius:8px;padding:4px 6px;font:inherit;font-weight:600;text-align:right;cursor:pointer;color:var(--text,inherit);background:color-mix(in srgb,var(--ch-color) 22%,transparent);box-shadow:inset 3px 0 0 var(--ch-color)}
+.ch-value small{display:block;font-weight:400;font-size:11px}
+.ch-farm th,.ch-farm td{border-top:2px solid var(--border-subtle)}
+/* v8d n° 135 : espace et protection du stockage */
+.sc-protect ol{margin:8px 0 10px;padding-left:20px}
+.sc-protect p{margin:4px 0 0}
+.sc-title{margin:18px 0 8px;font-size:1rem}
+.sc-bar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--brand-soft)}
+.sc-seg{display:block;height:100%}
+.sc-photos{background:var(--info)}.sc-backups{background:var(--warning)}.sc-tiles{background:var(--brand)}.sc-app{background:var(--muted-text)}
+.sc-legend{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px;font-size:.9rem}
+.sc-legend li{display:flex;align-items:center;gap:8px}.sc-legend strong{margin-left:auto}
+.sc-dot{display:inline-block;width:10px;height:10px;border-radius:50%}
+.sc-option{display:flex;gap:10px;align-items:flex-start;padding:10px 0}
+.sc-option small{display:block;color:var(--muted-text)}
+
+/* v8d n° 37 : squelettes de chargement (formes construites avec .skeleton-line) */
+.skeleton-block{display:grid;gap:10px;padding:4px 0}
+.skeleton-block .skeleton-line{display:block;height:14px;border-radius:999px;margin:0}
+.skeleton-block .skeleton-line.short{width:55%;margin-top:0}
+.sk-row{display:flex;gap:12px;align-items:center}
+.sk-col{flex:1;display:grid;gap:8px}
+.skeleton-block .sk-circle{width:40px;height:40px;flex:none;border-radius:50%}
+.skeleton-block .sk-tall{height:28px;border-radius:10px}
+.skeleton-block .sk-block{height:140px;border-radius:14px}
+.skeleton-block .sk-cell{height:48px;border-radius:12px}
+.skeleton-block .sk-square{aspect-ratio:1;height:auto;border-radius:12px}
+.sk-grid{display:grid;gap:8px}.sk-grid-6{grid-template-columns:repeat(6,1fr)}.sk-grid-4{grid-template-columns:repeat(4,1fr)}
+.sk-item{padding:6px 0}
+.sk-note{margin:4px 0 0;text-align:center}
+.photo-grid>.skeleton-block{grid-column:1/-1}
+
+/* v8d n° 123 : confidentialité */
+.local-badge{border:1px solid var(--brand);background:var(--brand-soft);color:var(--brand);border-radius:999px;padding:2px 10px;min-height:28px;font-size:.75rem;font-weight:700;white-space:nowrap;align-self:center}
+.local-badge.hidden{display:none}
+@media (max-width:380px){.local-badge{font-size:.68rem;padding:2px 7px}}
+.pv-hero p{margin:6px 0 0}
+.pv-card{margin-top:18px}
+.pv-card h3{margin:0 0 8px;font-size:1.05rem}
+.pv-card ul{margin:0;padding-left:20px;display:grid;gap:4px}
+.pv-services{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.pv-service{border:1px solid var(--border);border-radius:14px;padding:12px 14px;background:var(--surface)}
+.pv-service header{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px}
+.pv-state{font-size:.75rem;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--brand-soft);color:var(--brand)}
+.pv-off .pv-state{background:var(--surface-tertiary,#eee);color:var(--muted-text)}
+.pv-service dl{margin:0;display:grid;gap:4px;font-size:.88rem}
+.pv-service dl div{display:grid;grid-template-columns:76px 1fr;gap:6px}
+.pv-service dt{color:var(--muted-text)}.pv-service dd{margin:0}
+.pv-service footer{margin-top:8px;display:grid;gap:4px}
+.pv-switch{display:flex;gap:8px;align-items:center;font-weight:600;min-height:44px}
+.pv-service footer small{color:var(--muted-text)}
+
+/* v8d n° 18 : retour « enregistré » lisible au soleil et avec des gants */
+.saved-check{position:fixed;inset:0;z-index:80;display:grid;place-items:center;pointer-events:none;opacity:0;visibility:hidden;background:rgba(0,0,0,.18)}
+.saved-check.is-visible{opacity:1;visibility:visible}
+.saved-check-disc{display:grid;place-items:center;width:168px;height:168px;border-radius:50%;background:#1f8a4c;color:#fff;box-shadow:0 0 0 6px #fff,0 12px 40px rgba(0,0,0,.35)}
+.saved-check.is-visible:not(.is-static) .saved-check-disc{animation:saved-pop .6s cubic-bezier(.2,.7,.2,1) both}
+@keyframes saved-pop{0%{transform:scale(.6);opacity:0}25%{transform:scale(1.05);opacity:1}80%{transform:scale(1);opacity:1}100%{transform:scale(1);opacity:0}}
+@media (prefers-reduced-motion:reduce){.saved-check-disc{animation:none!important}}
+.toast.success{border-left:6px solid #3fbf6f}
+:root.plein-champ .toast,:root:has(#field-mode.field-sun-mode) .toast{font-size:17px;font-weight:700;padding:16px 20px;background:#000;color:#fff;border:2px solid #fff}
+:root.plein-champ .toast.success,:root:has(#field-mode.field-sun-mode) .toast.success{border-left:10px solid #3fbf6f}
+:root.plein-champ .toast.error,:root:has(#field-mode.field-sun-mode) .toast.error{background:#8f1d14}
+/* v8b n° 75 : bilan fourrager */
+.forage-gauge{display:grid;gap:6px;margin:0 0 12px}
+.forage-gauge-bar{height:12px;border-radius:6px;background:var(--danger-soft);overflow:hidden}
+.forage-gauge-bar span{display:block;height:100%;background:var(--brand);border-radius:6px}
+.forage-gauge.is-short strong{color:var(--danger)}
+.forage-timeline{display:flex;gap:4px;align-items:flex-end;overflow-x:auto;padding:4px 0 8px}
+.forage-timeline>div{flex:1 0 44px;display:grid;grid-template-rows:80px auto auto;justify-items:center;gap:2px;font-size:.75rem}
+.forage-timeline span{align-self:end;width:70%;background:var(--brand-soft);border-radius:4px 4px 0 0;min-height:2px}
+.forage-timeline .is-short span{background:var(--danger-soft)}
+.forage-timeline .is-past{opacity:.5}
+.forage-lot{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
+
+/* v8b n° 68 : analyses de sol */
+.soil-dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px;border:1px solid var(--surface)}
+.soil-guide{text-align:center;padding:8px 0}
+.soil-guide-point{font-weight:600;margin:0 0 8px}
+.soil-guide-arrow{font-size:72px;line-height:1;color:var(--brand);transition:transform .3s}
+.soil-guide-dist{font-size:1.25rem;margin:8px 0 0}
+/* v8a n° 115 : import telepac guidé */
+.telepac-steps{list-style:none;margin:8px 0 12px;padding:0;display:grid;gap:10px}
+.telepac-steps li{display:flex;gap:10px;align-items:flex-start}
+.telepac-steps li>span:last-child{display:flex;flex-direction:column;gap:2px}
+.telepac-step-num{flex:0 0 28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:var(--brand);color:var(--surface)}
+.telepac-diff{margin:4px 0 0;padding-left:18px}
+
+/* v8a n° 47 : vérification du parcellaire */
+.parcel-check-rpg{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:8px 0 12px}
+.parcel-check-rpg .form-note{flex-basis:100%}
+.parcel-check-group h3{display:flex;gap:8px;align-items:center;margin:14px 0 6px;font-size:1rem}
+.parcel-check-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+
+/* v8a n° 48 : couches réglementaires et bandeau parcelle */
+.ly-reg .ly-label small{font-weight:400;color:var(--text-secondary)}
+.reg-banner{border:1px solid var(--border-subtle);border-radius:14px;padding:10px 12px;margin:12px 0;background:var(--surface)}
+.reg-banner .reg-head{display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.reg-banner .reg-head .text-button{margin-left:auto}
+.reg-msg{margin:4px 0}
+.reg-msg.is-warn{color:var(--warning)}
+.reg-banner .form-note{display:block}
+
+/* v8a n° 72 : opérateurs et échéances */
+.reg-operator{border:1px solid var(--border-subtle);border-radius:12px;padding:8px 10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.reg-operator legend{font-weight:600;padding:0 4px}

@@ -10,7 +10,7 @@
        les plugins et le détournement de <base> ; Firebase, tuiles, météo, Worker et assistant restent libres.
        Les violations sont notées dans Plus › Mes données › Diagnostic. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'">
-  <meta name="parcelles-build" content="2026.10.12-v10.15.0">
+  <meta name="parcelles-build" content="2026.10.13-v10.16.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -31,7 +31,7 @@
   <link rel="stylesheet" href="./public-works.css">
   <link rel="stylesheet" href="./motion.css">
   <link rel="stylesheet" href="./personalization.css">
-  <link rel="stylesheet" href="./design-v3.css?v=4.4">
+  <link rel="stylesheet" href="./design-v3.css?v=4.5">
   <title>Parcelles</title>
 </head>
 <body>
@@ -69,6 +69,7 @@
         <span class="brand-copy"><strong>Parcelles</strong><small id="farm-name">Mon exploitation</small></span><span class="sr-only"> : ouvrir Aujourd’hui</span>
       </button>
       <div class="header-actions">
+        <button id="local-badge" class="local-badge hidden" data-action="open-privacy" title="Vos données ne sont stockées que sur cet appareil (cloud désactivé). Voir la confidentialité.">100 % local</button>
         <button class="icon-button" data-action="global-search" aria-label="Rechercher partout" title="Recherche">
           <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
         </button>
@@ -105,7 +106,7 @@
       </nav>
       <div class="sidebar-spacer"></div>
       <div class="sidebar-foot">
-        <div class="sidebar-sync"><span id="desktop-network-dot" class="status-dot"></span><span id="desktop-network-label">À jour</span></div>
+        <div class="sidebar-sync"><span id="desktop-network-dot" class="status-dot"></span><span id="desktop-network-label">À jour</span></div><button class="local-badge hidden" data-action="open-privacy" title="Vos données ne sont stockées que sur cet appareil (cloud désactivé). Voir la confidentialité.">100 % local</button>
         <button data-action="global-search"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Recherche <kbd>⌘K</kbd></button>
         <button data-action="open-settings"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>Paramètres</button>
       </div>

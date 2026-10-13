@@ -3,6 +3,7 @@ import {assignableRoles, canMutate, normalizeRole, roleCan, roleLabel} from './p
 import {assignableRolesFor, canLeave, canManageMember, canRevokeInvite, canTransferOwnership} from './team-roles.js';
 import {canonicalData, queueStats, safeMergeEntity, sanitizeCloudError, syncRetryDelay} from './security.js';
 import {syncBaseKey, threeWayMerge} from './sync-merge.js';
+import {EVICTED_ATTACHMENTS_KEY} from './storage-care.js';
 
 const FIREBASE_VERSION='10.14.1';
 const CLOUD_ENTITY_TYPES=ENTITY_TYPES.filter(type=>!['syncConflicts','devices','members','assistantMessages','automationRuns','platformJobs','platformEvents'].includes(type));
@@ -252,9 +253,19 @@ export class SyncService{
     return result;
   }
 
+  // Télécharge la copie cloud d’une pièce jointe (vérification avant libération, rechargement à la demande).
+  async fetchCloudBlob(entity){
+    if(!this.storage||!entity?.cloudPath)throw new Error('Copie cloud indisponible.');
+    const url=await this.storage.ref(entity.cloudPath).getDownloadURL(),response=await fetch(url);
+    if(!response.ok)throw new Error(`Téléchargement refusé (${response.status}).`);
+    return response.blob();
+  }
+
   async syncAttachmentBlobs(){
     const prefs=this.store.snapshot().preferences;if(!this.storage||!prefs.syncAttachments)return{uploaded:0,downloaded:0,attachmentErrors:0,attachmentsDeferred:false};if(!this.networkAllows({attachments:true}))return{uploaded:0,downloaded:0,attachmentErrors:0,attachmentsDeferred:true};
-    let uploaded=0,downloaded=0,attachmentErrors=0;for(const type of ['photos','documents'])for(const entity of this.store.list(type)){try{const localBlob=await this.store.storage.blobGet(entity.id);if(localBlob&&!entity.cloudPath&&this.canWriteEntity(type,'update')){const path=`workspaces/${this.workspaceId}/attachments/${type}/${entity.id}`,ref=this.storage.ref(path);await ref.put(localBlob,{contentType:localBlob.type||entity.mime||'application/octet-stream',customMetadata:{entityId:entity.id,entityType:type}});const updated={...entity,cloudPath:path,cloudSyncedAt:Date.now(),updatedAt:Date.now(),version:Number(entity.version||0)+1};await this.store.applyRemote(type,updated);await this.writeRemoteEntity(type,entity.id,updated,'attachment');await this.saveBase(type,updated);uploaded++;}else if(!localBlob&&entity.cloudPath){const url=await this.storage.ref(entity.cloudPath).getDownloadURL(),response=await fetch(url);if(response.ok){await this.store.storage.blobPut(entity.id,await response.blob());downloaded++;}}}catch{attachmentErrors++;}}
+    // n° 135 : les pièces libérées volontairement de l’appareil ne sont pas retéléchargées d’office.
+    const evicted=new Set((await this.store.storage.get(EVICTED_ATTACHMENTS_KEY).catch(()=>null))||[]);
+    let uploaded=0,downloaded=0,attachmentErrors=0;for(const type of ['photos','documents'])for(const entity of this.store.list(type)){try{const localBlob=await this.store.storage.blobGet(entity.id);if(localBlob&&!entity.cloudPath&&this.canWriteEntity(type,'update')){const path=`workspaces/${this.workspaceId}/attachments/${type}/${entity.id}`,ref=this.storage.ref(path);await ref.put(localBlob,{contentType:localBlob.type||entity.mime||'application/octet-stream',customMetadata:{entityId:entity.id,entityType:type}});const updated={...entity,cloudPath:path,cloudSyncedAt:Date.now(),updatedAt:Date.now(),version:Number(entity.version||0)+1};await this.store.applyRemote(type,updated);await this.writeRemoteEntity(type,entity.id,updated,'attachment');await this.saveBase(type,updated);uploaded++;}else if(!localBlob&&entity.cloudPath&&!evicted.has(entity.id)){const url=await this.storage.ref(entity.cloudPath).getDownloadURL(),response=await fetch(url);if(response.ok){await this.store.storage.blobPut(entity.id,await response.blob());downloaded++;}}}catch{attachmentErrors++;}}
     return{uploaded,downloaded,attachmentErrors,attachmentsDeferred:false};
   }
 

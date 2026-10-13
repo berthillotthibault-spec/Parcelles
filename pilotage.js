@@ -58,7 +58,7 @@ export function parcelMargin(state,parcel,{campaign=campaignFor(),works=null}={}
     unknownRealized,unknownPlanned,reliability:Math.round((costScore+productScore)/2*100),lines};
 }
 
-const sumRows=rows=>{
+export const sumRows=rows=>{
   const t=rows.reduce((a,r)=>{a.area+=r.area;a.charges+=r.charges;a.realized+=r.realized;a.engaged+=r.engaged;a.forfait+=r.forfait;a.unknownRealized+=r.unknownRealized;a.unknownPlanned+=r.unknownPlanned;a.weighted+=r.reliability*(r.area||0);a.mechanization+=r.mechanization||0;if(r.product!==null){a.product+=r.product;a.productArea+=r.area;a.chargesWithProduct+=r.charges;a.mechanizationWithProduct+=r.mechanization||0;}else a.withoutProduct+=1;return a;},
     {area:0,charges:0,realized:0,engaged:0,forfait:0,mechanization:0,mechanizationWithProduct:0,unknownRealized:0,unknownPlanned:0,weighted:0,product:0,productArea:0,chargesWithProduct:0,withoutProduct:0});
   const reliability=t.area>0?Math.round(t.weighted/t.area):rows.length?Math.round(rows.reduce((s,r)=>s+r.reliability,0)/rows.length):0;

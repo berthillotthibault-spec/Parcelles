@@ -11,6 +11,8 @@ import {parcelIft,iftColor} from './ift.js';
 import {windToward,windTowardWater,compass,forecastAge} from './spray-window.js';
 import {baseLayerDefinition,CADASTRE_OVERLAY,normalizeCadastreOpacity,cadastreQueryUrl,parseCadastreResponse,cadastreReference} from './basemaps.js';
 import {ownerColorInfo} from './land.js'; // v7b n° 93
+import {soilColorInfo} from './soil-analysis.js'; // v8b n° 68
+import {INFRA_KIND,infraType} from './hedges.js'; // v8b n° 70
 
 const DEFAULT_CENTER=[46.31,4.95];
 const CULTURE_PALETTE=['#287a4a','#4b8f6a','#7a9d44','#b08a32','#7f6bb2','#3f83a8','#bd6f4a','#699b8a','#9a6d3f','#557a9c','#8c7a3f','#a36d8e'];
@@ -45,7 +47,7 @@ export class ParcelMap{
     // double click on the map. Pinch, wheel and +/- controls remain available.
     this.map=L.map('map',{zoomControl:false,preferCanvas:false,doubleClickZoom:false}).setView(DEFAULT_CENTER,12);
     L.control.zoom({position:'bottomright'}).addTo(this.map);
-    for(const [name,zIndex] of [['rpgPane',350],['parcelPane',410],['selectedParcelPane',430],['mapPointPane',500],['editingPane',550]]){this.map.createPane(name).style.zIndex=String(zIndex);}
+    for(const [name,zIndex] of [['rpgPane',350],['infraPane',405],['parcelPane',410],['selectedParcelPane',430],['mapPointPane',500],['editingPane',550]]){this.map.createPane(name).style.zIndex=String(zIndex);}
     this.layers.parcels=L.featureGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);this.layers.labels=L.layerGroup().addTo(this.map);this.labelEntries=[];this.map.on('moveend resize',()=>this.updateLabels());
     this.map.createPane('cadastrePane').style.zIndex='300';this.map.getPane('cadastrePane').style.pointerEvents='none';
     this.map.on('click',event=>this.handleCadastreClick(event));
@@ -86,6 +88,20 @@ export class ParcelMap{
     this.cadastreLayer=L.tileLayer(CADASTRE_OVERLAY.url,{pane:'cadastrePane',opacity:value,maxZoom:CADASTRE_OVERLAY.maxZoom,maxNativeZoom:CADASTRE_OVERLAY.maxNativeZoom,attribution:CADASTRE_OVERLAY.attribution}).addTo(this.map);
   }
   setCadastreOpacity(value){this.cadastreOpacity=normalizeCadastreOpacity(value);this.cadastreLayer?.setOpacity(this.cadastreOpacity);}
+  // v8a n° 48 : couches réglementaires optionnelles (WMTS/WMS publics). Hors connexion, les tuiles absentes
+  // déclenchent onError une seule fois ; les parcelles restent affichées.
+  setRegulatoryLayer(def,visible,{onError=null}={}){
+    this.init();if(!this.map||!def)return false;this.regLayers??=new Map();
+    const current=this.regLayers.get(def.id);
+    if(!visible){if(current){this.map.removeLayer(current);this.regLayers.delete(def.id);}return true;}
+    if(current)return true;
+    if(!this.map.getPane('regPane')){const pane=this.map.createPane('regPane');pane.style.zIndex='320';pane.style.pointerEvents='none';}
+    const common={pane:'regPane',opacity:def.opacity??.75,attribution:def.attribution,maxZoom:20,minZoom:def.minZoom??0,maxNativeZoom:def.maxNativeZoom??19};
+    const layer=def.kind==='wms'?L.tileLayer.wms(def.url,{...common,layers:def.layers,format:'image/png',transparent:true,version:'1.3.0'}):L.tileLayer(def.url,common);
+    let warned=false;layer.on('tileerror',()=>{if(!warned){warned=true;onError?.(def);}});
+    layer.addTo(this.map);this.regLayers.set(def.id,layer);return true;
+  }
+  regulatoryLayerIds(){return[...(this.regLayers?.keys()||[])];}
   getCadastreInfo(idu){return this.cadastreInfo&&this.cadastreInfo.idu===idu?structuredClone(this.cadastreInfo):null;}
   clearCadastreSelection(){this.cadastreController?.abort();this.cadastreController=null;this.cadastreHighlight?.remove();this.cadastreHighlight=null;if(this.cadastrePopup){const popup=this.cadastrePopup;this.cadastrePopup=null;this.map?.closePopup(popup);}}
   cadastrePopupHtml(info){
@@ -119,10 +135,11 @@ export class ParcelMap{
     }finally{clearTimeout(timer);if(this.cadastreController===controller)this.cadastreController=null;}
   }
 
-  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin','ift','bcae7','owner'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.legendFocus=null;this.render(this.lastState);}
+  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin','ift','bcae7','owner','soilph'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.legendFocus=null;this.render(this.lastState);}
   colorInfo(parcel){
     if(this.colorMode==='bcae7')return bcae7ColorInfo(this.lastState,parcel); // v5b n° 58
     if(this.colorMode==='owner')return ownerColorInfo(parcel); // v7b n° 93
+    if(this.colorMode==='soilph')return soilColorInfo(this.lastState,parcel); // v8b n° 68
     if(['cost','margin'].includes(this.colorMode)){const row=this.economics?.get(parcel.id);return economicColor(row?.[this.colorMode==='cost'?'costHa':'marginHa'],this.colorMode);}
     if(this.colorMode==='ift'){const r=this.ift?.get(parcel.id);return iftColor(!r?null:r.treatments&&r.missing===r.treatments?null:r.total);}
     const context=this.situations.get(parcel.id),status=context?.status;
@@ -167,15 +184,18 @@ export class ParcelMap{
       this.bindMapPopup(marker,`<div class="map-point-popup"><strong>${escapeHtml(point.nom||point.name||point.type||'Point')}</strong><small>${escapeHtml(point.type||'Point repéré')}</small>${note?`<p>${escapeHtml(note)}</p>`:''}<div class="map-popup-actions"><button type="button" data-action="edit-map-point" data-id="${id}">Modifier</button><button type="button" data-action="move-map-point" data-id="${id}">Déplacer</button><button type="button" class="danger" data-action="delete-map-point" data-id="${id}">Supprimer</button></div></div>`,{maxWidth:320});
       this.pointMarkers.set(String(point.id),marker);
     });
-    this.setLegend();this.drawWind();
+    this.setLegend();this.drawWind();this.drawAgroInfra(state);
   }
+
+  // v8b n° 70 : haies, mares, bosquets… (enregistrements « agroInfra ») avec un style dédié.
+  drawAgroInfra(state){if(!this.map)return;this.layers.infra??=L.layerGroup().addTo(this.map);this.layers.infra.clearLayers();for(const r of state?.integrationImports||[]){if(r.deletedAt||r.farmKind!==INFRA_KIND||!r.geometry)continue;const t=infraType(r.type),color=t?.color||'#2f6b2f';try{L.geoJSON(r.geometry,{pane:'infraPane',interactive:true,style:()=>({color,weight:r.geometry.type==='LineString'?5:2,opacity:.9,fillColor:color,fillOpacity:.35,lineCap:'round'}),pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'infraPane',radius:7,color:'#fff',weight:2,fillColor:color,fillOpacity:1})}).bindTooltip(escapeHtml(r.label||t?.label||'IAE')).addTo(this.layers.infra);}catch{}}}
 
   // Leaflet's native popup click handler stops propagation. Unbinding during a
   // map tool keeps parcel/RPG/point clicks available to the placement handler.
   mapToolActive(){return Boolean(this.pointPlacementHandler||this.polygonDraw||this.measure||this.editing);}
   suspendPopups(layer){
     const visit=item=>{const popup=item.getPopup?.();if(popup){this.suspendedPopups.set(item,popup);item.unbindPopup();}item.eachLayer?.(visit);};
-    if(layer)visit(layer);else for(const group of Object.values(this.layers))visit(group);
+    if(layer)visit(layer);else for(const group of Object.values(this.layers))if(group)visit(group);
   }
   restorePopups(){
     if(this.mapToolActive())return;
@@ -264,7 +284,7 @@ export class ParcelMap{
     const legend=document.querySelector('#map-legend');if(!legend)return;
     const parcels=(this.lastState.parcelles||[]).filter(p=>!p.deletedAt&&p.geometry);
     const values=legendGroups(parcels,p=>this.colorInfo(p));this.legendValues=values;if(this.legendFocus!=null&&!values.some(v=>v.label===this.legendFocus))this.legendFocus=null;this.bindLegend(legend);
-    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha',ift:'IFT',bcae7:'BCAE 7'}[this.colorMode]}${['cost','margin','bcae7'].includes(this.colorMode)?` · ${this.economics?.values().next().value?.campaign||''}`:''}</button><div class="legend-content">${this.legendFocus!=null?'<button type="button" class="legend-reset" data-legend-reset="1">Tout afficher</button>':''}${values.map((info,index)=>`<button type="button" class="legend-item legend-filter${this.legendFocus===info.label?' is-focused':''}${this.legendFocus!=null&&this.legendFocus!==info.label?' is-dimmed':''}" data-legend-index="${index}" aria-pressed="${this.legendFocus===info.label}" title="Appui : isoler sur la carte · appui long : voir la liste"><span class="legend-dot" style="background:${info.color}"></span><span class="legend-text">${escapeHtml(legendLine(info))}</span></button>`).join('')}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
+    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha',ift:'IFT',bcae7:'BCAE 7',owner:'Propriétaires',soilph:'pH du sol'}[this.colorMode]}${['cost','margin','bcae7'].includes(this.colorMode)?` · ${this.economics?.values().next().value?.campaign||''}`:''}</button><div class="legend-content">${this.legendFocus!=null?'<button type="button" class="legend-reset" data-legend-reset="1">Tout afficher</button>':''}${values.map((info,index)=>`<button type="button" class="legend-item legend-filter${this.legendFocus===info.label?' is-focused':''}${this.legendFocus!=null&&this.legendFocus!==info.label?' is-dimmed':''}" data-legend-index="${index}" aria-pressed="${this.legendFocus===info.label}" title="Appui : isoler sur la carte · appui long : voir la liste"><span class="legend-dot" style="background:${info.color}"></span><span class="legend-text">${escapeHtml(legendLine(info))}</span></button>`).join('')}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
   }
 
   select(id,{zoom=true}={}){
@@ -327,6 +347,15 @@ export class ParcelMap{
   }
 
   getRpgFeature(id){const feature=this.rpgFeatures.get(String(id));return feature?structuredClone(feature):null;}
+  // v8a n° 47 : mise en évidence temporaire d'une zone signalée par la vérification du parcellaire.
+  highlightGeometries(geometries=[],{label='',durationMs=20000}={}){
+    this.init();if(!this.map)return false;clearTimeout(this.highlightTimer);this.layers.highlight?.remove();
+    const list=geometries.filter(Boolean);if(!list.length)return false;
+    const group=L.featureGroup(list.map(g=>L.geoJSON(g,{pane:'editingPane',interactive:false,style:{color:'#c0392b',weight:3,dashArray:'6 6',fillColor:'#c0392b',fillOpacity:.18}})));group.addTo(this.map);this.layers.highlight=group;
+    if(label)group.bindTooltip(label,{permanent:false,direction:'top'});
+    try{const bounds=group.getBounds();if(bounds.isValid())this.map.fitBounds(bounds.pad(.3),{maxZoom:18});}catch{}
+    this.highlightTimer=setTimeout(()=>{group.remove();if(this.layers.highlight===group)delete this.layers.highlight;},durationMs);return true;
+  }
 
   createRpgLayer(data,year=this.rpgYear||2024){
     return L.geoJSON(data,{pane:'rpgPane',style:RPG_STYLE,onEachFeature:(feature,layer)=>{

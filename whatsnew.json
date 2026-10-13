@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.16.0",
+      "date": "2026-10-13",
+      "title": "PAC, agronomie et gestion",
+      "items": [
+        "Import telepac guidé, vérification du parcellaire et couches réglementaires sur la carte (indicatives).",
+        "Bilan fourrager, semences et essais variétaux, analyses de sol avec plan de chaulage, haies et période de taille.",
+        "Coût réel du matériel, marge nette, export pour le comptable et comparaison des campagnes sur 3 à 5 ans.",
+        "Recherche élargie, page Confidentialité détaillée et confirmation « enregistré » plus perceptible au champ."
+      ]
+    },
+    {
       "version": "10.15.0",
       "date": "2026-10-12",
       "title": "Gestion, terrain et sécurité",

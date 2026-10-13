@@ -56,6 +56,8 @@ export function normalizePersonalization(preferences={}){
     nativeHaptics:preferences.nativeHaptics!==false,
     // Plein champ : grands boutons, texte agrandi et contraste renforcé (champ facultatif, désactivé par défaut).
     pleinChamp:preferences.pleinChamp===true,
+    // n° 18 : bip court à l’enregistrement en mode terrain ou plein champ (désactivé par défaut).
+    saveBeep:preferences.saveBeep===true,
     // n° 116 : activités de l'exploitation ('all' = tout afficher, défaut).
     activeModules:normalizeActiveModules(preferences.activeModules),
     startupDuration:normalizeStartupDuration(preferences),

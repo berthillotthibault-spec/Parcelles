@@ -1,12 +1,14 @@
-import {APP_VERSION, BUILD_ID, ENTITY_TYPES, campaignFor, checksum, clone, escapeHtml, geometryAreaHa, normalize, parseImportDate, toNullableNumber, uid, validateGeometry, validateIntervention, validateParcel} from './utils.js';
+import {APP_VERSION, BUILD_ID, ENTITY_TYPES, campaignFor, checksum, clone, escapeHtml, geometryAreaHa, geometryBbox, normalize, pointInGeometry, parseImportDate, toNullableNumber, uid, validateGeometry, validateIntervention, validateParcel} from './utils.js';
 import {migrateData, newerSchemaError, normalizeEntity, storedSchemaVersion} from './state.js';
 import {dbfEncoding, parseDbf, parseShpDbf} from './shapefile-fallback.js';
 import {html} from './safe-html.js';
 import {readImportText} from './text-encoding.js';
 import {createZip, readZip} from './zip-lite.js';
 import {kmlToGeoJson} from './parcel-formats.js';
+import {isTelepacHeaders, telepacComparison, telepacHeaders, telepacPreviewHtml, telepacRows} from './telepac.js';
 import {readableEntries} from './open-export.js';
 import {loadVendor} from './vendor-loader.js';
+import {attachmentBlob} from './storage-care.js';
 
 const IMPORT_ENGINE_BUILD=`import-${BUILD_ID}`;
 
@@ -30,7 +32,9 @@ export const FIELD_ALIASES={
   product:['produit','product','intrant'],
   dose:['dose','quantite','quantité'],
   doseUnit:['unite dose','unité dose','dose_unit','doseunit'],
-  cost:['cout','coût','cost','prix','montant']
+  cost:['cout','coût','cost','prix','montant'],
+  pacCode:['CODE_CULTU'],
+  declaredSurfaceHa:['SURF_ADM']
 };
 
 function normalizedKey(value=''){return String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'').trim();}
@@ -54,6 +58,7 @@ function objectFromRow(row,headers,mapping={}){
     commune:String(field('commune')??'').trim(),ilot:String(field('ilot')??'').trim(),exploitant:String(field('exploitant')??'').trim(),
     status:String(field('status')??'').trim(),type:String(field('type')??'').trim(),date:field('date'),
     product:String(field('product')??'').trim(),dose:field('dose'),doseUnit:String(field('doseUnit')??'').trim(),cost:toNullableNumber(field('cost')),
+    pacCode:String(field('pacCode')??'').trim().toUpperCase(),declaredSurfaceHa:toNullableNumber(field('declaredSurfaceHa')),
     raw:row
   };
 }
@@ -206,6 +211,8 @@ export async function inspectFiles(files,state,mapping={}){
     }catch(error){invalid.push({file:file.name,message:error.message});}
   }
 
+  // n° 115 : export telepac reconnu d'après les colonnes ; PACAGE retiré avant toute autre étape.
+  for(const source of parsed)if(isTelepacHeaders(source.headers)){source.rows=telepacRows(source.rows,source.headers);source.headers=telepacHeaders(source.headers);source.telepac=true;}
   const normalized=normalizeSources(parsed,mapping);const parcelCandidates=normalized.filter(row=>row.nom&&!row.type);
   const validParcels=parcelCandidates.filter(row=>!validateParcel(row).length);const probableInterventions=normalized.filter(row=>row.type&&(row.date||row.product));
   const invalidGeometry=normalized.filter(row=>row.geometry&&validateGeometry(row.geometry).length).length;
@@ -220,7 +227,8 @@ export async function inspectFiles(files,state,mapping={}){
   const classification=classifyRows(normalized,state);
   const surface=validParcels.reduce((sum,row)=>sum+(row.surfaceHa||0),0);
   return{
-    engineBuild:IMPORT_ENGINE_BUILD,mapping,sources:parsed.map(s=>({file:s.file,sheet:s.sheet,rows:s.rows.length,type:s.type,hasGeometry:s.hasGeometry,headers:s.headers,engine:s.engine,diagnostic:s.diagnostic})),
+    engineBuild:IMPORT_ENGINE_BUILD,mapping,sources:parsed.map(s=>({file:s.file,sheet:s.sheet,rows:s.rows.length,type:s.type,hasGeometry:s.hasGeometry,headers:s.headers,engine:s.engine,diagnostic:s.diagnostic,telepac:Boolean(s.telepac)})),
+    telepac:parsed.some(s=>s.telepac)?{comparison:telepacComparison(state?.parcelles,normalized.filter(row=>row.nom&&!row.type))}:null,
     rows:normalized,durationMs:Math.round((performance?.now?.()??Date.now())-started),summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface,cultures:[...new Set(validParcels.map(r=>r.culture).filter(Boolean))],communes:[...new Set(validParcels.map(r=>r.commune).filter(Boolean))],geometryValid:normalized.filter(r=>r.geometry&&!validateGeometry(r.geometry).length).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(r=>!r.nom&&!r.type).length,...classification},warnings,invalid
   };
 }
@@ -228,10 +236,35 @@ export async function inspectFiles(files,state,mapping={}){
 export function previewNeedsMapping(preview){return preview.sources.length>0&&preview.summary.parcels===0&&preview.sources.some(s=>s.headers?.length);}
 export function mappingOptions(preview){return[...new Set(preview.sources.flatMap(s=>s.headers||[]))].sort((a,b)=>a.localeCompare(b,'fr'));}
 
+// Recouvrement réel des surfaces (parcelles concaves comprises) : géométries égales, ou au moins la moitié
+// de la plus petite commune à l'autre, mesurée sur une grille de points. Deux voisines qui partagent
+// seulement leur limite (découpe oblique ou en diagonale) ne se recouvrent pas.
+function geometriesOverlap(a,b){
+  if(JSON.stringify(a.coordinates)===JSON.stringify(b.coordinates))return true;
+  const ba=geometryBbox(a),bb=geometryBbox(b);
+  if(!ba||!bb)return true;
+  const x0=Math.max(ba[0],bb[0]),y0=Math.max(ba[1],bb[1]),x1=Math.min(ba[2],bb[2]),y1=Math.min(ba[3],bb[3]);
+  if(x1<=x0||y1<=y0)return false;
+  const count=(box,test)=>{let n=0;const N=40;for(let i=0;i<N;i++)for(let j=0;j<N;j++){const x=box[0]+(box[2]-box[0])*(i+0.5)/N,y=box[1]+(box[3]-box[1])*(j+0.5)/N;if(test(x,y))n++;}return n;};
+  // Surfaces estimées dans l'unité de l'emprise de chacune, puis surface commune sur l'emprise commune.
+  const boxArea=box=>(box[2]-box[0])*(box[3]-box[1]),N2=1600;
+  const areaA=count(ba,(x,y)=>pointInGeometry(x,y,a))/N2*boxArea(ba);
+  const areaB=count(bb,(x,y)=>pointInGeometry(x,y,b))/N2*boxArea(bb);
+  const common=count([x0,y0,x1,y1],(x,y)=>pointInGeometry(x,y,a)&&pointInGeometry(x,y,b))/N2*boxArea([x0,y0,x1,y1]);
+  const smaller=Math.min(areaA,areaB);
+  return smaller>0&&common>=0.5*smaller;
+}
+
 function parcelMatch(row,parcels){
   const active=parcels.filter(item=>!item.deletedAt);
   if(row.sourceId){
-    const byId=active.filter(item=>item.sourceId===row.sourceId);
+    let byId=active.filter(item=>item.sourceId===row.sourceId);
+    // Les numéros telepac îlot.parcelle ne sont pas stables d'une campagne à l'autre (renumérotation
+    // après découpe) : le rapprochement par identifiant exige que les géométries se recouvrent.
+    if(byId.length&&String(row.sourceId).startsWith('telepac:')&&row.geometry){
+      byId=byId.filter(item=>!item.geometry||geometriesOverlap(row.geometry,item.geometry));
+      if(!byId.length)return null;
+    }
     if(byId.length)return byId.length===1?byId[0]:null;
   }
   // Homonymous parcels are distinct when their source identifiers differ.
@@ -251,6 +284,7 @@ export async function applyImport(preview,store,strategy='merge'){
     if(match&&strategy==='ignore'){skipped++;continue;}
     const sourceId=match&&strategy==='new'?`${row.sourceId||normalize(row.nom)}_${uid('import').slice(-6)}`:row.sourceId;
     let entity={nom:row.nom,sourceId,surfaceHa:row.surfaceHa,culture:row.culture,commune:row.commune,ilot:row.ilot,exploitant:row.exploitant,status:row.status||match?.status||'À jour',geometry:row.geometry,source:'import',importedAt:timestamp,ownershipType:match?.ownershipType||'own',clientId:match?.clientId||null,notes:match?.notes||'',favorite:match?.favorite||false};
+    if(row.pacCode)entity.rpgCodeCulture=row.pacCode;if(row.declaredSurfaceHa!==null&&row.declaredSurfaceHa!==undefined)entity.declaredSurfaceHa=row.declaredSurfaceHa;
     if(match&&strategy!=='new'){
       if(strategy==='merge'){
         const preserved={...match};for(const [key,value] of Object.entries(entity)){if(value!==null&&value!==undefined&&value!=='')preserved[key]=value;}entity=preserved;
@@ -304,7 +338,7 @@ export async function createCompleteBackup(store){
   const attachments=[];
   for(const type of ['photos','documents']){
     for(const item of state[type]||[]){
-      const blob=await store.storage.blobGet(item.id);if(!blob)continue;
+      const blob=await attachmentBlob(store,item.id);if(!blob)continue;
       const ext=(item.name||'').match(/\.[a-z0-9]{1,8}$/i)?.[0]||'';const path=`attachments/${item.id}${ext}`;
       entries.push({name:path,data:blob});
       attachments.push({id:item.id,type,path,name:item.name||'',mimeType:item.mimeType||blob.type||'',size:blob.size,checksum:await checksumBlob(blob)});
@@ -359,7 +393,7 @@ export function exportGeoJson(state){return JSON.stringify({type:'FeatureCollect
 export function importPreviewHtml(preview){
   const s=preview.summary,sample=preview.rows.slice(0,10),changed=(s.duplicateDetails||[]).filter(x=>['culture','surfaceHa','commune','ilot'].some(k=>JSON.stringify(x.match?.[k]??null)!==JSON.stringify(x.row?.[k]??null))).slice(0,8);
   const diffs=changed.length?`<details class="notice info"><summary>Voir ${changed.length} ${(changed.length)>1?'différences':'différence'} ${(changed.length)>1?'détectées':'détectée'}</summary>${changed.map(x=>{const pairs=[];for(const [k,label] of [['culture','Culture'],['surfaceHa','Surface'],['commune','Commune'],['ilot','Îlot']]){if(JSON.stringify(x.match?.[k]??null)!==JSON.stringify(x.row?.[k]??null))pairs.push(`${label} : ${escapeHtml(x.match?.[k]??'—')} → ${escapeHtml(x.row?.[k]??'—')}`);}return`<div style="margin-top:8px"><strong>${escapeHtml(x.row.nom||x.match?.nom||'Parcelle')}</strong><br><small>${pairs.join('<br>')}</small></div>`;}).join('')}</details>`:'';
-  return`<div class="preview-summary"><div class="preview-stat"><strong>${s.parcels}</strong><small>parcelles</small></div><div class="preview-stat"><strong>${s.surface.toLocaleString('fr-FR',{maximumFractionDigits:2})} ha</strong><small>surface</small></div><div class="preview-stat"><strong>${s.newRows}</strong><small>nouvelles</small></div><div class="preview-stat"><strong>${s.changed}</strong><small>modifiées</small></div><div class="preview-stat"><strong>${s.interventions}</strong><small>travaux</small></div><div class="preview-stat"><strong>${s.geometryValid}</strong><small>géométries valides</small></div></div>${diffs}${preview.invalid.length?`<div class="notice danger">${preview.invalid.map(i=>`${escapeHtml(i.file)} : ${escapeHtml(i.message)}`).join('<br>')}</div>`:''}${preview.warnings.length?`<details class="notice warning"><summary>${preview.warnings.length} ${(preview.warnings.length)>1?'avertissements':'avertissement'}</summary>${preview.warnings.map(escapeHtml).join('<br>')}</details>`:''}<p class="form-note">Moteur ${escapeHtml(preview.engineBuild)} · analyse ${preview.durationMs??'—'} ms · ${preview.sources.map(s=>`${escapeHtml(s.file)}${s.sheet?` / ${escapeHtml(s.sheet)}`:''} (${s.rows})${s.engine?` · ${escapeHtml(s.engine)}`:''}`).join('<br>')}</p><div class="table-wrap"><table><thead><tr><th>Nom / travail</th><th>Culture</th><th>Surface</th><th>Commune</th><th>Géométrie</th></tr></thead><tbody>${sample.map(row=>html`<tr><td>${row.nom||row.type||'—'}</td><td>${row.culture||'—'}</td><td>${row.surfaceHa!==null?`${Number(row.surfaceHa).toLocaleString('fr-FR',{maximumFractionDigits:2})} ha`:'—'}</td><td>${row.commune||'—'}</td><td>${row.geometry?'Oui':'—'}</td></tr>`).join('')}</tbody></table></div>`;
+  return`${telepacPreviewHtml(preview.telepac)}<div class="preview-summary"><div class="preview-stat"><strong>${s.parcels}</strong><small>parcelles</small></div><div class="preview-stat"><strong>${s.surface.toLocaleString('fr-FR',{maximumFractionDigits:2})} ha</strong><small>surface</small></div><div class="preview-stat"><strong>${s.newRows}</strong><small>nouvelles</small></div><div class="preview-stat"><strong>${s.changed}</strong><small>modifiées</small></div><div class="preview-stat"><strong>${s.interventions}</strong><small>travaux</small></div><div class="preview-stat"><strong>${s.geometryValid}</strong><small>géométries valides</small></div></div>${diffs}${preview.invalid.length?`<div class="notice danger">${preview.invalid.map(i=>`${escapeHtml(i.file)} : ${escapeHtml(i.message)}`).join('<br>')}</div>`:''}${preview.warnings.length?`<details class="notice warning"><summary>${preview.warnings.length} ${(preview.warnings.length)>1?'avertissements':'avertissement'}</summary>${preview.warnings.map(escapeHtml).join('<br>')}</details>`:''}<p class="form-note">Moteur ${escapeHtml(preview.engineBuild)} · analyse ${preview.durationMs??'—'} ms · ${preview.sources.map(s=>`${escapeHtml(s.file)}${s.sheet?` / ${escapeHtml(s.sheet)}`:''} (${s.rows})${s.engine?` · ${escapeHtml(s.engine)}`:''}`).join('<br>')}</p><div class="table-wrap"><table><thead><tr><th>Nom / travail</th><th>Culture</th><th>Surface</th><th>Commune</th><th>Géométrie</th></tr></thead><tbody>${sample.map(row=>html`<tr><td>${row.nom||row.type||'—'}</td><td>${row.culture||'—'}</td><td>${row.surfaceHa!==null?`${Number(row.surfaceHa).toLocaleString('fr-FR',{maximumFractionDigits:2})} ha`:'—'}</td><td>${row.commune||'—'}</td><td>${row.geometry?'Oui':'—'}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 // Yield imports reuse the proven SHP reader without creating parcel records.

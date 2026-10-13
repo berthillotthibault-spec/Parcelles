@@ -46,7 +46,7 @@ export function createWideLayoutUI({doc=globalThis.document,win=globalThis.windo
     if(!wrap){
       wrap=doc.createElement('div');wrap.className='wide-cols';
       wrap.innerHTML='<div class="wide-main"></div><div class="wide-side today-grid" role="complementary" aria-label="En un coup d’œil"></div><div class="wide-extra today-grid" role="complementary" aria-label="Activité"></div>';
-      const welcome=page.querySelector(':scope > .today-welcome');
+      const welcome=page.querySelector(':scope > #getting-started')||page.querySelector(':scope > .today-welcome'); // n° 119 : la carte « Bien démarrer » reste en tête
       if(welcome)welcome.after(wrap);else page.prepend(wrap);
     }
     page.classList.add('is-wide');page.classList.toggle('is-wide-three',m==='three');

@@ -58,6 +58,46 @@ export const HELP = {
     'La consommation l/h se calcule de plein à plein ; une alerte signale une dérive de +20 % par rapport à la moyenne de l’engin.',
     'Le niveau de cuve est estimé à partir de la dernière jauge ; le remboursement TICPE est un montant estimé, pas une déclaration.'
   ]},
+  'campaign-history': {match: /^Historique des campagnes/i, title: 'Historique des campagnes', points: [
+    'Marge ou charges €/ha sur 3 à 5 campagnes, par culture ou par parcelle, avec la culture de l’assolement de chaque année.',
+    'La moyenne olympique retire la meilleure et la pire année : une référence utile pour l’assurance récolte.',
+    'Les parcelles sous la moyenne de l’exploitation plus d’une année sur deux sont signalées.'
+  ], tip: 'Astuce : touchez une valeur pour ouvrir les marges de cette campagne.'},
+  'accounting-export': {match: /^Pour mon comptable/i, title: 'Pour mon comptable', points: [
+    'Une ligne par opération chiffrée : factures émises, ventes de récolte et d’animaux, entrées de stock, pleins de GNR et entretiens, avec compte, parcelle, culture, HT, TVA et TTC.',
+    'Le classeur Excel ajoute les ventes, une synthèse par compte et taux de TVA, et les stocks valorisés à la date de clôture.',
+    'C’est une aide, pas une comptabilité légale ni un FEC : comptes indicatifs, taux de TVA à saisir par catégorie.'
+  ]},
+  'net-margin': {match: /^Marge nette/i, title: 'Marge nette', points: [
+    'Trois étages : marge brute, marge directe après matériel, puis marge nette après fermages, charges de structure et aides.',
+    'Les fermages viennent du foncier (bail et indice) ; charges et aides se saisissent une fois par campagne, réparties au prorata des hectares ou affectées à une culture.',
+    'Les aides sont des montants estimés, non contractuels : vérifiez-les sur votre relevé PAC.'
+  ], tip: 'Astuce : « Reprendre » recopie la fiche de la campagne précédente, à ajuster.'},
+  'machine-costs': {match: /^Coût réel du matériel/i, title: 'Coût réel du matériel', points: [
+    'Coût complet de la campagne : amortissement, assurance, entretiens et carburant, divisé par les heures et les hectares des travaux.',
+    'Le taux de complétude indique la part des travaux avec heures : un travail sans heures fait monter le €/h.',
+    'Le barème d’entraide ou CUMA est le vôtre (millésime et source) ; le coût horaire saisi ou le tarif d’un client ne changent qu’après confirmation.'
+  ], tip: 'Astuce : un engin sous-utilisé coûte souvent plus cher qu’une ETA ; comparez au barème.'},
+  forage: {match: /^Bilan fourrager|^Récolte de fourrage|^Inventaire de fourrage|^Besoins d’hivernage/i, title: 'Bilan fourrager', points: [
+    'Saisissez chaque récolte (balles, silo ou tonnes) : elle est convertie en tonnes de matière sèche avec un taux de MS modifiable.',
+    'Les besoins se calculent avec les lots à nourrir (effectif × kg MS par jour) sur la période d’hivernage ; un inventaire remet le stock à jour.',
+    'Le calendrier de coupe compare les sommes de températures depuis le 1er février à des repères indicatifs : le stade réel de la prairie prime.'
+  ]},
+  seeds: {match: /^Mes variétés/i, title: 'Mes variétés', points: [
+    'Dans un travail de semis, la section « Semence » note la variété (liste apprise), la densité, le PMG, le lot, l’origine et le traitement de semence.',
+    'La dose en kg/ha se calcule à partir des grains/m² et du PMG ; la fiche parcelle affiche le semis de la campagne.',
+    'Le tableau croise variété, date de semis, rendement des lots de récolte et coût semence sur plusieurs campagnes ; les semences de ferme sont totalisées pour la CVO.'
+  ]},
+  'soil-analysis': {match: /^Analyses? de sol|^Modifier l’analyse de sol|^Plan de chaulage|^Grille d’échantillonnage|^Guidage échantillonnage/i, title: 'Analyses de sol', points: [
+    'Saisissez les résultats du laboratoire (pH, P₂O₅, K₂O, MgO, MO, CEC) et joignez le bulletin PDF ; une alerte signale les analyses de plus de 5 ans.',
+    'Le besoin de chaulage est estimé selon la texture et le pH cible, puis peut créer une tâche ; c’est un calcul indicatif à valider avec votre conseiller.',
+    'La grille place environ un point par hectare dans le contour, en zigzag ; le guidage GPS mène d’un point au suivant sur le terrain.'
+  ]},
+  hedges: {match: /^Haies et IAE|^Nouvelle infrastructure|^Modifier l’infrastructure|^Règles BCAE 8/i, title: 'Haies et IAE', points: [
+    'Tracez haies, alignements et bandes tampons sur la carte (linéaire calculé), les bosquets et mares en contour, ou placez un arbre ou une mare avec votre position.',
+    'Le compteur donne les km de haies et la part de SAU en IAE avec les coefficients de pondération, modifiables dans « Règles BCAE 8 ».',
+    'Un travail de taille de haie daté du 16 mars au 15 août est bloqué avec une explication, sauf dérogation cochée ; les dates se paramètrent selon votre département.'
+  ]},
   simulator: {match: /^Et si/i, title: 'Simulateur « Et si… »', points: [
     'Les curseurs font varier le rendement, le prix, les engrais et le GNR : la marge se recalcule aussitôt.',
     'La matrice croise rendement et prix pour voir où la marge devient négative.',
@@ -158,6 +198,26 @@ export const HELP = {
     'Filtrez par type ou cherchez un nom ; chaque ligne indique quand et par qui l’élément a été supprimé.',
     'En restaurant une parcelle, Parcelles propose aussi ses travaux et passages supprimés le même jour.'
   ], link: {label: 'Sauvegarde complète', action: 'export-complete-backup'}, tip: 'Astuce : dans une exploitation partagée, seule la personne propriétaire peut vider la corbeille.'},
+  telepac: {match: /^Importer depuis telepac/i, title: 'Import telepac', points: [
+    'Sur telepac : Déclaration › Téléchargements › « Parcelles graphiques (SHP) ». Gardez le ZIP tel quel.',
+    'Parcelles reconnaît le fichier : nom « îlot.parcelle » (ex. 3.2), culture d’après le code PAC, surface admissible.',
+    'L’année suivante, réimportez : l’aperçu liste les nouvelles parcelles, les découpes et les cultures changées.'
+  ], link: {label: 'Historique des imports', action: 'open-import-history'}, tip: 'Astuce : le numéro PACAGE n’est jamais enregistré, et chaque import peut être annulé.'},
+  'parcel-check': {match: /^Vérification du parcellaire/i, title: 'Vérification du parcellaire', points: [
+    'Repère les parcelles qui se chevauchent et la surface comptée deux fois.',
+    'Signale les écarts de plus de 2 % entre surface saisie, surface du contour, surface déclarée (telepac) et RPG.',
+    'Avec le RPG chargé (connexion nécessaire), indique les parcelles découpées autrement dans le RPG.'
+  ], link: {label: 'Assistant PAC', action: 'open-pac'}, tip: 'Astuce : c’est une aide calculée par approximation ; la déclaration telepac reste la référence.'},
+  regulatory: {match: /^Valeurs réglementaires indicatives/i, title: 'Couches réglementaires', points: [
+    'Carte › Couches › Réglementaire : cours d’eau BCAE, hydrographie, Natura 2000, zones vulnérables et pentes (services publics IGN et Sandre).',
+    'La fiche parcelle indique le cours d’eau le plus proche et les sites Natura 2000 ; hors connexion, la dernière évaluation reste affichée.',
+    'Une préconisation peut exclure une bande le long des cours d’eau : dose 0 dans l’export ISOXML ou SHP.'
+  ], tip: 'Astuce : la ZNT dépend du produit (AMM) et de l’arrêté départemental ; ajustez ici les valeurs indicatives.'},
+  'regulated-ops': {match: /^Opérateurs et échéances/i, title: 'Opérateurs et échéances', points: [
+    'Une fiche par opérateur : nom, n° Certiphyto, catégorie (décideur ou opérateur) et fin de validité.',
+    'Un traitement saisi avec un opérateur sans Certiphyto valide affiche un avertissement.',
+    'Contrôle du pulvérisateur, assurances et conseil stratégique : rappel sur l’accueil 60 jours avant l’échéance (réglable).'
+  ], link: {label: 'Conformité', action: 'open-compliance'}, tip: 'Astuce : les périodicités sont indicatives et modifiables ; l’échéance d’assurance se saisit sur la fiche du matériel.'},
   'app-lock': {match: /^Verrouillage de Parcelles/i, title: 'Verrouillage', points: [
     'Parcelles demande un code après quelques minutes sans utilisation.',
     'Face ID ou l’empreinte peuvent remplacer le code ; le code reste toujours possible.',

@@ -6,6 +6,7 @@
 import {campaignFor,escapeHtml,formatNumber,localDate,normalize,toNullableNumber} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {printCss,printDocument} from './dossier.js';
+import {operatorCertificateWarning} from './regulated-ops.js'; // v8a n° 72
 
 export const PHYTO_DISCLAIMER='Contrôles indicatifs établis d’après la fiche produit saisie : vérifiez l’étiquette du produit et la réglementation en vigueur. L’absence d’alerte ne vaut pas autorisation.';
 export const LABEL_REMINDER='Vérifiez l’étiquette.';
@@ -132,6 +133,7 @@ export function checkTreatment(state,work,{catalog=null}={}){
   const parcel=active(state,'parcelles').find(p=>p.id===work.parcelId)||null;
   const found=productFor(state,work,{catalog}),sheet=found?.sheet||null;
   out.sheet=sheet;
+  const certificate=operatorCertificateWarning(state,work);if(certificate)out.warnings.push(certificate); // v8a n° 72
   if(!text(work.product)&&!text(work.amm))out.warnings.push({code:'product',message:'Produit non renseigné : le registre restera incomplet.'});
   else if(!sheet)out.warnings.push({code:'no-sheet',message:`Aucune fiche produit (dose maximale, DAR, DRE) : contrôles impossibles. ${LABEL_REMINDER}`});
   const limits=limitsFor(sheet,work,parcel);out.limits=limits;

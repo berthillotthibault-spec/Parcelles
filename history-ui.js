@@ -3,6 +3,7 @@
 // refusée en lecture seule (autre fenêtre, données d’une version plus récente) et elle-même historisée.
 import {describeEntry,formatHistoryDate,historyAuthor,historyKey,revertEntity} from './history.js';
 import {escapeHtml} from './utils.js';
+import {skeletonHtml} from './skeletons.js';
 
 // Modifications d’un même enregistrement : écrites à quelques millisecondes d’intervalle.
 const BURST_MS=3000;
@@ -84,7 +85,7 @@ export function createHistoryUI({store,state,toast}){
   // Frise dans un conteneur existant ; « Revenir à cette version » rétablit l’état juste après la ligne choisie.
   async function mount(container,type,id){
     if(!container)return;
-    container.innerHTML='<p class="history-empty">Chargement de l’historique…</p>';
+    container.innerHTML=skeletonHtml('list',{rows:3,label:'Chargement de l’historique…'});
     const rows=await loadRows(type,id);
     if(!container.isConnected)return;
     const entity=store.get(type,id,{includeDeleted:true});

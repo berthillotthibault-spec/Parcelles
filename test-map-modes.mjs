@@ -93,3 +93,13 @@ test('libellés français pour chaque mode', () => {
   for(const mode of MODES)assert.ok(MAP_MODE_LABELS[mode]);
   assert.throws(()=>createMapModes().enter(''),/inconnu/);
 });
+
+// v8 : après expiration de la mise en évidence (« Voir sur la carte »), suspendPopups ne doit pas planter.
+test('suspendPopups ignore une couche nulle (mise en évidence expirée)', async () => {
+  const {ParcelMap}=await import('./map.js');
+  const map=Object.create(ParcelMap.prototype);
+  const unbound=[];const leaf={getPopup:()=>'popup',unbindPopup:()=>unbound.push('leaf')};
+  map.layers={parcels:{eachLayer:fn=>fn(leaf)},highlight:null};map.suspendedPopups=new Map();
+  assert.doesNotThrow(()=>map.suspendPopups());
+  assert.deepEqual(unbound,['leaf']);assert.equal(map.suspendedPopups.get(leaf),'popup');
+});

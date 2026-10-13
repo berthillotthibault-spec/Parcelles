@@ -1,5 +1,6 @@
 import {pointInGeometry,uid} from './utils.js';
 import {readImportText} from './text-encoding.js';
+import {attachmentBlob} from './storage-care.js';
 import {createZip,readZip} from './zip-lite.js';
 export const YIELD_LIMIT=20000,FILE_LIMIT=8*1024*1024;
 export const YIELD_FIELDS={longitude:'Longitude (WGS84)',latitude:'Latitude (WGS84)',yield:'Rendement',humidity:'Humidité (%)',speed:'Vitesse (km/h)',width:'Largeur (m)',date:'Date',time:'Heure',machine:'Machine',crop:'Culture'};
@@ -61,7 +62,7 @@ export function displayYieldCells(points){const cells=new Map(),latScale=111320,
 export class YieldRepository{
   constructor(store){this.store=store;this.cache=new Map();}
   list(parcelId){return this.store.snapshot().documents.filter(d=>d.yieldMap?.version===1&&(!parcelId||d.parcelId===parcelId));}
-  async source(doc){const scope=this.store.workspaceContext().key,cacheKey=scope+':'+doc.id;let source=this.cache.get(cacheKey);if(source)return source;const blob=await this.store.storage.blobGet(doc.id);if(!blob)throw Error('Fichier brut absent de cet appareil. Synchronisez les pièces jointes ou restaurez une sauvegarde complète.');const entries=await readZip(blob);source=await readYieldFiles(await Promise.all(entries.map(async e=>new File([await e.arrayBuffer()],e.name))));this.cache.set(cacheKey,source);while(this.cache.size>2)this.cache.delete(this.cache.keys().next().value);return source;}
+  async source(doc){const scope=this.store.workspaceContext().key,cacheKey=scope+':'+doc.id;let source=this.cache.get(cacheKey);if(source)return source;const blob=await attachmentBlob(this.store,doc.id);if(!blob)throw Error('Fichier brut absent de cet appareil. Synchronisez les pièces jointes ou restaurez une sauvegarde complète.');const entries=await readZip(blob);source=await readYieldFiles(await Promise.all(entries.map(async e=>new File([await e.arrayBuffer()],e.name))));this.cache.set(cacheKey,source);while(this.cache.size>2)this.cache.delete(this.cache.keys().next().value);return source;}
   async save(files,source,config,parcel,existing=null){const scope=this.store.workspaceContext().key;analyzeYield(source,config,parcel);if(this.store.writeGuard&&!this.store.writeGuard({entity:'documents',action:existing?'update':'create'}))throw Error('Votre rôle ne permet pas cet import.');const id=existing?.id||uid('yield');if(!existing){const blob=await createZip(files.map(f=>({name:f.name,data:f})));await this.store.storage.blobPut(id,blob);if(scope!==this.store.workspaceContext().key){await this.store.storage.blobDelete(id);throw Error('Exploitation changée : import annulé.');}}
     try{return await this.store.upsert('documents',{...existing,id,name:existing?.name||`Rendement-${files[0].name}.zip`,mime:'application/zip',mimeType:'application/zip',category:'Carte de rendement',parcelId:parcel.id,yieldMap:{version:1,...config,format:source.format,pointCount:source.rows.length,importedAt:existing?.yieldMap?.importedAt||Date.now()}},{label:existing?'Nettoyage rendement recalculé.':'Carte de rendement importée.'});}catch(e){if(!existing)await this.store.storage.blobDelete(id);throw e;}
   }
