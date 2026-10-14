@@ -74,7 +74,7 @@ export function createHelpUI({store, modal, doc = globalThis.document}) {
     modal('Aide', 'Les réponses aux questions courantes.', `<div class="help-general">${sections.map(([title, points]) => `<section><h3>${e(title)}</h3><ul class="help-points">${points.map(point => `<li>${e(point)}</li>`).join('')}</ul></section>`).join('')}
       <section><h3>Questions fréquentes</h3>${FAQ.map(item => `<details class="help-faq"><summary>${e(item.q)}</summary><p>${e(item.a)}</p></details>`).join('')}</section>
       <p class="form-note">Le bouton « ? » en haut d’une fenêtre explique l’écran ouvert.</p>
-      <div class="help-actions"><button type="button" class="button secondary" data-action="open-whats-new">Nouveautés</button><button type="button" class="button secondary" data-action="open-diagnostic">Un problème ?</button></div></div>`,
+      <div class="help-actions">${store.isDemo ? '<button type="button" class="button secondary" data-action="exit-demo">Revenir à ma ferme</button>' : '<button type="button" class="button secondary" data-action="open-demo">Explorer une ferme d’exemple</button>'}<button type="button" class="button secondary" data-action="open-whats-new">Nouveautés</button><button type="button" class="button secondary" data-action="open-diagnostic">Un problème ?</button></div></div>`,
     '<button class="button primary" data-action="close-modal">Compris</button>');
   }
   return {keyFor, headerButtonHtml, decorateModal, mountViewHelp, openTopic, openHelp};

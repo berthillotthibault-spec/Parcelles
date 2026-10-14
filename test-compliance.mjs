@@ -142,7 +142,9 @@ test('dossier de contrôle : sommaire, mention indicative, données échappées'
 
 test('accroches : menu Gestion, action et cache hors connexion', ()=>{
   const app=fs.readFileSync(new URL('./app.js',import.meta.url),'utf8');
-  assert.match(app,/import \{createComplianceUI\} from '\.\/compliance-ui\.js'/);
+  // Écran chargé à l'ouverture (n° 144) : import() dans lazy-modules.js, création à l'arrivée du module.
+  assert.match(fs.readFileSync(new URL('./lazy-modules.js',import.meta.url),'utf8'),/compliance: \(\) => import\('\.\/compliance-ui\.js'\)/);
+  assert.match(app,/lazy\.onLoad\('compliance',m=>complianceUI=m\.createComplianceUI\(/);
   assert.match(app,/\['Conformité','Prêt pour un contrôle \?','open-compliance'/);
   assert.match(app,/action==='open-compliance'/);
   const sw=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');

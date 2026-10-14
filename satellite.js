@@ -1,6 +1,9 @@
 // Satellite data is an optional, isolated cache: never part of farm records.
 export const SATELLITE_CACHE='satellite-cache-v1';
 export const MAX_CACHE=8, MAX_AGE=30*86400000;
+// n° 43 : la carte « État des cultures » garde une série par parcelle ; seules les 8 entrées
+// les plus récentes conservent leurs images (au plus 6 dates par type).
+export const MAX_ENTRIES=400, MAX_BYTES=6000000, MAX_IMAGE_DATES=6;
 const finite=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max;
 export function geometryBounds(g){
   if(!g||!['Polygon','MultiPolygon'].includes(g.type))throw Error('Contour de parcelle nécessaire.');
@@ -37,7 +40,21 @@ export function anomalies(series){
 }
 export function endpointUrl(value){if(!value)return'';const u=new URL(value);if(u.protocol!=='https:'&&!(u.protocol==='http:'&&['localhost','127.0.0.1'].includes(u.hostname)))throw Error('Le proxy satellite doit utiliser HTTPS.');if(u.username||u.password||u.search||u.hash)throw Error('Adresse proxy invalide.');return u.href.replace(/\/$/,'');}
 export function pruneCache(entries,now=Date.now()){
-  let bytes=0;return entries.filter(e=>e&&e.savedAt>now-MAX_AGE).sort((a,b)=>b.savedAt-a.savedAt).filter((e,i)=>{bytes+=JSON.stringify(e).length;return i<MAX_CACHE&&bytes<6000000;});
+  let bytes=0,imaged=0;const out=[];
+  for(let e of entries.filter(e=>e&&e.savedAt>now-MAX_AGE).sort((a,b)=>b.savedAt-a.savedAt)){
+    if(out.length>=MAX_ENTRIES)break;
+    if(e.images&&Object.keys(e.images).length){if(imaged>=MAX_CACHE||bytes+JSON.stringify(e).length>=MAX_BYTES)e={...e,images:{}};else imaged++;}
+    const size=JSON.stringify(e).length;if(bytes+size>=MAX_BYTES)continue;bytes+=size;out.push(e);
+  }
+  return out;
+}
+// Images datées « kind@AAAA-MM-JJ » : garde les plus récentes de chaque type. L'ancienne clé
+// « kind » (dernière image de l'entrée) est convertie quand on connaît sa date.
+export function trimImages(images,lastDate=null,max=MAX_IMAGE_DATES){
+  const out={},byKind=new Map();
+  for(const [key,url] of Object.entries(images||{})){if(!url)continue;let [kind,date]=key.split('@');if(!date){if(!lastDate){out[key]=url;continue;}date=lastDate;}if(!byKind.has(kind))byKind.set(kind,new Map());byKind.get(kind).set(date,url);}
+  for(const [kind,dates] of byKind)for(const date of [...dates.keys()].sort().slice(-max))out[kind+'@'+date]=dates.get(date);
+  return out;
 }
 export class SatelliteService{
   constructor({storage,scope,endpoint,token,fetcher=(...args)=>globalThis.fetch(...args)}){Object.assign(this,{storage,scope,endpoint,token,fetcher});this.entries=[];this.loaded=false;this.writes=Promise.resolve();}
@@ -46,8 +63,10 @@ export class SatelliteService{
   peek(parcel,period){const candidates=this.entries.filter(e=>e.parcelId===parcel.id&&(!period||e.period===period)&&e.savedAt>Date.now()-MAX_AGE);if(!candidates.length)return;const key=this.identity(parcel);return candidates.find(e=>e.key===key);}
   async save(entry){this.entries=pruneCache([entry,...this.entries.filter(e=>!(e.key===entry.key&&e.period===entry.period))]);if(!this.storage.usingFallback){const snapshot=structuredClone(this.entries);this.writes=this.writes.catch(()=>{}).then(()=>this.storage.set(SATELLITE_CACHE,snapshot));try{await this.writes;}catch{entry.cacheWarning='Cache indisponible : ces données ne sont conservées que dans cette session.';}}return entry;}
   async request(body,signal){const endpoint=endpointUrl(this.endpoint());if(!endpoint)throw Error('Configuration nécessaire : renseignez le proxy Satellite dans config.js.');if(globalThis.navigator?.onLine===false)throw Error('Hors connexion : seules les données déjà chargées sont disponibles.');const token=await this.token();if(!token)throw Error('Connectez-vous au compte cloud autorisé pour utiliser le satellite.');const response=await this.fetcher(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify(body),signal});if(!response.ok)throw Error(response.status===401||response.status===403?'Compte non autorisé pour ce service satellite.':`Service satellite indisponible (HTTP ${response.status}).`);if(Number(response.headers.get('content-length'))>2500000)throw Error('Réponse satellite trop volumineuse.');return response;}
-  async load(parcel,period,{refresh=false,signal}={}){geometryBounds(parcel.geometry);await this.init();const key=this.identity(parcel),cached=this.peek(parcel,period);if(cached&&(!refresh||globalThis.navigator?.onLine===false))return cached;const range=periodRange(period),response=await this.request({operation:'series',geometry:parcel.geometry,...range},signal),payload=await response.json();const entry={key,parcelId:parcel.id,period,savedAt:Date.now(),range,series:normalizeSeries(payload.series),ignored:cached?.ignored||[],images:{}};if(entry.series.some(r=>r.date<range.from.slice(0,10)||r.date>range.to.slice(0,10)))throw Error('Dates hors de la période demandée.');return this.save(entry);}
-  async image(parcel,entry,kind,signal){const date=entry.series.filter(r=>r.usable).at(-1)?.date;if(!date)throw Error('Aucune image exploitable.');if(entry.images?.[kind])return entry.images[kind];const response=await this.request({operation:'image',geometry:parcel.geometry,date,kind},signal);if(!response.headers.get('content-type')?.includes('image/png'))throw Error('Image satellite invalide.');const blob=await response.blob();if(blob.size>1500000)throw Error('Image trop volumineuse.');const url=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});entry.images={...entry.images,[kind]:url};await this.save(entry);return url;}
+  // fallback=false (mise à jour de toutes les parcelles) : hors connexion, erreur au lieu du cache, sinon le cache serait compté comme actualisé (vague 9).
+  async load(parcel,period,{refresh=false,fallback=true,signal}={}){geometryBounds(parcel.geometry);await this.init();const key=this.identity(parcel),cached=this.peek(parcel,period);if(cached&&(!refresh||(fallback&&globalThis.navigator?.onLine===false)))return cached;const range=periodRange(period),response=await this.request({operation:'series',geometry:parcel.geometry,...range},signal),payload=await response.json();const entry={key,parcelId:parcel.id,period,savedAt:Date.now(),range,series:normalizeSeries(payload.series),ignored:cached?.ignored||[],images:{}};const kept=trimImages(cached?.images,cached?.series?.filter(r=>r.usable).at(-1)?.date);for(const k of Object.keys(kept))if(k.includes('@')&&entry.series.some(r=>r.usable&&r.date===k.split('@')[1]))entry.images[k]=kept[k];if(entry.series.some(r=>r.date<range.from.slice(0,10)||r.date>range.to.slice(0,10)))throw Error('Dates hors de la période demandée.');return this.save(entry);}
+  entriesFor(parcel){if(!parcel)return[];let key;try{key=this.identity(parcel);}catch{return[];}return this.entries.filter(e=>e.parcelId===parcel.id&&e.key===key&&e.savedAt>Date.now()-MAX_AGE);}
+  async image(parcel,entry,kind,signal,at=null){const usable=entry.series.filter(r=>r.usable),last=usable.at(-1)?.date,date=at||last;if(!date||!usable.some(r=>r.date===date))throw Error('Aucune image exploitable.');const cachedImage=entry.images?.[kind+'@'+date]||(date===last?entry.images?.[kind]:null);if(cachedImage)return cachedImage;const response=await this.request({operation:'image',geometry:parcel.geometry,date,kind},signal);if(!response.headers.get('content-type')?.includes('image/png'))throw Error('Image satellite invalide.');const blob=await response.blob();if(blob.size>1500000)throw Error('Image trop volumineuse.');const url=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});entry.images=trimImages({...entry.images,[kind+'@'+date]:url},last);await this.save(entry);return url;}
   async ignore(entry,id){entry.ignored=[...new Set([...(entry.ignored||[]),id])].slice(-20);await this.save(entry);}
 }
 // The Process raster is masked by the parcel and clear SCL pixels. Values are

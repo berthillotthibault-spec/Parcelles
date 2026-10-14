@@ -98,7 +98,9 @@ test('ajout groupé : refus sans sélection, au-delà de la limite ou sans droit
 
 test('accroches : accueil, liste vide, cache hors connexion', ()=>{
   const app=fs.readFileSync(new URL('./app.js',import.meta.url),'utf8');
-  assert.match(app,/import \{createRpgOnboardingUI\} from '\.\/rpg-onboarding-ui\.js'/);
+  // Écran chargé à l'ouverture (n° 144) : import() dans lazy-modules.js, création à l'arrivée du module.
+  assert.match(fs.readFileSync(new URL('./lazy-modules.js',import.meta.url),'utf8'),/rpgOnboarding: \(\) => import\('\.\/rpg-onboarding-ui\.js'\)/);
+  assert.match(app,/lazy\.onLoad\('rpgOnboarding',m=>rpgOnboardingUI=m\.createRpgOnboardingUI\(/);
   assert.match(app,/id="onboarding-rpg"/);
   assert.match(app,/action==='rpg-onboarding'/);
   assert.doesNotMatch(app,/export Geofolia/);

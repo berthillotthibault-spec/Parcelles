@@ -2764,3 +2764,42 @@ html[data-map-mode] .map-whereami,.map-whereami.hidden{display:none}
 /* v8a n° 72 : opérateurs et échéances */
 .reg-operator{border:1px solid var(--border-subtle);border-radius:12px;padding:8px 10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
 .reg-operator legend{font-weight:600;padding:0 4px}
+
+/* n° 118 : exploitation de démonstration */
+.demo-banner{background:var(--brand-soft);color:var(--brand);gap:6px 12px}
+.demo-banner strong{font-weight:750}
+.demo-banner .tab-banner-action{background:var(--surface);border-color:var(--brand);color:var(--brand)}
+.theme-dark .demo-banner{background:color-mix(in srgb,var(--brand) 18%,var(--surface));color:var(--text-primary)}
+.theme-dark .demo-banner .tab-banner-action{color:var(--text-primary)}
+.choice-card.choice-card-demo{border-style:dashed}
+@media(max-width:600px){.demo-banner{flex-wrap:nowrap;justify-content:space-between}.demo-banner-note{display:none}.demo-banner .tab-banner-action{flex:none}}
+/* n° 28 — Prochaine action enrichie : compte à rebours, météo du créneau, vignette de la parcelle, action suivante */
+.next-action-card .next-action-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;min-width:0}
+.next-action-card .next-action-head>span:first-child{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.next-action-card .next-thumb{flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:#8fd1a8;font-size:15px;font-weight:700;letter-spacing:.02em}
+.next-action-card .next-thumb svg{display:block;width:44px;height:44px}
+.next-action-card .next-thumb path{fill:rgba(143,209,168,.24);stroke:#8fd1a8;stroke-width:1.4;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.next-action-card .next-thumb.is-empty{color:rgba(255,255,255,.7)}
+.next-action-card .next-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:4px}
+.next-action-card .next-countdown{display:inline-flex;font-size:14px;font-weight:600;color:#8fd1a8;font-variant-numeric:tabular-nums}
+.next-action-card .next-countdown[hidden]{display:none}
+.next-action-card.is-overdue .next-countdown{color:#f2b8a8}
+.next-action-card .next-weather{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:12px;font-size:12px;font-weight:600;line-height:1;background:rgba(255,255,255,.09);color:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.14)}
+.next-action-card .next-weather svg{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.next-action-card .next-weather.is-rain{background:rgba(242,178,74,.18);color:#f6c56f;border-color:rgba(242,178,74,.4)}
+.next-action-card .next-following{margin:0;padding-top:12px;border-top:1px solid rgba(255,255,255,.12);font-size:13px;line-height:1.35;color:rgba(255,255,255,.74);overflow-wrap:anywhere}
+.next-action-card .next-following .next-following-label{display:inline;font-weight:600;color:rgba(255,255,255,.55)}
+.next-action-card .next-following .next-following-text{display:inline}
+.next-action-card[data-flip]{transform-origin:50% 50%;backface-visibility:hidden}
+.theme-dark .next-action-card .next-following{color:rgba(242,245,243,.74);border-top-color:rgba(255,255,255,.1)}
+/* n° 90 : rendement mesuré et rentabilité intra-parcellaire */
+.map-legend .legend-intra{appearance:none;width:100%;min-height:44px;margin:4px 0 0;padding:4px 10px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);color:var(--text-primary);font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer}
+.map-legend .legend-intra:focus-visible{outline:3px solid var(--brand);outline-offset:1px}
+.measured-yield .my-campaign+.my-campaign{border-top:1px solid var(--border-subtle);margin-top:12px;padding-top:4px}
+.measured-yield .my-candidate{margin:8px 0}
+.measured-yield .my-candidate p{margin:4px 0}
+.measured-yield .my-gap.is-different{color:var(--warning)}
+.measured-yield .my-confirm{margin-top:8px}
+.measured-yield .my-pilotage-row{display:block}
+.profit-map-label .profit-loss{margin:6px 0}
+.profit-map-label .profit-legend div{font-variant-numeric:tabular-nums}

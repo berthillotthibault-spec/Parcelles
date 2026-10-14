@@ -1,5 +1,5 @@
 export const APP_VERSION = 17;
-export const BUILD_ID = '2026.10.13-v10.16.0';
+export const BUILD_ID = '2026.10.14-v10.17.0';
 export const ENTITY_TYPES = [
   'parcelles','interventions','tasks','rotations','grazingSessions','materiels',
   'products','clients','documents','photos','points','templates','importSessions','syncConflicts','notifications','observations','stockItems','stockMovements','maintenanceRecords','routeSessions','fieldSessions','chantiers','members','assistantMessages','devices','automationRules','automationRuns','gpsTracks','integrationImports','weatherStations','platformJobs','platformEvents','vetTreatments'
@@ -34,8 +34,10 @@ export function toNullableNumber(value){
 }
 export const toNumber = value => toNullableNumber(value) ?? 0;
 
+// Une date seule « AAAA-MM-JJ » est lue à midi local (et non à minuit UTC) : même campagne dans tous
+// les fuseaux, Antilles comprises (vague 9).
 export const campaignFor = dateValue => {
-  const date = new Date(dateValue || Date.now());
+  const date = new Date(typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue.trim()) ? `${dateValue.trim()}T12:00:00` : dateValue || Date.now());
   const year = date.getFullYear() - (date.getMonth() < 7 ? 1 : 0);
   return `${year}/${String(year + 1).slice(-2)}`;
 };

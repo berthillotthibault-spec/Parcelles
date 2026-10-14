@@ -13,6 +13,7 @@ import {baseLayerDefinition,CADASTRE_OVERLAY,normalizeCadastreOpacity,cadastreQu
 import {ownerColorInfo} from './land.js'; // v7b n° 93
 import {soilColorInfo} from './soil-analysis.js'; // v8b n° 68
 import {INFRA_KIND,infraType} from './hedges.js'; // v8b n° 70
+import {NDVI_MODES,NDVI_HATCH_ID,NDVI_CLASSES,NDVI_NO_DATA,ndviColorInfo,legendRank,ageRange,curtainPercent} from './ndvi-map.js'; // v9 n° 43
 
 const DEFAULT_CENTER=[46.31,4.95];
 const CULTURE_PALETTE=['#287a4a','#4b8f6a','#7a9d44','#b08a32','#7f6bb2','#3f83a8','#bd6f4a','#699b8a','#9a6d3f','#557a9c','#8c7a3f','#a36d8e'];
@@ -25,10 +26,15 @@ function cultureColor(culture=''){
   const key=normalize(culture);const known=DESIGN_CULTURE_COLORS.find(([prefix])=>key.startsWith(prefix));if(known)return known[1];let hash=0;for(let i=0;i<key.length;i++)hash=(hash*31+key.charCodeAt(i))>>>0;return CULTURE_PALETTE[hash%CULTURE_PALETTE.length];
 }
 function statusColor(status=''){const key=normalize(status);return Object.entries(STATUS_COLORS).find(([k])=>key.includes(k))?.[1]||'#4d8f67';}
+// n° 90 : légende chiffrée des modes coût/marge — classes dans l'ordre des seuils, moyenne €/ha pondérée par la surface.
+function economicLegend(values,parcels,infoFor){const order=new Map(),sums=new Map();for(const p of parcels){const i=infoFor(p);order.set(i.label,i.order??99);const ha=Number(p.surfaceHa)>0?Number(p.surfaceHa):0;if(Number.isFinite(i.value)&&ha>0){const s=sums.get(i.label)||{v:0,ha:0};s.v+=i.value*ha;s.ha+=ha;sums.set(i.label,s);}}values.sort((a,b)=>(order.get(a.label)??99)-(order.get(b.label)??99));for(const g of values){const s=sums.get(g.label);if(s?.ha)g.extra=` · moy. ${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(s.v/s.ha)} €/ha`;}}
 function bboxSquare(lat,lon,radiusKm){
   const dLat=radiusKm/111.32,dLon=radiusKm/(111.32*Math.max(.2,Math.cos(lat*Math.PI/180)));
   return{type:'Polygon',coordinates:[[[lon-dLon,lat-dLat],[lon+dLon,lat-dLat],[lon+dLon,lat+dLat],[lon-dLon,lat+dLat],[lon-dLon,lat-dLat]]]};
 }
+
+// v9 n° 43 : motif hachuré des parcelles sans donnée NDVI (référencé par fill="url(#…)").
+function ensureNdviHatch(){if(typeof document==='undefined'||document.getElementById(NDVI_HATCH_ID))return;const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('aria-hidden','true');svg.setAttribute('width','0');svg.setAttribute('height','0');svg.setAttribute('class','ndvi-hatch-defs');svg.innerHTML=`<defs><pattern id="${NDVI_HATCH_ID}" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)"><rect width="8" height="8" fill="#cfd1ca"/><rect width="3" height="8" fill="#7d827a"/></pattern></defs>`;document.body.append(svg);}
 
 export class ParcelMap{
   constructor({onSelect=null,onToast=null,onPointPlaced=null}={}){
@@ -56,9 +62,9 @@ export class ParcelMap{
 
   clearFarmOverlay(){this.farmOverlay?.remove();this.farmControl?.remove();this.farmRenderer?.remove();this.farmOverlay=null;this.farmControl=null;this.farmRenderer=null;}
   clearYieldOverlay(){const had=!!this.yieldOverlay;this.yieldOverlay?.remove();this.yieldRenderer?.remove();this.yieldRenderer=null;this.yieldControl?.remove();this.yieldOverlay=null;this.yieldControl=null;if(had&&this.map)this.render(this.lastState);}
-  clearSatelliteOverlay(){const hadOverlay=!!this.satelliteOverlay;this.satelliteOverlay?.remove();this.satelliteControl?.remove();this.satelliteOverlay=null;this.satelliteControl=null;this.satelliteLabel='';if(hadOverlay&&this.map)this.render(this.lastState);}
-  setSatelliteOpacity(value){this.satelliteOpacity=value;this.satelliteImage?.setOpacity(value);}
-  setSatelliteOverlay({url,bounds,geometry,zones=[],label}){
+  clearSatelliteOverlay(){const hadOverlay=!!this.satelliteOverlay;this.endSatelliteCompare();this.satelliteTimeline=null;this.satelliteFrameTicket=(this.satelliteFrameTicket||0)+1;this.satelliteOverlay?.remove();this.satelliteControl?.remove();this.satelliteOverlay=null;this.satelliteControl=null;this.satelliteLabel='';if(hadOverlay&&this.map)this.render(this.lastState);}
+  setSatelliteOpacity(value){this.satelliteOpacity=value;this.satelliteImage?.setOpacity(value);this.satelliteCompareImage?.setOpacity(value);}
+  setSatelliteOverlay({url,bounds,geometry,zones=[],label,timeline=null}){
     this.clearFarmOverlay();this.clearYieldOverlay();
     this.init();if(!this.map)return;this.clearSatelliteOverlay();
     if(!this.map.getPane('satelliteDataPane')){const pane=this.map.createPane('satelliteDataPane');pane.style.zIndex='420';pane.style.pointerEvents='none';}
@@ -66,7 +72,63 @@ export class ParcelMap{
     this.satelliteImage=url?L.imageOverlay(url,[[bounds[1],bounds[0]],[bounds[3],bounds[2]]],{pane:'satelliteDataPane',opacity:.7,interactive:false}).addTo(this.satelliteOverlay):null;
     if(!url)L.geoJSON(geometry,{pane:'satelliteDataPane',interactive:false,style:{color:'#d89821',weight:3,fill:false,dashArray:'5 4'}}).addTo(this.satelliteOverlay);
     for(const zone of zones)L.geoJSON(zone.geometry,{pointToLayer:(_,latlng)=>L.circleMarker(latlng,{pane:'satelliteDataPane',radius:3,color:'#d36d14',fillOpacity:.7,interactive:false})}).addTo(this.satelliteOverlay);
-    const control=L.control({position:'topleft'});control.onAdd=()=>{const div=L.DomUtil.create('div','satellite-map-label');const text=document.createElement('span');text.textContent=label+(zones.length?' · points : secteurs de faible NDVI':'');div.append(text);const legend=document.createElement('small');legend.textContent=url?' · indice : brun = faible, vert/bleu = élevé':'';div.append(legend);const button=document.createElement('button');button.type='button';button.className='button secondary';button.textContent='Désactiver';button.onclick=()=>this.clearSatelliteOverlay();div.append(button);L.DomEvent.disableClickPropagation(div);return div;};control.addTo(this.map);this.satelliteControl=control;this.render(this.lastState);
+    const control=L.control({position:'topleft'});control.onAdd=()=>{const div=L.DomUtil.create('div','satellite-map-label');const text=document.createElement('span');text.textContent=label+(zones.length?' · points : secteurs de faible NDVI':'');div.append(text);this.satelliteLabelEl=text;const legend=document.createElement('small');legend.textContent=url?' · indice : brun = faible, vert/bleu = élevé':'';div.append(legend);if(url&&timeline?.frames?.length){div.classList.add('has-timeline');this.buildSatelliteTimeline(div,timeline);}const button=document.createElement('button');button.type='button';button.className='button secondary';button.textContent='Désactiver';button.onclick=()=>this.clearSatelliteOverlay();(div.querySelector('.satellite-timeline-actions')||div).append(button);L.DomEvent.disableClickPropagation(div);return div;};control.addTo(this.map);this.satelliteControl=control;this.render(this.lastState);
+  }
+
+  // v9 n° 43 : frise des images déjà en cache (curseur) et rideau de comparaison de deux dates.
+  buildSatelliteTimeline(div,timeline){
+    const t=timeline,n=t.frames.length;t.index=Math.max(0,Math.min(n-1,t.index??n-1));t.compareIndex=null;this.satelliteTimeline=t;
+    const box=document.createElement('div');box.className='satellite-timeline';
+    const options=t.frames.map((f,i)=>`<option value="${i}">${escapeHtml(f.label)}</option>`).join('');
+    box.innerHTML=`<label class="satellite-timeline-date"><span>Image du <output>${escapeHtml(t.frames[t.index].label)}</output> · <span data-sat-count>${t.index+1}/${n}</span></span><input type="range" data-sat-frame min="0" max="${n-1}" step="1" value="${t.index}" aria-label="Date de l’image satellite"${n<2?' disabled':''}></label><div class="satellite-timeline-ticks" aria-hidden="true">${t.frames.map(f=>`<i title="${escapeHtml(f.label)}"></i>`).join('')}</div>${n>1?`<div class="satellite-compare" hidden><label>À gauche du rideau<select data-sat-left>${options}</select></label><label class="satellite-curtain-field">Position du rideau<input type="range" data-sat-curtain min="0" max="100" step="1" value="50"></label></div>`:'<p class="satellite-timeline-hint">Une seule image en cache. Chargez d’autres dates depuis l’onglet Satellite de la parcelle.</p>'}<div class="satellite-timeline-actions">${n>1?'<button type="button" class="button secondary" data-sat-compare aria-pressed="false">Comparer</button>':''}</div>`;
+    div.append(box);L.DomEvent.disableScrollPropagation(box);
+    const range=box.querySelector('[data-sat-frame]');let timer=null;
+    range.addEventListener('input',()=>{const i=Number(range.value);box.querySelector('output').textContent=t.frames[i].label;box.querySelector('[data-sat-count]').textContent=`${i+1}/${n}`;clearTimeout(timer);timer=setTimeout(()=>this.showSatelliteFrame(i),120);});
+    box.querySelector('[data-sat-compare]')?.addEventListener('click',event=>this.setSatelliteCompare(event.currentTarget.getAttribute('aria-pressed')!=='true'));
+    box.querySelector('[data-sat-left]')?.addEventListener('change',event=>this.showSatelliteCompareFrame(Number(event.target.value)));
+    box.querySelector('[data-sat-curtain]')?.addEventListener('input',event=>{this.satelliteCurtain=Number(event.target.value)/100;this.updateCurtain();});
+  }
+  async showSatelliteFrame(index){
+    const t=this.satelliteTimeline;if(!t||!this.satelliteImage)return;const ticket=this.satelliteFrameTicket=(this.satelliteFrameTicket||0)+1;
+    try{const url=await t.load(index);if(ticket!==this.satelliteFrameTicket||this.satelliteTimeline!==t)return;t.index=index;this.satelliteImage.setUrl(url);this.updateSatelliteLabel();requestAnimationFrame(()=>this.updateCurtain());}
+    catch(error){this.onToast?.(error.message||'Image satellite indisponible.','error');}
+  }
+  async showSatelliteCompareFrame(index){
+    const t=this.satelliteTimeline;if(!t||!this.satelliteCompareImage)return;
+    try{const url=await t.load(index);if(this.satelliteTimeline!==t||!this.satelliteCompareImage)return;t.compareIndex=index;this.satelliteCompareImage.setUrl(url);this.updateSatelliteLabel();requestAnimationFrame(()=>this.updateCurtain());}
+    catch(error){this.onToast?.(error.message||'Image satellite indisponible.','error');}
+  }
+  updateSatelliteLabel(){
+    const t=this.satelliteTimeline;if(!t||!this.satelliteLabelEl)return;const base=t.labelFor?t.labelFor(t.index):t.frames[t.index].label;this.satelliteLabel=base;
+    this.satelliteLabelEl.textContent=t.compareIndex!=null?`${base} · à gauche du rideau : ${t.frames[t.compareIndex].label}`:base;
+  }
+  endSatelliteCompare(){
+    if(this.curtainHandler)this.map?.off('move zoom zoomend viewreset resize',this.curtainHandler);this.curtainHandler=null;
+    this.satelliteCompareImage?.remove();this.satelliteCompareImage=null;this.satelliteCurtainEl?.remove();this.satelliteCurtainEl=null;document.documentElement.classList.remove('is-sat-compare');
+    const element=this.satelliteImage?.getElement?.();if(element)element.style.clipPath='';if(this.satelliteTimeline)this.satelliteTimeline.compareIndex=null;
+  }
+  async setSatelliteCompare(on){
+    const t=this.satelliteTimeline;if(!t||!this.map||!this.satelliteImage)return;const box=this.satelliteControl?.getContainer?.()?.querySelector('.satellite-timeline');
+    this.endSatelliteCompare();box?.querySelector('[data-sat-compare]')?.setAttribute('aria-pressed',String(on));const panel=box?.querySelector('.satellite-compare');if(panel)panel.hidden=!on;
+    if(!on||t.frames.length<2){this.updateSatelliteLabel();return;}
+    const left=t.index>0?t.index-1:1;let url;try{url=await t.load(left);}catch(error){this.onToast?.(error.message,'error');return;}
+    if(this.satelliteTimeline!==t)return;
+    if(!this.map.getPane('satelliteComparePane')){const pane=this.map.createPane('satelliteComparePane');pane.style.zIndex='421';pane.style.pointerEvents='none';}
+    t.compareIndex=left;const select=box?.querySelector('[data-sat-left]');if(select)select.value=String(left);
+    this.satelliteCompareImage=L.imageOverlay(url,this.satelliteImage.getBounds(),{pane:'satelliteComparePane',opacity:this.satelliteOpacity??.7,interactive:false}).addTo(this.satelliteOverlay);
+    const curtain=L.DomUtil.create('div','satellite-curtain',this.map.getContainer());curtain.innerHTML='<button type="button" class="satellite-curtain-handle" aria-label="Déplacer le rideau de comparaison"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l-6 6 6 6M15 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>';
+    L.DomEvent.disableClickPropagation(curtain);this.satelliteCurtainEl=curtain;this.satelliteCurtain??=.5;
+    const handle=curtain.firstElementChild,move=event=>{const r=this.map.getContainer().getBoundingClientRect();this.satelliteCurtain=Math.max(.02,Math.min(.98,(event.clientX-r.left)/r.width));const input=box?.querySelector('[data-sat-curtain]');if(input)input.value=String(Math.round(this.satelliteCurtain*100));this.updateCurtain();};
+    curtain.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();curtain.setPointerCapture?.(event.pointerId);curtain.onpointermove=move;});
+    for(const type of ['pointerup','pointercancel','lostpointercapture'])curtain.addEventListener(type,()=>{curtain.onpointermove=null;});
+    handle.addEventListener('keydown',event=>{const step={ArrowLeft:-.05,ArrowRight:.05}[event.key];if(!step)return;event.preventDefault();this.satelliteCurtain=Math.max(.02,Math.min(.98,this.satelliteCurtain+step));const input=box?.querySelector('[data-sat-curtain]');if(input)input.value=String(Math.round(this.satelliteCurtain*100));this.updateCurtain();});
+    this.curtainHandler=()=>this.updateCurtain();this.map.on('move zoom zoomend viewreset resize',this.curtainHandler);document.documentElement.classList.add('is-sat-compare');
+    this.updateSatelliteLabel();requestAnimationFrame(()=>this.updateCurtain());
+  }
+  updateCurtain(){
+    const left=this.satelliteCompareImage?.getElement?.(),right=this.satelliteImage?.getElement?.();if(!this.map||!left||!right)return;
+    const ratio=this.satelliteCurtain??.5,box=this.map.getContainer().getBoundingClientRect(),x=box.left+box.width*ratio;if(this.satelliteCurtainEl)this.satelliteCurtainEl.style.left=`${ratio*100}%`;
+    const a=left.getBoundingClientRect(),b=right.getBoundingClientRect();left.style.clipPath=`inset(0 ${100-curtainPercent(x,a.left,a.width)}% 0 0)`;right.style.clipPath=`inset(0 0 0 ${curtainPercent(x,b.left,b.width)}%)`;
   }
 
   setBaseLayer(name='osm'){
@@ -135,12 +197,15 @@ export class ParcelMap{
     }finally{clearTimeout(timer);if(this.cadastreController===controller)this.cadastreController=null;}
   }
 
-  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin','ift','bcae7','owner','soilph'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.legendFocus=null;this.render(this.lastState);}
+  setColorMode(mode){const next=['culture','status','work','animals','last','client','cost','margin','ift','bcae7','owner','soilph','ndvi','ndvitrend'].includes(mode)?mode:'culture';if(this.colorMode===next)return;this.colorMode=next;this.legendFocus=null;this.render(this.lastState);}
+  // v9 n° 43 : résumés NDVI par parcelle (cache satellite), fournis par satellite-ui.js.
+  setNdviData(data,{render=true}={}){this.ndvi=data instanceof Map?data:new Map();if(render&&this.map&&NDVI_MODES.includes(this.colorMode))this.render(this.lastState);}
   colorInfo(parcel){
+    if(NDVI_MODES.includes(this.colorMode))return ndviColorInfo(this.ndvi?.get(parcel.id),this.colorMode); // v9 n° 43
     if(this.colorMode==='bcae7')return bcae7ColorInfo(this.lastState,parcel); // v5b n° 58
     if(this.colorMode==='owner')return ownerColorInfo(parcel); // v7b n° 93
     if(this.colorMode==='soilph')return soilColorInfo(this.lastState,parcel); // v8b n° 68
-    if(['cost','margin'].includes(this.colorMode)){const row=this.economics?.get(parcel.id);return economicColor(row?.[this.colorMode==='cost'?'costHa':'marginHa'],this.colorMode);}
+    if(['cost','margin'].includes(this.colorMode)){const row=this.economics?.get(parcel.id),value=row?.[this.colorMode==='cost'?'costHa':'marginHa'],c=economicColor(value,this.colorMode);return {color:c.color,label:c.classLabel,detail:c.label,order:c.classIndex,value:Number.isFinite(value)?value:null};} // n° 90 : légende par classe chiffrée, valeur dans la bulle
     if(this.colorMode==='ift'){const r=this.ift?.get(parcel.id);return iftColor(!r?null:r.treatments&&r.missing===r.treatments?null:r.total);}
     const context=this.situations.get(parcel.id),status=context?.status;
     if(this.colorMode==='status')return {label:status?.label||'Rien d’urgent signalé',color:status?.color||'#2f8054'};
@@ -184,7 +249,17 @@ export class ParcelMap{
       this.bindMapPopup(marker,`<div class="map-point-popup"><strong>${escapeHtml(point.nom||point.name||point.type||'Point')}</strong><small>${escapeHtml(point.type||'Point repéré')}</small>${note?`<p>${escapeHtml(note)}</p>`:''}<div class="map-popup-actions"><button type="button" data-action="edit-map-point" data-id="${id}">Modifier</button><button type="button" data-action="move-map-point" data-id="${id}">Déplacer</button><button type="button" class="danger" data-action="delete-map-point" data-id="${id}">Supprimer</button></div></div>`,{maxWidth:320});
       this.pointMarkers.set(String(point.id),marker);
     });
-    this.setLegend();this.drawWind();this.drawAgroInfra(state);
+    this.setLegend();this.drawWind();this.drawAgroInfra(state);this.drawNdviAlerts(parcels);
+  }
+  // v9 n° 43 : pastilles « ! » sur les parcelles dont la série NDVI en cache signale une anomalie.
+  drawNdviAlerts(parcels){
+    if(!this.map)return;this.layers.ndvi??=L.layerGroup().addTo(this.map);this.layers.ndvi.clearLayers();if(!NDVI_MODES.includes(this.colorMode))return;
+    for(const parcel of parcels||[]){
+      const summary=this.ndvi?.get(parcel.id);if(!summary?.signals?.length||!parcel.geometry||parcel.geometry.type==='Point')continue;
+      if(this.legendFocus!=null&&this.colorInfo(parcel).label!==this.legendFocus)continue;const point=labelPoint(parcel.geometry);if(!point)continue;
+      const text=`${parcel.nom||'Parcelle'} : ${summary.signals.map(x=>x.title).join(', ')} · image ${summary.ageLabel}`;
+      L.marker([point[1],point[0]],{pane:'mapPointPane',keyboard:false,title:text,alt:text,icon:L.divIcon({className:'ndvi-alert-icon',html:`<span class="ndvi-alert" role="img" aria-label="${escapeHtml(text)}">!</span>`,iconSize:[24,24],iconAnchor:[12,40]})}).on('click',()=>{if(!this.mapToolActive())this.select(parcel.id,{zoom:false});}).addTo(this.layers.ndvi);
+    }
   }
 
   // v8b n° 70 : haies, mares, bosquets… (enregistrements « agroInfra ») avec un style dédié.
@@ -222,15 +297,15 @@ export class ParcelMap{
 
   addParcel(parcel){
     try{
-      const selected=this.multiple?this.selectedIds.has(parcel.id):parcel.id===this.selectedId,color=this.colorFor(parcel);
+      const selected=this.multiple?this.selectedIds.has(parcel.id):parcel.id===this.selectedId,info=this.colorInfo(parcel),color=info.color,fill=info.hatch?`url(#${NDVI_HATCH_ID})`:color;if(info.hatch)ensureNdviHatch();
       const pane=selected?'selectedParcelPane':'parcelPane';
       if(selected)L.geoJSON(parcel.geometry,{pane,interactive:false,style:{color:'#fff',weight:9,opacity:1,fill:false}}).addTo(this.layers.parcels);
-      const dimmed=this.legendFocus!=null&&!selected&&this.colorInfo(parcel).label!==this.legendFocus;
+      const dimmed=this.legendFocus!=null&&!selected&&info.label!==this.legendFocus;
       const reentry=this.reentries?.get(parcel.id);
-      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>legendStyle({color:selected?'#092c1c':reentry?'#b3261e':color,weight:selected?5:3,opacity:1,...(reentry&&!selected?{dashArray:'7 5'}:{}),fillColor:color,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:(selected?.52:.3)},{focus:dimmed?this.legendFocus:null,label:''}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
+      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>legendStyle({color:selected?'#092c1c':reentry?'#b3261e':color,weight:selected?5:3,opacity:1,...(reentry&&!selected?{dashArray:'7 5'}:{}),fillColor:fill,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:info.hatch?.7:(selected?.52:.3)},{focus:dimmed?this.legendFocus:null,label:''}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
       layer.on('click',()=>{if(this.mapToolActive())return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
-      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(this.colorInfo(parcel).label)}</small>${reentry?`<small class="map-reentry">${escapeHtml(reentry.label)}</small>`:''}${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true,state:this.lastState})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
-      if(parcel.nom&&parcel.geometry?.type!=='Point')if(!dimmed)this.labelEntries.push({parcel,selected,reentry,point:labelPoint(parcel.geometry),areaHa:Number(parcel.surfaceHa)||geometryAreaHa(parcel.geometry)||0});
+      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(NDVI_MODES.includes(this.colorMode)?info.label:(info.detail||info.label))}</small>${NDVI_MODES.includes(this.colorMode)&&info.detail?`<small class="map-ndvi-detail">${escapeHtml(info.detail)}</small>`:''}${reentry?`<small class="map-reentry">${escapeHtml(reentry.label)}</small>`:''}${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true,state:this.lastState})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
+      if(parcel.nom&&parcel.geometry?.type!=='Point')if(!dimmed)this.labelEntries.push({parcel,selected,reentry,point:labelPoint(parcel.geometry),areaHa:Number(parcel.surfaceHa)||geometryAreaHa(parcel.geometry)||0,second:NDVI_MODES.includes(this.colorMode)?info.short:null});
       layer.addTo(this.layers.parcels);
     }catch(error){console.warn('[Parcelles] Géométrie ignorée',parcel.id,error);}
   }
@@ -243,7 +318,7 @@ export class ParcelMap{
     const zoom=this.map.getZoom(),view=this.map.getBounds().pad(.2),box=this.map.getContainer().getBoundingClientRect(),items=[];
     for(const entry of this.labelEntries||[]){
       if(!entry.point)continue;const latlng=L.latLng(entry.point[1],entry.point[0]);if(!view.contains(latlng))continue;
-      const lines=labelLines(entry.parcel,{level:labelLevel(zoom,entry.areaHa),colorMode:this.colorMode,grazingSessions:this.lastState.grazingSessions,areaHa:entry.areaHa});if(!lines.length)continue;
+      const lines=labelLines(entry.parcel,{level:labelLevel(zoom,entry.areaHa),colorMode:this.colorMode,grazingSessions:this.lastState.grazingSessions,areaHa:entry.areaHa,second:entry.second});if(!lines.length)continue;
       const html=`<span class="pl-name">${escapeHtml(lines[0])}</span>${lines[1]?`<span class="pl-sub">${escapeHtml(lines[1])}</span>`:''}${entry.reentry?`<span class="parcel-label-reentry">${escapeHtml(entry.reentry.label)}</span>`:''}`;
       const tooltip=L.tooltip({permanent:true,direction:'center',className:entry.reentry?'parcel-label has-reentry':'parcel-label',interactive:false,opacity:1}).setLatLng(latlng).setContent(html);group.addLayer(tooltip);
       items.push({id:entry.parcel.id,tooltip,geometry:entry.parcel.geometry,priority:(entry.selected?1e9:0)+entry.areaHa});
@@ -280,11 +355,17 @@ export class ParcelMap{
     document.querySelector('#map-legend [aria-pressed="true"]')?.focus({preventScroll:true});
   }
 
+  // v9 n° 43 : échelle graduée et âge des valeurs NDVI affichées.
+  ndviLegendHtml(parcels){
+    const summaries=parcels.map(p=>this.ndvi?.get(p.id)).filter(s=>s?.last),range=ageRange(summaries),alerts=parcels.filter(p=>this.ndvi?.get(p.id)?.signals?.length).length;
+    const scale=this.colorMode==='ndvi'?`<div class="ndvi-scale" role="img" aria-label="Échelle NDVI : brun = sol nu ou faible, vert = végétation dense"><i style="background:linear-gradient(90deg,${NDVI_CLASSES.map(c=>c.color).join(',')})"></i><span><b>0</b><b>0,2</b><b>0,4</b><b>0,6</b><b>0,8</b><b>1</b></span></div>`:'';
+    return `${scale}<p class="ndvi-legend-note">${summaries.length?`Valeurs du cache · ${escapeHtml(range)}${alerts?` · <span class="ndvi-alert is-inline" aria-hidden="true">!</span> ${alerts} à vérifier`:''}`:'Aucune valeur en cache : Couches › Mettre à jour toutes les parcelles.'}${navigator.onLine===false?' · hors connexion':''}</p>`;
+  }
   setLegend(){
     const legend=document.querySelector('#map-legend');if(!legend)return;
     const parcels=(this.lastState.parcelles||[]).filter(p=>!p.deletedAt&&p.geometry);
-    const values=legendGroups(parcels,p=>this.colorInfo(p));this.legendValues=values;if(this.legendFocus!=null&&!values.some(v=>v.label===this.legendFocus))this.legendFocus=null;this.bindLegend(legend);
-    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha',ift:'IFT',bcae7:'BCAE 7',owner:'Propriétaires',soilph:'pH du sol'}[this.colorMode]}${['cost','margin','bcae7'].includes(this.colorMode)?` · ${this.economics?.values().next().value?.campaign||''}`:''}</button><div class="legend-content">${this.legendFocus!=null?'<button type="button" class="legend-reset" data-legend-reset="1">Tout afficher</button>':''}${values.map((info,index)=>`<button type="button" class="legend-item legend-filter${this.legendFocus===info.label?' is-focused':''}${this.legendFocus!=null&&this.legendFocus!==info.label?' is-dimmed':''}" data-legend-index="${index}" aria-pressed="${this.legendFocus===info.label}" title="Appui : isoler sur la carte · appui long : voir la liste"><span class="legend-dot" style="background:${info.color}"></span><span class="legend-text">${escapeHtml(legendLine(info))}</span></button>`).join('')}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
+    const economic=['cost','margin'].includes(this.colorMode),ndviMode=NDVI_MODES.includes(this.colorMode),values=legendGroups(parcels,p=>this.colorInfo(p));if(economic)economicLegend(values,parcels,p=>this.colorInfo(p));if(ndviMode)values.sort((a,b)=>legendRank(this.colorMode,a.label)-legendRank(this.colorMode,b.label));this.legendValues=values;if(this.legendFocus!=null&&!values.some(v=>v.label===this.legendFocus))this.legendFocus=null;this.bindLegend(legend);
+    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha',ift:'IFT',bcae7:'BCAE 7',owner:'Propriétaires',soilph:'pH du sol',ndvi:'Vigueur (NDVI)',ndvitrend:'Tendance 15 j'}[this.colorMode]}${['cost','margin','bcae7'].includes(this.colorMode)?` · ${this.economics?.values().next().value?.campaign||''}`:''}</button><div class="legend-content">${this.legendFocus!=null?'<button type="button" class="legend-reset" data-legend-reset="1">Tout afficher</button>':''}${values.map((info,index)=>`<button type="button" class="legend-item legend-filter${this.legendFocus===info.label?' is-focused':''}${this.legendFocus!=null&&this.legendFocus!==info.label?' is-dimmed':''}" data-legend-index="${index}" aria-pressed="${this.legendFocus===info.label}" title="Appui : isoler sur la carte · appui long : voir la liste"><span class="legend-dot${ndviMode&&info.label===NDVI_NO_DATA.label?' is-hatched':''}" style="background:${info.color}"></span><span class="legend-text">${escapeHtml(legendLine(info)+(info.extra||''))}</span></button>`).join('')}${economic?`<button type="button" class="legend-item legend-intra" data-my="profit-zones"${this.selectedId?` data-id="${escapeHtml(this.selectedId)}"`:''} title="Croise la carte de rendement et les charges €/ha de la campagne">Intra-parcellaire · zones non rentables</button>`:''}${ndviMode?this.ndviLegendHtml(parcels):''}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
   }
 
   select(id,{zoom=true}={}){

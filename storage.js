@@ -67,6 +67,11 @@ export class StorageService{
     if(this.usingFallback){const copy=structuredClone(value),serialized=JSON.stringify(copy);if(!safeLocalSet(`parcelles:${key}`,serialized))throw new Error('Enregistrement impossible : le stockage local est plein ou désactivé.');this.memory.set(key,copy);return;}
     const tx=this.transaction('app','readwrite');tx.objectStore('app').put(value,key);await transactionDone(tx);
   }
+  // Retire une entrée (espace de démonstration vidé à la sortie, n° 118).
+  async delete(key){
+    if(this.usingFallback){this.memory.delete(key);try{localStorage.removeItem(`parcelles:${key}`);}catch(error){console.warn(`[Parcelles] suppression localStorage impossible : ${key}`,error);}return;}
+    const tx=this.transaction('app','readwrite');tx.objectStore('app').delete(key);await transactionDone(tx);
+  }
   // Lecture qui ignore la copie mémoire du repli localStorage, partagée par les autres onglets.
   async getStored(key){
     if(this.usingFallback){

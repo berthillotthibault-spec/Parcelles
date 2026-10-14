@@ -66,9 +66,10 @@ export function labelLevel(zoom,areaHa,{largeHa=LARGE_PARCEL_HA}={}){
 }
 
 const ha=value=>`${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1}).format(Number(value)||0)} ha`;
-export function labelLines(parcel,{level='name',colorMode='culture',grazingSessions=[],date=new Date(),areaHa=null}={}){
+export function labelLines(parcel,{level='name',colorMode='culture',grazingSessions=[],date=new Date(),areaHa=null,second:extra=null}={}){
   if(level==='none'||!parcel?.nom)return [];
   const lines=[String(parcel.nom)];if(level!=='full')return lines;
+  if(extra){lines.push(String(extra));return lines;} // v9 n° 43 : NDVI et âge de l'image
   if(colorMode==='animals'){
     const sessions=filterGrazingSessions(grazingSessions,{parcelId:parcel.id,date});
     if(sessions.length){const first=sessions[0];lines.push(`${grazingType(first)} · ${grazingTotal(first)}${sessions.length>1?` + ${sessions.length-1} lot${sessions.length>2?'s':''}`:''}`);}

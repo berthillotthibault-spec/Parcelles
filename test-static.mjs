@@ -65,7 +65,7 @@ const DATA_EXT=/\.(shp|shx|dbf|prj|cpg|qmd|sbn|sbx|zip|geojson|kml|kmz|gpx|csv|x
 const FIXTURES=new Set(['fixtures/parcelles-fictives.shp','fixtures/parcelles-fictives.shx','fixtures/parcelles-fictives.dbf','fixtures/parcelles-fictives.prj','fixtures/parcelles-fictives.zip']);
 const walk=dir=>fs.readdirSync(path.join(root,dir),{withFileTypes:true}).flatMap(e=>{
   const rel=dir?`${dir}/${e.name}`:e.name;
-  if(e.isDirectory()||(e.isSymbolicLink()&&fs.statSync(path.join(root,rel)).isDirectory()))return['node_modules','audit','dist-github-root','.git'].includes(rel)?[]:walk(rel);
+  if(e.isDirectory()||(e.isSymbolicLink()&&fs.statSync(path.join(root,rel)).isDirectory()))return['node_modules','audit','dist-github-root'].includes(rel)||e.name.startsWith('.')?[]:walk(rel); // dossiers cachés (.git, .claude…) : jamais publiés
   return[rel];
 });
 const dataFiles=walk('').filter(rel=>DATA_EXT.test(rel));

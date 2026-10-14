@@ -302,6 +302,9 @@ function validate(type,entity){
 // Empreinte de la dernière écriture d’un état (révision + horodatage) : sert à détecter
 // qu’un autre onglet a enregistré entre-temps. null quand rien n’est stocké.
 export function stateStamp(value){if(!value||typeof value!=='object')return null;const meta=value.metadata||{};return `${Math.max(0,Number(meta.revision)||0)}:${meta.updatedAt??''}`;}
+// n° 118 : exploitation de démonstration, espace séparé jamais synchronisé ni sauvegardé.
+export const DEMO_WORKSPACE_ID='demo';
+export const isDemoState=data=>Boolean(data?.metadata?.demo);
 export const TAB_READ_ONLY_MESSAGE='Parcelles est ouvert dans une autre fenêtre : celle-ci est en lecture seule. Touchez « Utiliser ici » pour y travailler.';
 function concurrentWriteError(cause){const error=new Error('Parcelles a été modifié dans une autre fenêtre. Les données affichées ont été rechargées : recommencez votre dernière action.');error.name='StaleStateError';error.cause=cause;return error;}
 function tabReadOnlyError(message){const error=new Error(message||TAB_READ_ONLY_MESSAGE);error.name='TabReadOnlyError';return error;}
@@ -321,6 +324,8 @@ export const EXTERNAL_BACKUP_REMINDER_DAYS=14;
 export const EXTERNAL_BACKUP_SNOOZE_DAYS=7;
 export function externalBackupStatus(data,at=now()){
   const meta=data?.metadata||{},day=86400000,last=Number(meta.lastExternalBackupAt)||null;
+  // Démonstration : rien à sauvegarder, aucun rappel.
+  if(isDemoState(data))return {lastAt:last,never:!last,days:0,due:false,hidden:true,demo:true};
   let since=last;
   if(!since)for(const type of ENTITY_TYPES)for(const item of Array.isArray(data?.[type])?data[type]:[]){const created=Number(item?.createdAt)||0;if(!item?.deletedAt&&created>0&&(!since||created<since))since=created;}
   const elapsed=since?Math.max(0,at-since):0;
@@ -354,7 +359,7 @@ export class Store{
   // Instantané de l’état tel qu’il est stocké, pris avant toute migration montante.
   async _backupBeforeMigration(saved,workspaceId=this.workspaceId){
     const from=storedSchemaVersion(saved)||1;
-    if(!saved||from>=APP_VERSION)return null;
+    if(!saved||from>=APP_VERSION||workspaceId===DEMO_WORKSPACE_ID||isDemoState(saved))return null;
     const createdAt=now(),id=`pre_migration_v${from}_${createdAt}`;
     try{
       await this.storage.backupPut({id,workspaceId,period:'migration',fromVersion:from,toVersion:APP_VERSION,createdAt,state:clone(saved)});
@@ -367,7 +372,52 @@ export class Store{
     }
   }
   workspaceStorageKey(id='local'){const value=String(id||'local').trim();return value&&value!=='local'?`state:workspace:${value.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';}
-  workspaceContext(){return {id:this.workspaceId,key:this.storageKey,isLocal:this.workspaceId==='local'};}
+  workspaceContext(){return {id:this.workspaceId,key:this.storageKey,isLocal:this.workspaceId==='local',demo:this.isDemo};}
+  get isDemo(){return this.workspaceId===DEMO_WORKSPACE_ID;}
+
+  // n° 118 : entrée en démonstration. Les données réelles ne sont ni relues ni réécrites : seul le pointeur
+  // d’espace actif change, et l’espace démo (toujours neuf) mémorise l’espace où revenir.
+  enterDemo(demoState){return this.enqueueWrite(()=>this._enterDemo(demoState));}
+  async _enterDemo(demoState){
+    if(this.isDemo)return false;
+    if(this.tabReadOnly)throw tabReadOnlyError(this.tabReadOnly);
+    const returnTo=this.workspaceId||'local',key=this.workspaceStorageKey(DEMO_WORKSPACE_ID);
+    const next=migrateData(demoState);
+    next.preferences={...next.preferences,workspaceId:DEMO_WORKSPACE_ID,cloudRole:null,syncEnabled:false,autoSync:false,autoBackup:false,platformBackendEnabled:false,remoteAiEnabled:false};
+    next.metadata={...next.metadata,demo:true,demoReturnWorkspace:returnTo,lastWorkspaceSwitchAt:now()};
+    next.queue=[];next.syncConflicts=[];
+    const previous={workspaceId:this.workspaceId,storageKey:this.storageKey,state:this.state,persistedStamp:this.persistedStamp,schemaLock:this.schemaLock};
+    try{
+      await this.storage.set(key,next);
+      await this.storage.set('active-workspace',{id:DEMO_WORKSPACE_ID,updatedAt:now()});
+      this.workspaceId=DEMO_WORKSPACE_ID;this.storageKey=key;this.state=next;this.persistedStamp=stateStamp(next);this.schemaLock=null;this.backupRetryAt=0;this.recentChanges=[];
+    }catch(error){Object.assign(this,previous);throw error;}
+    this.notify({label:'Mode démonstration.',kind:'workspace-switch',entity:'state',workspaceId:DEMO_WORKSPACE_ID,queue:false});
+    return true;
+  }
+  // Sortie : retour à l’espace mémorisé (relu tel quel, sans écriture), puis l’espace démo est vidé.
+  exitDemo(){return this.enqueueWrite(()=>this._exitDemo());}
+  async _exitDemo(){
+    if(!this.isDemo)return false;
+    if(this.tabReadOnly)throw tabReadOnlyError(this.tabReadOnly);
+    const wanted=String(this.state.metadata?.demoReturnWorkspace||'local').trim()||'local',back=wanted===DEMO_WORKSPACE_ID?'local':wanted;
+    const demoKey=this.storageKey,backKey=this.workspaceStorageKey(back);
+    let saved=await this.storage.get(backKey);if(!saved&&back==='local')saved=await this.storage.get('state');
+    await this.storage.set('active-workspace',{id:back,updatedAt:now()});
+    this.workspaceId=back;this.storageKey=backKey;this.persistedStamp=stateStamp(saved);this.recentChanges=[];
+    this.state=this._loadSaved(saved);if(back!=='local')this.state.preferences.workspaceId=back;
+    await this._purgeDemo(demoKey);
+    this.notify({label:'Retour à votre exploitation.',kind:'workspace-switch',entity:'state',workspaceId:back,queue:false});
+    return true;
+  }
+  // Vide l’espace démo et les instantanés qui en proviendraient (import annulable, réparation de texte…).
+  async _purgeDemo(key=this.workspaceStorageKey(DEMO_WORKSPACE_ID)){
+    try{if(typeof this.storage.delete==='function')await this.storage.delete(key);else await this.storage.set(key,null);}
+    catch(error){console.warn('[Parcelles] espace de démonstration non vidé.',error);}
+    try{
+      for(const row of await this.storage.backupList?.()||[])if(String(row.workspaceId||'')===DEMO_WORKSPACE_ID||isDemoState(row.state))await this.storage.backupDelete(row.id);
+    }catch(error){console.warn('[Parcelles] instantanés de démonstration non retirés.',error);}
+  }
 
   async init(){
     await this.storage.init();
@@ -431,7 +481,8 @@ export class Store{
 
   snapshot(){return clone(this.state);}
   subscribe(listener){this.listeners.add(listener);return()=>this.listeners.delete(listener);}
-  notify(event){for(const listener of this.listeners){try{const result=listener(this.snapshot(),event);if(result?.catch)result.catch(error=>console.error('[Parcelles] Mise à jour de l’affichage impossible.',error));}catch(error){console.error('[Parcelles] Mise à jour de l’affichage impossible.',error);}}}
+  // n° 137 : une seule copie par notification, partagée par tous les abonnés et gelée en surface (lecture seule).
+  notify(event){const data=this.listeners.size?Object.freeze(this.snapshot()):null;for(const listener of this.listeners){try{const result=listener(data,event);if(result?.catch)result.catch(error=>console.error('[Parcelles] Mise à jour de l’affichage impossible.',error));}catch(error){console.error('[Parcelles] Mise à jour de l’affichage impossible.',error);}}}
 
   // Écrit l’état seulement si personne d’autre ne l’a enregistré depuis la dernière lecture ou écriture de cet onglet.
   async _writeState(){
@@ -447,7 +498,8 @@ export class Store{
     this.state.metadata.updatedAt=now();
     await this._writeState();
     this._announcePersisted();
-    if(this.state.preferences.autoBackup&&now()>=this.backupRetryAt){
+    // Démonstration : aucune sauvegarde automatique.
+    if(!this.isDemo&&this.state.preferences.autoBackup&&now()>=this.backupRetryAt){
       const day=new Date().toISOString().slice(0,10);
       if(this.state.metadata.lastAutoBackupDay!==day){
         const d=new Date(); const weekStart=new Date(d); weekStart.setDate(d.getDate()-((d.getDay()+6)%7));
@@ -502,7 +554,8 @@ export class Store{
   }
 
   queue(operation){
-    if(!this.state.preferences.syncEnabled)return;
+    // Démonstration : aucune file d’envoi, quel que soit le réglage.
+    if(this.isDemo||!this.state.preferences.syncEnabled)return;
     const existingIndex=this.state.queue.findIndex(item=>['pending','error','conflict'].includes(item.status)&&item.entity===operation.entity&&item.entityId===operation.entityId);
     const existing=existingIndex>=0?this.state.queue[existingIndex]:null;
     const next={id:uid('op'),entity:operation.entity,entityId:operation.entityId,action:operation.action,payload:operation.payload,createdAt:now(),firstQueuedAt:existing?.firstQueuedAt||existing?.createdAt||now(),status:'pending',attempts:0,lastError:null,nextRetryAt:0};
@@ -548,7 +601,8 @@ export class Store{
         if(!remote)this.recentChanges.push({seq,id:entry.id,type:change.type,entityId:entry.entityId,before:change.before?clone(change.before):null,at,label,action:entry.action,workspaceId:this.workspaceId,undone:false});
       }
       if(this.recentChanges.length>HISTORY_MAX_PER_ENTITY)this.recentChanges=this.recentChanges.slice(-HISTORY_MAX_PER_ENTITY);
-      if(entries.length&&typeof this.storage.historyAdd==='function'){
+      // Démonstration : « Annuler » reste possible en mémoire, rien n’est écrit dans l’historique durable.
+      if(entries.length&&!this.isDemo&&typeof this.storage.historyAdd==='function'){
         await this.storage.historyAdd(entries,{maxPerEntity:HISTORY_MAX_PER_ENTITY});
         if(!this.historyPruned&&typeof this.storage.historyPrune==='function'){this.historyPruned=true;await this.storage.historyPrune(at-HISTORY_MAX_AGE_DAYS*86400000);}
       }
@@ -662,6 +716,40 @@ export class Store{
     },{entity:type,entityId:incoming.id,action:'remote',queue:false,log:false,bypassPermissions:true});
     if(applied)await this._recordHistory([{type,before,after:incoming}],{label:'Synchronisation',action:'remote'});
     return applied?incoming:null;
+  }
+
+  // n° 137 : application groupée de documents distants, un seul enregistrement et une seule notification par lot.
+  // Chaque élément garde sa vérification expectedQueueId ; un élément invalide est écarté et signalé dans le résultat
+  // ({applied:false,error}) sans bloquer les autres. Résultats dans l’ordre des éléments : {applied,entity,error}.
+  applyRemoteMany(items){return this.enqueueWrite(()=>this._applyRemoteMany(items));}
+  async _applyRemoteMany(items=[]){
+    const prepared=(items||[]).map(({type,entity,expectedQueueId})=>{
+      if(!ENTITY_TYPES.includes(type))return{error:new Error(`Type inconnu : ${type}`)};
+      const incoming=clone(entity);const errors=validate(type,incoming);
+      if(errors.length&&!incoming.deletedAt)return{error:new Error(errors.join(' — '))};
+      return{type,incoming,expectedQueueId};
+    });
+    const ready=prepared.filter(item=>!item.error);
+    let flags=[],changes=[];
+    if(ready.length){
+      const types=[...new Set(ready.map(item=>item.type))];
+      flags=await this._mutate(`Synchronisation distante : ${types.join(', ')}`,state=>{
+        changes=[];
+        return ready.map(({type,incoming,expectedQueueId})=>{
+          if(expectedQueueId!==undefined){
+            const pending=state.queue.find(item=>item.entity===type&&item.entityId===incoming.id&&['pending','error','conflict'].includes(item.status));
+            if((pending?.id||null)!==expectedQueueId)return false;
+          }
+          const index=state[type].findIndex(item=>item.id===incoming.id);
+          changes.push({type,before:index>=0?clone(state[type][index]):null,after:incoming});
+          if(index>=0)state[type][index]=incoming;else state[type].push(incoming);
+          return true;
+        });
+      },{entity:types.length===1?types[0]:'state',...(ready.length===1?{entityId:ready[0].incoming.id}:{}),action:'remote',count:ready.length,queue:false,log:false,bypassPermissions:true});
+      if(changes.length)await this._recordHistory(changes,{label:'Synchronisation',action:'remote'});
+    }
+    let cursor=0;
+    return prepared.map(item=>{if(item.error)return{applied:false,entity:null,error:item.error};const applied=Boolean(flags[cursor++]);return{applied,entity:applied?item.incoming:null,error:null};});
   }
 
   // Export ZIP/JSON réussi : date conservée localement (non synchronisée), quel que soit le rôle.

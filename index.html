@@ -10,11 +10,13 @@
        les plugins et le détournement de <base> ; Firebase, tuiles, météo, Worker et assistant restent libres.
        Les violations sont notées dans Plus › Mes données › Diagnostic. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'">
-  <meta name="parcelles-build" content="2026.10.13-v10.16.0">
+  <meta name="parcelles-build" content="2026.10.14-v10.17.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <!-- n° 144 : app.js (450 Ko) part dès l’en-tête, sans attendre les feuilles de style ni leaflet.min.js. -->
+  <link rel="modulepreload" href="./app.js">
   <link rel="preload" href="./instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="./instrument-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./leaflet.min.css">
@@ -31,7 +33,7 @@
   <link rel="stylesheet" href="./public-works.css">
   <link rel="stylesheet" href="./motion.css">
   <link rel="stylesheet" href="./personalization.css">
-  <link rel="stylesheet" href="./design-v3.css?v=4.5">
+  <link rel="stylesheet" href="./design-v3.css?v=4.6">
   <title>Parcelles</title>
 </head>
 <body>
@@ -90,6 +92,10 @@
     <div id="schema-banner" class="offline-banner tab-banner hidden" role="alert">
       <span>Vos données viennent d’une version plus récente de Parcelles · lecture seule en attendant</span>
       <button type="button" class="tab-banner-action" data-schema-update>Mettre à jour</button>
+    </div>
+    <div id="demo-banner" class="offline-banner tab-banner demo-banner hidden" role="status">
+      <span><strong>Mode démonstration</strong><span class="demo-banner-note"> · ferme fictive, vos données restent à part</span></span>
+      <button type="button" class="tab-banner-action" data-action="exit-demo">Revenir à ma ferme</button>
     </div>
 
     <aside class="desktop-sidebar" aria-label="Navigation principale ordinateur">

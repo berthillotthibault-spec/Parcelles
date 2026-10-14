@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.17.0",
+      "date": "2026-10-14",
+      "title": "Vitesse et état des cultures",
+      "items": [
+        "Démarrage plus rapide : environ 28 s au lieu de 38 s sur un téléphone lent, écrans de gestion chargés à la demande.",
+        "Carte « Prochaine action » sur l’accueil : compte à rebours, météo du créneau et action suivante.",
+        "Rendement mesuré depuis les récoltes ou une carte de rendement, et rentabilité intra-parcellaire en €/ha.",
+        "Carte « Vigueur (NDVI) » et « Tendance 15 j », et ferme d’exemple à explorer sans toucher à vos données."
+      ]
+    },
+    {
       "version": "10.16.0",
       "date": "2026-10-13",
       "title": "PAC, agronomie et gestion",

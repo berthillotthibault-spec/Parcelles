@@ -146,8 +146,19 @@ export function mapEconomics(state,{campaign=campaignFor()}={}){
     return [parcel.id,{campaign,costHa:m.area>0&&costKnown?(m.realized+m.forfait)/m.area:null,marginHa:m.area>0&&costKnown&&m.marginRealized!==null&&m.unknownRealized===0?m.marginRealized/m.area:null,reliability:m.reliability}];
   }));
 }
+// n° 90 — classes chiffrées de la carte (légende en €/ha par classe) ; mêmes seuils que les couleurs historiques.
+export const ECONOMIC_CLASSES=Object.freeze({
+  margin:Object.freeze([{max:0,color:'#bf4944',label:'Marge négative (< 0 €/ha)'},{max:250,color:'#b88722',label:'Marge 0 à 250 €/ha'},{max:750,color:'#548e61',label:'Marge 250 à 750 €/ha'},{max:Infinity,color:'#22643f',label:'Marge ≥ 750 €/ha'}]),
+  cost:Object.freeze([{max:100,color:'#3a8060',label:'Coût < 100 €/ha'},{max:300,color:'#658b85',label:'Coût 100 à 300 €/ha'},{max:600,color:'#b88722',label:'Coût 300 à 600 €/ha'},{max:Infinity,color:'#b65b47',label:'Coût ≥ 600 €/ha'}])
+});
+export const NO_ECONOMIC_DATA='Données insuffisantes';
+export function economicClass(value,mode){
+  const list=ECONOMIC_CLASSES[mode==='margin'?'margin':'cost'];
+  if(value===null||value===undefined||!Number.isFinite(value))return {index:list.length,color:'#7c8580',label:NO_ECONOMIC_DATA};
+  const index=list.findIndex(c=>value<c.max);return {index,color:list[index].color,label:list[index].label};
+}
 export function economicColor(value,mode){
-  if(value===null||value===undefined||!Number.isFinite(value))return {color:'#7c8580',label:'Données insuffisantes'};
-  const color=mode==='margin'?value<0?'#bf4944':value<250?'#b88722':value<750?'#548e61':'#22643f':value<100?'#3a8060':value<300?'#658b85':value<600?'#b88722':'#b65b47';
-  return {color,label:`${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(value)} €/ha · ${mode==='margin'?'marge estimée':'coûts enregistrés'}`};
+  const c=economicClass(value,mode);
+  if(c.label===NO_ECONOMIC_DATA)return {color:c.color,label:NO_ECONOMIC_DATA,classLabel:NO_ECONOMIC_DATA,classIndex:c.index};
+  return {color:c.color,label:`${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(value)} €/ha · ${mode==='margin'?'marge estimée':'coûts enregistrés'}`,classLabel:c.label,classIndex:c.index};
 }

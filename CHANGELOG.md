@@ -1,5 +1,27 @@
 # Changelog
 
+## 10.17.0 · vitesse, prochaine action, rendement mesuré, NDVI et ferme d’exemple — 2026-10-14
+
+Données : pas de changement de schéma (version 17). La ferme d’exemple vit dans un espace séparé, jamais synchronisé ni sauvegardé.
+
+Vitesse :
+- démarrage plus rapide : environ 28 s au lieu de 38,2 s sur un téléphone lent en 3G (mesure iPhone 14, processeur ×4, Fast 3G), JavaScript initial ramené de 2 745 à environ 2 270 Kio ;
+- les écrans de gestion, d’agronomie et de réglementation se chargent à la demande, restent disponibles hors connexion, et un clic pendant le chargement n’est plus perdu ;
+- synchronisation plus légère (n° 137, étape 1) : les statuts d’envoi et les documents reçus sont enregistrés par lots au lieu d’une écriture par élément.
+
+Nouveautés :
+- carte « Prochaine action » sur l’accueil (n° 28) : compte à rebours, météo du créneau, contour de la parcelle et action suivante ; elle se retourne après « Marquer comme fait » ;
+- rendement mesuré (n° 90) : proposé depuis les lots de récolte ou une carte de rendement, avec l’écart à la valeur saisie, et rentabilité intra-parcellaire en €/ha (surface non rentable, perte estimée) ;
+- état des cultures par satellite (n° 43) : modes « Vigueur (NDVI) » et « Tendance 15 j » sur la carte, mise à jour de toutes les parcelles en une fois, frise des dates et rideau de comparaison ;
+- « Explorer une ferme d’exemple » (n° 118) : une exploitation fictive de l’Ain à parcourir sans toucher à vos données, avec un bandeau « Revenir à ma ferme ».
+
+Corrections (relecture avant publication) :
+- un écran chargé à la demande qui a échoué se recharge vraiment à la nouvelle tentative, sinon « Recharger » est proposé ;
+- une coupure pendant la mise à jour NDVI de toutes les parcelles n’est plus comptée comme actualisée : la relance reprend les parcelles restantes ;
+- le rendement mesuré d’une carte garde les seuils de la culture (betterave, ensilage) ;
+- la campagne d’une date ne dépend plus du fuseau horaire (lots de récolte du 1er août outre-mer) ;
+- la carte « Prochaine action » est redessinée au passage de minuit.
+
 ## 10.16.0 · PAC, agronomie, gestion et confort — 2026-10-13
 
 Données : pas de changement de schéma (version 17). Les nouveautés utilisent des enregistrements d’exploitation et des réglages déjà prévus.
