@@ -8,6 +8,7 @@ export const LAZY_MODULES = Object.freeze({
   sales: () => import('./sales-ui.js'),
   herdEconomics: () => import('./herd-economics-ui.js'),
   netMargin: () => import('./net-margin-ui.js'),
+  treasury: () => import('./treasury-ui.js'), // n° 86
   cropMargins: () => import('./crop-margins-ui.js'),
   land: () => import('./land-ui.js'),
   claims: () => import('./claims-ui.js'),
@@ -34,12 +35,16 @@ export const LAZY_MODULES = Object.freeze({
   rpgOnboarding: () => import('./rpg-onboarding-ui.js'),
   seeds: () => import('./seeds-ui.js'),
   // Compte, équipe et données
+  settings: () => import('./settings-ui.js'),
+  automations: () => import('./automations-ui.js'),
+  techCenters: () => import('./tech-centers-ui.js'),
   teamRoles: () => import('./team-roles-ui.js'),
   activityLog: () => import('./activity-ui.js'),
   trash: () => import('./trash-ui.js'),
   restore: () => import('./restore-ui.js'),
   syncConflict: () => import('./sync-conflict-ui.js'),
   // Outils de carte, agenda et exports
+  mapLayers: () => import('./map-layers-ui.js'),
   contourEdit: () => import('./contour-edit-ui.js'),
   walkMeasure: () => import('./walk-measure-ui.js'),
   parcelSplit: () => import('./parcel-split-ui.js'),
@@ -47,6 +52,9 @@ export const LAZY_MODULES = Object.freeze({
   parcelFormats: () => import('./parcel-formats-ui.js'),
   yield: () => import('./yield-ui.js'),
   measuredYield: () => import('./measured-yield-ui.js'), // n° 90
+  share: () => import('./share-ui.js'), // n° 19
+  dayReview: () => import('./day-review-ui.js'), // n° 105 : carte « Votre journée » après 17 h
+  here: () => import('./here-ui.js'), // n° 111 : « Vous êtes dans », chargé à la première position GPS
   publicWorks: () => import('./public-works-ui.js'),
   fieldTracker: () => import('./field-tracker-ui.js'),
   fieldCoverage: () => import('./field-coverage-ui.js'),
@@ -64,6 +72,7 @@ const actions = (keys, ...names) => names.map(name => [name, [].concat(keys)]);
 export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('herdEconomics', 'open-herd-economics'),
   ...actions('netMargin', 'open-net-margin'),
+  ...actions('treasury', 'open-treasury'),
   ...actions('cropMargins', 'open-crop-margins'),
   ...actions('land', 'open-land'),
   ...actions('claims', 'open-claims'),
@@ -87,8 +96,12 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('regulatedOps', 'open-regulated-ops'),
   ...actions('rpgOnboarding', 'rpg-onboarding'),
   ...actions('seeds', 'open-seeds'),
+  ...actions('settings', 'open-settings'),
+  ...actions('techCenters', 'open-native', 'open-platform', 'platform-run-job', 'open-security', 'repair-text', 'open-integrations', 'open-integration-track'),
+  ...actions('automations', 'open-automations', 'new-automation', 'edit-automation', 'add-automation-template', 'toggle-automation', 'delete-automation', 'toggle-automation-engine'),
   ...actions('teamRoles', 'open-team-roles'),
   ...actions('trash', 'restore-trash', 'purge-trash'),
+  ...actions('mapLayers', 'open-map-layers'),
   ...actions('contourEdit', 'edit-contour'),
   ...actions('walkMeasure', 'walk-measure'),
   ...actions('parcelSplit', 'split-parcel', 'map-multiple-merge'),
@@ -101,8 +114,8 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
 ]));
 
 // Boutons traités par l'écouteur propre d'un module différé mais affichés par un module chargé au
-// démarrage (carte de campagne de l’accueil, légende de la carte n° 90) : même traitement que les actions ci-dessus.
-export const LAZY_TRIGGERS = Object.freeze({'[data-cost]': 'costs', '[data-my]': 'measuredYield'});
+// démarrage (carte de campagne de l’accueil, légende de la carte n° 90, boutons Partager n° 19) : même traitement que les actions ci-dessus.
+export const LAZY_TRIGGERS = Object.freeze({'[data-cost]': 'costs', '[data-my]': 'measuredYield', '[data-share]': 'share'});
 
 const keyList = keys => [].concat(keys ?? []).filter(Boolean);
 // Chemin littéral d'un module différé, lu dans sa fonction d'import (nouvelle tentative après un échec).

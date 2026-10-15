@@ -424,6 +424,8 @@ html[data-view="map"] .toast-region,html[data-view="parcel"] .toast-region{botto
 .map-sheet-context{margin-top:12px;padding:12px 0 0;border-top:1px solid var(--line-2);font-size:13px}
 .map-sheet-context strong{color:var(--text-primary);font-weight:500}
 .map-sheet-actions{gap:8px;margin-top:12px;flex-wrap:nowrap}
+.here-pill{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:6px;margin:0 0 10px;padding:6px 12px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-size:13px;font-weight:600}.here-pill small{font-weight:400;color:var(--text-secondary)}.here-pill.is-approx{background:var(--line-2);color:var(--text-primary)}
+.map-here{margin-top:12px;padding-top:12px;border-top:1px solid var(--line-2);display:grid;gap:8px;justify-items:start}.map-here .here-pill{margin:0}.map-here-due{list-style:none;margin:0;padding:0;display:grid;gap:6px;width:100%}.map-here-due li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}.map-here-due small{display:block;color:var(--text-secondary)}.map-here-none{margin:0;font-size:13px;color:var(--text-secondary)}
 .map-sheet-actions .button{min-height:44px;height:44px;border-radius:22px;font-size:14px}
 .map-sheet-actions .button.secondary{flex:1}
 .map-sheet-actions .button.icon-only{flex:none;width:44px}
@@ -1579,6 +1581,7 @@ html[data-view="map"][data-map-mode] .assistant-dock{visibility:hidden}
 .tr-grades{display:grid;grid-template-columns:1fr;gap:8px;margin-top:12px}
 .tr-grades li{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--text-primary)}
 .tr-grades .tr-badge{min-width:118px;justify-content:center}
+.tr-example{display:block;margin-top:2px;font-size:12.5px;color:var(--text-secondary)}.tr-qr{margin:10px auto 12px}
 .tr-journal{display:flex;flex-direction:column;gap:2px}
 .tr-journal li{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid var(--border-subtle);color:var(--text-primary)}
 .tr-journal li:last-child{border-bottom:0}
@@ -2803,3 +2806,49 @@ html[data-map-mode] .map-whereami,.map-whereami.hidden{display:none}
 .measured-yield .my-pilotage-row{display:block}
 .profit-map-label .profit-loss{margin:6px 0}
 .profit-map-label .profit-legend div{font-variant-numeric:tabular-nums}
+/* n° 86 : prévisionnel de trésorerie */
+.treasury-chart{width:100%;max-width:560px;height:auto;display:block}
+.treasury-chart text{font-size:9px;fill:var(--text-secondary,currentColor)}
+.treasury-chart .tr-in,.tr-key-in{fill:var(--success);background:var(--success);opacity:.55}
+.treasury-chart .tr-out,.tr-key-out{fill:var(--danger);background:var(--danger);opacity:.45}
+.treasury-chart .tr-zero{stroke:var(--border-strong);stroke-width:1}
+.treasury-chart .tr-balance{stroke:var(--info);stroke-width:2}
+.treasury-chart .tr-low{fill:var(--info)}
+.treasury-chart .tr-low.is-negative{fill:var(--danger)}
+.tr-key{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle}
+.treasury-table .tr-low-row th,.treasury-table .tr-low-row td{background:var(--brand-soft)}
+.treasury-table .tr-detail td{padding-top:0;font-size:13px}
+.treasury-table .tr-detail ul{margin:4px 0;padding-left:18px}
+.tr-items .tr-item{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+/* n° 105 : carte « Votre journée » (day-review-ui.js) */
+.day-review .day-review-evening{margin-top:14px;padding-top:12px;border-top:1px dashed var(--border-subtle)}
+.day-review .day-review-evening h3{margin:0;font-size:15px;font-weight:600}
+.day-review .dr-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.day-review .dr-list li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:4px 12px;font-size:13px}
+.day-review .dr-actions{display:flex;gap:12px}
+.day-review .dr-actions .text-button{padding:0 4px;min-height:44px}
+/* n° 30 : étiquettes en pastille, survol riche (ordinateur) et mise en avant des travaux du jour */
+#map .leaflet-tooltip.parcel-label{background:color-mix(in srgb,var(--surface) 85%,transparent);color:var(--text-primary);text-shadow:none;padding:2px 8px;border:1px solid color-mix(in srgb,var(--text-primary) 14%,transparent);border-radius:999px;box-shadow:0 1px 3px rgba(0,0,0,.18);font:600 12px/1.2 'Instrument Sans',system-ui,sans-serif}
+#map .leaflet-tooltip.parcel-label:has(.pl-sub,.parcel-label-reentry){border-radius:10px}
+#map .leaflet-tooltip.parcel-label .pl-sub{font-weight:500;font-size:11px;color:var(--text-secondary);opacity:1}
+#map .leaflet-tooltip.parcel-label.is-today{border-color:#8056b3;box-shadow:0 0 0 1px #8056b3,0 1px 3px rgba(0,0,0,.18)}
+#map .leaflet-tooltip.parcel-label.is-late{border:1px dashed #c33b36}
+#map .leaflet-tooltip.parcel-label .pl-graze{display:inline-block;width:11px;height:11px;margin-right:4px;vertical-align:-1px;fill:none;stroke:var(--info,#356fa8);stroke-width:1.8;stroke-linecap:round}
+:root.theme-dark #map .leaflet-tooltip.parcel-label.is-today{border-color:#b79be0;box-shadow:0 0 0 1px #b79be0,0 1px 3px rgba(0,0,0,.4)}
+:root.theme-dark #map .leaflet-tooltip.parcel-label.is-late{border-color:#e0716a}
+:root.theme-dark #map .leaflet-tooltip.parcel-label .pl-graze{stroke:#8fbbe6}
+#map path.parcel-today-ring{pointer-events:none}
+@media (prefers-reduced-motion:no-preference){#map path.parcel-today-ring.is-animated{animation:parcel-today-pulse 2.4s ease-in-out infinite}}
+@keyframes parcel-today-pulse{0%,100%{stroke-opacity:.2}50%{stroke-opacity:.6}}
+#map .leaflet-tooltip.parcel-hover{background:var(--surface);color:var(--text-primary);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.18);padding:10px 12px;font:400 13px/1.35 'Instrument Sans',system-ui,sans-serif;white-space:normal;min-width:180px;max-width:260px}
+#map .leaflet-tooltip.parcel-hover::before{border-top-color:var(--surface)}
+.parcel-hover-card{display:grid;gap:3px}
+.parcel-hover-card strong{font-size:14px;font-weight:600}
+.parcel-hover-card small{color:var(--text-secondary);font-size:12px}
+.parcel-hover-card .ph-next.is-late{color:var(--danger);font-weight:600}
+.parcel-hover-card .ph-next.is-today{color:#8056b3;font-weight:600}
+:root.theme-dark .parcel-hover-card .ph-next.is-today{color:#b79be0}
+.parcel-hover-card .ph-graze{color:var(--info,#356fa8)}
+:root.theme-dark .parcel-hover-card .ph-graze{color:#8fbbe6}
+.parcel-hover-card button{justify-self:start;margin-top:6px;min-height:32px;padding:4px 14px;border:0;border-radius:999px;background:var(--brand);color:var(--on-brand);font:600 13px/1 'Instrument Sans',system-ui,sans-serif;cursor:pointer}
+.parcel-hover-card button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}

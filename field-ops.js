@@ -17,7 +17,7 @@ export function formatElapsed(ms){
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
-function distanceToBoundary(position,geometry){
+export function distanceToBoundary(position,geometry){
   const rings=geometry?.type==='Polygon'?geometry.coordinates:geometry?.type==='MultiPolygon'?geometry.coordinates.flat():[];
   const lat=Number(position.latitude),lon=Number(position.longitude),scaleX=111320*Math.cos(lat*Math.PI/180),scaleY=111320;
   let best=Infinity;

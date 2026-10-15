@@ -1,6 +1,7 @@
 // Étiquettes de parcelle sur la carte (n° 45) : contenu selon le zoom, position au pôle
 // d'inaccessibilité et élimination des chevauchements. Logique pure, sans Leaflet ni DOM.
 import {filterGrazingSessions,grazingTotal,grazingType} from './grazing.js';
+import {agendaDate,isPending} from './home-priorities.js';
 
 export const LARGE_PARCEL_HA=5;
 
@@ -93,4 +94,35 @@ export function resolveLabelCollisions(items,{margin=2,fits=null}={}){
     placed.push(item.rect);visible.add(item.id);
   }
   return visible;
+}
+
+// n° 30 : mise en avant sur la carte. Classification pure d'une parcelle pour le jour donné :
+// « today » = un travail ou une tâche à faire échéant aujourd'hui, « late » = une échéance dépassée
+// non close, « grazing » = un lot présent. Lecture seule, aucune donnée modifiée.
+export const MAP_ANIMATION_LIMIT=200;
+export function parcelDayFlags({interventions=[],tasks=[],grazingSessions=[]}={},parcelId,today){
+  const pending=[
+    ...(interventions||[]).filter(w=>w&&w.parcelId===parcelId&&isPending(w)).map(w=>agendaDate(w)),
+    ...(tasks||[]).filter(t=>t&&t.parcelId===parcelId&&isPending(t,'task')).map(t=>agendaDate(t,'task'))
+  ];
+  return {
+    today:pending.some(date=>date===today),
+    late:pending.some(date=>date&&date<today),
+    grazing:filterGrazingSessions(grazingSessions,{parcelId,date:today}).length>0
+  };
+}
+// Animation du liseré « aujourd'hui » : jamais au-delà du seuil de parcelles (fluidité).
+export const animateHighlights=count=>Number(count)<=MAP_ANIMATION_LIMIT;
+// Classes CSS de l'étiquette ; le retard prime sur « aujourd'hui ».
+export function labelFlagClasses(flags){
+  if(!flags)return '';
+  return [flags.late?'is-late':flags.today?'is-today':'',flags.grazing?'is-grazing':''].filter(Boolean).join(' ');
+}
+// Texte « prochain travail » de l'info-bulle, à partir d'une entrée de getHomeAgenda ({item,kind,date,overdue}).
+const shortDay=day=>`${day.slice(8,10)}/${day.slice(5,7)}`;
+export function nextWorkText(next,today){
+  if(!next?.item)return 'Aucun travail prévu';
+  const title=String((next.kind==='task'?next.item.title||next.item.label:next.item.type)||'').trim()||(next.kind==='task'?'Tâche':'Travail');
+  const when=next.item.status==='En cours'?'En cours':next.overdue?`En retard (${shortDay(next.date)})`:next.date===today?'Aujourd\u2019hui':next.date?shortDay(next.date):'Sans date';
+  return `${when} · ${title}`;
 }

@@ -112,6 +112,6 @@ test('le module est précaché et branché sur le panneau Couches', ()=>{
   const core=new Set([...read('sw.js').match(/const CORE=\[([\s\S]*?)\];/)[1].matchAll(/'(\.\/[^']*)'/g)].map(m=>m[1]));
   assert.ok(core.has('./basemaps.js'));
   const app=read('app.js');
-  assert.match(app,/data-ly="cadastre"|sw\('cadastre'/);
+  assert.match(read('map-layers-ui.js'),/data-ly="cadastre"|sw\('cadastre'/); // panneau Couches différé
   assert.match(app,/action==='add-cadastre-parcel'/);
 });

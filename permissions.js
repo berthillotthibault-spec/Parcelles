@@ -56,4 +56,7 @@ export function roleScope(role){
 }
 
 // n° 141 : en exploitation cloud, seule la personne propriétaire purge la corbeille (suppression définitive).
+// n° 86 : le prévisionnel de trésorerie est masqué au rôle lecture seule.
+export const canSeeTreasury=role=>normalizeRole(role)!=='viewer';
+
 export function canPurgeTrash({role,cloud=false}={}){return !cloud||normalizeRole(role)==='owner';}

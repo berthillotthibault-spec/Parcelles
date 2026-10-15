@@ -193,7 +193,8 @@ test('modules différés : fichiers présents, en cache hors connexion et absent
 // Identifiants d'app.js qui désignent chaque module différé : instances, et accesseurs sous la forme « nom() ».
 function lazyIdentifiers() {
   const ids = Object.fromEntries(Object.keys(LAZY_MODULES).map(key => [key, new Set()]));
-  for (const m of app.matchAll(/lazy\.onLoad\('(\w+)',m=>([\w$]+)=/g)) ids[m[1]].add(m[2]);
+  // Un module autonome (écouteur propre, ex. share) peut s'enregistrer sans variable d'instance : lazy.onLoad('x',m=>m.create…).
+  for (const m of app.matchAll(/lazy\.onLoad\('(\w+)',m=>(?:\{?([\w$]+)=|m\.create)/g)) ids[m[1]].add(m[2] || `onLoad:${m[1]}`);
   for (const m of app.matchAll(/(?:function ([\w$]+)\(\)\{return (?:[\w$]+\|\|\()?)?([\w$]+)(?:\?\?=|\|\|=|=)lazy\.get\('(\w+)'\)/g)) { ids[m[3]].add(m[2]); if (m[1]) ids[m[3]].add(`${m[1]}()`); }
   return ids;
 }
@@ -213,7 +214,8 @@ const SAFE_WITHOUT_MODULE = [
   /yieldUI\?\.cancel\(\)/, // aucune superposition de rendement à annuler
   /fieldTrackerUI\?\.refresh\(\)/, // mode terrain jamais ouvert : rien à rafraîchir
   /intel\(\)\?\.assistantActionRequiresConfirmation\(action\)\?\?true/, // sans le module, confirmation exigée par défaut
-  /\(mode==='edit'\?contourEditUI\(\):walkMeasureUI\(\)\)\.askAbandon/ // outil actif, donc déjà chargé
+  /\(mode==='edit'\?contourEditUI\(\):walkMeasureUI\(\)\)\.askAbandon/, // outil actif, donc déjà chargé
+  /hereUI\?(?:\.(?:pill|sheetHtml)\(|hereUI\.apply\()/ // n° 111 : sans position connue, ni pastille ni parcelle contextuelle
 ];
 
 test('aucune utilisation d’un module différé sans attente de son chargement', () => {
@@ -287,4 +289,91 @@ test('mission machine différée : parcelles avec contour, contrôle des champs,
   nodes['#save-mission'].onclick();
   assert.deepEqual(toasts.splice(0), ['zones p1', 'Préparez les zones de modulation de la parcelle, puis exportez la préconisation ISOXML.']);
   delete globalThis.FormData;
+});
+
+test('paramètres différés : formulaire échappé, recherche et enregistrement', async () => {
+  const {createSettingsUI} = await import('./settings-ui.js');
+  const nodes = {}, opened = [], calls = [];
+  const sections = [{dataset: {keywords: 'météo vent'}, textContent: 'Météo', classList: {hidden: false, toggle(_, on) { this.hidden = Boolean(on); }}}];
+  const doc = {querySelector: selector => nodes[selector] || null, querySelectorAll: () => sections};
+  const check = on => ({checked: on});
+  const form = {querySelectorAll: () => [{value: 'weather'}], highContrast: check(true)};
+  for (const name of ['compactMode', 'gpsConsent', 'fieldAutoDetect', 'fieldKeepAwake', 'autoBackup', 'syncEnabled', 'notificationsEnabled', 'syncAttachments', 'syncWifiOnly', 'syncLive', 'syncLiveWifiOnly', 'syncAttachmentsWifiOnly', 'syncAutoMerge', 'securityAuditEnabled', 'assistantHistory', 'assistantLocalFirst', 'assistantTerrainContext', 'voiceEnabled', 'assistantVoiceReplies', 'remoteAiEnabled']) form[name] = check(false);
+  globalThis.FormData = class { constructor() {} [Symbol.iterator]() { return Object.entries({nom: ' ', commune: 'Brou', latitude: '46,1', longitude: '', mapLayer: 'osm', mapColorMode: 'culture', theme: 'system', routeProvider: 'apple', weatherDays: '14', weatherWindThreshold: '30', weatherRainThreshold: '4', defaultOperator: '', fuelPrice: '1.5', syncRetryMax: '40', syncRetryBaseSeconds: '1', remoteAiEndpoint: ' https://x.test '})[Symbol.iterator](); } };
+  const ui = createSettingsUI({doc, state: () => ({exploitation: {nom: 'Ferme <A>'}, preferences: {}}),
+    store: {setExploitation: async v => calls.push(['farm', v]), setPreferences: async v => calls.push(['prefs', v])}, sync: {init: async () => calls.push('sync')},
+    modal: (title, description, body) => { opened.push({title, body}); nodes['#settings-search'] = {}; nodes['#save-settings'] = {}; nodes['#settings-form'] = form; },
+    closeModal: () => calls.push('close'), toast: message => calls.push(message), renderAll: () => calls.push('render')});
+  ui.open();
+  assert.equal(opened[0].title, 'Paramètres');
+  assert.match(opened[0].body, /value="Ferme &lt;A&gt;"/);
+  nodes['#settings-search'].oninput({target: {value: 'pluie'}});
+  assert.equal(sections[0].classList.hidden, true);
+  await nodes['#save-settings'].onclick();
+  assert.deepEqual(calls[0], ['farm', {nom: 'Mon exploitation', commune: 'Brou', latitude: 46.1, longitude: null}]);
+  assert.deepEqual([calls[1][1].weatherDays, calls[1][1].syncRetryMax, calls[1][1].syncRetryBaseSeconds, calls[1][1].homeCards, calls[1][1].remoteAiEndpoint], [14, 12, 5, ['weather'], 'https://x.test']);
+  assert.deepEqual(calls.slice(2), ['sync', 'close', 'render', 'Paramètres enregistrés.']);
+  delete globalThis.FormData;
+});
+
+test('couches de la carte différées : carte et satellite lus à l’ouverture', async () => {
+  const {createMapLayersUI} = await import('./map-layers-ui.js');
+  const opened = [], bound = [], listeners = {};
+  const root = {isConnected: true, querySelector: () => null, querySelectorAll: () => [], addEventListener: (type, fn) => { listeners[type] = fn; }};
+  const nodes = {'#map-layer-form': root, '#rpg-load-progress': {textContent: ''}, '#modal-root': {classList: {add() {}}}};
+  let map = null;
+  const data = {preferences: {mapColorMode: 'ndvi'}, parcelles: [{id: 'p1', nom: 'A', geometry: {}}], interventions: []};
+  const ui = createMapLayersUI({state: () => data, store: {}, active: type => data[type] || [], toast: () => {}, doc: {querySelector: s => nodes[s] || null},
+    modal: (title, description, body) => opened.push({title, body}), getMap: () => map,
+    getSatellite: () => ({ndviControls: () => '<i id="ndvi"></i>', mapControls: () => ''}),
+    regulatory: () => ({layersHtml: () => '', bindLayers: node => bound.push(node)}), photoGeo: () => ({layerOn: () => false})});
+  map = {rpgVisible: false, selectedId: 'p<1>'};
+  ui.open();
+  assert.equal(opened[0].title, 'Couches');
+  assert.match(opened[0].body, /data-value="ndvi">Vigueur \(NDVI\)/);
+  assert.match(opened[0].body, /<div id="ly-ndvi-wrap"><i id="ndvi"><\/i>/);
+  assert.match(opened[0].body, /data-id="p&lt;1&gt;"/);
+  assert.deepEqual(bound, [root]);
+  assert.equal(typeof listeners.click, 'function');
+});
+
+test('automatisations différées : liste, formulaire et test sans écriture', async () => {
+  const {createAutomationsUI} = await import('./automations-ui.js');
+  const nodes = {}, opened = [];
+  const data = {preferences: {}, automationRules: [{id: 'r1', name: 'Règle <1>', kind: 'custom', target: 'tasks', trigger: 'interval', conditions: [], actions: [{type: 'notify'}], enabled: true}], automationRuns: []};
+  const ui = createAutomationsUI({state: () => data, store: {}, active: type => data[type] || [], toast: () => {}, weather: () => null,
+    doc: {querySelector: s => nodes[s] || null, querySelectorAll: () => []},
+    modal: (title, description, body, footer) => { opened.push({title, body, footer}); nodes['#automation-target'] = {}; nodes['#save-automation-rule'] = {}; }});
+  ui.open();
+  assert.equal(opened[0].title, 'Automatisations');
+  assert.match(opened[0].body, /Règle &lt;1&gt;/);
+  assert.match(opened[0].footer, /data-action="new-automation"/);
+  ui.openRuleForm(data.automationRules[0]);
+  assert.equal(opened[1].title, 'Modifier l’automatisation');
+  assert.match(opened[1].body, /<option value="">— Aucune —<\/option>/);
+  assert.match(opened[1].footer, /id="test-automation-rule"/);
+  ui.openRuleForm();
+  assert.equal(opened[2].title, 'Nouvelle automatisation');
+  assert.doesNotMatch(opened[2].footer, /test-automation-rule/);
+});
+
+test('centres techniques différés : intégrations, trace GPS et réparation des accents', async () => {
+  const {createTechCentersUI} = await import('./tech-centers-ui.js');
+  const nodes = {}, opened = [], waits = [];
+  const data = {preferences: {}, gpsTracks: [{id: 'g1', name: 'Trace <1>', distanceMeters: 1500, points: [{}, {}], matchedParcels: [{parcelId: 'p1', share: 0.5}], createdAt: 1}], integrationImports: [], weatherStations: [], parcelles: [{id: 'p1', nom: 'Les <Noues>', culture: 'Blé'}]};
+  const ui = createTechCentersUI({state: () => data, store: {get: (type, id) => data[type].find(x => x.id === id)}, active: type => data[type] || [],
+    parcelById: id => data.parcelles.find(p => p.id === id), toast: () => {}, closeModal: () => {},
+    lazy: {wait: (key, fn) => { waits.push(key); return false; }}, impex: () => ({}),
+    doc: {querySelector: s => nodes[s] || null, querySelectorAll: () => []},
+    modal: (title, description, body, footer) => { opened.push({title, body, footer}); nodes['#repair-load-source'] = {}; nodes['#repair-source-files'] = {}; }});
+  ui.openIntegrations();
+  assert.equal(opened[0].title, 'Intégrations agricoles');
+  assert.match(opened[0].body, /data-action="open-integration-track" data-id="g1"><span>⌁<\/span><span><strong>Trace &lt;1&gt;<\/strong>/);
+  ui.openIntegrationTrack('g1');
+  assert.equal(opened[1].title, 'Trace <1>');
+  assert.match(opened[1].body, /Les &lt;Noues&gt;<\/strong><small>50 % des points/);
+  ui.openTextRepair();
+  assert.deepEqual(waits, ['importExport']);
+  assert.equal(opened[2].title, 'Réparer les accents');
+  assert.equal(typeof nodes['#repair-source-files'].onchange, 'function');
 });

@@ -140,7 +140,7 @@ export function createDayRouteUI(deps) {
     const canPostpone = r.remaining.some(s => s.kind === 'work' || s.kind === 'task');
     modal('Récapitulatif de la journée', `${r.done}/${r.total} ${r.total > 1 ? 'étapes faites' : 'étape faite'} · ${nf.format(r.hectares)} ha réalisés`,
       `<h3>Heures par parcelle</h3>${hours}${left}`,
-      `<button class="button secondary" data-action="close-modal">Fermer</button>${canPostpone ? '<button class="button secondary" id="day-route-postpone">Reporter à demain</button>' : ''}<button class="button primary" id="day-route-close-day">Clore la journée</button>`, 'small');
+      `<button class="button secondary" data-action="close-modal">Fermer</button><button class="button secondary" data-share="day" data-day="${e(today())}">Partager</button>${canPostpone ? '<button class="button secondary" id="day-route-postpone">Reporter à demain</button>' : ''}<button class="button primary" id="day-route-close-day">Clore la journée</button>`, 'small');
     document.getElementById('day-route-postpone')?.addEventListener('click', async () => {
       try { const n = await postpone(r.remaining.filter(s => s.kind === 'work' || s.kind === 'task')); toast(`${n} ${n > 1 ? 'actions reportées' : 'action reportée'} à demain.`, 'success'); document.getElementById('day-route-postpone')?.remove(); }
       catch (error) { toast(error?.message || 'Report impossible.', 'error'); }

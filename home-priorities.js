@@ -63,7 +63,7 @@ export function parcelSituation(data,id,today=localDay()){
   const context=getParcelWorkContext(works,today,tasks);
   const observations=(data.observations||[]).filter(o=>o.parcelId===id&&!o.deletedAt&&o.status!=='Résolu');
   const grazing=filterGrazingSessions(data.grazingSessions,{parcelId:id,date:today});
-  const dueToday=works.some(w=>isPending(w)&&agendaDate(w)===today);
+  const dueToday=works.some(w=>isPending(w)&&agendaDate(w)===today)||tasks.some(t=>isPending(t,'task')&&agendaDate(t,'task')===today);
   const late=getHomeAgenda({interventions:works,tasks},today).overdueCount>0;
   const soon=context.next?.date&&context.next.date<=localDay(addDays(today,7));
   const status=late||observations.some(o=>o.severity==='urgent')?['attention','Attention / retard','#c33b36','!']:

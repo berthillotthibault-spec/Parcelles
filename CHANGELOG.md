@@ -1,5 +1,31 @@
 # Changelog
 
+## 10.18.0 · trésorerie, bilan du soir, import console, partage et carte — 2026-10-15
+
+Données : pas de changement de schéma (version 17). L’échéancier de trésorerie est une préférence locale de l’appareil.
+
+Vitesse :
+- les Paramètres, le panneau Couches de la carte, les Automatisations et les centres techniques (application native, plateforme, sécurité, réparation de texte, intégrations) se chargent à la demande : app.js passe de 456 à 408 Kio.
+
+Nouveautés :
+- prévisionnel de trésorerie sur 12 mois (n° 86) : Plus › Gestion › Trésorerie, avec solde de départ, ventes, contrats, factures, travaux prévus et échéancier récurrent, courbe mensuelle et point bas ; estimation non contractuelle, masquée au rôle lecteur ;
+- bilan de fin de journée sur l’accueil (n° 105) : après 17 h, travaux faits et restants avec « Fait » ou « Reporter à demain », sorties de stock proposées pour les travaux terminés (jamais sans confirmation) ;
+- import des travaux de la console du tracteur (n° 124) : fichier TASKDATA.XML ISOXML seul ou dans un ZIP, rapprochement des parcelles par contour ou par nom, aperçu, dédoublonnage et annulation ;
+- partager un travail, une observation ou le récapitulatif du jour (n° 19) : texte prêt à envoyer (parcelle, date, produit et dose, lien de position), photo jointe quand elle existe, copie dans le presse-papiers à défaut ;
+- assistant distant (n° 104) : la réponse s’affiche au fil de l’eau, contexte enrichi (météo, lots au pré, récoltes, chantiers, stocks bas) et exemple de Worker Cloudflare dans tools/ pour garder la clé côté serveur ;
+- « Vous êtes dans : … » (n° 111) : au champ, l’assistant et la carte reconnaissent la parcelle où vous vous trouvez et proposent les actions utiles ; invitation d’un membre par QR code et bouton Partager (n° 122) ;
+- carte (n° 30) : étiquettes en pastille lisibles, fiche au survol sur ordinateur, parcelles du jour mises en avant, retards en pointillés rouges et lots au pâturage signalés ;
+- documentation d’architecture (ARCHITECTURE.md, n° 156).
+
+Corrections (relecture avant publication) :
+- trésorerie : rôle lecteur respecté hors connexion, flux déjà passés exclus, factures échues en retard ;
+- import console : statut des tâches, dédoublonnage entre exports, contours concaves ou invalides, fuseau horaire ;
+- partage aligné sur le registre phyto (traitement prévu signalé « provisoire ») ;
+- bilan du soir : sortie de stock déjà saisie non reproposée, rôle lecteur, accessibilité ;
+- assistant : repli JSON complet, culture des récoltes, date locale, annonce unique de la réponse ;
+- « Vous êtes dans » : parcelles superposées, changement de jour, feuille rafraîchie ;
+- carte : couleurs du prochain travail et des tâches du jour, pas de style retard sur les points.
+
 ## 10.17.0 · vitesse, prochaine action, rendement mesuré, NDVI et ferme d’exemple — 2026-10-14
 
 Données : pas de changement de schéma (version 17). La ferme d’exemple vit dans un espace séparé, jamais synchronisé ni sauvegardé.

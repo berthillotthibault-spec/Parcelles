@@ -2,10 +2,11 @@
 // tableau « Qui peut faire quoi » et journal des changements d’équipe.
 // Les boutons affichés suivent team-roles.js ; la vraie frontière de sécurité reste firestore.rules.
 import {
-  ROLE_ORDER, ROLE_SUMMARY, assignableRolesFor, canChangeRole, canLeave, canManageMember, canManageTeam,
+  ROLE_EXAMPLES, ROLE_ORDER, ROLE_SUMMARY, assignableRolesFor, canChangeRole, canLeave, canManageMember, canManageTeam,
   canRevokeInvite, canTransferOwnership, lastActivityByUser, manageBlockReason, pendingInvites,
-  permissionMatrix, sortMembers, teamJournal, teamPowerSentence
+  inviteShareText, permissionMatrix, sortMembers, teamJournal, teamPowerSentence
 } from './team-roles.js';
+import {qrSvg} from './qr.js';
 import {normalizeRole, roleLabel} from './permissions.js';
 import {escapeHtml as e} from './utils.js';
 
@@ -23,7 +24,7 @@ function ago(ms, now) {
 const badge = role => `<span class="tr-badge tr-role-${e(normalizeRole(role))}">${e(roleLabel(role))}</span>`;
 const initial = m => e(String(m.displayName || m.email || m.uid || m.id || '?').trim().charAt(0).toLocaleUpperCase('fr') || '?');
 
-export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyText = async () => false, bindChipChoices = () => {}, openAccount = () => {}, openSync = () => {}, afterLeave = () => {}, onInvite = () => {}, now = () => Date.now(), win = globalThis.window} = {}) {
+export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyText = async () => false, bindChipChoices = () => {}, openAccount = () => {}, openSync = () => {}, afterLeave = () => {}, onInvite = () => {}, native = null, now = () => Date.now(), win = globalThis.window} = {}) {
   let cache = {members: [], invites: [], devices: [], activity: []};
   const prefs = () => state()?.preferences || {};
   const myUid = () => sync?.user?.uid || '';
@@ -58,7 +59,7 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
       return `<td class="tr-cell tr-${c.value} ${r.role === current ? 'is-me' : ''}" title="${e(label)}"><span aria-hidden="true">${s}</span><span class="sr-only">${e(label)}</span>${c.note ? `<small>${e(c.note)}</small>` : ''}</td>`;
     }).join('')}</tr>`).join('');
     return `<div class="tr-matrix-wrap" tabindex="0" role="region" aria-label="Qui peut faire quoi, par grade"><table class="tr-matrix"><thead><tr><th scope="col">Action</th>${head}</tr></thead><tbody>${body}</tbody></table></div>
-      <ul class="tr-grades">${ROLE_ORDER.map(r => `<li>${badge(r)}<span>${e(ROLE_SUMMARY[r])}</span></li>`).join('')}</ul>`;
+      <ul class="tr-grades">${ROLE_ORDER.map(r => `<li>${badge(r)}<span>${e(ROLE_SUMMARY[r])}<small class="tr-example">Par exemple : ${e(ROLE_EXAMPLES[r])}</small></span></li>`).join('')}</ul>`;
   }
 
   function memberRow(m, role, ro, activityByUser) {
@@ -87,7 +88,7 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
     return `<section class="tr-section"><h3>Inviter quelqu’un</h3><form id="team-invite-form" class="tr-invite" novalidate>
       <label>Adresse e-mail<input name="email" type="email" autocomplete="off" inputmode="email" placeholder="prenom.nom@exemple.fr" ${ro ? 'disabled' : ''}></label>
       <input type="hidden" name="role" value="${def}">
-      <fieldset class="tr-role-pick" ${ro ? 'disabled' : ''}><legend>Grade proposé</legend><div class="chip-choices" data-chip-target="role">${roles.map(r => `<button type="button" class="choice-chip${r === def ? ' is-on' : ''}" aria-pressed="${r === def}" data-value="${r}">${e(roleLabel(r))}</button>`).join('')}</div></fieldset>
+      <fieldset class="tr-role-pick" ${ro ? 'disabled' : ''}><legend>Grade proposé</legend><div class="chip-choices" data-chip-target="role">${roles.map(r => `<button type="button" class="choice-chip${r === def ? ' is-on' : ''}" aria-pressed="${r === def}" data-value="${r}">${e(roleLabel(r))}</button>`).join('')}</div><p class="form-note" data-team-example>${e(`${ROLE_SUMMARY[def]} Par exemple : ${ROLE_EXAMPLES[def]}`)}</p></fieldset>
       <p class="form-note">${role === 'manager' ? 'En tant que responsable, vous invitez uniquement à un grade inférieur au vôtre.' : 'Le grade Propriétaire ne s’attribue pas par invitation : utilisez le transfert de propriété.'} L’invitation expire au bout de 7 jours et ne fonctionne qu’avec l’adresse prévue.</p>
       <p class="form-error hidden" role="alert"></p>
       <button class="button primary" type="submit" ${ro ? 'disabled' : ''}>Créer l’invitation</button></form></section>`;
@@ -97,7 +98,7 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
     if (!canManageTeam(role)) return '';
     if (ro) return `<section class="tr-section"><h3>Invitations en attente</h3><div class="empty-state">Disponibles une fois la connexion rétablie.</div></section>`;
     const list = pendingInvites(cache.invites, now());
-    return `<section class="tr-section"><h3>Invitations en attente${list.length ? ` <span class="tr-count">${list.length}</span>` : ''}</h3>${list.length ? `<ul class="tr-list">${list.map(i => `<li class="tr-invite-row"><div class="tr-who"><strong>${e(i.email)}</strong><small>Expire le ${dateFr(i.expiresAt)}</small></div>${badge(i.role)}<div class="tr-actions"><button class="small-button" data-team-copy="${e(i.token)}">Copier le lien</button>${canRevokeInvite(role, i.role) ? `<button class="small-button danger" data-team-revoke="${e(i.token)}">Révoquer</button>` : '<small class="tr-why">Seul le propriétaire révoque cette invitation.</small>'}</div></li>`).join('')}</ul>` : '<div class="empty-state">Aucune invitation en attente.</div>'}</section>`;
+    return `<section class="tr-section"><h3>Invitations en attente${list.length ? ` <span class="tr-count">${list.length}</span>` : ''}</h3>${list.length ? `<ul class="tr-list">${list.map(i => `<li class="tr-invite-row"><div class="tr-who"><strong>${e(i.email)}</strong><small>Expire le ${dateFr(i.expiresAt)}</small></div>${badge(i.role)}<div class="tr-actions"><button class="small-button" data-team-copy="${e(i.token)}">Copier le lien</button><button class="small-button" data-team-qr="${e(i.token)}">QR code et partage</button>${canRevokeInvite(role, i.role) ? `<button class="small-button danger" data-team-revoke="${e(i.token)}">Révoquer</button>` : '<small class="tr-why">Seul le propriétaire révoque cette invitation.</small>'}</div></li>`).join('')}</ul>` : '<div class="empty-state">Aucune invitation en attente.</div>'}</section>`;
   }
 
   function journalHtml() {
@@ -152,9 +153,14 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
     q('[data-team-leave]')?.addEventListener('click', leaveScreen);
     qa('[data-team-copy]').forEach(b => { b.onclick = async () => { const ok = await copyText(inviteLink(b.dataset.teamCopy)); toast(ok ? 'Lien d’invitation copié.' : 'Copie impossible sur ce navigateur.', ok ? 'success' : 'error'); }; });
     qa('[data-team-revoke]').forEach(b => { b.onclick = () => revokeScreen(b.dataset.teamRevoke); });
+    qa('[data-team-qr]').forEach(b => { b.onclick = () => { const invite = cache.invites.find(x => x.token === b.dataset.teamQr); if (invite) inviteDone(invite, {title: 'Invitation en attente'}); }; });
     const form = q('#team-invite-form');
     if (form) {
       bindChipChoices(form);
+      form.querySelector('.tr-role-pick')?.addEventListener('click', ev => {
+        const r = ev.target.closest('[data-value]')?.dataset.value, note = form.querySelector('[data-team-example]');
+        if (r && note && ROLE_SUMMARY[r]) note.textContent = `${ROLE_SUMMARY[r]} Par exemple : ${ROLE_EXAMPLES[r]}`;
+      });
       form.onsubmit = async ev => {
         ev.preventDefault();
         const err = form.querySelector('.form-error'), email = String(form.elements.email.value || '').trim();
@@ -169,21 +175,35 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
   const member = id => cache.members.find(m => (m.id || m.uid) === id);
   const nameOf = m => m?.displayName || m?.email || m?.id || 'ce membre';
 
-  function inviteDone(invite) {
+  // Partage (n° 122) : feuille de partage native ou du navigateur, sinon copie du message et du lien.
+  const canShare = () => Boolean(native?.capabilities?.share) || typeof win?.navigator?.share === 'function';
+  async function shareInvite(invite, link) {
+    const text = inviteShareText(invite, sync.workspace?.name || state()?.exploitation?.nom || '');
+    if (canShare()) {
+      try { if (native?.capabilities?.share ? await native.share({title: 'Invitation Parcelles', text, url: link}) : (await win.navigator.share({title: 'Invitation Parcelles', text, url: link}), true)) return; }
+      catch (error) { if (error?.name === 'AbortError') return; }
+    }
+    const ok = await copyText(`${text}\n${link}`);
+    toast(ok ? 'Partage indisponible ici : message et lien copiés.' : 'Partage impossible : sélectionnez le lien.', ok ? 'success' : 'error');
+  }
+
+  function inviteDone(invite, {title = 'Invitation créée'} = {}) {
     const link = inviteLink(invite.token);
-    modal('Invitation créée', `${invite.email} · ${roleLabel(invite.role)}`, `<p>Envoyez ce lien à la personne invitée. Elle se connecte avec <strong>${e(invite.email)}</strong> puis rejoint l’exploitation.</p>
-      <pre class="diagnostic-pre tr-link">${e(link)}</pre><p class="form-note">Code seul : <code>${e(invite.token)}</code> · expire le ${dateFr(invite.expiresAt)}.</p>`,
-    `${back}<button class="button secondary" data-team-copy-code>Copier le code</button><button class="button primary" data-team-copy-link>Copier le lien</button>`, 'small');
+    modal(title, `${invite.email} · ${roleLabel(invite.role)}`, `<p>Faites scanner ce QR code à la personne invitée, ou envoyez-lui le lien. Elle se connecte avec <strong>${e(invite.email)}</strong> puis rejoint l’exploitation.</p>
+      <div class="qr-preview tr-qr">${qrSvg(link, {label: `QR code de l’invitation de ${invite.email}`})}</div>
+      <pre class="diagnostic-pre tr-link">${e(link)}</pre><p class="form-note">Grade ${e(roleLabel(invite.role))} : ${e(ROLE_SUMMARY[normalizeRole(invite.role)] || '')} Code seul : <code>${e(invite.token)}</code> · expire le ${dateFr(invite.expiresAt)}.</p>`,
+    `${back}<button class="button secondary" data-team-copy-code>Copier le code</button><button class="button secondary" data-team-copy-link>Copier le lien</button><button class="button primary" data-team-share>Partager</button>`, 'small');
     wireBack();
     document.querySelector('[data-team-copy-link]').onclick = async () => { const ok = await copyText(link); toast(ok ? 'Lien copié.' : 'Copie impossible : sélectionnez le lien.', ok ? 'success' : 'error'); };
     document.querySelector('[data-team-copy-code]').onclick = async () => { const ok = await copyText(invite.token); toast(ok ? 'Code copié.' : 'Copie impossible : sélectionnez le code.', ok ? 'success' : 'error'); };
+    document.querySelector('[data-team-share]').onclick = () => shareInvite(invite, link);
   }
 
   function roleScreen(id) {
     const m = member(id); if (!m) return;
     const role = myRole(), current = normalizeRole(m.role), roles = assignableRolesFor(role);
     modal('Changer le grade', nameOf(m), `<form id="team-role-form" novalidate><input type="hidden" name="role" value="${current}">
-      <div class="chip-choices tr-role-cards" data-chip-target="role">${roles.map(r => `<button type="button" class="choice-chip${r === current ? ' is-on' : ''}" aria-pressed="${r === current}" data-value="${r}"><strong>${e(roleLabel(r))}</strong><small>${e(ROLE_SUMMARY[r])}</small></button>`).join('')}</div>
+      <div class="chip-choices tr-role-cards" data-chip-target="role">${roles.map(r => `<button type="button" class="choice-chip${r === current ? ' is-on' : ''}" aria-pressed="${r === current}" data-value="${r}"><strong>${e(roleLabel(r))}</strong><small>${e(ROLE_SUMMARY[r])}</small><small class="tr-example">Par exemple : ${e(ROLE_EXAMPLES[r])}</small></button>`).join('')}</div>
       ${role === 'manager' ? '<p class="form-note">Un responsable attribue uniquement les grades inférieurs au sien.</p>' : ''}<p class="form-error hidden" role="alert"></p></form>`,
     `${back}<button class="button primary" data-team-role-save>Enregistrer</button>`, 'small');
     wireBack();

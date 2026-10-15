@@ -52,7 +52,7 @@ export function createVoiceNotesUI(host){
   function open({text='',autoStart=false,analyzeNow=false}={}){
     stopPlayback();
     if(text&&analyzeNow)return analyze(text,{});
-    modal('Saisie vocale','Parlez comme à un collègue : Parcelles prépare un brouillon, rien n’est enregistré sans votre accord.',`<div class="vn-sheet" id="vn-sheet" data-state="idle">
+    modal('Saisie vocale','Parlez comme à un collègue : Parcelles prépare un brouillon, rien n’est enregistré sans votre accord.',`<div class="vn-sheet" id="vn-sheet" data-state="idle">${host.herePill?.()||''}
       <div class="vn-ptt-wrap"><button type="button" class="vn-ptt" id="vn-ptt" aria-pressed="false" aria-describedby="vn-status">${icon('mic',{size:34})}<span id="vn-ptt-label">Appuyer pour parler</span></button>
       <p class="vn-status" id="vn-status" role="status" aria-live="polite">Maintenez pendant que vous parlez, ou touchez une fois pour commencer et une fois pour finir.</p>
       <p class="vn-live" id="vn-live" hidden></p></div>
@@ -162,7 +162,9 @@ export function createVoiceNotesUI(host){
 
   // ---------- Brouillon ----------
   function analyze(text,{fromVoice=false,audio=null,memoId=null}={}){
-    const entry=parseVoiceEntry(text,state());
+    let entry=parseVoiceEntry(text,state());
+    // n° 111 : sans parcelle nommée, celle de la position actuelle (pas pour un mémo enregistré ailleurs).
+    if(!memoId)entry=host.applyHere?.(entry)||entry;
     draft={entry,audio,memoId,fromVoice,handled:false};
     renderDraft();
     if(fromVoice&&prefs().assistantVoiceReplies&&'speechSynthesis'in window){try{const u=new SpeechSynthesisUtterance(confirmationSentence(entry,{}));u.lang='fr-FR';window.speechSynthesis.cancel();window.speechSynthesis.speak(u);}catch{}}
@@ -176,7 +178,7 @@ export function createVoiceNotesUI(host){
       const parcels=active('parcelles');
       return `<label>Parcelle *<select name="parcelPick"><option value="">Choisir…</option>${parcels.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.nom)} · ${formatNumber(p.surfaceHa)} ha</option>`).join('')}</select></label><p class="form-note">Parcelle non reconnue : choisissez-la.</p>`;
     }
-    const note=entry.parcelChoices.length?'Plusieurs parcelles correspondent : touchez la bonne.':entry.parcelProbable?'Parcelle probable : vérifiez-la.':selected.length>1?'Un travail sera créé par parcelle.':'';
+    const note=entry.hereNote?escapeHtml(entry.hereNote):entry.parcelChoices.length?'Plusieurs parcelles correspondent : touchez la bonne.':entry.parcelProbable?'Parcelle probable : vérifiez-la.':selected.length>1?'Un travail sera créé par parcelle.':'';
     return `<div class="field-label"><span>Parcelle${selected.length+choices.length>1?'s':''} *</span><div class="vn-chips vn-multi${selected.length&&!entry.parcelProbable?' vn-hit-group':''}" role="group" aria-label="Parcelles">${[...selected,...choices].map(p=>`<button type="button" class="choice-chip${selected.includes(p)?' is-on':''}" data-parcel="${escapeHtml(p.id)}" aria-pressed="${selected.includes(p)}">${escapeHtml(p.nom)}</button>`).join('')}</div>${note?`<p class="form-note">${note}</p>`:''}</div>`;
   }
   const chosenParcels=root=>{const pick=root.querySelector('[name="parcelPick"]')?.value;if(pick)return [pick];return [...root.querySelectorAll('[data-parcel][aria-pressed="true"]')].map(b=>b.dataset.parcel);};

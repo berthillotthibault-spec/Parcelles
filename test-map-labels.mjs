@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {polylabel,labelPoint,labelLevel,labelLines,resolveLabelCollisions} from './map-labels.js';
+import {polylabel,labelPoint,labelLevel,labelLines,resolveLabelCollisions,parcelDayFlags,animateHighlights,labelFlagClasses,nextWorkText,MAP_ANIMATION_LIMIT} from './map-labels.js';
 import {pointInGeometry} from './utils.js';
+import {parcelSituation} from './home-priorities.js';
 
 test('polylabel : centre d’un carré', () => {
   const [x,y]=polylabel([[[0,0],[10,0],[10,10],[0,10],[0,0]]],0.01);
@@ -51,4 +52,66 @@ test('collisions : la plus grande parcelle garde son étiquette, débordement ma
     {id:'c',priority:4,rect:{x:200,y:0,w:50,h:14},bounds:{x:210,y:0,w:20,h:20}},
     {id:'d',priority:1,rect:{x:100,y:50,w:40,h:14}}];
   assert.deepEqual([...resolveLabelCollisions(items)].sort(),['a','d']);
+});
+
+// n° 30 : classification aujourd'hui / retard / pâturage.
+const TODAY='2026-10-15';
+test('parcelDayFlags : travail à faire aujourd’hui, en retard, ou clos', () => {
+  const data={interventions:[
+    {id:'w1',parcelId:'p1',status:'Planifié',plannedDate:'2026-10-15'},
+    {id:'w2',parcelId:'p2',status:'Planifié',plannedDate:'2026-10-10'},
+    {id:'w3',parcelId:'p3',status:'Terminé',date:'2026-10-15'},
+    {id:'w4',parcelId:'p4',status:'Planifié',plannedDate:'2026-10-15',deletedAt:'2026-10-14'},
+    {id:'w5',parcelId:'p5',status:'Planifié',plannedDate:'2026-10-20'}
+  ]};
+  assert.deepEqual(parcelDayFlags(data,'p1',TODAY),{today:true,late:false,grazing:false});
+  assert.deepEqual(parcelDayFlags(data,'p2',TODAY),{today:false,late:true,grazing:false});
+  assert.deepEqual(parcelDayFlags(data,'p3',TODAY),{today:false,late:false,grazing:false});
+  assert.deepEqual(parcelDayFlags(data,'p4',TODAY),{today:false,late:false,grazing:false});
+  assert.deepEqual(parcelDayFlags(data,'p5',TODAY),{today:false,late:false,grazing:false});
+});
+
+test('parcelDayFlags : les tâches comptent, un travail sans date n’est ni du jour ni en retard', () => {
+  const data={interventions:[{id:'w',parcelId:'p1',status:'Planifié'}],tasks:[{id:'t',parcelId:'p1',status:'À faire',dueDate:'2026-10-01'}]};
+  assert.deepEqual(parcelDayFlags(data,'p1',TODAY),{today:false,late:true,grazing:false});
+  assert.deepEqual(parcelDayFlags({interventions:[{id:'w',parcelId:'p1',status:'Planifié'}]},'p1',TODAY),{today:false,late:false,grazing:false});
+});
+
+test('parcelDayFlags : lot au pâturage en cours seulement', () => {
+  const grazingSessions=[
+    {id:'g1',parcelId:'p1',startDate:'2026-10-01',animalType:'Bovins',count:10},
+    {id:'g2',parcelId:'p2',startDate:'2026-09-01',endDate:'2026-09-20',animalType:'Ovins',count:5}
+  ];
+  assert.equal(parcelDayFlags({grazingSessions},'p1',TODAY).grazing,true);
+  assert.equal(parcelDayFlags({grazingSessions},'p2',TODAY).grazing,false);
+  assert.deepEqual(parcelDayFlags(undefined,'p1',TODAY),{today:false,late:false,grazing:false});
+});
+
+test('animateHighlights : seuil de 200 parcelles', () => {
+  assert.equal(MAP_ANIMATION_LIMIT,200);
+  assert.equal(animateHighlights(200),true);
+  assert.equal(animateHighlights(201),false);
+});
+
+test('labelFlagClasses : le retard prime sur aujourd’hui', () => {
+  assert.equal(labelFlagClasses({today:true,late:true,grazing:true}),'is-late is-grazing');
+  assert.equal(labelFlagClasses({today:true,late:false,grazing:false}),'is-today');
+  assert.equal(labelFlagClasses(null),'');
+});
+
+test('nextWorkText : formulations selon l’échéance', () => {
+  assert.equal(nextWorkText(null,TODAY),'Aucun travail prévu');
+  assert.equal(nextWorkText({item:{type:'Semis'},kind:'work',date:TODAY,overdue:false},TODAY),'Aujourd’hui · Semis');
+  assert.equal(nextWorkText({item:{type:'Traitement'},kind:'work',date:'2026-10-03',overdue:true},TODAY),'En retard (03/10) · Traitement');
+  assert.equal(nextWorkText({item:{title:'Clôture'},kind:'task',date:'2026-10-20',overdue:false},TODAY),'20/10 · Clôture');
+  assert.equal(nextWorkText({item:{status:'En cours'},kind:'work',date:'',overdue:false},TODAY),'En cours · Travail');
+});
+
+test('parcelDayFlags et parcelSituation s’accordent sur une tâche du jour', () => {
+  const data={interventions:[],tasks:[{id:'t',parcelId:'p1',status:'À faire',dueDate:TODAY}],grazingSessions:[]};
+  assert.equal(parcelDayFlags(data,'p1',TODAY).today,true);
+  assert.equal(parcelSituation(data,'p1',TODAY).status.key,'today');
+  data.tasks[0].status='Terminée';
+  assert.equal(parcelDayFlags(data,'p1',TODAY).today,false);
+  assert.notEqual(parcelSituation(data,'p1',TODAY).status.key,'today');
 });

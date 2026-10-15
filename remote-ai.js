@@ -1,4 +1,6 @@
 import {campaignFor, toNumber, normalize} from './utils.js';
+import {grazingStatus, grazingTotal, grazingType, grazingDate} from './grazing.js';
+import {farmRecords} from './farm-records.js';
 import {validateExtraction, EXTRACT_MODE} from './stock-capture.js';
 
 const ALLOWED_ACTIONS=new Set([
@@ -13,6 +15,17 @@ function sanitizeAction(action){
   return{type:action.type,label:String(action.label||'Action proposée').slice(0,120),payload:JSON.parse(JSON.stringify(payload)),requiresConfirmation:['create_work','create_task'].includes(action.type)};
 }
 
+// Résumé météo : seulement un cache de moins de 72 h, jours à venir limités à 3 (72 h).
+// « today » en heure locale : daily.time d'Open-Meteo est en heure locale (timezone=auto).
+export function weatherSummary(cache,{now=Date.now(),today=grazingDate(new Date(now)),maxAgeMs=72*3600e3}={}){
+  const loadedAt=Number(cache?.loadedAt),d=cache?.daily;
+  if(!Number.isFinite(loadedAt)||now-loadedAt>maxAgeMs||loadedAt-now>3600e3||!Array.isArray(d?.time))return null;
+  const num=v=>v===null||v===undefined||v===''||!Number.isFinite(Number(v))?null:Number(v);
+  const days=d.time.map((date,i)=>({date,tMin:num(d.temperature_2m_min?.[i]),tMax:num(d.temperature_2m_max?.[i]),rainMm:num(d.precipitation_sum?.[i]),rainProbability:num(d.precipitation_probability_max?.[i]),windKmh:num(d.wind_speed_10m_max?.[i]),gustKmh:num(d.wind_gusts_10m_max?.[i])})).filter(x=>typeof x.date==='string'&&x.date>=today).slice(0,3);
+  if(!days.length)return null;
+  return{loadedAt:new Date(loadedAt).toISOString(),current:{temperature:num(cache.current?.temperature_2m),windKmh:num(cache.current?.wind_speed_10m)},days};
+}
+
 export function buildAssistantContext(state,context={}){
   const q=normalize(context.question||'');
   if(q){
@@ -24,7 +37,10 @@ export function buildAssistantContext(state,context={}){
       interventions:needWorks?byParcel(state.interventions):[],tasks:needTasks?byParcel(state.tasks):[],
       materiels:/materiel|machine|tracteur|entretien|maintenance/.test(q)?state.materiels:[],
       observations:/observation|anomalie|alerte/.test(q)?byParcel(state.observations):[],
-      stockItems:/stock|produit|intrant/.test(q)?state.stockItems:[],chantiers:/chantier/.test(q)?state.chantiers:[],assistantMessages:[]};
+      stockItems:/stock|produit|intrant|seuil|rupture/.test(q)?state.stockItems:[],chantiers:/chantier|\btp\b|travaux publics|terrassement/.test(q)?state.chantiers:[],assistantMessages:[],
+      grazingSessions:/pature|paturage|\bpre\b|\blots?\b|animal|betail|troupeau|vache|brebis/.test(q)?byParcel(state.grazingSessions):[],
+      integrationImports:/recolte|rendement|moisson|\blots?\b/.test(q)?byParcel(state.integrationImports):[]};
+    if(!/meteo|pluie|vent|temps|traite|pulveris|semer|semis|gel|orage|chaleur/.test(q))context={...context,weather:null};
   }
   const active=t=>(state[t]||[]).filter(x=>!x.deletedAt),limit=(rows,n)=>rows.slice(Math.max(0,rows.length-n));
   const parcels=active('parcelles').map(p=>({id:p.id,name:p.nom,culture:p.culture||'',surfaceHa:toNumber(p.surfaceHa),commune:p.commune||'',ownershipType:p.ownershipType||'own'}));
@@ -35,28 +51,120 @@ export function buildAssistantContext(state,context={}){
   const observations=limit(active('observations'),120).map(o=>({id:o.id,title:o.title||o.type||'',parcelId:o.parcelId||'',status:o.status||'',severity:o.severity||'',date:o.date||''}));
   const stocks=active('stockItems').slice(0,120).map(x=>({id:x.id,name:x.name||'',quantity:toNumber(x.quantity),unit:x.unit||'',alertBelow:x.alertBelow??null,category:x.category||''}));
   const chantiers=limit(active('chantiers'),80).map(c=>({id:c.id,type:c.type||'',status:c.status||'',plannedDate:c.plannedDate||'',parcelIds:Array.isArray(c.parcelIds)?c.parcelIds.slice(0,80):[]}));
+  // n° 104 : contexte élargi (lots au pré, récoltes de la campagne, chantiers TP, stocks sous le seuil, météo en cache).
+  const now=context.now??Date.now(),campaign=campaignFor(now),today=grazingDate(new Date(now));
+  const grazing=active('grazingSessions').filter(s=>grazingStatus(s,{date:new Date(context.now??Date.now())})==='current').slice(0,60).map(s=>({id:s.id,parcelId:s.parcelId||'',parcel:parcelNames.get(s.parcelId)||'',type:grazingType(s)||'',animals:grazingTotal(s)??null,startDate:s.startDate||''}));
+  const harvests=farmRecords(state,'harvest').filter(l=>campaignFor(l.date)===campaign).slice(-120).map(l=>({id:l.id,code:l.code||'',parcelId:l.parcelId||'',parcel:parcelNames.get(l.parcelId)||'',culture:String(l.crop||l.culture||'').trim(),date:l.date||'',quantity:toNumber(l.quantity),unit:l.unit||'',humidity:l.humidity??null}));
+  const publicWorks=active('chantiers').filter(c=>c.kind==='tp'&&!['Terminé','Annulé'].includes(c.status)).slice(-40).map(c=>({id:c.id,name:c.type||'',status:c.status||'',plannedDate:c.plannedDate||'',address:String(c.address||'').slice(0,200),logs:Array.isArray(c.tpLogs)?c.tpLogs.filter(x=>!x?.deletedAt).length:0}));
+  const lowStocks=stocks.filter(x=>x.alertBelow!==null&&x.alertBelow!==''&&Number.isFinite(Number(x.alertBelow))&&x.quantity<=Number(x.alertBelow)).slice(0,60);
+  const weather=weatherSummary(context.weather,{now:context.now??Date.now(),today});
   const conversation=limit(active('assistantMessages'),12).map(m=>({role:m.role,text:String(m.text||'').slice(0,1200)}));
   const currentParcel=context.currentParcelId?parcels.find(p=>p.id===context.currentParcelId)||null:null;
   return{
-    farm:{name:state.exploitation?.nom||'',commune:state.exploitation?.commune||''},campaign:campaignFor(),
+    farm:{name:state.exploitation?.nom||'',commune:state.exploitation?.commune||''},campaign,
     current:{parcel:currentParcel,view:context.view||'',fieldMode:Boolean(context.fieldModeOpen),gpsAccuracy:context.lastGps?.accuracy??null},
     parcels,works,tasks,equipment,observations,stocks,chantiers,conversation,
+    grazing,harvests,publicWorks,lowStocks,weather,
     farmSignals:/satellite|ndvi|anomal|visiter|aller voir|surveiller/.test(q)?(context.farmSignals||[]).slice(0,12):[],
     policy:{localFirst:true,writeActionsRequireConfirmation:true,noAgronomicRecommendationWithoutExplicitSource:true}
   };
 }
 
-export async function askRemoteAssistant({endpoint,question,state,context={},timeoutMs=15000}={}){
+// n° 104 — Réponse en flux : texte brut progressif, NDJSON (un objet JSON par ligne) ou SSE (lignes « data: »).
+// Chaque événement JSON peut porter {delta} (texte à ajouter), {answer} (texte complet), {actions} ou {error}.
+// Un événement non JSON est du texte ajouté tel quel ; « [DONE] » est ignoré.
+export function streamFormat(contentType=''){
+  const type=String(contentType).toLowerCase();
+  if(type.includes('text/event-stream'))return 'sse';
+  if(type.includes('ndjson')||type.includes('jsonl')||type.includes('json-seq'))return 'ndjson';
+  if(type.includes('application/json'))return 'json';
+  return 'text';
+}
+
+export function createStreamParser(format='text',{maxLength=6000}={}){
+  // En mode texte, raw garde le corps complet (non tronqué) pour le repli JSON d'un service mal étiqueté.
+  let buffer='',answer='',actions=[],error='',sseData=[],raw='';
+  const looksJson=()=>/^\s*[{[]/.test(raw);
+  const add=text=>{const before=answer.length;answer=(answer+text).slice(0,maxLength);return answer.length!==before;};
+  const event=raw=>{
+    const value=String(raw);if(!value.trim()||value.trim()==='[DONE]')return false;
+    let data;try{data=JSON.parse(value);}catch{return add(value);}
+    if(typeof data==='string')return add(data);
+    if(!data||typeof data!=='object')return false;
+    if(data.error)error=String(data.error.message||data.error).slice(0,300);
+    if(Array.isArray(data.actions))actions=data.actions;
+    const delta=typeof data.delta==='string'?data.delta:typeof data.delta?.text==='string'?data.delta.text:null;
+    if(delta!==null)return add(delta);
+    const full=data.answer??data.text??data.response;
+    if(typeof full==='string'){const before=answer;answer=full.slice(0,maxLength);return answer!==before;}
+    return false;
+  };
+  const line=raw=>{
+    const text=raw.endsWith('\r')?raw.slice(0,-1):raw;
+    if(format==='ndjson')return event(text);
+    if(text===''){if(!sseData.length)return false;const data=sseData.join('\n');sseData=[];return event(data);}
+    if(text.startsWith(':'))return false;
+    if(text.startsWith('data:'))sseData.push(text.slice(5).replace(/^ /,''));
+    return false;
+  };
+  const drain=final=>{
+    let changed=false,index;
+    while((index=buffer.indexOf('\n'))>=0){const raw=buffer.slice(0,index);buffer=buffer.slice(index+1);changed=line(raw)||changed;}
+    if(final){if(buffer)changed=line(buffer)||changed;buffer='';if(format==='sse')changed=line('')||changed;}
+    return changed;
+  };
+  return{
+    push(chunk){if(format==='text'){raw+=String(chunk);return looksJson()?false:add(String(chunk));}buffer+=String(chunk);return drain(false);},
+    end(){if(format!=='text')drain(true);else if(looksJson()){let data=null;try{data=JSON.parse(raw);}catch{}if(data&&typeof data==='object'){answer='';event(raw);}else answer=raw.slice(0,maxLength);}if(error)throw new Error(`Service IA : ${error}`);return{answer,actions};},
+    get text(){return answer;}
+  };
+}
+
+async function readStream(response,format,{onDelta,onChunk}={}){
+  const parser=createStreamParser(format),reader=response.body.getReader(),decoder=new TextDecoder();
+  for(;;){
+    const {done,value}=await reader.read();if(done)break;onChunk?.();
+    if(parser.push(decoder.decode(value,{stream:true})))onDelta?.(parser.text);
+  }
+  if(parser.push(decoder.decode()))onDelta?.(parser.text);
+  return parser.end();
+}
+
+function finalAnswer(data){
+  const answer=data?.answer||data?.text||data?.response;
+  if(!String(answer||'').trim())throw new Error('Le service IA n’a retourné aucune réponse.');
+  return{answer:String(answer).slice(0,6000),actions:(Array.isArray(data.actions)?data.actions:[]).map(sanitizeAction).filter(Boolean).slice(0,6)};
+}
+
+export async function askRemoteAssistant({endpoint,question,state,context={},timeoutMs=15000,onDelta=null,fetchImpl=(...a)=>fetch(...a)}={}){
   if(!endpoint)throw new Error('Aucun endpoint IA configuré.');
   const url=new URL(endpoint,location.href);if(!/^https:$/.test(url.protocol)&&url.hostname!=='localhost')throw new Error('L’endpoint IA doit utiliser HTTPS.');
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+  const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),timeoutMs);
+  // En flux, le délai s'applique entre deux morceaux reçus, pas à la réponse entière.
+  const rearm=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),timeoutMs);};
+  const stream=typeof onDelta==='function';
   try{
-    const response=await fetch(url.href,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({question:String(question).slice(0,1200),context:buildAssistantContext(state,{...context,question:String(question)}),client:'Parcelles',mode:'assistant-v7.0',allowedActions:[...ALLOWED_ACTIONS]}),signal:controller.signal});
+    const response=await fetchImpl(url.href,{method:'POST',headers:{'content-type':'application/json',accept:stream?'text/event-stream, application/x-ndjson, application/json;q=0.9':'application/json'},body:JSON.stringify({question:String(question).slice(0,1200),context:buildAssistantContext(state,{...context,question:String(question)}),client:'Parcelles',mode:'assistant-v7.0',stream,allowedActions:[...ALLOWED_ACTIONS]}),signal:controller.signal});
     if(!response.ok)throw new Error(`Service IA ${response.status}`);
-    const data=await response.json(),answer=data.answer||data.text||data.response;
-    if(!String(answer||'').trim())throw new Error('Le service IA n’a retourné aucune réponse.');
-    return{answer:String(answer).slice(0,6000),actions:(Array.isArray(data.actions)?data.actions:[]).map(sanitizeAction).filter(Boolean).slice(0,6)};
+    const format=streamFormat(response.headers?.get?.('content-type'));
+    // Repli : réponse JSON complète (comportement historique) si le service ne diffuse pas en flux.
+    if(!stream||format==='json'||typeof response.body?.getReader!=='function')return finalAnswer(await response.json());
+    return finalAnswer(await readStream(response,format,{onDelta,onChunk:rearm}));
   }finally{clearTimeout(timer);}
+}
+
+// Bulle « Assistant » mise à jour au fil de l'eau (textContent uniquement : aucun HTML interprété).
+// Pas de région live sur la bulle provisoire (aria-busy) : la réponse finale est annoncée une fois par #assistant-thread.
+export function liveAnswer(thread){
+  let box=null,para=null;
+  return{
+    update(text){
+      if(!thread)return;
+      if(!box){box=thread.ownerDocument.createElement('div');box.className='assistant-answer is-streaming';box.setAttribute('aria-busy','true');const title=thread.ownerDocument.createElement('strong');title.textContent='Assistant';para=thread.ownerDocument.createElement('p');box.append(title,para);thread.append(box);}
+      para.textContent=String(text||'');thread.scrollTop=thread.scrollHeight;
+    },
+    remove(){box?.remove();box=null;}
+  };
 }
 
 // n° 106 — Extraction d'une facture ou d'une étiquette par le même endpoint IA (mode 'extract-document').

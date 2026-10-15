@@ -237,6 +237,18 @@ function weatherCells(snapshot){
   return{wind:snapshot?.wind,temperature:snapshot?.temperature,humidity:snapshot?.humidity,origin:snapshot?'relevé':''};
 }
 
+// Source unique des champs obligatoires du registre (registre, partage n° 19).
+function registerFields(w,parcel,sheet){
+  const fields={Parcelle:parcel?.nom,Culture:w.culture||parcel?.culture,Date:w.date,Produit:w.product,AMM:w.amm||sheet?.amm,Dose:num(w.dose),Unité:w.doseUnit,'Surface traitée':num(w.surfaceWorked),Cible:w.target,'Heure de début':clock(w.startTime),Opérateur:w.operator};
+  return{fields,missing:REGISTER_REQUIRED.filter(k=>fields[k]===null||fields[k]===undefined||fields[k]==='')};
+}
+/** Champs obligatoires du registre absents pour un traitement (libellés de REGISTER_REQUIRED) ; [] si ce n'est pas un traitement. */
+export function registerMissing(state,work,{parcel,catalog=null}={}){
+  if(!work||!isTreatment(work))return[];
+  const p=parcel!==undefined?parcel:active(state||{},'parcelles').find(x=>x.id===work.parcelId)||null;
+  return registerFields(work,p,productFor(state||{},work,{catalog})?.sheet||null).missing;
+}
+
 /** Lignes du registre pour une campagne (traitements terminés). */
 export function registerRows(state,campaign,{catalog=null}={}){
   const parcels=new Map(active(state||{},'parcelles').map(p=>[p.id,p])),machines=new Map(active(state||{},'materiels').map(m=>[m.id,m]));
@@ -244,8 +256,7 @@ export function registerRows(state,campaign,{catalog=null}={}){
     .sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.startTime||'').localeCompare(String(b.startTime||'')))
     .map(w=>{
       const parcel=parcels.get(w.parcelId),sheet=productFor(state,w,{catalog})?.sheet||null,limits=limitsFor(sheet,w,parcel),weather=weatherCells(w.weatherSnapshot);
-      const fields={Parcelle:parcel?.nom,Culture:w.culture||parcel?.culture,Date:w.date,Produit:w.product,AMM:w.amm||sheet?.amm,Dose:num(w.dose),Unité:w.doseUnit,'Surface traitée':num(w.surfaceWorked),Cible:w.target,'Heure de début':clock(w.startTime),Opérateur:w.operator};
-      const missing=REGISTER_REQUIRED.filter(k=>fields[k]===null||fields[k]===undefined||fields[k]==='');
+      const {fields,missing}=registerFields(w,parcel,sheet);
       return{work:w,parcel,sheet,missing,complete:!missing.length,cells:{
         'Date':w.date||'','Début':clock(w.startTime),'Fin':clock(w.endTime),'Parcelle':parcel?.nom||'','Surface traitée (ha)':num(w.surfaceWorked)??'','Culture':fields.Culture||'','Stade':w.stage||'','Cible':w.target||'',
         'Produit':w.product||'','AMM':fields.AMM||'','Dose':num(w.dose)??(w.dose||''),'Unité':w.doseUnit||'','DAR (j)':limits.dar??'','DRE (h)':sheet?.dre??'',

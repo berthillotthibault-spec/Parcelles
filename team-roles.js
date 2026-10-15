@@ -24,6 +24,23 @@ export const ROLE_SUMMARY = {
   viewer: 'Consulte et exporte, sans rien modifier.'
 };
 
+// Exemples métier par grade (n° 122) : à qui donner quel grade, en une phrase.
+export const ROLE_EXAMPLES = {
+  owner: 'Le chef d’exploitation ou le gérant du GAEC.',
+  manager: 'Un associé ou le chef de culture qui organise l’équipe.',
+  editor: 'Un associé ou un conjoint collaborateur qui tient le cahier de cultures.',
+  operator: 'Un salarié, un stagiaire ou le chauffeur de l’ETA qui saisit ses chantiers.',
+  accountant: 'La secrétaire, le centre de gestion ou le comptable.',
+  viewer: 'Le conseiller technique, un propriétaire bailleur ou un associé non exploitant.'
+};
+
+// Texte du partage d'une invitation (n° 122) : message prêt à envoyer avec le lien.
+export function inviteShareText({role, email = '', expiresAt = null} = {}, farmName = '') {
+  const farm = String(farmName || '').trim();
+  const until = Number(expiresAt) > 0 ? ` Le lien expire le ${new Date(Number(expiresAt)).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'})}.` : '';
+  return `Rejoignez ${farm ? `l’exploitation « ${farm} »` : 'notre exploitation'} sur Parcelles, grade « ${roleLabel(role)} ».${email ? ` Connectez-vous avec ${email}.` : ''}${until}`;
+}
+
 // Grades que `actor` peut attribuer (invitation ou changement de grade). Jamais « propriétaire » :
 // la propriété ne se donne que par transfert.
 const MANAGER_ASSIGNABLE = ['editor', 'operator', 'accountant', 'viewer'];

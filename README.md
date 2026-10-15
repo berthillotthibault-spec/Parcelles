@@ -10,3 +10,7 @@ qu’un CDN lent ou inaccessible bloque le premier affichage ou les imports.
 Les URL exactes sont dans scripts/fetch-native-vendor.mjs. Les trois fichiers
 LICENSE contiennent les licences distribuées avec ces versions sur unpkg.
 Aucune montée de version de ces bibliothèques n’a été effectuée.
+
+## Documentation
+
+Architecture du code (modules, état, synchronisation, service worker, recettes) : [ARCHITECTURE.md](ARCHITECTURE.md).

@@ -17,7 +17,8 @@ const REQUIRED_ASSETS = [
  ,'./forage.js','./forage-ui.js','./seeds.js','./seeds-ui.js','./soil-analysis.js','./soil-analysis-ui.js','./hedges.js','./hedges-ui.js' // v8b
  ,'./telepac.js','./telepac-ui.js','./parcel-check.js','./parcel-check-ui.js','./regulatory.js','./regulatory-ui.js','./regulated-ops.js','./regulated-ops-ui.js' // v8a
   ,/* release */'./apple-touch-icon.png','./instrument-sans-latin.woff2','./instrument-serif-latin.woff2','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./layers.png','./layers-2x.png','./marker-icon.png','./instrument-sans-latin-ext.woff2','./instrument-serif-latin-ext.woff2'
-  ,/* release */'./measured-yield-ui.js','./measured-yield.js','./demo-farm.js','./ndvi-map.js'
+  ,/* release */'./measured-yield-ui.js','./measured-yield.js','./day-review.js','./day-review-ui.js','./demo-farm.js','./ndvi-map.js'
+  ,/* release */'./treasury-ui.js','./treasury.js','./isoxml-import.js','./settings-ui.js','./automations-ui.js','./tech-centers-ui.js','./map-layers-ui.js','./share-ui.js','./share-text.js','./here-ui.js','./here-context.js'
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}

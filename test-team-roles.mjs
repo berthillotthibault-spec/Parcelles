@@ -6,7 +6,7 @@ import {readFileSync} from 'node:fs';
 import {
   ROLE_ORDER, roleTier, assignableRolesFor, canManageTeam, canManageMember, canChangeRole, canRemoveMember,
   canRevokeInvite, canLeave, canTransferOwnership, manageBlockReason, sortMembers, lastActivityByUser,
-  pendingInvites, teamJournal, permissionMatrix, teamPowerSentence
+  pendingInvites, teamJournal, permissionMatrix, teamPowerSentence, ROLE_EXAMPLES, inviteShareText
 } from './team-roles.js';
 
 const LOWER = ['editor', 'operator', 'accountant', 'viewer'];
@@ -157,4 +157,14 @@ test('factures et ventes : comptabilité oui, opérateur terrain non ; capteurs 
   assert.equal(canMutate('operator', {entity: 'integrationImports', action: 'update', farmKind: 'sensor'}), true);
   assert.equal(canMutate('accountant', {entity: 'integrationImports', action: 'update', farmKind: 'sensor'}), false);
   assert.equal(canMutate('editor', {entity: 'integrationImports', action: 'update', farmKind: 'invoice'}), true);
+});
+
+test('invitation (n° 122) : exemple métier pour chaque grade et texte de partage', () => {
+  for (const r of ROLE_ORDER) assert.ok(ROLE_EXAMPLES[r] && ROLE_EXAMPLES[r].length > 10, r);
+  assert.match(ROLE_EXAMPLES.operator, /salarié/);
+  const text = inviteShareText({role: 'operator', email: 'paul@exemple.fr', expiresAt: Date.UTC(2026, 9, 22, 12)}, 'GAEC des Saules');
+  assert.match(text, /^Rejoignez l’exploitation « GAEC des Saules » sur Parcelles, grade « Opérateur terrain »/);
+  assert.match(text, /Connectez-vous avec paul@exemple\.fr\./);
+  assert.match(text, /expire le 22 octobre/);
+  assert.equal(inviteShareText({role: 'viewer'}), 'Rejoignez notre exploitation sur Parcelles, grade « Lecture seule ».');
 });

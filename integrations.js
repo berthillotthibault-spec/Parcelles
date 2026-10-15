@@ -98,7 +98,7 @@ export function inspectAgriculturalText(name,text){
   if(ext==='.csv'||ext==='.txt')return parseDelimitedIntegration(text,{name:String(name).replace(/\.[^.]+$/,'')});
   if(ext==='.xml'){
     if(/<gpx\b/i.test(text))return parseGpx(text,{name:String(name).replace(/\.xml$/i,'')});
-    if(/<ISO11783_TaskData\b|<TaskData\b|<TSK\b/i.test(text))return {format:'ISOXML',traces:[],waypoints:[],stationReadings:[],machineRows:[],summary:{traces:0,waypoints:0,points:0,stationReadings:0,machineRows:0},warning:'ISOXML détecté. Parcelles 7.0 conserve le fichier comme import machine mais ne transforme pas encore les tâches ISOXML en interventions.'};
+    if(/<ISO11783_TaskData\b|<TaskData\b|<TSK\b/i.test(text))return {format:'ISOXML',traces:[],waypoints:[],stationReadings:[],machineRows:[],summary:{traces:0,waypoints:0,points:0,stationReadings:0,machineRows:0},warning:'ISOXML détecté. Pour créer les travaux réalisés de la console, importez ce TASKDATA (ou son ZIP) depuis Plus › Mes données › Importer : aperçu, rapprochement des parcelles et annulation possible.'};
     throw new Error('XML non reconnu. Les formats XML pris en charge sont GPX et la détection ISOXML.');
   }
   throw new Error(`Format ${ext||'inconnu'} non pris en charge. Utilisez GPX, KML, CSV/TXT ou XML.`);
@@ -123,5 +123,5 @@ export function stationSummary(readings=[]){
 }
 
 export function integrationCapabilities(){
-  return {gpx:true,kml:true,machineCsv:true,weatherStationCsv:true,isoxmlDetection:true,isoxmlConversion:false,satellite:false,geofoliaApi:false};
+  return {gpx:true,kml:true,machineCsv:true,weatherStationCsv:true,isoxmlDetection:true,isoxmlConversion:true,satellite:false,geofoliaApi:false};
 }

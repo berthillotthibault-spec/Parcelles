@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.18.0",
+      "date": "2026-10-15",
+      "title": "Trésorerie, bilan du soir et console",
+      "items": [
+        "Prévisionnel de trésorerie sur 12 mois dans Plus › Gestion, avec courbe et point bas.",
+        "Bilan de fin de journée sur l’accueil après 17 h : fait, reporté, sorties de stock proposées.",
+        "Import des travaux enregistrés par la console du tracteur (ISOXML TASKDATA).",
+        "Partage d’un travail ou du jour en un geste, et carte plus lisible (étiquettes, parcelles du jour, retards)."
+      ]
+    },
+    {
       "version": "10.17.0",
       "date": "2026-10-14",
       "title": "Vitesse et état des cultures",

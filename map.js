@@ -2,7 +2,7 @@ import {mapEconomics,economicColor} from './pilotage.js';
 import {parcelSituation,localDay} from './home-priorities.js';
 import {parcelGrazingHtml} from './grazing-ui.js';
 import {escapeHtml, formatNumber, geometryCentroid, geometryAreaHa, haversineMeters, normalize, pointInGeometry} from './utils.js';
-import {labelPoint,labelLevel,labelLines,resolveLabelCollisions} from './map-labels.js';
+import {labelPoint,labelLevel,labelLines,resolveLabelCollisions,parcelDayFlags,animateHighlights,labelFlagClasses,nextWorkText} from './map-labels.js';
 import {legendGroups,legendLine,legendStyle,groupBounds} from './map-legend.js';
 import {fetchRpgFeatures, rpgFeatureId} from './rpg.js';
 import {bcae7ColorInfo} from './pac.js'; // v5b n° 58
@@ -238,7 +238,9 @@ export class ParcelMap{
     this.lastState=state;try{this.reentries=activeReentries(state);}catch{this.reentries=new Map();}this.economics=['cost','margin'].includes(this.colorMode)?mapEconomics(state):null;this.ift=this.colorMode==='ift'?new Map((state.parcelles||[]).filter(p=>!p.deletedAt).map(p=>[p.id,parcelIft(state,p.id)])):null;
     const grouped=new Map((state.parcelles||[]).filter(p=>!p.deletedAt).map(p=>[p.id,{}]));
     for(const type of ['interventions','tasks','grazingSessions','observations'])for(const row of state[type]||[]){const group=grouped.get(row.parcelId);if(group)(group[type]??=[]).push(row);}
-    this.situations=new Map([...grouped].map(([id,group])=>[id,parcelSituation(group,id,localDay())]));
+    const today=localDay();this.situations=new Map([...grouped].map(([id,group])=>[id,parcelSituation(group,id,today)]));
+    // n° 30 : parcelles du jour, en retard, au pâturage ; pas d'animation au-delà du seuil.
+    this.today=today;this.dayFlags=new Map([...grouped].map(([id,group])=>[id,parcelDayFlags(group,id,today)]));this.animateDay=animateHighlights(grouped.size);this.hideHover?.();
     for(const id of this.selectedIds)if(!grouped.has(id))this.selectedIds.delete(id);
     this.init();if(!this.map)return;
     const parcels=(state.parcelles||[]).filter(item=>!item.deletedAt),points=(state.points||[]).filter(item=>!item.deletedAt);const forget=layer=>{this.suspendedPopups.delete(layer);layer.eachLayer?.(forget);};forget(this.layers.parcels);forget(this.layers.points);this.layers.parcels.clearLayers();this.layers.points.clearLayers();this.pointMarkers.clear();
@@ -301,14 +303,32 @@ export class ParcelMap{
       const pane=selected?'selectedParcelPane':'parcelPane';
       if(selected)L.geoJSON(parcel.geometry,{pane,interactive:false,style:{color:'#fff',weight:9,opacity:1,fill:false}}).addTo(this.layers.parcels);
       const dimmed=this.legendFocus!=null&&!selected&&info.label!==this.legendFocus;
-      const reentry=this.reentries?.get(parcel.id);
-      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>legendStyle({color:selected?'#092c1c':reentry?'#b3261e':color,weight:selected?5:3,opacity:1,...(reentry&&!selected?{dashArray:'7 5'}:{}),fillColor:fill,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:info.hatch?.7:(selected?.52:.3)},{focus:dimmed?this.legendFocus:null,label:''}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
+      const reentry=this.reentries?.get(parcel.id),flags=this.dayFlags?.get(parcel.id),late=flags?.late&&!selected&&!reentry&&parcel.geometry?.type!=='Point';
+      if(flags?.today&&!flags.late&&!selected&&!dimmed&&parcel.geometry.type!=='Point')L.geoJSON(parcel.geometry,{pane,interactive:false,style:{color:'#8056b3',weight:9,opacity:.45,fill:false,className:`parcel-today-ring${this.animateDay?' is-animated':''}`}}).addTo(this.layers.parcels);
+      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>legendStyle({color:selected?'#092c1c':reentry?'#b3261e':late?'#c33b36':color,weight:selected?5:3,opacity:1,...(reentry&&!selected?{dashArray:'7 5'}:late?{dashArray:'1 7',lineCap:'round'}:{}),fillColor:fill,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:info.hatch?.7:(selected?.52:.3)},{focus:dimmed?this.legendFocus:null,label:''}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
       layer.on('click',()=>{if(this.mapToolActive())return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
       this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(NDVI_MODES.includes(this.colorMode)?info.label:(info.detail||info.label))}</small>${NDVI_MODES.includes(this.colorMode)&&info.detail?`<small class="map-ndvi-detail">${escapeHtml(info.detail)}</small>`:''}${reentry?`<small class="map-reentry">${escapeHtml(reentry.label)}</small>`:''}${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true,state:this.lastState})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
-      if(parcel.nom&&parcel.geometry?.type!=='Point')if(!dimmed)this.labelEntries.push({parcel,selected,reentry,point:labelPoint(parcel.geometry),areaHa:Number(parcel.surfaceHa)||geometryAreaHa(parcel.geometry)||0,second:NDVI_MODES.includes(this.colorMode)?info.short:null});
-      layer.addTo(this.layers.parcels);
+      if(parcel.nom&&parcel.geometry?.type!=='Point')if(!dimmed)this.labelEntries.push({parcel,selected,reentry,flags,point:labelPoint(parcel.geometry),areaHa:Number(parcel.surfaceHa)||geometryAreaHa(parcel.geometry)||0,second:NDVI_MODES.includes(this.colorMode)?info.short:null});
+      this.bindHover(layer,parcel);layer.addTo(this.layers.parcels);
     }catch(error){console.warn('[Parcelles] Géométrie ignorée',parcel.id,error);}
   }
+
+  // n° 30 : info-bulle riche au survol, sur ordinateur seulement (pointeur fin) ; le bouton reste atteignable.
+  bindHover(layer,parcel){
+    this.finePointer??=typeof matchMedia==='function'&&matchMedia('(hover:hover) and (pointer:fine)').matches;if(!this.finePointer)return;
+    layer.on('mouseover',event=>{clearTimeout(this.hoverTimer);if(this.mapToolActive()||this.multiple||this.map?._popup?.isOpen?.())return;this.showHover(parcel,event.latlng);});
+    layer.on('mouseout',()=>this.scheduleHideHover());layer.on('click',()=>this.hideHover());
+  }
+  showHover(parcel,latlng){
+    if(!this.map)return;const flags=this.dayFlags?.get(parcel.id)||{},next=this.situations?.get(parcel.id)?.next,area=Number(parcel.surfaceHa)||geometryAreaHa(parcel.geometry)||0;
+    const html=`<div class="parcel-hover-card"><strong>${escapeHtml(parcel.nom||'Parcelle')}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(area)} ha</small><small class="ph-next${next?.item?.status==='En cours'?'':next?.overdue?' is-late':next?.date===this.today?' is-today':''}">${escapeHtml(nextWorkText(next,this.today))}</small>${flags.grazing?'<small class="ph-graze">Lot au pâturage</small>':''}<button type="button" data-map-open="${escapeHtml(parcel.id)}" aria-label="Ouvrir la fiche de ${escapeHtml(parcel.nom||'la parcelle')}">Ouvrir</button></div>`;
+    if(this.hoverParcelId===parcel.id&&this.hoverTip&&this.map.hasLayer(this.hoverTip))return;
+    this.hoverTip??=L.tooltip({direction:'top',className:'parcel-hover',interactive:true,opacity:1,offset:[0,-8]});this.hoverParcelId=parcel.id;
+    this.hoverTip.setLatLng(latlng).setContent(html);if(!this.map.hasLayer(this.hoverTip))this.map.openTooltip(this.hoverTip);
+    const el=this.hoverTip.getElement();if(el&&!el.dataset.hoverBound){el.dataset.hoverBound='1';el.addEventListener('mouseenter',()=>clearTimeout(this.hoverTimer));el.addEventListener('mouseleave',()=>this.scheduleHideHover());el.addEventListener('click',()=>setTimeout(()=>this.hideHover(),0));}
+  }
+  scheduleHideHover(){clearTimeout(this.hoverTimer);this.hoverTimer=setTimeout(()=>this.hideHover(),220);}
+  hideHover(){clearTimeout(this.hoverTimer);this.hoverParcelId=null;if(this.hoverTip&&this.map?.hasLayer(this.hoverTip))this.map.closeTooltip(this.hoverTip);}
 
   // n° 45 : étiquettes selon le zoom, au pôle d'inaccessibilité, masquées si elles chevauchent ou débordent.
   updateLabels(){
@@ -319,8 +339,8 @@ export class ParcelMap{
     for(const entry of this.labelEntries||[]){
       if(!entry.point)continue;const latlng=L.latLng(entry.point[1],entry.point[0]);if(!view.contains(latlng))continue;
       const lines=labelLines(entry.parcel,{level:labelLevel(zoom,entry.areaHa),colorMode:this.colorMode,grazingSessions:this.lastState.grazingSessions,areaHa:entry.areaHa,second:entry.second});if(!lines.length)continue;
-      const html=`<span class="pl-name">${escapeHtml(lines[0])}</span>${lines[1]?`<span class="pl-sub">${escapeHtml(lines[1])}</span>`:''}${entry.reentry?`<span class="parcel-label-reentry">${escapeHtml(entry.reentry.label)}</span>`:''}`;
-      const tooltip=L.tooltip({permanent:true,direction:'center',className:entry.reentry?'parcel-label has-reentry':'parcel-label',interactive:false,opacity:1}).setLatLng(latlng).setContent(html);group.addLayer(tooltip);
+      const html=`<span class="pl-name">${entry.flags?.grazing?'<svg class="pl-graze" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 11V7M5 11V4M8 11V6M11 11V8"/></svg>':''}${escapeHtml(lines[0])}</span>${lines[1]?`<span class="pl-sub">${escapeHtml(lines[1])}</span>`:''}${entry.reentry?`<span class="parcel-label-reentry">${escapeHtml(entry.reentry.label)}</span>`:''}`;
+      const tooltip=L.tooltip({permanent:true,direction:'center',className:['parcel-label',entry.reentry?'has-reentry':'',labelFlagClasses(entry.flags)].filter(Boolean).join(' '),interactive:false,opacity:1}).setLatLng(latlng).setContent(html);group.addLayer(tooltip);
       items.push({id:entry.parcel.id,tooltip,geometry:entry.parcel.geometry,priority:(entry.selected?1e9:0)+entry.areaHa});
     }
     // Mesure en une passe après insertion, pour ne forcer qu'une mise en page.
