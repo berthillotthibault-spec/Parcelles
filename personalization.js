@@ -1,6 +1,25 @@
 import {isPending} from './home-priorities.js';
 import {normalizeActiveModules} from './activity-modules.js';
 
+// n° 21 - Mode gants : préférence glovesMode et jeton de confirmation par maintien. Le reste de la
+// logique (gloves.js) et l’interface (gloves-ui.js) ne sont chargés que si le mode gants est actif.
+export const GLOVES_MODES = Object.freeze(['off', 'on', 'field']);
+export const GLOVES_MODE_LABELS = Object.freeze({off: 'Désactivé', on: 'Toujours', field: 'Automatique en mode terrain'});
+export function normalizeGlovesMode(value) {
+  if (value === true) return 'on';
+  return GLOVES_MODES.includes(value) ? value : 'off';
+}
+
+// Jeton de confirmation : gloves-ui.js l'inscrit à la fin d'un maintien, confirmDelete (app.js) le
+// consomme pour retirer la fiche sans fenêtre. Un jeton trop ancien ne vaut rien.
+let heldAt = 0;
+export function recordHoldConfirmation(now = Date.now()) { heldAt = now; }
+export function consumeHoldConfirmation(now = Date.now(), maxAge = 1500) {
+  const ok = heldAt > 0 && now >= heldAt && now - heldAt <= maxAge;
+  heldAt = 0;
+  return ok;
+}
+
 // Stable keys are shared by the editor, rendering and imported preferences.
 export const HOME_CARDS = [
   {id:'weather', label:'Météo', detail:'Les prévisions pour votre exploitation'},
@@ -58,6 +77,8 @@ export function normalizePersonalization(preferences={}){
     pleinChamp:preferences.pleinChamp===true,
     // n° 18 : bip court à l’enregistrement en mode terrain ou plein champ (désactivé par défaut).
     saveBeep:preferences.saveBeep===true,
+    // n° 21 : mode gants ('off', 'on' ou 'field' = automatique en mode terrain).
+    glovesMode:normalizeGlovesMode(preferences.glovesMode),
     // n° 116 : activités de l'exploitation ('all' = tout afficher, défaut).
     activeModules:normalizeActiveModules(preferences.activeModules),
     startupDuration:normalizeStartupDuration(preferences),

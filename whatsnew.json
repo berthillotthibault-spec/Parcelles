@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.19.0",
+      "date": "2026-10-18",
+      "title": "Dictée, chantiers et mode gants",
+      "items": [
+        "Dictée enrichie : nombres en lettres, surnoms des parcelles et engins, entretien, observation, sortie de stock.",
+        "Fin de journée sur un chantier TP : compteurs, quantités, carburant et photo du bon en une saisie.",
+        "Mode gants : grandes cibles, barre sous le pouce et suppression par maintien.",
+        "Plan de l’exploitation en A4, « chiffres verts » HVE et bouton (i) « Pourquoi ? » sur les priorités."
+      ]
+    },
+    {
       "version": "10.18.0",
       "date": "2026-10-15",
       "title": "Trésorerie, bilan du soir et console",

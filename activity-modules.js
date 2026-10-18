@@ -30,6 +30,7 @@ export const TOOL_MODULES = Object.freeze({
   'open-seeds': ['crops'], // v8b n° 67
   'open-soil-analyses': ['crops', 'livestock'], // v8b n° 68
   'open-hedges': ['crops', 'livestock'], // v8b n° 70
+  'open-green-indicators': ['crops', 'livestock'], // v11 n° 71
   'new-grazing': ['livestock'],
   'open-clients': ['contracting'],
   'open-invoices': ['contracting'],

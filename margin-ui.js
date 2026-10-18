@@ -14,10 +14,17 @@ export function marginHeadline(model){
 }
 
 export function marginSummaryHtml(model){
+  const why=(key,label)=>explainButton('margin',label,{key,campaign:model.campaign});
   const t=model.total,level=t.reliability>=80?'is-good':t.reliability>=50?'is-mid':'is-low';
   return `<div class="margin-model"><p class="margin-headline ${level}"><strong>${e(marginHeadline(model))}</strong></p>
-<div class="preview-summary"><div class="preview-stat"><strong>${e(euro(t.realized+t.forfait))}</strong><small>charges réalisées${t.forfait?' (dont forfait)':''}</small></div><div class="preview-stat"><strong>${e(euro(t.engaged))}</strong><small>charges engagées (prévues)</small></div><div class="preview-stat"><strong>${e(euro(t.productArea?t.product:null))}</strong><small>produit attendu${t.withoutProduct?` (${t.withoutProduct} parcelle${t.withoutProduct>1?'s':''} sans rendement)`:''}</small></div><div class="preview-stat"><strong class="${t.margin!==null&&t.margin<0?'negative':''}">${e(euro(t.margin))}</strong><small>marge prévisionnelle${t.marginHa!==null?` · ${e(euro(t.marginHa))}/ha`:''}</small></div></div>
+<div class="preview-summary"><div class="preview-stat"><strong>${e(euro(t.realized+t.forfait))}</strong><small>charges réalisées${t.forfait?' (dont forfait)':''}${why('realized','Charges réalisées')}</small></div><div class="preview-stat"><strong>${e(euro(t.engaged))}</strong><small>charges engagées (prévues)${why('engaged','Charges engagées')}</small></div><div class="preview-stat"><strong>${e(euro(t.productArea?t.product:null))}</strong><small>produit attendu${t.withoutProduct?` (${t.withoutProduct} parcelle${t.withoutProduct>1?'s':''} sans rendement)`:''}${why('product','Produit attendu')}</small></div><div class="preview-stat"><strong class="${t.margin!==null&&t.margin<0?'negative':''}">${e(euro(t.margin))}</strong><small>marge prévisionnelle${t.marginHa!==null?` · ${e(euro(t.marginHa))}/ha`:''}${why('margin','Marge prévisionnelle')}</small></div></div>
 <div class="margin-gauge" role="img" aria-label="Fiabilité ${t.reliability} %"><span style="width:${Math.max(0,Math.min(100,t.reliability))}%"></span></div></div>`;
+}
+
+// n° 110 — bouton (i) « Pourquoi ? » partagé par les écrans ; le clic est traité par explain-ui.js
+// (module différé chargé par LAZY_TRIGGERS ['[data-explain]'] de lazy-modules.js).
+export function explainButton(kind,label,data={}){
+  return `<button type="button" class="why-button" data-explain="${e(kind)}"${Object.entries(data).map(([k,v])=>` data-${k}="${e(v)}"`).join('')} aria-label="Pourquoi ? ${e(label)}" title="Pourquoi ?"><span aria-hidden="true">i</span></button>`;
 }
 
 export function marginRulesHtml(){

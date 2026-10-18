@@ -4,6 +4,24 @@
 // - mémos audio hors ligne, rangés dans « documents » (champ facultatif voiceMemo).
 // Rien n'est écrit ici : l'interface présente un brouillon et attend une validation.
 import {grazingDate, grazingStatus, grazingTotal, grazingType} from './grazing.js';
+// n° 13 : nombres en lettres, surnoms, engins tolérants, entretien, observation, sortie de stock, heures TP.
+// voice-grammar.js (grammaire enrichie) est chargé à la demande : attendre loadVoiceGrammar() avant
+// la première analyse pour un résultat complet. Sans lui (échec hors connexion), l'analyse de base
+// reste disponible : ni nombres en lettres, ni surnoms, ni engins, ni intentions enrichies.
+let grammar=null,grammarLoad=null;
+export function loadVoiceGrammar(load=()=>import('./voice-grammar.js')){
+  if(grammar)return Promise.resolve(true);
+  return grammarLoad||=Promise.resolve().then(load).then(mod=>{grammar=mod;return true;},()=>{grammarLoad=null;return false;});
+}
+export const voiceGrammarReady=()=>Boolean(grammar);
+const aliasList=entity=>grammar?grammar.aliasList(entity):[];
+const grammarSentence=(entry,options)=>grammar?grammar.grammarSentence(entry,options):'';
+const isStockOutVerb=norm=>grammar?grammar.isStockOutVerb(norm):false;
+const maintenanceIntent=(norm,state,options)=>grammar?grammar.maintenanceIntent(norm,state,options):null;
+const matchEquipment=(text,state)=>grammar?grammar.matchEquipment(text,state):{selected:[],candidates:[],probable:false};
+const observationIntent=(norm,raw,options)=>grammar?grammar.observationIntent(norm,raw,options):null;
+const publicWorksIntent=(norm,state)=>grammar?grammar.publicWorksIntent(norm,state):null;
+const wordsToNumbers=norm=>grammar?grammar.wordsToNumbers(norm):norm;
 
 export const MEMO_MAX_MS=120000;
 export const MEMO_TAG='Mémo vocal';
@@ -48,7 +66,9 @@ export function voiceNormalize(value){
 const singular=token=>token.length>3&&/[sx]$/.test(token)&&!/^\d/.test(token)?token.slice(0,-1):token;
 function numberWords(text){return text.replace(/\b(un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|vingt|trente|quarante|cinquante|soixante|cent)\b(?=\s+(?:tonnes?|t|kilos?|kg|litres?|l|hectares?|ha|sacs?|big|genisses?|vaches?|veaux|brebis|moutons?|agneaux|chevaux|juments?|betes?|animaux|chevres?|taurillons?|bovins?|ovins?)\b)/g,word=>String(NUMBER_WORDS[word]));}
 export function tokens(value){return voiceNormalize(value).split(' ').filter(Boolean);}
-const keyTokens=value=>tokens(value).filter(t=>!STOP.has(t)).map(singular);
+export const keyTokens=value=>tokens(value).filter(t=>!STOP.has(t)).map(singular);
+// Libellés et texte comparés sous la même forme : « Les Trois Chênes » et « les 3 chenes » concordent.
+export const numberKeyTokens=value=>keyTokens(wordsToNumbers(voiceNormalize(value)));
 
 export function levenshtein(a,b){
   a=String(a||'');b=String(b||'');if(a===b)return 0;if(!a)return b.length;if(!b)return a.length;
@@ -62,7 +82,7 @@ export function tokenMatch(a,b){
   const len=Math.min(a.length,b.length);if(len<5)return false;
   return levenshtein(a,b)<=(len>=9?2:1);
 }
-function findSequence(haystack,needle){
+export function findSequence(haystack,needle){
   const hits=[];if(!needle.length)return hits;
   for(let i=0;i+needle.length<=haystack.length;i++)if(needle.every((t,k)=>tokenMatch(haystack[i+k],t)))hits.push([i,i+needle.length]);
   return hits;
@@ -70,8 +90,9 @@ function findSequence(haystack,needle){
 
 // ---------- Parcelles ----------
 export function matchParcels(text,state){
-  const parcels=active(state,'parcelles'),words=keyTokens(text),found=[];
-  for(const parcel of parcels){const name=keyTokens(parcel.nom);if(!name.length)continue;for(const span of findSequence(words,name))found.push({parcel,span});}
+  const parcels=active(state,'parcelles'),words=numberKeyTokens(text),found=[];
+  // n° 13 : le nom officiel ou un surnom (« le grand champ ») désigne la parcelle.
+  for(const parcel of parcels)for(const label of [parcel.nom,...aliasList(parcel)]){const name=numberKeyTokens(label);if(!name.length)continue;for(const span of findSequence(words,name))found.push({parcel,span});}
   // Une correspondance contenue dans une plus longue est écartée (« Grande Terre » dans « Grande Terre Nord »).
   const kept=found.filter(a=>!found.some(b=>b!==a&&b.span[0]<=a.span[0]&&b.span[1]>=a.span[1]&&(b.span[1]-b.span[0])>(a.span[1]-a.span[0])));
   const groups=[];
@@ -84,11 +105,11 @@ export function matchParcels(text,state){
   }
   // Aucun nom complet : un mot distinctif commun (≥ 4 lettres) donne une parcelle probable ou un choix.
   const generic=new Set(['parcelle','champ','terre','pre','prairie','grand','grande','petit','petite','haut','bas','nord','sud','est','ouest','pres']);
-  const partial=parcels.filter(p=>keyTokens(p.nom).some(t=>t.length>=4&&!generic.has(t)&&words.some(w=>tokenMatch(w,t))));
+  const partial=parcels.filter(p=>[p.nom,...aliasList(p)].flatMap(numberKeyTokens).some(t=>t.length>=4&&!generic.has(t)&&words.some(w=>tokenMatch(w,t))));
   if(partial.length===1)return {selected:partial,ambiguous:[],probable:true};
   if(partial.length>1&&partial.length<=6)return {selected:[],ambiguous:[partial],probable:true};
   // Un mot générique (« le pré ») ne choisit jamais seul : il propose les parcelles concernées.
-  const loose=parcels.filter(p=>keyTokens(p.nom).some(t=>t.length>=3&&words.includes(t)));
+  const loose=parcels.filter(p=>numberKeyTokens(p.nom).some(t=>t.length>=3&&words.includes(t)));
   if(loose.length>1&&loose.length<=6)return {selected:[],ambiguous:[loose],probable:true};
   return {selected:[],ambiguous:[],probable:false};
 }
@@ -125,10 +146,10 @@ export function matchWorkType(text,state){
 
 // ---------- Produits du stock ----------
 export function matchProducts(text,state){
-  const words=keyTokens(text),rows=[];
+  const words=numberKeyTokens(text),rows=[];
   const items=[...active(state,'stockItems').map(item=>({id:item.id,name:item.name,unit:item.unit,kind:'stock'})),...active(state,'products').map(p=>({id:p.id,name:p.name||p.nom,unit:p.unit,kind:'product'}))];
   for(const item of items){
-    const name=keyTokens(item.name).filter(t=>/[a-z]/.test(t));if(!name.length)continue;
+    const name=numberKeyTokens(item.name).filter(t=>/[a-z]/.test(t));if(!name.length)continue;
     if(!words.some(w=>tokenMatch(w,name[0])))continue;
     const score=name.filter(t=>words.some(w=>tokenMatch(w,t))).length+(item.kind==='stock'?0.5:0);
     rows.push({...item,score});
@@ -146,7 +167,11 @@ const shift=(base,days)=>{const d=new Date(base);d.setHours(12,0,0,0);d.setDate(
 const FUTURE=/\b(demain|apres demain|prochaine?|planifie\w*|prevoir|prevu\w*|il faut|faudra|a faire|je vais|on va|va falloir|penser a)\b/;
 const PAST=/\b(j ai|on a|nous avons|fini|finie|termine\w*|hier|avant hier|ce matin|fait|faite)\b/;
 export function parseRelativeDate(text,now=new Date()){
-  const norm=voiceNormalize(text),future=FUTURE.test(norm),base=new Date(now);base.setHours(12,0,0,0);
+  const norm=wordsToNumbers(voiceNormalize(text)),future=FUTURE.test(norm),base=new Date(now);base.setHours(12,0,0,0);
+  // n° 13 : « il y a trois jours », « dans 2 semaines », « la semaine dernière ».
+  const ago=norm.match(/\bil y a (\d{1,3}) (jours?|semaines?)\b/),ahead=norm.match(/\bdans (\d{1,3}) (jours?|semaines?)\b/);
+  if(ago||ahead){const m=ago||ahead,n=Number(m[1])*(/^semaine/.test(m[2])?7:1);if(n>0&&n<=366)return {date:dayIso(shift(base,ago?-n:n)),label:`${ago?'il y a':'dans'} ${n===7&&/^semaine/.test(m[2])?'une semaine':`${m[1]} ${m[2]}`}`,recognized:true};}
+  if(/\b(la semaine derniere|la semaine passee)\b/.test(norm)&&!WEEKDAYS.some(name=>norm.includes(name)))return {date:dayIso(shift(base,-7)),label:'la semaine dernière',recognized:true};
   if(/\bavant hier\b/.test(norm))return {date:dayIso(shift(base,-2)),label:'avant-hier',recognized:true};
   if(/\bapres demain\b/.test(norm))return {date:dayIso(shift(base,2)),label:'après-demain',recognized:true};
   if(/\bhier\b/.test(norm))return {date:dayIso(shift(base,-1)),label:'hier',recognized:true};
@@ -169,6 +194,7 @@ export function parseRelativeDate(text,now=new Date()){
   }
   if(/\bce matin\b/.test(norm))return {date:dayIso(base),label:'ce matin',recognized:true};
   if(/\bcet apres midi\b/.test(norm))return {date:dayIso(base),label:'cet après-midi',recognized:true};
+  if(/\bce midi\b/.test(norm))return {date:dayIso(base),label:'ce midi',recognized:true};
   if(/\bce soir\b/.test(norm))return {date:dayIso(base),label:'ce soir',recognized:true};
   if(/\baujourd hui\b/.test(norm))return {date:dayIso(base),label:'aujourd’hui',recognized:true};
   return {date:dayIso(base),label:'aujourd’hui',recognized:false};
@@ -177,7 +203,8 @@ export function parseRelativeDate(text,now=new Date()){
 // ---------- Quantités ----------
 const UNIT_OF=word=>/^(kilo|kg)/.test(word)?'kg':/^(litre|l$)/.test(word)?'L':/^(tonne|t$)/.test(word)?'t':/^sac/.test(word)?'sac':/^big/.test(word)?'big bag':/^unit/.test(word)?'unité':'';
 function doseMatch(norm){
-  const m=norm.match(/(\d+(?:\.\d+)?)\s*(kilos?|kilogrammes?|kg|litres?|l|tonnes?|t|unites?|graines?)\s*(?:par|a l|l|de l)?\s*(?:hectares?|ha)\b/);
+  // n° 13 : le produit peut s'intercaler (« 200 kilos d'urée par hectare »).
+  const m=norm.match(/(\d+(?:\.\d+)?)\s*(kilos?|kilogrammes?|kg|litres?|l|tonnes?|t|unites?|graines?)\s*(?:(?:de|d)\s+[a-z][a-z0-9]*\s+(?:[a-z0-9]+\s+)?(?=par|a l))?(?:par|a l|l|de l)?\s*(?:hectares?|ha)\b/);
   if(!m)return null;const unit=UNIT_OF(m[2])||(/^graine/.test(m[2])?'graines':'');
   return {value:Number(m[1]),unit:unit==='kg'?'kg/ha':unit==='L'?'L/ha':unit==='t'?'t/ha':unit==='graines'?'graines/ha':'unité/ha',index:m.index,length:m[0].length};
 }
@@ -225,7 +252,7 @@ function grazingIntent(norm,words,state,parcels,date){
 
 // ---------- Analyse complète ----------
 export function parseVoiceEntry(text,state,{now=new Date()}={}){
-  const raw=String(text||'').trim(),norm=numberWords(voiceNormalize(raw)),words=norm.split(' ').filter(Boolean);
+  const raw=String(text||'').trim(),norm=numberWords(wordsToNumbers(voiceNormalize(raw.replace(/m³/gi,' m3 ').replace(/€/g,' euros ')))),words=norm.split(' ').filter(Boolean);
   const when=parseRelativeDate(raw,now),parcelMatch=matchParcels(norm,state),products=matchProducts(norm,state);
   const futureIntent=FUTURE.test(norm)||when.date>dayIso(now),pastIntent=PAST.test(norm)||when.date<dayIso(now);
   const status=futureIntent?'À faire':pastIntent?'Terminé':'Terminé';
@@ -243,22 +270,45 @@ export function parseVoiceEntry(text,state,{now=new Date()}={}){
       return {...base,intent:'stock',product:products.product,productChoices:products.candidates.filter(c=>c.kind==='stock'),quantity:qty.quantity,unit:qty.unit,stockItemId:stockItem?.id||'',stockQuantity:converted,unitOk:converted!==null};
     }
   }
+  // n° 13 : sortie de stock (« j'ai pris 3 sacs de semences maïs »), sauf travail complet sur une parcelle.
+  const baseWork=matchWorkType(norm,state);
+  if(isStockOutVerb(norm)&&!animalWord(words)&&!(baseWork.type&&parcelMatch.selected.length)){
+    const qty=quantityMatch(norm),item=products.product?.kind==='stock'?products.product:null,choices=products.candidates.filter(c=>c.kind==='stock');
+    if(qty&&(item||choices.length)){
+      const stockItem=item?active(state,'stockItems').find(s=>s.id===item.id):null,converted=stockItem?convertQuantity(qty.quantity,qty.unit,stockItem.unit):null;
+      recognized.add('product');recognized.add('quantity');
+      return {...base,intent:'stock-out',product:item,productChoices:choices,quantity:qty.quantity,unit:qty.unit,stockItemId:stockItem?.id||'',stockQuantity:converted,unitOk:converted!==null};
+    }
+  }
   const grazing=grazingIntent(norm,words,state,parcelMatch.selected,when.date);
   if(grazing){
     // Le mot tel qu'il a été dit (« génisses » et non « genisses »).
     const original=word=>raw.split(/[\s’',.;:!?]+/).find(w=>voiceNormalize(w)===word)||word;
     grazing.animal=original(grazing.animal);if(grazing.lot)grazing.lot=original(grazing.lot);if(grazing.sessions?.length===1)recognized.add('lot');return {...base,...grazing};}
-  const type=matchWorkType(norm,state),dose=doseMatch(norm),surface=surfaceMatch(norm,dose);
+  // n° 13 : heures de chantier TP, entretien d'un engin, observation de terrain.
+  const pw=publicWorksIntent(norm,state);
+  if(pw){if(pw.project)recognized.add('project');if(pw.hours!==null||pw.volumeM3!==null||pw.tonnage!==null)recognized.add('quantity');if(pw.equipmentId)recognized.add('equipment');return {...base,...pw,status:'Terminé'};}
+  const workTyped=Boolean(baseWork.type&&baseWork.source);
+  // Une intention future (« il faudra faire la vidange demain ») reste un travail ou une tâche « À faire ».
+  const maintenance=futureIntent?null:maintenanceIntent(norm,state,{workTyped});
+  if(maintenance){if(maintenance.equipment)recognized.add('equipment');if(maintenance.meter!==null)recognized.add('meter');recognized.add('type');return {...base,...maintenance,status:'Terminé'};}
+  const observation=futureIntent?null:observationIntent(norm,raw,{workTyped});
+  if(observation){recognized.add('type');return {...base,...observation,status:'À surveiller'};}
+  const type=baseWork,dose=doseMatch(norm),surface=surfaceMatch(norm,dose);
   if(type.type)recognized.add('type');if(dose)recognized.add('dose');if(surface!==null)recognized.add('surface');if(products.product)recognized.add('product');
-  const equipment=active(state,'materiels').filter(m=>[m.nom,m.brand,m.model].some(v=>voiceNormalize(v).length>2&&new RegExp(`\\b${voiceNormalize(v).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(norm)));
-  if(equipment.length===1)recognized.add('equipment');
-  const times=[...norm.matchAll(/\b(\d{1,2})\s*(?:heures?|h)\s*(\d{1,2})?\b/g)].map(m=>({h:Number(m[1]),m:Number(m[2]||0)})).filter(t=>t.h<24&&t.m<60).map(t=>`${pad(t.h)}:${pad(t.m)}`);
+  // n° 13 : noms, marques, modèles et surnoms des engins, tolérants à une erreur de reconnaissance.
+  // Une correspondance approchée (« casse » pour « Case ») n'est jamais retenue d'office : elle reste un choix.
+  const equipmentHit=matchEquipment(norm,state),sureEquipment=!equipmentHit.probable&&equipmentHit.selected.length===1?equipmentHit.selected[0]:null;
+  const equipmentChoices=sureEquipment?[]:[...equipmentHit.selected,...equipmentHit.candidates];
+  if(sureEquipment)recognized.add('equipment');
+  // Heures du jour seulement : « pendant 3 heures », « 3 heures de broyage » ou « 2.5 heures » sont des durées.
+  const times=[...norm.matchAll(/(?<![\d.])\b(\d{1,2})\s*(?:heures?|h)\s*(\d{1,2})?\b/g)].filter(m=>!/\b(pendant|durant|en|depuis|environ|pres de|plus de|moins de)\s*$/.test(norm.slice(Math.max(0,m.index-16),m.index))&&!/^\s*(?:de|d)\s/.test(norm.slice(m.index+m[0].length))).map(m=>({h:Number(m[1]),m:Number(m[2]||0)})).filter(t=>t.h<24&&t.m<60).map(t=>`${pad(t.h)}:${pad(t.m)}`);
   if(times.length)recognized.add('time');
   const cultures=[...new Set([...active(state,'parcelles').map(p=>p.culture),...active(state,'templates').map(t=>t.culture),'Blé','Maïs','Orge','Colza','Tournesol','Soja','Triticale','Luzerne','Prairie'].filter(Boolean))];
   const culture=cultures.find(c=>{const first=keyTokens(c)[0];return first&&new RegExp(`\\b(en|de|du|des|le|la)\\s+${first}s?\\b`).test(norm);})||'';
   if(culture)recognized.add('culture');
   if(/\b(fini|finie|termine\w*)\b/.test(norm))recognized.add('status');
-  return {...base,intent:'work',type:type.type,typeSource:type.source,typeChoices:type.candidates,culture,dose:dose?.value??null,doseUnit:dose?.unit||'',surfaceWorked:surface,product:products.product,productChoices:products.candidates,equipmentId:equipment.length===1?equipment[0].id:'',equipmentChoices:equipment.length>1?equipment:[],startTime:times[0]||'',endTime:times[1]||''};
+  return {...base,intent:'work',type:type.type,typeSource:type.source,typeChoices:type.candidates,culture,dose:dose?.value??null,doseUnit:dose?.unit||'',surfaceWorked:surface,product:products.product,productChoices:products.candidates,equipmentId:sureEquipment?.id||'',equipmentChoices,startTime:times[0]||'',endTime:times[1]||''};
 }
 
 // Un brouillon de travail par parcelle (« les Grandes Terres et le Pré du Bas » → deux travaux).
@@ -278,6 +328,7 @@ const fmt=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format
 export function confirmationSentence(entry,{type,parcels,status,lot}={}){
   const when=entry.dateLabel&&entry.dateLabel!=='aujourd’hui'?`, ${entry.dateLabel}`:'';
   const de=name=>/^[aeiouyhéèêàâîôû]/i.test(name)?`d’${name}`:`de ${name}`;
+  const extra=grammarSentence(entry,{when,parcels});if(extra)return extra;
   if(entry.intent==='stock'){const name=entry.product?.name||'ce produit';return `Entrée de ${fmt(entry.quantity)} ${entry.unit} ${de(name)}${when}, je l’enregistre ?`;}
   if(entry.intent==='grazing-exit')return `${lot?`Sortie du lot « ${lot} »`:voiceNormalize(entry.animal)==='lot'?'Sortie du lot':`Sortie des ${entry.animal}`}${when}, je l’enregistre ?`;
   if(entry.intent==='grazing-entry'||entry.intent==='grazing-move')return `${entry.intent==='grazing-move'?'Déplacement':'Mise au pré'} des ${entry.animal}${(parcels||entry.parcels)?.length?` sur ${joinNames((parcels||entry.parcels).map(p=>p.nom))}`:''}${when}, je l’enregistre ?`;

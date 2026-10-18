@@ -2,7 +2,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {audioExtension, confirmationSentence, convertQuantity, formatClock, isVoiceMemo, levenshtein, matchParcels, memoDocument, memoSummaryLabel, parseRelativeDate, parseVoiceEntry, pendingMemos, pickAudioMime, voiceNormalize, workDraftsFromEntry} from './voice-notes.js';
+import {audioExtension, confirmationSentence, convertQuantity, formatClock, isVoiceMemo, levenshtein, matchParcels, memoDocument, memoSummaryLabel, parseRelativeDate, parseVoiceEntry, pendingMemos, pickAudioMime, voiceNormalize, loadVoiceGrammar, workDraftsFromEntry} from './voice-notes.js';
+
+// n° 13 : la grammaire enrichie (voice-grammar.js) se charge à la demande, avant la première analyse.
+await loadVoiceGrammar();
 
 const NOW=new Date('2026-10-07T10:00:00'); // mercredi
 const state=()=>({

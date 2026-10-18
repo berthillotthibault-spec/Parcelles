@@ -37,19 +37,26 @@ export function workWeatherSlot(work, weather, {now = Date.now(), rules = null} 
   const rule = weatherRuleFor(work.type);
   if (!rule || !weather?.loadedAt) return null;
   const ageHours = (now - Number(weather.loadedAt)) / HOUR;
-  if (!(ageHours <= OLD_HOURS)) return {tone: 'none', stale: true, rule, text: 'Créneau : données anciennes', title: `Prévisions de plus de ${OLD_HOURS} h : actualisez la météo. ${SLOT_DISCLAIMER}`};
+  // n° 110 : why[] et missing[] alimentent la feuille « Pourquoi ? » (title garde la version courte).
+  if (!(ageHours <= OLD_HOURS)) return {tone: 'none', stale: true, rule, text: 'Créneau : données anciennes', title: `Prévisions de plus de ${OLD_HOURS} h : actualisez la météo. ${SLOT_DISCLAIMER}`,
+    why: [`Type de travail rattaché aux seuils « ${rule} ».`], missing: [`Prévisions de plus de ${OLD_HOURS} h : à actualiser`]};
   const stale = ageHours > FRESH_HOURS;
   const result = weatherWindows(weather, rule, {now, maxAgeHours: OLD_HOURS, ...(rules?.[rule] ? {rules: rules[rule]} : {})});
   const good = pick(result.windows, 'favorable', now), watch = good ? null : pick(result.windows, 'watch', now);
   const chosen = good || watch;
   const suffix = stale ? ' · données anciennes' : '';
-  const why = chosen?.hours?.[0]?.why?.slice(0, 7).join(' · ') || '';
+  const facts = chosen?.hours?.[0]?.why || [], whyText = facts.slice(0, 7).join(' · ');
   const base = `Seuils « ${rule} ».${rule === 'Pulvérisation' ? ' Limite légale : 19 km/h (3 Beaufort).' : ''} ${SLOT_DISCLAIMER}${stale ? ' Prévisions de plus de 6 h : à actualiser.' : ''}`;
-  if (!chosen) return {tone: 'none', stale, rule, text: `Pas de créneau sur 3 jours${suffix}`, title: base};
+  const unknown = (result.windows || []).filter(w => w.level === 'unknown').reduce((n, w) => n + w.hours.length, 0);
+  const why = [`Type de travail rattaché aux seuils « ${rule} » (modifiables dans Pilotage avancé › Fenêtres météo).`, 'Recherche sur les 3 prochains jours : d’abord un créneau favorable d’au moins 2 h, sinon un créneau « à surveiller ».'];
+  const missing = [...(stale ? ['Prévisions de plus de 6 h : à actualiser'] : []), ...(unknown ? [`${unknown} heure${unknown > 1 ? 's' : ''} sans pluie, vent ou température prévus : exclue${unknown > 1 ? 's' : ''}`] : [])];
+  if (!chosen) return {tone: 'none', stale, rule, text: `Pas de créneau sur 3 jours${suffix}`, title: base, why: [...why, 'Aucune heure ne respecte les seuils.'], missing};
   return {
     tone: stale ? 'none' : good ? 'good' : 'watch', stale, rule, start: chosen.start, end: chosen.end,
     text: `${good ? 'Créneau' : 'Créneau à surveiller'} : ${slotSpan(chosen.start, chosen.end, now)}${suffix}`,
-    title: `${why ? `${why}. ` : ''}${base}`
+    title: `${whyText ? `${whyText}. ` : ''}${base}`,
+    why: [...why, `Créneau retenu : ${slotSpan(chosen.start, chosen.end, now)} (${good ? 'favorable' : 'à surveiller'}). Première heure :`, ...facts.map(f => `– ${f}`), ...(rule === 'Pulvérisation' ? ['Limite légale : 19 km/h (3 Beaufort).'] : [])],
+    missing
   };
 }
 

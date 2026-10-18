@@ -32,6 +32,7 @@ export const LAZY_MODULES = Object.freeze({
   telepac: () => import('./telepac-ui.js'),
   parcelCheck: () => import('./parcel-check-ui.js'),
   regulatedOps: () => import('./regulated-ops-ui.js'),
+  greenIndicators: () => import('./green-indicators-ui.js'), // n° 71 : chiffres verts et auto-diagnostic HVE
   rpgOnboarding: () => import('./rpg-onboarding-ui.js'),
   seeds: () => import('./seeds-ui.js'),
   // Compte, équipe et données
@@ -53,8 +54,12 @@ export const LAZY_MODULES = Object.freeze({
   yield: () => import('./yield-ui.js'),
   measuredYield: () => import('./measured-yield-ui.js'), // n° 90
   share: () => import('./share-ui.js'), // n° 19
+  farmPlan: () => import('./farm-plan-ui.js'), // n° 54 : plan A4 imprimable
   dayReview: () => import('./day-review-ui.js'), // n° 105 : carte « Votre journée » après 17 h
+  gloves: () => import('./gloves-ui.js'), // n° 21 : mode gants, chargé si la préférence est active
   here: () => import('./here-ui.js'), // n° 111 : « Vous êtes dans », chargé à la première position GPS
+  voiceIntents: () => import('./voice-intents-ui.js'), // n° 13 : brouillons vocaux entretien, observation, sortie de stock, heures TP
+  explain: () => import('./explain-ui.js'), // n° 110 : feuille « Pourquoi ? » des boutons (i)
   publicWorks: () => import('./public-works-ui.js'),
   fieldTracker: () => import('./field-tracker-ui.js'),
   fieldCoverage: () => import('./field-coverage-ui.js'),
@@ -94,6 +99,7 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('telepac', 'open-telepac-import'),
   ...actions('parcelCheck', 'open-parcel-check'),
   ...actions('regulatedOps', 'open-regulated-ops'),
+  ...actions('greenIndicators', 'open-green-indicators'),
   ...actions('rpgOnboarding', 'rpg-onboarding'),
   ...actions('seeds', 'open-seeds'),
   ...actions('settings', 'open-settings'),
@@ -114,8 +120,8 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
 ]));
 
 // Boutons traités par l'écouteur propre d'un module différé mais affichés par un module chargé au
-// démarrage (carte de campagne de l’accueil, légende de la carte n° 90, boutons Partager n° 19) : même traitement que les actions ci-dessus.
-export const LAZY_TRIGGERS = Object.freeze({'[data-cost]': 'costs', '[data-my]': 'measuredYield', '[data-share]': 'share'});
+// démarrage (carte de campagne de l’accueil, légende de la carte n° 90, boutons Partager n° 19, Imprimer un plan n° 54) : même traitement que les actions ci-dessus.
+export const LAZY_TRIGGERS = Object.freeze({'[data-cost]': 'costs', '[data-my]': 'measuredYield', '[data-share]': 'share', '[data-explain]': 'explain', '[data-plan]': 'farmPlan'});
 
 const keyList = keys => [].concat(keys ?? []).filter(Boolean);
 // Chemin littéral d'un module différé, lu dans sa fonction d'import (nouvelle tentative après un échec).

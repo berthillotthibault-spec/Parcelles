@@ -1,4 +1,4 @@
-import {toNumber, localDate} from './utils.js';
+import {localDate} from './utils.js';
 import {agendaDate,isPending,localDay,grazingWatch,maintenanceRemaining,isLowStock} from './home-priorities.js';
 import {deadlineNotifications} from './regulated-ops.js'; // v8a n° 72
 

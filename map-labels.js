@@ -89,8 +89,9 @@ export function resolveLabelCollisions(items,{margin=2,fits=null}={}){
   const placed=[],visible=new Set();
   for(const item of [...items].sort((a,b)=>(b.priority||0)-(a.priority||0))){
     if(!item.rect)continue;
+    if(placed.some(rect=>overlaps(rect,item.rect,margin)))continue; // n° 52 : test de chevauchement (peu coûteux) avant fits
     const inside=fits?fits(item):!item.bounds||(item.rect.x>=item.bounds.x-1&&item.rect.y>=item.bounds.y-1&&item.rect.x+item.rect.w<=item.bounds.x+item.bounds.w+1&&item.rect.y+item.rect.h<=item.bounds.y+item.bounds.h+1);
-    if(!inside||placed.some(rect=>overlaps(rect,item.rect,margin)))continue;
+    if(!inside)continue;
     placed.push(item.rect);visible.add(item.id);
   }
   return visible;

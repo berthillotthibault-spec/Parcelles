@@ -196,6 +196,8 @@ function lazyIdentifiers() {
   // Un module autonome (écouteur propre, ex. share) peut s'enregistrer sans variable d'instance : lazy.onLoad('x',m=>m.create…).
   for (const m of app.matchAll(/lazy\.onLoad\('(\w+)',m=>(?:\{?([\w$]+)=|m\.create)/g)) ids[m[1]].add(m[2] || `onLoad:${m[1]}`);
   for (const m of app.matchAll(/(?:function ([\w$]+)\(\)\{return (?:[\w$]+\|\|\()?)?([\w$]+)(?:\?\?=|\|\|=|=)lazy\.get\('(\w+)'\)/g)) { ids[m[3]].add(m[2]); if (m[1]) ids[m[3]].add(`${m[1]}()`); }
+  // Un module chargé au démarrage peut tirer un module différé avec le chargeur qu'app.js lui passe (n° 13, saisie vocale).
+  if (/createVoiceNotesUI\(\{[^}]*\blazy\b/.test(app)) for (const m of read('voice-notes-ui.js').matchAll(/host\.lazy\.need\('(\w+)'[^]*?host\.lazy\.get\('\1'\)/g)) ids[m[1]].add(`voice-notes-ui:${m[1]}`);
   return ids;
 }
 

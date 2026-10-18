@@ -1,5 +1,32 @@
 # Changelog
 
+## 10.19.0 · dictée, fin de journée chantier, mode gants, plan imprimable et chiffres verts — 2026-10-18
+
+Données : pas de changement de schéma (version 17). Les surnoms des parcelles et des engins (`aliases`) sont un champ facultatif.
+
+Vitesse :
+- la grammaire vocale, les calculs « Pourquoi ? » et le mode gants se chargent à la demande : le démarrage reste au niveau de la 10.18.0 malgré les nouveautés ;
+- carte fluide avec des centaines de parcelles (n° 52) : dessin sur un canvas partagé, mise à jour des seules parcelles modifiées, étiquettes recalculées après le déplacement.
+
+Nouveautés :
+- dictée enrichie (n° 13) : nombres en lettres (« deux cents », « quatre mille cinq cent vingt »), surnoms des parcelles et des engins (Saisie vocale › Noms et surnoms), entretien et relevé de compteur, observation, sortie de stock, heures et volumes d’un chantier TP, dates relatives (« il y a trois jours », « la semaine dernière ») ; l’écran de vérification reste obligatoire ;
+- fin de journée sur un chantier de travaux publics (n° 20) : une ligne par engin avec pavé numérique, compteur et différence avec la veille, quantités, carburant, photo du bon, récapitulatif puis une seule validation annulable, bon prêt à partager ;
+- mode gants (n° 21) : Personnaliser › Mode gants (toujours ou automatique en mode terrain), cibles de 64 px, texte agrandi, barre d’actions sous le pouce, suppression par maintien de 600 ms ;
+- états vides illustrés (n° 35) : petites illustrations et action utile sur l’accueil, les Travaux, les Parcelles, l’Activité, les Stocks et le Pâturage ;
+- plan de l’exploitation en A4 paysage (n° 54) : exploitation, parcelle ou sélection, fond et couleurs au choix, cartouche, légende avec hectares, échelle, nord et tableau des parcelles, à imprimer ou partager en PDF ; échelle métrique sur la carte ;
+- « Mon exploitation en chiffres verts » (n° 71) : diversité d’assolement, prairies et infrastructures agro-écologiques, IFT, solde azoté, intrants, GNR par hectare et CO2 estimé, jauges par thème HVE et fiche imprimable ; auto-diagnostic, pas une certification ;
+- bouton (i) « Pourquoi ? » (n° 110) sur la prochaine action, les lignes du jour, les alertes, le bilan, la fenêtre météo, les totaux du Pilotage et les automatisations : faits retenus, données manquantes ou exclues, lien vers la règle.
+
+Corrections (relecture avant publication) :
+- dictée : noms de parcelles contenant un nombre en lettres, futur (« il faudra ») qui n’enregistre plus un entretien comme fait, durées (« pendant trois heures ») distinguées des heures du jour, engin retenu seulement sur un nom exact, types d’entretien alignés sur le formulaire ;
+- fin de journée chantier : case Compteur masquée et annulation proposée selon les droits du rôle opérateur, virgule finale acceptée, fichiers contrôlés par le diagnostic de déploiement ;
+- mode gants : jauge de maintien correcte sur les boutons, toasts au-dessus de la barre sur la carte, lecteurs d’écran qui gardent la fenêtre de confirmation ;
+- carte : canvas moins gourmand en mémoire sur iPhone ;
+- plan : parcelles archivées exclues, cartouche jamais coupé ;
+- chiffres verts : absence de traitement signalée comme donnée manquante plutôt que comptée à 0, catalogue phyto pris en compte, nom de la ferme retiré du pied de page ;
+- « Pourquoi ? » : clavier capté par la feuille ouverte, liens de modification masqués en lecture seule ;
+- états vides : la recherche texte des Travaux est prise en compte.
+
 ## 10.18.0 · trésorerie, bilan du soir, import console, partage et carte — 2026-10-15
 
 Données : pas de changement de schéma (version 17). L’échéancier de trésorerie est une préférence locale de l’appareil.

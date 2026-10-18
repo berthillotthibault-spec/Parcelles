@@ -1,5 +1,6 @@
 import {validateForm} from './form-chips-ui.js';
 import {escapeHtml,localDate} from './utils.js';
+import {emptyState} from './ui.js';
 const formatNumber=(value,digits=2)=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:digits}).format(Number(value)||0);
 import {fieldGrazingSummary,countGap,grazingCheckObservation,grazingDate,grazingAnimalList,grazingAnimalText,grazingTotal,grazingType,grazingStatus,filterGrazingSessions,summarizeParcelGrazing,parseGrazingAnimals,ugbTable,ugbOf,stockingRate,restLabel,farmGrazingBalance} from './grazing.js';
 import {grazingTimeline} from './charts.js';
@@ -65,7 +66,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=n
     $('#grazing-results').innerHTML=rows.length?rows.map(row=>{
       const animals=grazingAnimalList(row),unknown=Math.max(0,grazingTotal(row)-animals.length),status=grazingStatus(row,{date:today()});
       return `<article class="grazing-group" data-grazing-id="${escapeHtml(row.id)}"><div class="grazing-heading"><div><strong>${escapeHtml(parcels.get(row.parcelId)?.nom||'Parcelle indisponible')}</strong><p>${grazingTotal(row)} ${grazingTotal(row)>1?'animaux':'animal'} · ${escapeHtml(grazingType(row))} · ${(u=>`${formatNumber(u.ugb,1)} UGB${u.known?'':' (catégorie à préciser)'}`)(ugbOf(row,ugbTable(data)))}</p></div><span class="badge ${status==='current'?'success':'info'}">${labels[status]||'À vérifier'}</span></div>${row.note?`<p>${escapeHtml(row.note)}</p>`:''}${animals.length?`<ul class="grazing-animals">${animals.map(animalHtml).join('')}</ul>`:typeof row.animals==='string'&&row.animals?`<p>${escapeHtml(row.animals)}</p>`:''}${unknown?`<p class="form-note">${unknown} ${unknown>1?'animaux':'animal'} sans numéro ${unknown>1?'enregistrés':'enregistré'}.</p>`:''}<p class="form-note">Entrée : ${row.startDate?localDate(row.startDate):'non renseignée'}${row.endDate?` · Sortie : ${localDate(row.endDate)}`:''}</p><div class="grazing-actions"><button type="button" class="small-button" data-grazing-edit="${escapeHtml(row.id)}">Modifier</button>${status==='current'?`<button type="button" class="small-button" data-grazing-exit="${escapeHtml(row.id)}">Sortir du pré</button>`:''}</div></article>`;
-    }).join(''):'<div class="empty-state">Aucun lot ne correspond aux filtres.</div>';
+    }).join(''):(data.grazingSessions||[]).some(x=>!x.deletedAt)?emptyState({icon:'search',title:'Aucun lot ne correspond',text:'Modifiez la présence, la parcelle ou la recherche.'}):emptyState({icon:'cow',title:'Aucun animal au pré',text:'Enregistrez un lot sur une parcelle pour suivre le pâturage et le repos des prairies.',action:{label:'Mettre un lot au pré',action:'new-grazing'}});
     $('#grazing-results').querySelectorAll('[data-grazing-edit]').forEach(button=>button.onclick=()=>openForm(store.get('grazingSessions',button.dataset.grazingEdit)));
     $('#grazing-results').querySelectorAll('[data-grazing-exit]').forEach(button=>button.onclick=async()=>{
       if(button.disabled)return;button.disabled=true;

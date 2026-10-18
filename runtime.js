@@ -1,6 +1,7 @@
 import {BUILD_ID} from './utils.js';
 
 const REQUIRED_ASSETS = [
+ /* n° 20 */'./public-works-day.js','./public-works-day-ui.js',
  /* v7c */'./habits.js','./habits-ui.js','./agro-weather.js','./phenology.js','./phenology-ui.js','./agro-assistant.js','./agro-risk.js','./agro-risk-ui.js','./sowing.js','./sowing-ui.js','./rotation-advice.js','./rotation-advice-ui.js','./stock-capture.js','./stock-capture-ui.js','./share-target.js','./share-target-ui.js',
  /* v6c */'./activity-modules.js','./activity-modules-ui.js','./getting-started.js','./getting-started-ui.js','./whats-new.js','./whats-new-ui.js','./whatsnew.json','./friendly-errors.js','./friendly-errors-ui.js','./help.js','./help-ui.js','./theme.js','./theme-ui.js','./count-up.js','./count-up-ui.js',
  './geometry-ops.js','./contour-edit.js','./contour-edit-ui.js','./snap.js','./snap-ui.js','./walk-measure.js','./walk-measure-ui.js','./parcel-split.js','./parcel-split-ui.js','./approach.js','./approach-ui.js', // v6a
@@ -18,7 +19,8 @@ const REQUIRED_ASSETS = [
  ,'./telepac.js','./telepac-ui.js','./parcel-check.js','./parcel-check-ui.js','./regulatory.js','./regulatory-ui.js','./regulated-ops.js','./regulated-ops-ui.js' // v8a
   ,/* release */'./apple-touch-icon.png','./instrument-sans-latin.woff2','./instrument-serif-latin.woff2','./icon-192.png','./icon-512.png','./icon-maskable-512.png','./layers.png','./layers-2x.png','./marker-icon.png','./instrument-sans-latin-ext.woff2','./instrument-serif-latin-ext.woff2'
   ,/* release */'./measured-yield-ui.js','./measured-yield.js','./day-review.js','./day-review-ui.js','./demo-farm.js','./ndvi-map.js'
-  ,/* release */'./treasury-ui.js','./treasury.js','./isoxml-import.js','./settings-ui.js','./automations-ui.js','./tech-centers-ui.js','./map-layers-ui.js','./share-ui.js','./share-text.js','./here-ui.js','./here-context.js'
+  ,/* release */'./treasury-ui.js','./treasury.js','./isoxml-import.js','./settings-ui.js','./automations-ui.js','./tech-centers-ui.js','./map-layers-ui.js','./share-ui.js','./share-text.js','./explain-ui.js','./explain-model.js','./here-ui.js','./gloves.js','./gloves-ui.js','./here-context.js'
+  ,/* release */'./green-indicators-ui.js','./green-indicators.js','./farm-plan-ui.js','./map-render.js','./farm-plan.js','./voice-intents-ui.js','./voice-grammar.js'
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}

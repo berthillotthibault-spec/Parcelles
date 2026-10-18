@@ -35,6 +35,7 @@ export function createMapLayersUI({state, store, active, modal, toast, getMap = 
     ${regulatory().layersHtml()}
     <div class="ly-row"><span><strong>Photos</strong><small>Miniatures des photos géolocalisées</small></span>${sw('photos',photoGeo().layerOn(),'Afficher les photos sur la carte')}</div>
     <div class="ly-row"><span><strong>Noms des parcelles</strong><small>Étiquettes sur la carte</small></span>${sw('labels',labelsOn,'Noms des parcelles')}</div>
+    <div class="ly-row"><span><strong>Imprimer un plan</strong><small>A4 paysage : légende en hectares, échelle, nord</small></span><button type="button" class="button secondary" data-plan="open"${parcelMap.multiple&&parcelMap.selectedIds?.size?' data-scope="selection"':''}>Préparer</button></div>
     <details class="ly-more"><summary>Satellite agricole et rendement</summary>${satelliteUI.mapControls()}<section class="form-section"><h3>Rendement</h3>${parcelMap.selectedId?`<button type="button" class="button secondary" data-action="parcel-tab" data-id="${escapeHtml(parcelMap.selectedId)}" data-tab="yield">Ouvrir les cartes de rendement</button>`:'<p>Sélectionnez une parcelle.</p>'}<button type="button" class="button secondary" data-my="profit-zones">Rentabilité intra-parcellaire</button></section></details>
   </div>`;
   modal('Couches','',body,'','small');regulatory().bindLayers($('#map-layer-form'));

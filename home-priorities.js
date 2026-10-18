@@ -74,21 +74,26 @@ export function parcelSituation(data,id,today=localDay()){
 function addDays(day,count){const d=new Date(`${day}T12:00:00`);d.setDate(d.getDate()+count);return d;}
 export function weatherOpportunity(weather,preferences={},now=new Date()){
   const hourly=weather?.hourly,age=now.getTime()-Number(weather?.loadedAt);
-  if(!hourly?.time?.length||!Number.isFinite(age)||age<0||age>6*3600000)return {stale:true,window:null,risk:null};
+  // n° 110 : why[] et missing[] expliquent la fenêtre affichée sur la carte météo de l’accueil.
+  if(!hourly?.time?.length||!Number.isFinite(age)||age<0||age>6*3600000)return {stale:true,window:null,risk:null,why:['Fenêtre calculée seulement sur des prévisions de moins de 6 h.'],missing:[hourly?.time?.length?'Prévisions de plus de 6 h : à actualiser':'Prévisions horaires absentes']};
   // The existing rain preference is daily, so never compare it to hourly rain.
   const wind=number(preferences.weatherWindThreshold),rain=0.2;
-  if(!(wind>0))return {stale:false,window:null,risk:null};
-  let start=null,end=null,risk=null,best=null;
+  if(!(wind>0))return {stale:false,window:null,risk:null,why:[],missing:['Seuil de vent non réglé dans les paramètres']};
+  let start=null,end=null,risk=null,best=null,unknown=0;
   hourly.time.forEach((time,i)=>{
     const date=new Date(time),speed=number(hourly.wind_gusts_10m?.[i]??hourly.wind_speed_10m?.[i]),wet=number(hourly.precipitation?.[i]);
     if(date<now||localDay(date)!==localDay(now))return;
-    if(speed===null||wet===null){start=end=null;return;}
+    if(speed===null||wet===null){unknown++;start=end=null;return;}
     const good=speed<wind&&wet<rain;
     if(!good&&!risk)risk={time,reason:wet>=rain?'Pluie':'Vent'};
     if(good){if(!start||date-new Date(end)>3600000)start=time;end=time;if(!best||new Date(end)-new Date(start)>new Date(best.end)-new Date(best.start))best={start,end};}
     else start=end=null;
   });
-  return {stale:false,risk,window:best&&best.end!==best.start?best:null};
+  const window=best&&best.end!==best.start?best:null,clock=t=>`${new Date(t).getHours()} h`;
+  const why=[`Heures restantes d’aujourd’hui avec ${hourly.wind_gusts_10m?'rafales':'vent'} sous ${wind} km/h (seuil des paramètres)`,`Pluie sous ${String(rain).replace('.',',')} mm/h`,'Au moins deux heures consécutives ; la plus longue fenêtre est retenue'];
+  if(window)why.unshift(`Fenêtre de ${clock(window.start)} à ${clock(window.end)}`);else why.unshift('Aucune fenêtre d’au moins deux heures aujourd’hui');
+  if(risk)why.push(`Première heure défavorable : ${clock(risk.time)} (${risk.reason.toLowerCase()})`);
+  return {stale:false,risk,window,why,missing:unknown?[`${unknown} heure${unknown>1?'s':''} sans vent ou pluie prévus : exclue${unknown>1?'s':''}`]:[]};
 }
 
 export function grazingWatch(data,today=localDay(),threshold=7){

@@ -13,7 +13,8 @@ import {baseLayerDefinition,CADASTRE_OVERLAY,normalizeCadastreOpacity,cadastreQu
 import {ownerColorInfo} from './land.js'; // v7b n° 93
 import {soilColorInfo} from './soil-analysis.js'; // v8b n° 68
 import {INFRA_KIND,infraType} from './hedges.js'; // v8b n° 70
-import {NDVI_MODES,NDVI_HATCH_ID,NDVI_CLASSES,NDVI_NO_DATA,ndviColorInfo,legendRank,ageRange,curtainPercent} from './ndvi-map.js'; // v9 n° 43
+import {NDVI_MODES,NDVI_CLASSES,NDVI_NO_DATA,ndviColorInfo,legendRank,ageRange,curtainPercent} from './ndvi-map.js'; // v9 n° 43
+import {planParcelLayers,parcelStyle,styleKey,geometryBox,labelHasRoom} from './map-render.js'; // v11 n° 52
 
 const DEFAULT_CENTER=[46.31,4.95];
 const CULTURE_PALETTE=['#287a4a','#4b8f6a','#7a9d44','#b08a32','#7f6bb2','#3f83a8','#bd6f4a','#699b8a','#9a6d3f','#557a9c','#8c7a3f','#a36d8e'];
@@ -22,7 +23,7 @@ const DESIGN_CULTURE_COLORS=[['prairie temp','#9ccb83'],['prairie','#6fb37a'],['
 const STATUS_COLORS={'a faire':'#d89821','en cours':'#3178c6','termine':'#2f8a57','en retard':'#c33b36','a jour':'#4d8f67'};
 const RPG_STYLE={color:'#805000',weight:2.5,opacity:1,fillColor:'#f6ce59',fillOpacity:.34,dashArray:'6 3'};
 
-function cultureColor(culture=''){
+export function cultureColor(culture=''){
   const key=normalize(culture);const known=DESIGN_CULTURE_COLORS.find(([prefix])=>key.startsWith(prefix));if(known)return known[1];let hash=0;for(let i=0;i<key.length;i++)hash=(hash*31+key.charCodeAt(i))>>>0;return CULTURE_PALETTE[hash%CULTURE_PALETTE.length];
 }
 function statusColor(status=''){const key=normalize(status);return Object.entries(STATUS_COLORS).find(([k])=>key.includes(k))?.[1]||'#4d8f67';}
@@ -33,8 +34,9 @@ function bboxSquare(lat,lon,radiusKm){
   return{type:'Polygon',coordinates:[[[lon-dLon,lat-dLat],[lon+dLon,lat-dLat],[lon+dLon,lat+dLat],[lon-dLon,lat+dLat],[lon-dLon,lat-dLat]]]};
 }
 
-// v9 n° 43 : motif hachuré des parcelles sans donnée NDVI (référencé par fill="url(#…)").
-function ensureNdviHatch(){if(typeof document==='undefined'||document.getElementById(NDVI_HATCH_ID))return;const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('aria-hidden','true');svg.setAttribute('width','0');svg.setAttribute('height','0');svg.setAttribute('class','ndvi-hatch-defs');svg.innerHTML=`<defs><pattern id="${NDVI_HATCH_ID}" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)"><rect width="8" height="8" fill="#cfd1ca"/><rect width="3" height="8" fill="#7d827a"/></pattern></defs>`;document.body.append(svg);}
+// v9 n° 43, v11 n° 52 : motif hachuré des parcelles sans donnée NDVI, en CanvasPattern (rendu canvas).
+let ndviHatch=null;
+function ndviHatchPattern(){if(ndviHatch)return ndviHatch;try{const c=document.createElement('canvas');c.width=c.height=8;const g=c.getContext('2d');g.fillStyle='#cfd1ca';g.fillRect(0,0,8,8);g.strokeStyle='#7d827a';g.lineWidth=2.2;g.beginPath();for(const o of [-8,0,8]){g.moveTo(o,8);g.lineTo(o+8,0);}g.stroke();ndviHatch=g.createPattern(c,'repeat');}catch{ndviHatch=null;}return ndviHatch||'#a6aaa2';}
 
 export class ParcelMap{
   constructor({onSelect=null,onToast=null,onPointPlaced=null}={}){
@@ -47,14 +49,14 @@ export class ParcelMap{
     if(this.map)return;
     if(!window.L){this.unavailable=true;const el=document.querySelector('#map');if(el&&!el.querySelector('.map-unavailable'))el.innerHTML='<div class="map-unavailable"><strong>Carte temporairement indisponible</strong><span>Les parcelles, travaux et données restent utilisables. Reconnectez-vous puis rechargez pour activer le fond cartographique.</span></div>';return;}
     this.unavailable=false;const el=document.querySelector('#map');if(el)el.innerHTML='';
-    // SVG uses per-shape hit testing; full-pane canvases would intercept taps
-    // meant for RPG geometries in the panes below points or owned parcels.
+    // n° 52 : parcelles, RPG et IAE partagent UN canvas (parcelPane) : un seul calque capte les appuis et
+    // désigne la forme la plus haute ; l'ordre de dessin remplace les panes (RPG < IAE < parcelles < sélection).
     // Rapid taps on a feature then its popup action can become a synthetic
     // double click on the map. Pinch, wheel and +/- controls remain available.
     this.map=L.map('map',{zoomControl:false,preferCanvas:false,doubleClickZoom:false}).setView(DEFAULT_CENTER,12);
-    L.control.zoom({position:'bottomright'}).addTo(this.map);
-    for(const [name,zIndex] of [['rpgPane',350],['infraPane',405],['parcelPane',410],['selectedParcelPane',430],['mapPointPane',500],['editingPane',550]]){this.map.createPane(name).style.zIndex=String(zIndex);}
-    this.layers.parcels=L.featureGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);this.layers.labels=L.layerGroup().addTo(this.map);this.labelEntries=[];this.map.on('moveend resize',()=>this.updateLabels());
+    L.control.zoom({position:'bottomright'}).addTo(this.map);L.control.scale({imperial:false,position:'bottomright'}).addTo(this.map); // n° 54 : échelle métrique
+    for(const [name,zIndex] of [['parcelHaloPane',408],['parcelPane',410],['mapPointPane',500],['editingPane',550]]){this.map.createPane(name).style.zIndex=String(zIndex);}
+    this.layers.parcels=L.featureGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);this.layers.labels=L.layerGroup().addTo(this.map);this.layers.parcelDecor=L.layerGroup().addTo(this.map);this.labelEntries=[];this.parcelLayers=new Map();this.map.getPane('parcelHaloPane').style.pointerEvents='none';this.vectorRenderer=L.canvas({padding:.15,pane:'parcelPane'});this.map.on('moveend resize',()=>this.scheduleLabels());this.map.on('zoomstart',()=>this.setZooming(true));this.map.on('zoomend',()=>this.setZooming(false));
     this.map.createPane('cadastrePane').style.zIndex='300';this.map.getPane('cadastrePane').style.pointerEvents='none';
     this.map.on('click',event=>this.handleCadastreClick(event));
     this.setBaseLayer('osm');
@@ -243,15 +245,15 @@ export class ParcelMap{
     this.today=today;this.dayFlags=new Map([...grouped].map(([id,group])=>[id,parcelDayFlags(group,id,today)]));this.animateDay=animateHighlights(grouped.size);this.hideHover?.();
     for(const id of this.selectedIds)if(!grouped.has(id))this.selectedIds.delete(id);
     this.init();if(!this.map)return;
-    const parcels=(state.parcelles||[]).filter(item=>!item.deletedAt),points=(state.points||[]).filter(item=>!item.deletedAt);const forget=layer=>{this.suspendedPopups.delete(layer);layer.eachLayer?.(forget);};forget(this.layers.parcels);forget(this.layers.points);this.layers.parcels.clearLayers();this.layers.points.clearLayers();this.pointMarkers.clear();
-    this.labelEntries=[];parcels.filter(parcel=>parcel.geometry).forEach(parcel=>this.addParcel(parcel));this.updateLabels();
+    const parcels=(state.parcelles||[]).filter(item=>!item.deletedAt),points=(state.points||[]).filter(item=>!item.deletedAt);const forget=layer=>{this.suspendedPopups.delete(layer);layer.eachLayer?.(forget);};forget(this.layers.points);this.layers.points.clearLayers();this.pointMarkers.clear();
+    this.labelEntries=[];this.renderParcels(parcels);this.scheduleLabels();
     points.filter(point=>point.latitude!==null&&point.latitude!==undefined&&point.latitude!==''&&point.longitude!==null&&point.longitude!==undefined&&point.longitude!==''&&Number.isFinite(Number(point.latitude))&&Number.isFinite(Number(point.longitude))).forEach(point=>{
-      if(point.geometry&&['Polygon','MultiPolygon'].includes(point.geometry.type))L.geoJSON(point.geometry,{pane:'parcelPane',interactive:false,style:()=>({color:'#824510',weight:2,dashArray:'5 4',fillColor:'#c98a4b',fillOpacity:.14})}).addTo(this.layers.points); // v6a n° 50 : zone mesurée
+      if(point.geometry&&['Polygon','MultiPolygon'].includes(point.geometry.type))L.geoJSON(point.geometry,{pane:'parcelPane',renderer:this.vectorRenderer,interactive:false,style:()=>({color:'#824510',weight:2,dashArray:'5 4',fillColor:'#c98a4b',fillOpacity:.14})}).addTo(this.layers.points); // v6a n° 50 : zone mesurée
       const marker=L.circleMarker([Number(point.latitude),Number(point.longitude)],{pane:'mapPointPane',radius:9,color:'#fff',weight:3,fillColor:'#824510',fillOpacity:1}).addTo(this.layers.points),id=escapeHtml(point.id),note=point.note??point.notes;
       this.bindMapPopup(marker,`<div class="map-point-popup"><strong>${escapeHtml(point.nom||point.name||point.type||'Point')}</strong><small>${escapeHtml(point.type||'Point repéré')}</small>${note?`<p>${escapeHtml(note)}</p>`:''}<div class="map-popup-actions"><button type="button" data-action="edit-map-point" data-id="${id}">Modifier</button><button type="button" data-action="move-map-point" data-id="${id}">Déplacer</button><button type="button" class="danger" data-action="delete-map-point" data-id="${id}">Supprimer</button></div></div>`,{maxWidth:320});
       this.pointMarkers.set(String(point.id),marker);
     });
-    this.setLegend();this.drawWind();this.drawAgroInfra(state);this.drawNdviAlerts(parcels);
+    this.setLegend();this.drawWind();this.drawAgroInfra(state);this.drawNdviAlerts(parcels);this.orderVectorLayers();
   }
   // v9 n° 43 : pastilles « ! » sur les parcelles dont la série NDVI en cache signale une anomalie.
   drawNdviAlerts(parcels){
@@ -265,7 +267,7 @@ export class ParcelMap{
   }
 
   // v8b n° 70 : haies, mares, bosquets… (enregistrements « agroInfra ») avec un style dédié.
-  drawAgroInfra(state){if(!this.map)return;this.layers.infra??=L.layerGroup().addTo(this.map);this.layers.infra.clearLayers();for(const r of state?.integrationImports||[]){if(r.deletedAt||r.farmKind!==INFRA_KIND||!r.geometry)continue;const t=infraType(r.type),color=t?.color||'#2f6b2f';try{L.geoJSON(r.geometry,{pane:'infraPane',interactive:true,style:()=>({color,weight:r.geometry.type==='LineString'?5:2,opacity:.9,fillColor:color,fillOpacity:.35,lineCap:'round'}),pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'infraPane',radius:7,color:'#fff',weight:2,fillColor:color,fillOpacity:1})}).bindTooltip(escapeHtml(r.label||t?.label||'IAE')).addTo(this.layers.infra);}catch{}}}
+  drawAgroInfra(state){if(!this.map)return;this.layers.infra??=L.layerGroup().addTo(this.map);this.layers.infra.clearLayers();for(const r of state?.integrationImports||[]){if(r.deletedAt||r.farmKind!==INFRA_KIND||!r.geometry)continue;const t=infraType(r.type),color=t?.color||'#2f6b2f';try{L.geoJSON(r.geometry,{pane:'parcelPane',renderer:this.vectorRenderer,interactive:true,style:()=>({color,weight:r.geometry.type==='LineString'?5:2,opacity:.9,fillColor:color,fillOpacity:.35,lineCap:'round'}),pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'parcelPane',renderer:this.vectorRenderer,radius:7,color:'#fff',weight:2,fillColor:color,fillOpacity:1})}).bindTooltip(escapeHtml(r.label||t?.label||'IAE')).addTo(this.layers.infra);}catch{}}}
 
   // Leaflet's native popup click handler stops propagation. Unbinding during a
   // map tool keeps parcel/RPG/point clicks available to the placement handler.
@@ -297,26 +299,61 @@ export class ParcelMap{
     this.map.setView(marker.getLatLng(),Math.max(this.map.getZoom(),17));if(openPopup){const popup=marker.getPopup();if(popup)Object.assign(popup.options,this.mapPopupPadding());marker.openPopup();}return true;
   }
 
-  addParcel(parcel){
+  // v11 n° 52 : mise à jour partielle. La couche d'une parcelle n'est recréée que si sa géométrie change (id + updatedAt) ;
+  // sinon seul son style change (setStyle). Les halos (sélection, travaux du jour), peu nombreux, sont reconstruits à part.
+  renderParcels(parcels){
+    this.parcelLayers??=new Map();const plan=planParcelLayers(new Map([...this.parcelLayers].map(([id,entry])=>[id,entry.key])),parcels);
+    for(const id of plan.remove)this.removeParcelLayer(id);
+    this.layers.parcelDecor.clearLayers();this.selectedLayers=[];
+    const planned=new Map([...plan.keep,...plan.create].map(item=>[item.id,item]));
+    for(const parcel of parcels){const item=planned.get(parcel.id);if(item?.parcel===parcel)this.addParcel(parcel,item.key);}
+    if(this.mapToolActive()||this.multiple)this.suspendPopups(this.layers.parcels);
+  }
+  removeParcelLayer(id){
+    const entry=this.parcelLayers?.get(id);if(!entry)return;this.parcelLayers.delete(id);if(this.hoverParcelId===id)this.hideHover();
+    const forget=layer=>{this.suspendedPopups.delete(layer);layer.eachLayer?.(forget);};forget(entry.layer);this.layers.parcels.removeLayer(entry.layer);
+  }
+  // Ordre de dessin du canvas partagé : RPG tout en bas, puis IAE, parcelles, halo de sélection et parcelles sélectionnées.
+  orderVectorLayers(){
+    if(!this.vectorRenderer||!this.map)return;
+    if(this.layers.infra?.getLayers().length){this.layers.infra.eachLayer(l=>l.bringToBack?.());this.layers.rpg?.eachLayer(l=>l.bringToBack?.());}
+    this.layers.parcelDecor?.eachLayer(l=>l.bringToFront?.());for(const layer of this.selectedLayers||[])layer.bringToFront?.();
+  }
+  parcelPopupHtml(id){
+    const parcel=this.parcelLayers?.get(id)?.parcel;if(!parcel)return '';const info=this.colorInfo(parcel),reentry=this.reentries?.get(parcel.id);
+    return `<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(NDVI_MODES.includes(this.colorMode)?info.label:(info.detail||info.label))}</small>${NDVI_MODES.includes(this.colorMode)&&info.detail?`<small class="map-ndvi-detail">${escapeHtml(info.detail)}</small>`:''}${reentry?`<small class="map-reentry">${escapeHtml(reentry.label)}</small>`:''}${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true,state:this.lastState})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`;
+  }
+  addParcel(parcel,key){
     try{
-      const selected=this.multiple?this.selectedIds.has(parcel.id):parcel.id===this.selectedId,info=this.colorInfo(parcel),color=info.color,fill=info.hatch?`url(#${NDVI_HATCH_ID})`:color;if(info.hatch)ensureNdviHatch();
-      const pane=selected?'selectedParcelPane':'parcelPane';
-      if(selected)L.geoJSON(parcel.geometry,{pane,interactive:false,style:{color:'#fff',weight:9,opacity:1,fill:false}}).addTo(this.layers.parcels);
+      const selected=this.multiple?this.selectedIds.has(parcel.id):parcel.id===this.selectedId,info=this.colorInfo(parcel),color=info.color,fill=info.hatch?ndviHatchPattern():color;
       const dimmed=this.legendFocus!=null&&!selected&&info.label!==this.legendFocus;
-      const reentry=this.reentries?.get(parcel.id),flags=this.dayFlags?.get(parcel.id),late=flags?.late&&!selected&&!reentry&&parcel.geometry?.type!=='Point';
-      if(flags?.today&&!flags.late&&!selected&&!dimmed&&parcel.geometry.type!=='Point')L.geoJSON(parcel.geometry,{pane,interactive:false,style:{color:'#8056b3',weight:9,opacity:.45,fill:false,className:`parcel-today-ring${this.animateDay?' is-animated':''}`}}).addTo(this.layers.parcels);
-      const layer=L.geoJSON(parcel.geometry,{pane,style:()=>legendStyle({color:selected?'#092c1c':reentry?'#b3261e':late?'#c33b36':color,weight:selected?5:3,opacity:1,...(reentry&&!selected?{dashArray:'7 5'}:late?{dashArray:'1 7',lineCap:'round'}:{}),fillColor:fill,fillOpacity:((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id))?0:info.hatch?.7:(selected?.52:.3)},{focus:dimmed?this.legendFocus:null,label:''}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane,radius:8,color,fillColor:color,fillOpacity:.8})});
-      layer.on('click',()=>{if(this.mapToolActive())return;if(this.multiple){if(this.selectedIds.has(parcel.id))this.selectedIds.delete(parcel.id);else this.selectedIds.add(parcel.id);this.render(this.lastState);this.notifySelection();}else this.select(parcel.id,{zoom:false});});
-      this.bindMapPopup(layer,`<div class="parcel-popup"><strong>${escapeHtml(parcel.nom)}</strong><small>${escapeHtml(parcel.culture||'Culture non renseignée')} · ${formatNumber(parcel.surfaceHa)} ha${parcel.commune?` · ${escapeHtml(parcel.commune)}`:''}</small><small>${escapeHtml(NDVI_MODES.includes(this.colorMode)?info.label:(info.detail||info.label))}</small>${NDVI_MODES.includes(this.colorMode)&&info.detail?`<small class="map-ndvi-detail">${escapeHtml(info.detail)}</small>`:''}${reentry?`<small class="map-reentry">${escapeHtml(reentry.label)}</small>`:''}${parcelGrazingHtml(this.lastState.grazingSessions,parcel.id,{compact:true,state:this.lastState})}<button type="button" data-map-open="${escapeHtml(parcel.id)}">Ouvrir la fiche</button></div>`);
-      if(parcel.nom&&parcel.geometry?.type!=='Point')if(!dimmed)this.labelEntries.push({parcel,selected,reentry,flags,point:labelPoint(parcel.geometry),areaHa:Number(parcel.surfaceHa)||geometryAreaHa(parcel.geometry)||0,second:NDVI_MODES.includes(this.colorMode)?info.short:null});
-      this.bindHover(layer,parcel);layer.addTo(this.layers.parcels);
+      const reentry=this.reentries?.get(parcel.id),flags=this.dayFlags?.get(parcel.id),late=Boolean(flags?.late&&!selected&&!reentry&&parcel.geometry?.type!=='Point');
+      if(selected)L.geoJSON(parcel.geometry,{pane:'parcelPane',renderer:this.vectorRenderer,interactive:false,style:{color:'#fff',weight:9,opacity:1,fill:false},pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'parcelPane',renderer:this.vectorRenderer,interactive:false,radius:11})}).addTo(this.layers.parcelDecor);
+      // Anneau animé en CSS : il reste en SVG, dans un pane sous le canvas et sans interaction.
+      if(flags?.today&&!flags.late&&!selected&&!dimmed&&parcel.geometry.type!=='Point')L.geoJSON(parcel.geometry,{pane:'parcelHaloPane',interactive:false,style:{color:'#8056b3',weight:9,opacity:.45,fill:false,className:`parcel-today-ring${this.animateDay?' is-animated':''}`}}).addTo(this.layers.parcelDecor);
+      const style=parcelStyle({selected,color,fill,reentry:Boolean(reentry),late,hatch:Boolean(info.hatch),overlay:Boolean((this.satelliteOverlay&&this.satelliteParcelId===parcel.id)||(this.yieldOverlay&&this.yieldParcelId===parcel.id)),focus:dimmed?this.legendFocus:null}),signature=styleKey(style);
+      let entry=this.parcelLayers.get(parcel.id);
+      if(!entry||entry.key!==key){
+        if(entry)this.removeParcelLayer(parcel.id);
+        const id=parcel.id,current={id,key,parcel,style,styleKey:signature};entry=current;
+        const layer=L.geoJSON(parcel.geometry,{pane:'parcelPane',renderer:this.vectorRenderer,style:()=>current.style,pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane:'parcelPane',renderer:this.vectorRenderer,radius:8})});
+        current.layer=layer;
+        layer.on('click',()=>{if(this.mapToolActive())return;if(this.multiple){if(this.selectedIds.has(id))this.selectedIds.delete(id);else this.selectedIds.add(id);this.render(this.lastState);this.notifySelection();}else this.select(id,{zoom:false});});
+        this.bindMapPopup(layer,()=>this.parcelPopupHtml(id));
+        this.bindHover(layer,()=>current.parcel);layer.addTo(this.layers.parcels);this.parcelLayers.set(id,current);
+      }else{
+        entry.parcel=parcel;if(entry.styleKey!==signature){entry.style=style;entry.styleKey=signature;entry.layer.setStyle(style);}
+        const popup=entry.layer.getPopup?.();if(popup?.isOpen?.())popup.update();
+      }
+      if(selected)this.selectedLayers.push(entry.layer);
+      if(parcel.nom&&parcel.geometry?.type!=='Point')if(!dimmed)this.labelEntries.push({parcel,selected,reentry,flags,point:entry.labelPoint??=labelPoint(parcel.geometry),box:entry.box??=geometryBox(parcel.geometry),areaHa:Number(parcel.surfaceHa)||(entry.areaHa??=geometryAreaHa(parcel.geometry))||0,second:NDVI_MODES.includes(this.colorMode)?info.short:null});
     }catch(error){console.warn('[Parcelles] Géométrie ignorée',parcel.id,error);}
   }
 
   // n° 30 : info-bulle riche au survol, sur ordinateur seulement (pointeur fin) ; le bouton reste atteignable.
   bindHover(layer,parcel){
     this.finePointer??=typeof matchMedia==='function'&&matchMedia('(hover:hover) and (pointer:fine)').matches;if(!this.finePointer)return;
-    layer.on('mouseover',event=>{clearTimeout(this.hoverTimer);if(this.mapToolActive()||this.multiple||this.map?._popup?.isOpen?.())return;this.showHover(parcel,event.latlng);});
+    layer.on('mouseover',event=>{clearTimeout(this.hoverTimer);if(this.mapToolActive()||this.multiple||this.map?._popup?.isOpen?.())return;this.showHover(typeof parcel==='function'?parcel():parcel,event.latlng);});
     layer.on('mouseout',()=>this.scheduleHideHover());layer.on('click',()=>this.hideHover());
   }
   showHover(parcel,latlng){
@@ -331,23 +368,29 @@ export class ParcelMap{
   hideHover(){clearTimeout(this.hoverTimer);this.hoverParcelId=null;if(this.hoverTip&&this.map?.hasLayer(this.hoverTip))this.map.closeTooltip(this.hoverTip);}
 
   // n° 45 : étiquettes selon le zoom, au pôle d'inaccessibilité, masquées si elles chevauchent ou débordent.
+  // n° 52 : étiquettes recalculées une fois par image après un rendu ou un déplacement ; masquées pendant un zoom animé.
+  scheduleLabels(){if(this.labelFrame)return;const run=()=>{this.labelFrame=0;this.updateLabels();};this.labelFrame=typeof requestAnimationFrame==='function'?requestAnimationFrame(run):setTimeout(run,0);}
+  setZooming(active){this.zooming=Boolean(active);for(const name of ['tooltipPane','parcelHaloPane']){const pane=this.map?.getPane(name);if(pane)pane.style.visibility=active?'hidden':'';}if(active)this.hideHover();}
   updateLabels(){
-    const group=this.layers?.labels;if(!this.map||!group)return;group.clearLayers();
-    if(document.documentElement.classList.contains('hide-parcel-labels'))return;
+    const group=this.layers?.labels;if(!this.map||!group)return;const cache=this.labelCache??=new Map(),used=new Set(); // n° 52 : étiquettes réutilisées d'un déplacement à l'autre
+    if(document.documentElement.classList.contains('hide-parcel-labels')){group.clearLayers();cache.clear();return;}
     const size=this.map.getSize();if(!size.x||!size.y)return;
     const zoom=this.map.getZoom(),view=this.map.getBounds().pad(.2),box=this.map.getContainer().getBoundingClientRect(),items=[];
     for(const entry of this.labelEntries||[]){
-      if(!entry.point)continue;const latlng=L.latLng(entry.point[1],entry.point[0]);if(!view.contains(latlng))continue;
+      if(!entry.point||!labelHasRoom(entry.box,zoom))continue;const latlng=L.latLng(entry.point[1],entry.point[0]);if(!view.contains(latlng))continue;
       const lines=labelLines(entry.parcel,{level:labelLevel(zoom,entry.areaHa),colorMode:this.colorMode,grazingSessions:this.lastState.grazingSessions,areaHa:entry.areaHa,second:entry.second});if(!lines.length)continue;
       const html=`<span class="pl-name">${entry.flags?.grazing?'<svg class="pl-graze" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 11V7M5 11V4M8 11V6M11 11V8"/></svg>':''}${escapeHtml(lines[0])}</span>${lines[1]?`<span class="pl-sub">${escapeHtml(lines[1])}</span>`:''}${entry.reentry?`<span class="parcel-label-reentry">${escapeHtml(entry.reentry.label)}</span>`:''}`;
-      const tooltip=L.tooltip({permanent:true,direction:'center',className:['parcel-label',entry.reentry?'has-reentry':'',labelFlagClasses(entry.flags)].filter(Boolean).join(' '),interactive:false,opacity:1}).setLatLng(latlng).setContent(html);group.addLayer(tooltip);
-      items.push({id:entry.parcel.id,tooltip,geometry:entry.parcel.geometry,priority:(entry.selected?1e9:0)+entry.areaHa});
+      const id=entry.parcel.id,className=['parcel-label',entry.reentry?'has-reentry':'',labelFlagClasses(entry.flags)].filter(Boolean).join(' '),cached=cache.get(id);let tooltip=cached?.tooltip;used.add(id);
+      if(cached&&cached.html===html&&cached.className===className){if(!tooltip.getLatLng()?.equals(latlng))tooltip.setLatLng(latlng);}
+      else{if(tooltip)group.removeLayer(tooltip);tooltip=L.tooltip({permanent:true,direction:'center',className,interactive:false,opacity:1}).setLatLng(latlng).setContent(html);group.addLayer(tooltip);cache.set(id,{tooltip,html,className});}
+      items.push({id,tooltip,geometry:entry.parcel.geometry,priority:(entry.selected?1e9:0)+entry.areaHa});
     }
+    for(const [id,cached] of cache)if(!used.has(id)){group.removeLayer(cached.tooltip);cache.delete(id);}
     // Mesure en une passe après insertion, pour ne forcer qu'une mise en page.
     for(const item of items){const r=item.tooltip.getElement()?.getBoundingClientRect();item.rect=r&&r.width?{x:r.left-box.left,y:r.top-box.top,w:r.width,h:r.height}:null;}
     const fits=item=>{const {x,y,w,h}=item.rect;if(x<0||y<0||x+w>size.x||y+h>size.y)return false;return [[x+1,y+1],[x+w-1,y+1],[x+1,y+h-1],[x+w-1,y+h-1],[x+w/2,y+h/2]].every(([px,py])=>{const ll=this.map.containerPointToLatLng([px,py]);return pointInGeometry(ll.lng,ll.lat,item.geometry);});};
     const visible=resolveLabelCollisions(items,{fits});
-    for(const item of items)if(!visible.has(item.id))item.tooltip.getElement()?.classList.add('is-label-hidden');
+    for(const item of items)item.tooltip.getElement()?.classList.toggle('is-label-hidden',!visible.has(item.id));
   }
 
   // n° 53 : appui = isoler la catégorie et cadrer ; appui long (ou Maj + Entrée) = liste filtrée. Affichage seulement.
@@ -459,7 +502,7 @@ export class ParcelMap{
   }
 
   createRpgLayer(data,year=this.rpgYear||2024){
-    return L.geoJSON(data,{pane:'rpgPane',style:RPG_STYLE,onEachFeature:(feature,layer)=>{
+    return L.geoJSON(data,{pane:'parcelPane',renderer:this.vectorRenderer,style:RPG_STYLE,onEachFeature:(feature,layer)=>{
       const p=feature.properties||{},id=rpgFeatureId(feature,{year}),culture=p.CODE_CULTU||p.code_cultu||p.GROUPE_CULTURE||p.groupe_culture||'Culture non renseignée',surface=p.SURF_PARC??p.surf_parc??p.SURFACE??p.surface;
       this.bindMapPopup(layer,`<div class="rpg-popup"><strong>Parcelle RPG · ${escapeHtml(year)}</strong><small>${escapeHtml(culture)}${surface!==undefined&&surface!==null?` · ${formatNumber(surface)} ha`:''}</small><button type="button" data-action="add-rpg-parcel" data-id="${escapeHtml(id)}">Ajouter cette parcelle</button></div>`,{maxWidth:320});
       layer.on('mouseover',()=>layer.setStyle({weight:4,fillOpacity:.5}));layer.on('mouseout',()=>layer.setStyle(RPG_STYLE));
@@ -469,7 +512,7 @@ export class ParcelMap{
   replaceRpgLayer(layer){
     const previous=this.layers.rpg.getLayers();
     try{layer.addTo(this.layers.rpg);}catch(error){this.layers.rpg.removeLayer(layer);throw error;}
-    previous.forEach(item=>this.layers.rpg.removeLayer(item));
+    previous.forEach(item=>this.layers.rpg.removeLayer(item));layer.bringToBack?.();
   }
 
   renderRpg(){

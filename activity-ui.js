@@ -1,5 +1,6 @@
 // Écran « Activité » (n° 139) : frise du journal local et de l'audit cloud, filtres, fiche et historique, exports.
 import {html, raw} from './safe-html.js';
+import {emptyState} from './ui.js';
 import {buildTimeline, filterTimeline, facets, timelineCsv, registerBlocks, entityLabel, actionLabel} from './activity.js';
 import {flowPdf, pdfFile, sharePdf} from './pdf-lite.js';
 
@@ -30,7 +31,7 @@ export function createActivityLogUI({store, state, sync, modal, toast, openParce
     </form>`;
   }
   function listHtml(list) {
-    if (!list.length) return html`<div class="empty-state">Aucune activité pour ces filtres.</div>`;
+    if (!list.length) return raw(emptyState({icon: 'search', title: 'Aucune activité pour ces filtres', text: 'Élargissez la période ou retirez un filtre.'}));
     return html`<ol class="activity-timeline">${list.slice(0, 300).map(r => html`<li class="activity-item">
       <button type="button" class="activity-row" data-activity-id="${r.id}" ${raw(r.entityType && r.entityId ? '' : 'disabled')}>
         <strong>${r.message}</strong>

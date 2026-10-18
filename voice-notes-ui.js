@@ -7,7 +7,7 @@ import {attachmentBlob} from './storage-care.js';
 import {locateParcels} from './field-ops.js';
 import {grazingAnimalList} from './grazing.js';
 import {endGrazingSession, saveGrazingSession} from './grazing-records.js';
-import {MEMO_MAX_MS, confirmationSentence, formatClock, grazingTotal, grazingType, memoDocument, memoSummaryLabel, parseVoiceEntry, pendingMemos, pickAudioMime, workDraftsFromEntry} from './voice-notes.js';
+import {MEMO_MAX_MS, confirmationSentence, formatClock, grazingTotal, grazingType, loadVoiceGrammar, memoDocument, memoSummaryLabel, parseVoiceEntry, pendingMemos, pickAudioMime, voiceGrammarReady, workDraftsFromEntry} from './voice-notes.js';
 
 const HOLD_MS=450,MIN_AUDIO_MS=700;
 const pad=n=>String(n).padStart(2,'0');
@@ -51,6 +51,8 @@ export function createVoiceNotesUI(host){
   }
   function open({text='',autoStart=false,analyzeNow=false}={}){
     stopPlayback();
+    // n° 13 : la grammaire enrichie se charge dès l'ouverture, pendant que l'on parle.
+    loadVoiceGrammar();
     if(text&&analyzeNow)return analyze(text,{});
     modal('Saisie vocale','Parlez comme à un collègue : Parcelles prépare un brouillon, rien n’est enregistré sans votre accord.',`<div class="vn-sheet" id="vn-sheet" data-state="idle">${host.herePill?.()||''}
       <div class="vn-ptt-wrap"><button type="button" class="vn-ptt" id="vn-ptt" aria-pressed="false" aria-describedby="vn-status">${icon('mic',{size:34})}<span id="vn-ptt-label">Appuyer pour parler</span></button>
@@ -58,7 +60,7 @@ export function createVoiceNotesUI(host){
       <p class="vn-live" id="vn-live" hidden></p></div>
       <label class="vn-text">Ou écrivez votre compte rendu<textarea id="vn-text" rows="3" placeholder="J’ai semé les Grandes Terres en maïs, 32 kg/ha…">${escapeHtml(text)}</textarea></label>
       <p class="form-error hidden" id="vn-error" role="alert"></p>
-      <p class="form-note vn-privacy">${escapeHtml(privacyNote())}</p></div>`,
+      <p class="form-note vn-privacy">${escapeHtml(privacyNote())}</p>${host.lazy?'<button type="button" class="text-button vn-vocab" id="vn-vocab">Noms et surnoms de vos parcelles et engins…</button>':''}</div>`,
     `<button type="button" class="button primary vn-wide" id="vn-prepare">Préparer le brouillon</button>`);
     const ptt=$('#vn-ptt');
     ptt.addEventListener('pointerdown',event=>{if(event.button>0)return;event.preventDefault();if(rec&&!rec.stopped){stopRecording();return;}holdFrom(event,()=>startRecording());});
@@ -70,6 +72,7 @@ export function createVoiceNotesUI(host){
       if(rec&&!rec.stopped)return stopRecording();
       analyze(value,{});
     };
+    $('#vn-vocab')?.addEventListener('click',()=>{if(rec&&!rec.stopped)stopRecording({closed:true});withIntents(ui=>ui.openVocabulary());});
     if(autoStart)startRecording();
   }
   function showError(message){const el=$('#vn-error');if(!el)return toast(message,'error');el.textContent=message;el.classList.remove('hidden');}
@@ -161,7 +164,22 @@ export function createVoiceNotesUI(host){
   }
 
   // ---------- Brouillon ----------
-  function analyze(text,{fromVoice=false,audio=null,memoId=null}={}){
+  // n° 13 : l'analyse attend voice-grammar.js (chargé à la demande) pour un résultat identique ;
+  // s'il manque (hors connexion, cache vidé), analyse de base et message une seule fois.
+  // Jeton d'appel : seule la dernière analyse demandée aboutit, et seulement si la saisie
+  // (#vn-sheet ou fenêtre du mémo) ouverte au moment de l'appel l'est toujours.
+  let grammarWarned=false,analyzeSeq=0;
+  function analyze(text,options={}){
+    const pending=++analyzeSeq;
+    if(voiceGrammarReady())return analyzeText(text,options);
+    const sheet=document.getElementById('vn-sheet')||document.getElementById('vn-memo-text');
+    return loadVoiceGrammar().then(ok=>{
+      if(pending!==analyzeSeq||(sheet&&!sheet.isConnected))return;
+      if(!ok&&!grammarWarned){grammarWarned=true;toast('Grammaire vocale enrichie indisponible hors connexion : analyse de base (sans entretien, observation, engins ni surnoms).','warning');}
+      analyzeText(text,options);
+    });
+  }
+  function analyzeText(text,{fromVoice=false,audio=null,memoId=null}={}){
     let entry=parseVoiceEntry(text,state());
     // n° 111 : sans parcelle nommée, celle de la position actuelle (pas pour un mémo enregistré ailleurs).
     if(!memoId)entry=host.applyHere?.(entry)||entry;
@@ -224,8 +242,33 @@ export function createVoiceNotesUI(host){
     const complete=$('#vn-complete');if(complete&&entry.intent==='work')complete.disabled=ids.length>1;
   }
 
+  // n° 13 : entretien, observation, sortie de stock et heures TP dans un module chargé à la demande.
+  let intentsUI=null;
+  function withIntents(run){
+    if(!host.lazy)return false;
+    host.lazy.need('voiceIntents',{label:'Préparation du brouillon…'}).then(ok=>{
+      if(!ok)return;
+      intentsUI||=host.lazy.get('voiceIntents').createVoiceIntentsUI({store,active,parcelById,modal,closeModal,toast,openStock:host.openStock,openStockMovement:host.openStockMovement,
+        chips,quote,dateField,footer,draftModal,draftError,parcelPicker,chosenParcels,todayIso,markHandled:()=>{if(draft)draft.handled=true;},finish});
+      run(intentsUI);
+    });
+    return true;
+  }
+  // Enregistrement réussi d'un brouillon : mémo traité, fenêtre fermée, annulation proposée.
+  async function finish(message,undo=null){
+    const current=draft;if(current)current.handled=true;const memoId=current?.memoId;
+    if(memoId)await markMemo(memoId,'done',{transcript:current.entry.text}).catch(()=>{});
+    closeModal();haptic();
+    toast(message,'success',undo?{label:'Annuler',run:async()=>{try{await undo();if(memoId)await markMemo(memoId,'pending').catch(()=>{});toast('Saisie annulée.');}catch(error){toast(error.message||'Annulation impossible.','error');}}}:undefined);
+  }
+  const GRAMMAR_INTENTS=new Set(['maintenance','observation','stock-out','pw-hours']);
   function renderDraft(){
-    const entry=draft.entry;
+    let entry=draft.entry;
+    if(GRAMMAR_INTENTS.has(entry.intent)){
+      const current=draft;if(withIntents(ui=>{if(draft===current)ui.render(entry);}))return;
+      // Sans chargeur (cas de secours) : brouillon de travail générique à compléter.
+      entry=draft.entry={...entry,intent:'work',type:'',typeChoices:[],culture:'',product:null,dose:null,doseUnit:'',surfaceWorked:null,equipmentId:'',startTime:'',endTime:''};
+    }
     if(entry.intent==='stock')return renderStockDraft(entry);
     if(entry.intent==='grazing-exit')return renderGrazingExit(entry);
     if(entry.intent==='grazing-entry'||entry.intent==='grazing-move')return renderGrazingEntry(entry);
@@ -419,7 +462,7 @@ export function createVoiceNotesUI(host){
     if(button?.isConnected){button.setAttribute('aria-pressed','false');button.innerHTML=playIcon(false);button.setAttribute('aria-label','Écouter le mémo');}
   }
   async function openMemo(id){
-    stopPlayback();const doc=store.get('documents',id);if(!doc?.voiceMemo)return toast('Mémo introuvable.','error');
+    stopPlayback();loadVoiceGrammar();const doc=store.get('documents',id);if(!doc?.voiceMemo)return toast('Mémo introuvable.','error');
     const blob=await attachmentBlob(store,id).catch(()=>null),meta=memoMeta(doc),url=blob?URL.createObjectURL(blob):'';
     modal('Mémo vocal',`${meta.when}${meta.parcel?` · ${meta.parcel}`:''} · ${meta.duration}`,`<div class="vn-sheet">${url?`<audio class="vn-audio" controls preload="metadata" src="${url}"></audio>`:'<div class="notice warning">Audio introuvable sur cet appareil (il est peut-être sur un autre appareil synchronisé).</div>'}
       <label class="vn-text">Transcription *<textarea id="vn-memo-text" rows="4" placeholder="Réécoutez puis écrivez ou dictez ce que vous avez dit.">${escapeHtml(doc.voiceMemo.transcript||'')}</textarea></label>
