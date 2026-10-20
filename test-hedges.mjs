@@ -72,11 +72,12 @@ test('guardWork lit le formulaire : dérogation décochée et date saisie (vague
 
 test('save-work aligne plannedDate sur la date saisie avant le contrôle haies (vague 8)', async () => {
   const fs = await import('node:fs');
-  const app = fs.readFileSync(new URL('./app.js', import.meta.url), 'utf8');
-  const save = app.slice(app.indexOf("$('#save-work').onclick"));
-  const rule = "if(v.status!=='Terminé'&&item.plannedDate&&v.date!==item.date)entity.plannedDate=v.date;";
+  // n° 147 : formulaire Travail sorti d'app.js dans work-form-ui.js.
+  const app = fs.readFileSync(new URL('./work-form-ui.js', import.meta.url), 'utf8');
+  const save = app.slice(app.indexOf('async function save('));
+  const rule = "if (v.status !== 'Terminé' && item.plannedDate && v.date !== item.date) entity.plannedDate = v.date;";
   assert.ok(save.includes(rule));
-  assert.ok(save.indexOf(rule) < save.indexOf('hedgesUI?.guardWork(entity,form)'));
+  assert.ok(save.indexOf(rule) < save.indexOf('hedgesUI?.guardWork(entity, form)'));
   // Même règle, appliquée comme dans save-work (entity={...item,...v}).
   const align = (item, v) => { const entity = {...item, ...v}; new Function('v', 'item', 'entity', rule)(v, item, entity); return entity; };
   const {createHedgesUI} = await import('./hedges-ui.js');
@@ -99,10 +100,10 @@ test('save-work aligne plannedDate sur la date saisie avant le contrôle haies (
 
 test('Dupliquer un travail ne reprend pas la date d\'échéance de la source (vague 8)', async () => {
   const fs = await import('node:fs');
-  const app = fs.readFileSync(new URL('./app.js', import.meta.url), 'utf8');
-  const open = app.slice(app.indexOf('function openWorkForm('));
-  const item = open.slice(open.indexOf('const item='), open.indexOf("$('#save-work').onclick"));
-  assert.ok(item.includes("date:duplicate?todayIso():(source.date||todayIso()),plannedDate:duplicate?'':(source.plannedDate||''),"));
+  const app = fs.readFileSync(new URL('./work-form-ui.js', import.meta.url), 'utf8');
+  const item = app.slice(app.indexOf('function workItem('), app.indexOf('function essentialFields('));
+  assert.ok(item.includes("date: duplicate ? today : (source.date || today), plannedDate: duplicate ? '' : (source.plannedDate || ''),"));
+  assert.ok(app.includes('workItem(source, {duplicate, chosenParcel, data, recentWorks, today: ctx.todayIso()})'));
   // Copie d'une taille terminée (échéance 05/09/2025 gardée par finish-work), date proposée gardée.
   const {createHedgesUI} = await import('./hedges-ui.js');
   const ui = createHedgesUI({store: {snapshot: () => ({})}, modal() {}, toast() {}});

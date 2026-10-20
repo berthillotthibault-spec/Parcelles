@@ -1,3 +1,4 @@
+@layer features{
 /* Personal workspace and contextual tools. */
 .today-primary-action{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .personalize-button{min-height:44px;gap:6px;display:inline-flex;align-items:center}
@@ -12,11 +13,11 @@
 .work-priority-notice>span{display:flex;align-items:center;gap:8px;font-size:13px}
 .work-priority-notice .text-button{white-space:nowrap}
 #work-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));width:100%;max-width:620px}
-#work-tabs button{padding:0 6px;font-size:13px}
+#work-tabs button{font-size:13px}
 .work-tab-count{font-size:10px;background:var(--brand-soft);color:var(--brand);padding:2px 4px;border-radius:5px}
 .work-tab-count:empty{display:none}
 .parcel-row .row-context{white-space:normal;overflow-wrap:anywhere;color:var(--text-secondary);line-height:1.45}
-@media(max-width:600px){#work-list .row-trailing{flex-direction:column;align-items:flex-end;gap:4px}#work-list .row-trailing .badge{display:inline-flex;font-size:10px;max-width:96px;white-space:normal}}
+@media(max-width:600px){#work-list .row-trailing{flex-direction:column;align-items:flex-end;gap:4px}#work-list .row-trailing .badge{display:inline-flex;max-width:96px;white-space:normal}}
 .map-view.is-active{display:flex;flex-direction:column}
 .map-view .map-stage{flex:1;min-height:0;height:auto}
 .map-tools-launcher{display:flex;flex-direction:column;justify-content:center;gap:2px;background:var(--brand);color:white;border-color:var(--brand)}
@@ -26,7 +27,7 @@
 .map-quick-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .map-quick-tool{display:flex;align-items:center;gap:10px;min-height:54px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:13px;background:var(--surface-secondary);font-size:13px;font-weight:700;text-align:left}
 .map-quick-tool .ui-icon{color:var(--brand)}
-.map-quick-tool:hover{background:var(--brand-soft);border-color:var(--brand)}
+.map-quick-tool:hover{background:var(--brand-soft)}
 .map-menu-filter{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:8px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border-subtle)}
 .map-menu-filter label{font-size:13px;font-weight:700}
 .map-menu-filter select{min-width:0;min-height:44px;padding:0 9px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface)}
@@ -38,7 +39,7 @@
 .personalization-form legend{font-size:16px;font-weight:750;padding:0;margin-bottom:9px}
 .personalization-form .form-note{margin:0 0 12px;line-height:1.5}
 .personalization-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.personalization-presets .button{padding:0 8px;font-size:14px}
+.personalization-presets .button{font-size:14px}
 .personalization-presets [aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
 .personalization-toggle{display:flex;align-items:center;gap:10px;min-height:44px;font-size:14px;cursor:pointer}
 .personalization-form input[type="checkbox"]{accent-color:var(--brand);width:20px;height:20px;flex:none;margin:0}
@@ -47,7 +48,7 @@
 .home-card-option strong{font-size:14px;display:block}
 .home-card-option small{font-size:12px;color:var(--text-secondary);display:block;line-height:1.4;margin-top:3px}
 .reorder-buttons{display:flex;gap:4px;flex:none}
-.reorder-buttons button{font-size:19px;width:40px;min-height:44px;padding:0}
+.reorder-buttons button{width:40px}
 .reorder-buttons button:disabled{opacity:.3;cursor:default}
 .shortcut-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px}
 .home-preview{padding:16px;border:1px solid var(--border-subtle);background:var(--brand-soft);border-radius:16px}
@@ -63,7 +64,20 @@
 @keyframes boot-settle{from{transform:translateY(10px) scale(.88);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 @media(max-width:600px){.today-welcome{flex-wrap:wrap}.today-primary-action{width:100%;justify-content:space-between}.context-tools{margin-bottom:8px}.quick-action-strip .quick-action{flex-basis:100px}}
 @media(min-width:1024px){.today-grid [data-home-card="weather"]{grid-column:auto}.map-filter-chip{left:20px;top:80px}}
-@media(max-width:600px){.view:not(.map-view) .context-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.view:not(.map-view) .context-tools button{justify-content:flex-start;padding:0 10px;font-size:12px}.work-priority-notice{flex-wrap:wrap;gap:4px}#work-tabs button{font-size:12px;min-height:44px}}
+@media(max-width:600px){.view:not(.map-view) .context-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.view:not(.map-view) .context-tools button{font-size:12px}.work-priority-notice{flex-wrap:wrap;gap:4px}#work-tabs button{font-size:12px}}
 @media(max-width:720px){.map-draw-panel>div{flex:1 0 100%;overflow-wrap:normal}.map-draw-panel button{flex:1;min-height:44px;padding:0 8px;font-size:12px}}
-@media(orientation:landscape) and (max-height:540px) and (max-width:1023px){.map-controls{display:flex;top:72px}.map-stage .leaflet-control-zoom{margin-right:134px}.map-tools-menu .map-quick-tools{grid-template-columns:repeat(4,minmax(0,1fr))}.map-tools-menu .map-quick-tool{flex-direction:column;text-align:center;gap:4px;padding:8px 4px;font-size:12px}}
+@media(orientation:landscape) and (max-height:540px) and (max-width:1023px){.map-controls{display:flex;top:72px}.map-stage .leaflet-control-zoom{margin-right:134px}.map-tools-menu .map-quick-tools{grid-template-columns:repeat(4,minmax(0,1fr))}.map-tools-menu .map-quick-tool{flex-direction:column;text-align:center;font-size:12px}}
 @media(prefers-reduced-motion:reduce){.boot-mark,.boot-mark path{animation:none}}
+}
+/* n° 153 : dérogations (couche theme) : plus spécifiques que les règles de design-v3.css qu'elles
+   contredisent, elles l'emportaient avant les couches ; rangées ici, elles gardent le dessus. */
+@layer theme{
+#work-tabs button{padding:0 6px}
+@media(max-width:600px){#work-list .row-trailing .badge{font-size:10px}}
+.map-quick-tool:hover{border-color:var(--brand)}
+.personalization-presets .button{padding:0 8px}
+.reorder-buttons button{font-size:19px;min-height:44px;padding:0}
+@media(max-width:600px){.view:not(.map-view) .context-tools button{justify-content:flex-start;padding:0 10px}}
+@media(max-width:600px){#work-tabs button{min-height:44px}}
+@media(orientation:landscape) and (max-height:540px) and (max-width:1023px){.map-tools-menu .map-quick-tool{gap:4px;padding:8px 4px}}
+}

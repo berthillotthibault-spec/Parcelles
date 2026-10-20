@@ -1,5 +1,6 @@
 // Verrouillage de Parcelles (n° 140) : réglages, suivi d'inactivité et écran de déverrouillage.
 import {html, raw} from './safe-html.js';
+import {suspendModalDialog} from './utils.js';
 import {LOCK_STORAGE_KEY, LOCK_ACTIVITY_KEY, LOCK_MINUTES, normalizeLockConfig, validPin, createPinRecord, verifyPin, shouldLock,
   registerFailure, resetFailures, waitSeconds, platformAuthAvailable, registerPlatformCredential, unlockWithPlatform} from './app-lock.js';
 
@@ -20,8 +21,10 @@ export function createAppLockUI({modal, closeModal, toast, storage = globalThis.
   }
 
   function setInert(on) {
+    // n° 154 : la fenêtre <dialog> modale passerait au-dessus de l’écran de verrouillage et le rendrait inerte.
+    if (on) suspendModalDialog(true, doc);
     if (on) { inertNodes = [...doc.body.children].filter(n => n.id !== 'app-lock' && !n.inert); inertNodes.forEach(n => { n.inert = true; }); }
-    else { inertNodes.forEach(n => { n.inert = false; }); inertNodes = []; }
+    else { inertNodes.forEach(n => { n.inert = false; }); inertNodes = []; suspendModalDialog(false, doc); }
   }
 
   function lock() {
@@ -55,7 +58,7 @@ export function createAppLockUI({modal, closeModal, toast, storage = globalThis.
     box.querySelector('[name=pin]')?.focus();
   }
 
-  function unlock() { locked = false; setInert(false); doc.getElementById('app-lock')?.remove(); touch(true); }
+  function unlock() { locked = false; doc.getElementById('app-lock')?.remove(); setInert(false); touch(true); }
 
   async function openSettings() {
     const config = read(), bioAvailable = await platformAuthAvailable();

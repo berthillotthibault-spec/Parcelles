@@ -38,6 +38,23 @@ export function encodeCloudPayload(value){
   if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,encodeCloudPayload(v)]));
   return value;
 }
+/**
+ * n° 20 (vague 12) : fiche à écrire pour une modification limitée à quelques champs (relevé de compteur de
+ * l'opérateur terrain) : copie du serveur + ces champs locaux, updatedAt local et version supérieure aux deux.
+ */
+export function limitedCloudPayload(remotePayload,localPayload,fields){
+  const base=JSON.parse(JSON.stringify(remotePayload??{})),local=localPayload||{};
+  for(const field of fields)base[field]=local[field]===undefined?null:JSON.parse(JSON.stringify(local[field]));
+  base.updatedAt=Number(local.updatedAt||Date.now());
+  base.version=Math.max(Number(local.version||0),Number(base.version||0)+1);
+  return base;
+}
+/** n° 20 : relevé de compteur plus haut que la valeur du serveur et que la base connue (le compteur ne fait que croître). */
+export function limitedMeterAhead(remotePayload,localPayload,base,fields){
+  if(fields.some(field=>field!=='currentMeter'))return false;
+  const local=localPayload?.currentMeter,remote=remotePayload?.currentMeter,known=base?.currentMeter;
+  return typeof local==='number'&&Number.isFinite(local)&&typeof remote==='number'&&local>remote&&(typeof known!=='number'||local>known);
+}
 export function decodeCloudDocument(doc){
   if(!doc||doc.payloadEncoding!=='nested-arrays-v1')return doc;
   const decode=value=>{
@@ -86,7 +103,7 @@ export class SyncService{
   serverTimestamp(){return this.firebaseSdk()?.firestore?.FieldValue?.serverTimestamp?.()??null;}
   serverTimeAt(ms){return this.firebaseSdk()?.firestore?.Timestamp?.fromMillis?.(ms)??null;}
   can(capability){return roleCan(this.role,capability);}
-  canWriteEntity(entity,action,farmKind){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action,farmKind});}
+  canWriteEntity(entity,action,farmKind,fields){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action,farmKind,fields});}
   queueSummary(){return queueStats(this.store.snapshot().queue);}
   networkAllows({attachments=false,live=false}={}){const p=this.store.snapshot().preferences,kind=connectionKind();if(!navigator.onLine)return false;if((p.syncWifiOnly||attachments&&p.syncAttachmentsWifiOnly||live&&p.syncLiveWifiOnly)&&['cellular','2g','3g','4g','5g'].includes(kind))return false;return true;}
 
@@ -201,8 +218,18 @@ export class SyncService{
     this.queueStatusBuffer=[];
     try{for(const operation of pending){
       try{
-        if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}if(!this.canWriteEntity(operation.entity,operation.action,operation.payload?.farmKind??this.store.get?.(operation.entity,operation.entityId,{includeDeleted:true})?.farmKind)){await this.markQueueDone(operation.id);continue;}
+        if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}const farmKind=operation.payload?.farmKind??this.store.get?.(operation.entity,operation.entityId,{includeDeleted:true})?.farmKind;if(!this.canWriteEntity(operation.entity,operation.action,farmKind,operation.fields)){await this.markQueueDone(operation.id);continue;}
         const localEntity=this.store.get(operation.entity,operation.entityId,{includeDeleted:true});const localPayload=localEntity||operation.payload||{id:operation.entityId,deletedAt:Date.now()};const remote=await this.remoteRef(operation.entity,operation.entityId).get(),remoteData=remote.exists?decodeCloudDocument(remote.data()):null;
+        // n° 20 (vague 12) : rôle limité à quelques champs (relevé de compteur de l'opérateur terrain) : seuls ces champs
+        // partent, posés sur la fiche du serveur (firestore.rules refuse tout autre changement), puis la copie locale s'aligne.
+        if(Array.isArray(operation.fields)&&operation.fields.length&&!this.canWriteEntity(operation.entity,operation.action,farmKind)){
+          if(!remoteData?.payload||remoteData.deletedAt||remoteData.payload.deletedAt)throw new Error('Fiche absente du cloud : un responsable doit d’abord la synchroniser.');
+          // Relevé concurrent : un autre appareil a changé ces champs depuis le dernier pull (base de fusion, sinon copie locale).
+          // Un compteur plus haut que celui du serveur et que la base reste un relevé valable ; sinon conflit, rien n'est écrasé.
+          if(this.remoteChangedSinceLastPull(remoteData,snapshot.metadata.lastSyncAt)){const base=await this.loadBase(operation.entity,operation.entityId),same=(a,b)=>canonicalData(a??null)===canonicalData(b??null);const concurrent=operation.fields.filter(field=>!same(remoteData.payload[field],localPayload[field])&&(!base||!same(remoteData.payload[field],base[field])));if(concurrent.length&&!limitedMeterAhead(remoteData.payload,localPayload,base,concurrent)){await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload,remoteData,{canMerge:false,merged:null,conflicts:concurrent});await this.markQueueConflict(operation.id);conflicts++;continue;}}
+          const limited=limitedCloudPayload(remoteData.payload,localPayload,operation.fields);
+          await this.writeRemoteEntity(operation.entity,operation.entityId,limited,operation.action);await this.saveBase(operation.entity,limited);await this.store.applyRemote(operation.entity,limited,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit(operation.action,operation.entity,operation.entityId);sent++;continue;
+        }
         if(remoteData?.payload&&this.remoteChangedSinceLastPull(remoteData,snapshot.metadata.lastSyncAt)&&canonicalData(remoteData.payload)!==canonicalData(clean(localPayload))){const suggestion=await this.suggestMerge(operation.entity,operation.entityId,localPayload,remoteData.payload);if(snapshot.preferences.syncAutoMerge!==false&&suggestion.canMerge){await this.writeRemoteEntity(operation.entity,operation.entityId,suggestion.merged,'auto-merge');await this.saveBase(operation.entity,suggestion.merged);await this.store.applyRemote(operation.entity,suggestion.merged,{expectedQueueId:operation.id});await this.markQueueDone(operation.id);await this.audit('auto-merge',operation.entity,operation.entityId);sent++;merged++;continue;}await this.createConflict(operation.entity,operation.entityId,localPayload,remoteData.payload,remoteData,suggestion);await this.markQueueConflict(operation.id);conflicts++;continue;}
         await this.writeRemoteEntity(operation.entity,operation.entityId,localPayload,operation.action);await this.saveBase(operation.entity,localPayload);await this.markQueueDone(operation.id);await this.audit(operation.action,operation.entity,operation.entityId);sent++;
       }catch(error){await this.markQueueFailure(operation.id,error);errors++;}

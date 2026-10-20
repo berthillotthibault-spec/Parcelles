@@ -1,5 +1,6 @@
+// @ts-check
 export const APP_VERSION = 17;
-export const BUILD_ID = '2026.10.18-v10.19.0';
+export const BUILD_ID = '2026.10.20-v10.20.0';
 export const ENTITY_TYPES = [
   'parcelles','interventions','tasks','rotations','grazingSessions','materiels',
   'products','clients','documents','photos','points','templates','importSessions','syncConflicts','notifications','observations','stockItems','stockMovements','maintenanceRecords','routeSessions','fieldSessions','chantiers','members','assistantMessages','devices','automationRules','automationRuns','gpsTracks','integrationImports','weatherStations','platformJobs','platformEvents','vetTreatments'
@@ -133,6 +134,7 @@ export function haversineMeters(a,b){
   return 2*R*Math.asin(Math.sqrt(h));
 }
 
+/** @param {number[]} point @param {number[][]} ring */
 function pointInRing([x,y],ring){
   let inside=false;
   for(let i=0,j=ring.length-1;i<ring.length;j=i++){
@@ -197,3 +199,23 @@ export function slug(value){return normalize(value).replace(/\s+/g,'-') || 'sans
 // Itinéraire vers un point dans l’application choisie (Préférences › Itinéraire).
 export const ROUTE_PROVIDERS=[['apple','Plans Apple'],['google','Google Maps'],['waze','Waze']];
 export function routeUrl(provider,latitude,longitude){const fix=v=>Number(Number(v).toFixed(6)),ll=`${fix(latitude)},${fix(longitude)}`;if(provider==='google')return `https://www.google.com/maps/dir/?api=1&destination=${ll}`;if(provider==='waze')return `https://waze.com/ul?ll=${encodeURIComponent(ll)}&navigate=yes`;return `https://maps.apple.com/?daddr=${ll}`;}
+// n° 154 : calque ouvert depuis la fenêtre <dialog> modale : inséré dedans pour rester au-dessus et utilisable.
+export function overlayHost(doc = globalThis.document){ return doc?.querySelector?.('#modal-root[open]') || doc?.body; }
+// Verrouillage : la fenêtre quitte la couche supérieure (masquée, contenu gardé) puis revient.
+// Un verrou encore actif (code PIN #app-lock ou écran natif) garde la fenêtre suspendue : elle ne revient qu’au dernier déverrouillage.
+export function modalLockActive(doc = globalThis.document){
+  return Boolean(doc?.getElementById?.('app-lock') || doc?.documentElement?.dataset?.nativeLocked === 'true');
+}
+export function openModalDialog(dialog, doc = globalThis.document){
+  if (!dialog || dialog.open || dialog.dataset.suspended) return;
+  if (modalLockActive(doc)) { dialog.dataset.suspended = '1'; return; }
+  try { dialog.showModal(); } catch { dialog.setAttribute('open', ''); }
+}
+export function suspendModalDialog(on, doc = globalThis.document){
+  const dialog = /** @type {HTMLDialogElement|null} */ (doc?.getElementById?.('modal-root'));
+  if (!dialog || typeof dialog.close !== 'function') return;
+  if (on) { if (dialog.open) { dialog.dataset.suspended = '1'; dialog.close(); } return; }
+  if (dialog.dataset.suspended !== '1' || modalLockActive(doc)) return;
+  delete dialog.dataset.suspended;
+  if (dialog.classList.contains('has-modal')) openModalDialog(dialog, doc);
+}

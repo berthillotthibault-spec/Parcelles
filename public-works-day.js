@@ -4,6 +4,7 @@
 import {clone,uid} from './utils.js';
 import {normalizeEntity} from './state.js';
 import {averagePrice} from './fuel.js';
+import {OPERATOR_MATERIEL_FIELDS} from './permissions.js';
 
 export const TP_DAY_UNITS=Object.freeze([['volumeM3','m³'],['tonnage','t']]);
 export const TP_DAY_FIELDS=Object.freeze(['meter','hours','quantity','fuel']);
@@ -127,15 +128,20 @@ export function tpDayShareText(plan,{chantier=null,clientName='',farmName=''}={}
   return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 
+/**
+ * Relevé de compteur (vague 12) : seule la valeur du compteur de l'engin change. L'opérateur terrain peut l'écrire
+ * (permissions.js : meterOnlyOperation, firestore.rules : operatorMeterUpdate) sans pouvoir modifier le reste de la fiche.
+ */
+export const TP_DAY_METER_OPERATION=Object.freeze({entity:'materiels',action:'update',fields:OPERATOR_MATERIEL_FIELDS});
 const signature=plan=>JSON.stringify((plan.entries||[]).map(e=>[e.equipmentId,e.meterStart,e.meterEnd,e.hours,e.volumeM3,e.tonnage,e.fuelLiters]));
 
 /** Opérations soumises au garde-fou de rôle pour enregistrer une journée (compte de tpDayWriteCount). */
 export function tpDaySaveOperations(chantierId,count={}){
-  return [{entity:'chantiers',action:'update',entityId:chantierId},...(count.meters?[{entity:'materiels',action:'update'}]:[]),...(count.fuels?[{entity:'integrationImports',action:'create',farmKind:'fuel'}]:[]),...(count.photo?[{entity:'documents',action:'create'}]:[])];
+  return [{entity:'chantiers',action:'update',entityId:chantierId},...(count.meters?[TP_DAY_METER_OPERATION]:[]),...(count.fuels?[{entity:'integrationImports',action:'create',farmKind:'fuel'}]:[]),...(count.photo?[{entity:'documents',action:'create'}]:[])];
 }
 /** Opérations pour annuler une journée : compteurs remis à leur valeur, pleins et photo à la corbeille. */
 export function tpDayUndoOperations(chantierId,{meters=0,fuels=0,photo=0}={}){
-  return [{entity:'chantiers',action:'update',entityId:chantierId},...(meters?[{entity:'materiels',action:'update'}]:[]),...(fuels?[{entity:'integrationImports',action:'delete',farmKind:'fuel'}]:[]),...(photo?[{entity:'documents',action:'delete'}]:[])];
+  return [{entity:'chantiers',action:'update',entityId:chantierId},...(meters?[TP_DAY_METER_OPERATION]:[]),...(fuels?[{entity:'integrationImports',action:'delete',farmKind:'fuel'}]:[]),...(photo?[{entity:'documents',action:'delete'}]:[])];
 }
 /** Vrai si le garde-fou (store.writeGuard) autorise toutes ces opérations ; aucun garde-fou : tout est permis. */
 export const tpDayAllowed=(writeGuard,operations)=>typeof writeGuard!=='function'||operations.every(op=>writeGuard(op));
@@ -151,10 +157,12 @@ export function tpDayUndoScope(state,chantierId,dayId){
 function guard(store,operations){
   if(!tpDayAllowed(store.writeGuard,operations))throw new Error('Votre rôle ne permet pas cette saisie de fin de journée.');
 }
-function touch(store,type,record,action='update',queue=true){
+function touch(store,type,record,action='update',queue=true,fields=null){
   record.updatedAt=Date.now();record.version=(record.version||0)+1;
-  if(queue)store.queue({entity:type,entityId:record.id,action,payload:action==='delete'?{id:record.id,deletedAt:record.deletedAt}:clone(record)});
+  // `fields` : écriture limitée à ces champs (relevé de compteur), seule permise à l'opérateur terrain sur un engin.
+  if(queue)store.queue({entity:type,entityId:record.id,action,payload:action==='delete'?{id:record.id,deletedAt:record.deletedAt}:clone(record),...(fields?{fields:[...fields]}:{})});
 }
+const touchMeter=(store,machine)=>touch(store,'materiels',machine,'update',true,TP_DAY_METER_OPERATION.fields);
 
 /**
  * Une seule écriture : recalcule le récapitulatif sur l’état courant et refuse s’il a changé depuis l’affichage.
@@ -181,7 +189,7 @@ export function saveTpDay(store,chantierId,input,{expected,document=null,today='
       logs.push({id:uid('tplog'),date:plan.date,equipmentId:e.equipmentId,operator:plan.operator,hours:e.hours,volumeM3:e.volumeM3,tonnage:e.tonnage,note,
         meterStart:e.meterStart,meterEnd:e.meterEnd,fuelLiters:e.fuelLiters,dayId,documentId:document?.id||null,createdAt:timestamp,updatedAt:timestamp,deletedAt:null});
       const machine=state.materiels.find(m=>m.id===e.equipmentId);
-      if(e.meterEnd!==null&&(meterOf(machine)===null||e.meterEnd>meterOf(machine))){machine.currentMeter=e.meterEnd;touch(store,'materiels',machine);}
+      if(e.meterEnd!==null&&(meterOf(machine)===null||e.meterEnd>meterOf(machine))){machine.currentMeter=e.meterEnd;touchMeter(store,machine);}
       if(e.fuelLiters!==null){
         const fill=normalizeEntity('integrationImports',{id:uid('fuel'),name:`Plein ${e.name} ${plan.date}`,farmKind:'fuel',format:'Parcelles',recordVersion:1,entry:'machine',date:plan.date,
           litres:e.fuelLiters,unitPrice:plan.fuelPrice,amount:e.fuelAmount,meter:e.meterEnd,equipmentId:e.equipmentId,fromTank:true,supplier:'',invoiceRef:'',documentId:document?.id||null,
@@ -200,11 +208,11 @@ export function undoTpDay(store,chantierId,dayId){
     const {chantier,logs,fills,docs,restores,operations}=tpDayUndoScope(state,chantierId,dayId);
     if(!chantier||!dayId)throw new Error('Cette fin de journée est introuvable.');
     if(!logs.length&&!fills.length&&!docs.length)throw new Error('Cette fin de journée a déjà été annulée.');
-    if(!tpDayAllowed(store.writeGuard,operations))throw new Error('Votre rôle ne permet pas d’annuler cette journée (pleins, photo ou compteurs) : demandez à un responsable.');
+    if(!tpDayAllowed(store.writeGuard,operations))throw new Error('Votre rôle ne permet pas d’annuler cette journée (pleins ou photo) : demandez à un responsable.');
     const at=Date.now();
     for(const log of logs){log.deletedAt=at;log.updatedAt=at;}
     let meters=0;
-    for(const log of restores){const machine=(state.materiels||[]).find(m=>m.id===log.equipmentId);if(machine&&meterOf(machine)===log.meterEnd){machine.currentMeter=log.meterStart??null;touch(store,'materiels',machine);meters++;}}
+    for(const log of restores){const machine=(state.materiels||[]).find(m=>m.id===log.equipmentId);if(machine&&meterOf(machine)===log.meterEnd){machine.currentMeter=log.meterStart??null;touchMeter(store,machine);meters++;}}
     for(const r of fills){r.deletedAt=at;touch(store,'integrationImports',r,'delete');}
     for(const r of docs){r.deletedAt=at;touch(store,'documents',r,'delete');}
     touch(store,'chantiers',chantier);

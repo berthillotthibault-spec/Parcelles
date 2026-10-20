@@ -1,6 +1,7 @@
 import {BUILD_ID} from './utils.js';
 
 const REQUIRED_ASSETS = [
+ /* n° 147 */'./app-context.js','./actions.js','./work-actions.js','./parcel-actions.js','./work-form-ui.js','./account-ui.js','./diagnostic-ui.js',
  /* n° 20 */'./public-works-day.js','./public-works-day-ui.js',
  /* v7c */'./habits.js','./habits-ui.js','./agro-weather.js','./phenology.js','./phenology-ui.js','./agro-assistant.js','./agro-risk.js','./agro-risk-ui.js','./sowing.js','./sowing-ui.js','./rotation-advice.js','./rotation-advice-ui.js','./stock-capture.js','./stock-capture-ui.js','./share-target.js','./share-target-ui.js',
  /* v6c */'./activity-modules.js','./activity-modules-ui.js','./getting-started.js','./getting-started-ui.js','./whats-new.js','./whats-new-ui.js','./whatsnew.json','./friendly-errors.js','./friendly-errors-ui.js','./help.js','./help-ui.js','./theme.js','./theme-ui.js','./count-up.js','./count-up-ui.js',
@@ -161,7 +162,7 @@ export async function emergencyReadState(){
         if(!db.objectStoreNames.contains('app')){db.close();finish(null);return;}
         const tx=db.transaction('app','readonly'),store=tx.objectStore('app');
         const keysReq=store.getAllKeys(),valuesReq=store.getAll();let keys=null,values=null;
-        const resolveState=()=>{if(!keys||!values)return;const map=new Map(keys.map((key,index)=>[String(key),values[index]]));const active=map.get('active-workspace');const id=String(active?.id||'local');const key=id&&id!=='local'?`state:workspace:${id.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';const value=map.get(key)||map.get('state')||null;db.close();finish(value);};
+        const resolveState=()=>{if(!keys||!values)return;const map=new Map(keys.map((key,index)=>[String(key),values[index]]));const active=map.get('active-workspace');const id=String(active?.id||'local');const key=id&&id!=='local'?`state:workspace:${id.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';const assemble=base=>{const meta=map.get(`${base}/meta`);if(!meta||!Array.isArray(meta.keys))return map.get(base)||null;const value={};for(const name of meta.keys){const part=map.get(`${base}/c/${name}`);if(part!==undefined)value[name]=part;}return value;};const value=assemble(key)||assemble('state');db.close();finish(value);};
         keysReq.onsuccess=()=>{keys=keysReq.result||[];resolveState();};valuesReq.onsuccess=()=>{values=valuesReq.result||[];resolveState();};
         keysReq.onerror=valuesReq.onerror=()=>{db.close();finish(null);};
       };

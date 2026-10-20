@@ -30,10 +30,16 @@ test('les boutons de index.html sans texte ont un nom accessible', () => {
   assert.deepEqual(missing, []);
 });
 
-test('modal() produit une vraie fenêtre : role dialog, aria-modal, titre, description et bouton Fermer nommé', () => {
+test('modal() produit une vraie fenêtre : <dialog> natif ouvert avec showModal(), titre, description et bouton Fermer nommé', () => {
   const body = app.slice(app.indexOf('function modal('), app.indexOf('function closeModal('));
-  assert.match(body, /role="dialog" aria-modal="true" aria-labelledby="modal-title"/);
-  assert.match(body, /aria-describedby="modal-description"/);
+  assert.match(html, /<dialog id="modal-root" class="modal-root" aria-labelledby="modal-title"><\/dialog>/, 'n° 154 : #modal-root est un <dialog> unique');
+  assert.match(body, /root\.setAttribute\('aria-labelledby','modal-title'\)/);
+  assert.match(body, /root\.setAttribute\('aria-describedby','modal-description'\)/);
+  assert.match(body, /openModalDialog\(root\)/);
+  assert.match(read('utils.js'), /try \{ dialog\.showModal\(\); \}/, 'ouverte en couche supérieure : le reste de la page devient inerte');
+  assert.doesNotMatch(body, /role="dialog"/, 'pas de seconde fenêtre ARIA imbriquée dans le <dialog>');
+  assert.match(body, /addEventListener\('cancel',event=>\{event\.preventDefault\(\);closeModal\(\);\}\)/, 'Échap / retour Android : même fermeture que le bouton');
+  assert.match(body, /\[\$\('#toast-root'\),\$\('#live-region'\)\]/, 'toasts et région vivante prêtés à la fenêtre ouverte');
   assert.match(body, /class="modal-close" data-action="close-modal" aria-label="Fermer"/);
   assert.match(body, /lastFocused=document\.activeElement/, 'le déclencheur est mémorisé pour y rendre le focus');
   assert.match(app, /function closeModal\(\)\{[^\n]*lastFocused\.focus/, 'le focus revient au déclencheur à la fermeture');
@@ -47,7 +53,8 @@ test('le mode terrain est une fenêtre modale nommée, fermée par Échap, avec 
   assert.match(app, /<h1 id="field-mode-title">/);
   assert.match(app, /if\(event\.key==='Escape'\)\{[^\n]*if\(fieldModeOpen\)\{?closeFieldMode\(\)/, 'Échap ferme le mode terrain');
   assert.match(app, /fieldReturnFocus\.focus/);
-  assert.match(app, /const trapRoot=modalOpen\?\$\('#modal-root'\):fieldModeOpen\?\$\('#field-mode'\):null/, 'piège du focus dans la fenêtre ouverte');
+  assert.match(app, /const trapRoot=!modalOpen&&fieldModeOpen\?\$\('#field-mode'\):null/, 'piège du focus du mode terrain (la fenêtre <dialog> contient le focus d’elle-même)');
+  assert.match(app, /function closeModal\(\)\{[^\n]*lendModalGuests\(root,false\);root\.innerHTML='';[^\n]*if\(root\.open\)root\.close\(\)/, 'fermeture : toasts rendus à la page, <dialog> refermé');
 });
 
 test('annonces VoiceOver : une seule région vivante pour les messages, fenêtres non « live »', () => {
@@ -89,11 +96,13 @@ test('zoom autorisé et encoche prise en compte', () => {
 test('design-v3.css : bloc « Accessibilité téléphone » (cibles, champs 16 px, contraste, Plein champ)', () => {
   const block = css.slice(css.indexOf('Accessibilité téléphone'));
   assert.ok(block.length > 1000, 'bloc présent en fin de fichier');
-  assert.match(block, /:root\{--a11y-hit:44px;--field-border:/);
+  // Variables (n° 153) : dans tokens.css, couche tokens.
+  const tokens = read('tokens.css');
+  assert.match(tokens, /--a11y-hit:44px;--field-border:/);
   assert.match(block, /\.modal-close\{width:var\(--a11y-hit\);height:var\(--a11y-hit\)/);
   assert.match(block, /select,textarea\)\{font-size:16px\}/, 'champs en 16 px : pas de zoom automatique sur iPhone');
-  assert.match(block, /@media \(prefers-contrast:more\)/);
-  assert.match(block, /:root\.plein-champ\{--a11y-hit:52px\}/);
+  assert.match(tokens, /@media \(prefers-contrast:more\)/);
+  assert.match(tokens, /:root\.plein-champ\{--a11y-hit:52px\}/);
   assert.match(block, /zoom:1\.12/);
 });
 
@@ -104,4 +113,54 @@ test('option « Plein champ » : préférence facultative, désactivée par déf
   const ui = read('personalization-ui.js');
   assert.match(ui, /name="pleinChamp"[^>]*>Grands boutons et texte plus lisible<\/label>/);
   assert.match(app, /classList\.toggle\('plein-champ',state\(\)\.preferences\.pleinChamp===true\)/);
+});
+
+test('n° 154 : audit axe-core automatisé (npm run a11y) branché sur la CI', () => {
+  const tool = read('tools/a11y-check.mjs'), pkg = JSON.parse(read('package.json')), ci = read('.github/workflows/tests.yml');
+  assert.equal(pkg.scripts.a11y, 'node tools/a11y-check.mjs');
+  assert.match(ci, /run: npm run a11y/);
+  assert.match(tool, /\['wcag2a', 'wcag2aa', 'wcag21aa'\]/);
+  assert.match(tool, /new Set\(\['serious', 'critical'\]\)/);
+  assert.match(tool, /serviceWorkers: 'block'/, 'service worker bloqué, profil vierge');
+  for (const scheme of ["colorScheme: 'light'", "colorScheme: 'dark'"]) assert.ok(tool.includes(scheme), scheme);
+});
+
+test('n° 154 : calques et verrouillages compatibles avec la fenêtre <dialog> en couche supérieure', () => {
+  const utils = read('utils.js');
+  assert.match(utils, /export function overlayHost\(/);
+  assert.match(utils, /export function suspendModalDialog\(/);
+  assert.match(read('app-lock-ui.js'), /suspendModalDialog\(true, doc\)/, 'l’écran de verrouillage passe au-dessus de la fenêtre');
+  assert.match(app, /suspendModalDialog\(locked\)/, 'verrouillage natif (Face ID) au-dessus de la fenêtre');
+  assert.match(read('dossier-ui.js'), /overlayHost\(\)\.append\(root\)/, 'visionneuse du dossier ouverte depuis la fenêtre');
+  assert.match(read('components.css'), /dialog\.modal-root\{[^}]*max-width:none[^}]*\}/, 'styles par défaut du <dialog> neutralisés');
+});
+
+test('verrouillage : aucune fenêtre <dialog> ne repasse au-dessus d’un écran de verrouillage actif', async () => {
+  const {openModalDialog, suspendModalDialog} = await import('./utils.js');
+  const dialog = {open: false, dataset: {}, shown: 0, classList: {contains: c => c === 'has-modal'},
+    showModal() { this.open = true; this.shown++; }, close() { this.open = false; }};
+  const nodes = {'modal-root': dialog};
+  const doc = {documentElement: {dataset: {}}, getElementById: id => nodes[id] || null};
+  // Verrou PIN actif : modal() ouvert (Ctrl+K, route, synchro…) reste suspendu.
+  nodes['app-lock'] = {};
+  openModalDialog(dialog, doc);
+  assert.equal(dialog.open, false, 'pas de showModal() sous le code PIN');
+  assert.equal(dialog.dataset.suspended, '1');
+  // Retour au premier plan sans Face ID : setNativeLockScreen(false) ne rouvre pas sous le code PIN.
+  doc.documentElement.dataset.nativeLocked = 'false';
+  suspendModalDialog(false, doc);
+  assert.equal(dialog.open, false, 'le verrou PIN garde la fenêtre fermée');
+  // Déverrouillage PIN alors que l’écran natif est actif : toujours suspendue.
+  doc.documentElement.dataset.nativeLocked = 'true';
+  delete nodes['app-lock'];
+  suspendModalDialog(false, doc);
+  assert.equal(dialog.open, false, 'l’écran natif garde la fenêtre fermée');
+  // Dernier verrou levé : la fenêtre revient une seule fois.
+  doc.documentElement.dataset.nativeLocked = 'false';
+  suspendModalDialog(false, doc);
+  assert.equal(dialog.open, true);
+  assert.equal(dialog.dataset.suspended, undefined);
+  assert.equal(dialog.shown, 1);
+  assert.match(read('app-lock-ui.js'), /getElementById\('app-lock'\)\?\.remove\(\); setInert\(false\)/, 'l’écran PIN est retiré avant de rouvrir la fenêtre');
+  assert.match(app, /function showModalDialog\(root\)\{openModalDialog\(root\);\}/, 'modal() passe par le garde de verrouillage');
 });

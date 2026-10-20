@@ -3,7 +3,7 @@
 // depuis le dernier relevé, quantité en m³ ou en tonnes, carburant, photo du bon, récapitulatif
 // obligatoire avant validation, une seule écriture annulable et partage du bon au client.
 import {escapeHtml,uid} from './utils.js';
-import {TP_DAY_FIELDS,TP_DAY_UNITS,keypadInput,parseDecimal,planTpDay,saveTpDay,tpDayAllowed,tpDayEquipment,tpDaySaveOperations,tpDayShareText,tpDayUndoOperations,tpDayUndoScope,tpDayWriteCount,undoTpDay} from './public-works-day.js';
+import {TP_DAY_FIELDS,TP_DAY_METER_OPERATION,TP_DAY_UNITS,keypadInput,parseDecimal,planTpDay,saveTpDay,tpDayAllowed,tpDayEquipment,tpDaySaveOperations,tpDayShareText,tpDayUndoOperations,tpDayUndoScope,tpDayWriteCount,undoTpDay} from './public-works-day.js';
 
 const esc=value=>escapeHtml(String(value??''));
 const fr=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(value??0);
@@ -28,8 +28,8 @@ async function shrinkPhoto(file){
 export function createPublicWorksDayUI({store,state,modal,closeModal,toast,onDone}){
   const $=selector=>document.querySelector(selector);
   const canWrite=chantierId=>!store.writeGuard||store.writeGuard({entity:'chantiers',action:'update',entityId:chantierId});
-  // Relevé de compteur : écrit sur la fiche de l'engin, que tous les rôles ne peuvent pas modifier (opérateur terrain).
-  const canMeter=()=>tpDayAllowed(store.writeGuard,[{entity:'materiels',action:'update'}]);
+  // Relevé de compteur : seul le compteur de la fiche de l'engin change, ce que l'opérateur terrain peut écrire (vague 12).
+  const canMeter=()=>tpDayAllowed(store.writeGuard,[TP_DAY_METER_OPERATION]);
   const canUndo=(chantierId,dayId)=>tpDayAllowed(store.writeGuard,tpDayUndoScope(state(),chantierId,dayId).operations);
   let draft=null,focus=null;
 

@@ -1,29 +1,77 @@
+/* Ordre des couches de la cascade (n° 153) : cette feuille est chargée la première, avant Leaflet.
+   Une couche plus loin dans la liste l'emporte sur les précédentes quelle que soit la spécificité ;
+   les styles hors couche (attribut style, <style> injecté) l'emportent sur toutes.
+   reset : Leaflet et remise à zéro · tokens : variables · base : coquille · components · screens (dont responsive et accessibilité)
+   · features : modules · theme : design-v3.css · overrides : réservée aux exceptions. */
+@layer reset, tokens, base, components, screens, features, theme, overrides;
 /* Polices auto-hebergees (licence OFL 1.1, voir instrument-fonts-LICENSE.txt) : disponibles hors connexion via le CORE de sw.js. */
 @font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 700;font-display:swap;src:url('./instrument-sans-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
 @font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 700;font-display:swap;src:url('./instrument-sans-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF}
 @font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;font-display:swap;src:url('./instrument-serif-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
 @font-face{font-family:'Instrument Serif';font-style:normal;font-weight:400;font-display:swap;src:url('./instrument-serif-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@layer tokens{
+/* Jetons clairs : réunit les anciens :root de tokens.css, design-v3.css (refonte v3, prioritaire),
+   accessibilité, synchronisation, assistant et mouvement. */
 :root{
-  --bg:#f6f7f5;--surface:#fff;--surface-secondary:#eef2ee;--surface-tertiary:#e7ece8;
-  --text-primary:#172019;--text-secondary:#667169;--text-tertiary:#89938c;
-  --brand:#286a4a;--brand-hover:#20583d;--brand-soft:#e4f0e8;
-  --success:#2f7d50;--warning:#a66b12;--danger:#b63d37;--info:#356fa8;
-  --border-subtle:#e3e8e4;--border-strong:#cbd3cd;
-  --shadow-float:0 12px 34px rgba(23,32,25,.13);--shadow-pop:0 18px 50px rgba(23,32,25,.18);
-  --r-sm:10px;--r-control:12px;--r-card:16px;--r-large:20px;--r-sheet:24px;
-  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:20px;--s6:24px;--s7:32px;--s8:40px;
-  --header-h:62px;--nav-h:72px;--sidebar-w:268px;
-  --safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);
-  --color-bg:var(--bg);--color-surface:var(--surface);--color-surface-2:var(--surface-secondary);
-  --color-text:var(--text-primary);--color-text-2:var(--text-secondary);--color-primary:var(--brand);--color-primary-pressed:var(--brand-hover);--color-primary-soft:var(--brand-soft);
-  --color-success:var(--success);--color-warning:var(--warning);--color-danger:var(--danger);--color-info:var(--info);--border:var(--border-subtle);
-  --radius-sm:var(--r-sm);--radius-md:var(--r-control);--radius-lg:var(--r-card);--radius-xl:var(--r-sheet);--shadow-sm:none;--shadow-md:var(--shadow-float);--shadow-lg:var(--shadow-pop);
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--z-map:0;--z-map-controls:10;
+  --z-header:20;--z-nav:30;--z-sheet:40;--z-modal:50;--z-toast:60;--bg:#f7f5f0;--surface:#fff;--surface-secondary:#f1efe9;
+  --surface-tertiary:#ebe8e1;--text-primary:#1d2420;--text-secondary:#5f6862;--text-tertiary:#8a908b;--brand:#286a4a;
+  --brand-hover:#1d4f37;--brand-soft:#e3eee7;--success:#286a4a;--warning:#8a5a12;--danger:#a83c26;--info:#356fa8;
+  --border-subtle:#ebe8e1;--border-strong:#d9d5cc;--shadow-float:0 4px 16px rgba(0,0,0,.15);
+  --shadow-pop:0 10px 30px rgba(0,0,0,.2);--r-sm:10px;--r-control:12px;--r-card:22px;--r-large:20px;--r-sheet:24px;--s1:4px;
+  --s2:8px;--s3:12px;--s4:16px;--s5:20px;--s6:24px;--s7:32px;--s8:40px;--header-h:56px;--nav-h:82px;--sidebar-w:268px;
+  --safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px);--color-bg:var(--bg);
+  --color-surface:var(--surface);--color-surface-2:var(--surface-secondary);--color-text:var(--text-primary);
+  --color-text-2:var(--text-secondary);--color-primary:var(--brand);--color-primary-pressed:var(--brand-hover);
+  --color-primary-soft:var(--brand-soft);--color-success:var(--success);--color-warning:var(--warning);
+  --color-danger:var(--danger);--color-info:var(--info);--border:var(--border-subtle);--radius-sm:var(--r-sm);
+  --radius-md:var(--r-control);--radius-lg:var(--r-card);--radius-xl:var(--r-sheet);--shadow-sm:none;
+  --shadow-md:var(--shadow-float);--shadow-lg:var(--shadow-pop);--line:#f0ede7;--line-2:#efece6;--chip-border:#e3dfd7;
+  --tile:#efece5;--tile-hover:#e6e2d9;--ink:#1d2420;--on-ink:#fff;--accent-ink:#8fd1a8;--accent-ink-text:#10261a;--on-brand:#fff;
+  --warning-soft:#f8eedb;--danger-soft:#f7e3dd;--muted-text:#4c544f;--shadow-brand:0 6px 18px rgba(40,106,74,.4);
+  --font-sans:'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --font-serif:'Instrument Serif',Georgia,'Times New Roman',serif;--a11y-hit:44px;--field-border:#858b86;--sync-info:#2d5f93;
+  --sync-info-soft:#e4edf7;--sync-violet:#6b3fa0;--sync-violet-soft:#efe7f8;--assistant-clearance:64px;
+  --motion-ease:cubic-bezier(.2,.7,.2,1)
 }
+/* Palette fixe (n° 153) : couleurs naguère codées en dur dans plusieurs feuilles, mêmes valeurs en clair et en sombre.
+   Pour une couleur qui doit changer en mode sombre, utiliser un jeton sémantique (--surface, --brand…). */
+:root{
+  --c-white:#fff;--c-black:#000;--c-brand:#286a4a;--c-brand-deep:#17663f;--c-mint:#8fd1a8;--c-forest:#10261a;
+  --c-ink:#1d2420;--c-sand:#c9c4b9;--c-sand-light:#e4dfd3;--c-chip:#e3dfd7;--c-mist:#edf1ee;--c-amber:#8a5a12;
+  --c-umber:#5f4a22;--c-salmon:#f2b8a8;--c-lilac:#b79be0;--c-violet:#8056b3;--c-blue:#2f82b0;--c-green:#2f8054
+}
+/* Variante sombre unique (classe posée par theme-ui.js). */
 :root.theme-dark,.theme-dark{
-  --bg:#0f1411;--surface:#171d19;--surface-secondary:#1d2520;--surface-tertiary:#252e28;
-  --text-primary:#f2f5f3;--text-secondary:#a2ada5;--text-tertiary:#7d8980;
-  --brand:#69b98e;--brand-hover:#7ec9a1;--brand-soft:#173729;
-  --success:#6fc291;--warning:#d9a24a;--danger:#e0716a;--info:#78a9d7;
-  --border-subtle:#28332c;--border-strong:#39463e;
-  --shadow-float:0 12px 34px rgba(0,0,0,.28);--shadow-pop:0 18px 50px rgba(0,0,0,.38);
+  --color-bg:#111813;--color-surface:#18211b;--color-surface-2:#202a23;--color-text:#f1f5f2;--color-text-2:#b4beb7;
+  --color-primary:#61b985;--color-primary-pressed:#78c99a;--color-primary-soft:#203d2d;--border:#344138;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.22);--shadow-md:0 8px 28px rgba(0,0,0,.28);--shadow-lg:0 18px 48px rgba(0,0,0,.38);
+  --bg:#0f1411;--surface:#171d19;--surface-secondary:#1d2520;--surface-tertiary:#252e28;--text-primary:#f2f5f3;
+  --text-secondary:#a2ada5;--text-tertiary:#7d8980;--brand:#69b98e;--brand-hover:#7ec9a1;--brand-soft:#173729;--success:#6fc291;
+  --warning:#d9a24a;--danger:#e0716a;--info:#78a9d7;--border-subtle:#28332c;--border-strong:#39463e;
+  --shadow-float:0 12px 34px rgba(0,0,0,.28);--shadow-pop:0 18px 50px rgba(0,0,0,.38);--line:#222b25;--line-2:#222b25;
+  --chip-border:#323c35;--tile:#1d2520;--tile-hover:#252e28;--ink:#e8ede9;--on-ink:#10261a;--accent-ink:#286a4a;
+  --accent-ink-text:#fff;--on-brand:#10261a;--warning-soft:#33280f;--danger-soft:#3a1d18;--muted-text:#a2ada5;
+  --field-border:#6b786f;--sync-info:#8bb8e8;--sync-info-soft:#16283b;--sync-violet:#c6a6ec;--sync-violet-soft:#2a1d3b
+}
+/* Contraste élevé (Personnaliser) : bordure renforcée. */
+:root.high-contrast{--border:#8b958e}
+/* Contraste renforcé : réglage système « Augmenter le contraste », ancien réglage « Contraste élevé » et Plein champ. */
+@media (prefers-contrast:more){
+  :root:not(.theme-dark){--text-secondary:#454d48;--text-tertiary:#5a615c;--muted-text:#3d4540;--border-subtle:#cfcac0;--border-strong:#8f958f;--chip-border:#8f958f;--field-border:#5f6862;--brand:#1f5a3d}
+  :root.theme-dark{--text-secondary:#cfd8d2;--text-tertiary:#b0bbb3;--muted-text:#cfd8d2;--border-subtle:#3e4b42;--border-strong:#66766b;--chip-border:#66766b;--field-border:#8a9a8f}
+}
+:root:is(.plein-champ,.high-contrast):not(.theme-dark){--text-secondary:#454d48;--text-tertiary:#5a615c;--muted-text:#3d4540;--border-subtle:#cfcac0;--border-strong:#8f958f;--chip-border:#8f958f;--field-border:#5f6862;--brand:#1f5a3d}
+:root.theme-dark:is(.plein-champ,.high-contrast){--text-secondary:#cfd8d2;--text-tertiary:#b0bbb3;--muted-text:#cfd8d2;--border-subtle:#3e4b42;--border-strong:#66766b;--chip-border:#66766b;--field-border:#8a9a8f}
+/* Plein champ : cibles de 52 px. */
+:root.plein-champ{--a11y-hit:52px}
+html[data-assistant-dock="hidden"]{--assistant-clearance:0px}
+/* Cabine de nuit : surfaces plus sombres, texte moins lumineux, rouges et ambres atténués. */
+:root.theme-night{
+  --bg:#080a09;--surface:#0e1210;--surface-secondary:#131815;--surface-tertiary:#19201b;--text-primary:#c4ccc6;
+  --text-secondary:#8a958d;--text-tertiary:#6b756e;--brand:#4f9471;--brand-hover:#5ea380;--brand-soft:#11281d;--success:#56996f;
+  --warning:#a8823f;--danger:#a8615b;--border-subtle:#1c241f;--border-strong:#2a342e;--chip-border:#252e28;--ink:#c4ccc6;
+  --warning-soft:#211a0b;--danger-soft:#251311;--muted-text:#8a958d
+}
 }

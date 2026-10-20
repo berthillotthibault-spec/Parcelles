@@ -1,10 +1,13 @@
+// @ts-check
 import {filterGrazingSessions} from './grazing.js';
 // One ordering for the home recommendation and the work filters.
 const closedStatuses=new Set(['Terminé','Terminée','Annulé','Annulée']);
+/** @param {import('parcelles/types').Intervention|import('parcelles/types').Task} item @param {'work'|'task'} [kind] @returns {string} */
 export function agendaDate(item,kind='work'){
   const value=String(kind==='task'?item.dueDate||'':item.plannedDate||item.date||'').slice(0,10);
   return /^\d{4}-\d{2}-\d{2}$/.test(value)?value:'';
 }
+/** @param {import('parcelles/types').Intervention|import('parcelles/types').Task} item @param {'work'|'task'} [kind] */
 export function isPending(item,kind='work'){
   return !item.deletedAt&&!closedStatuses.has(item.status||(kind==='work'?'Terminé':'À faire'));
 }
@@ -26,6 +29,7 @@ export function matchesWorkTab(item,tab,today){
   if(tab==='history')return !pending&&date!==today;
   return true;
 }
+/** @param {Partial<import('parcelles/types').AppState>} data @param {string} today Jour AAAA-MM-JJ. */
 export function getHomeAgenda(data,today){
   const candidates=[
     ...(data.interventions||[]).filter(item=>isPending(item)).map(item=>({item,kind:'work',date:agendaDate(item)})),
@@ -38,10 +42,12 @@ export function getHomeAgenda(data,today){
 }
 
 // Pure, read-only V8 projections. No persisted state or schema change.
+/** @param {Date} [date] @returns {string} Jour local AAAA-MM-JJ. */
 export function localDay(date=new Date()){
   return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
 const number=value=>value!==null&&value!==undefined&&String(value).trim()!==''&&Number.isFinite(Number(value))?Number(value):null;
+/** @param {Partial<import('parcelles/types').AppState>} data @param {string} [today] */
 export function dailySituation(data,today=localDay()){
   const agenda=getHomeAgenda(data,today);
   const works=(data.interventions||[]).filter(w=>!w.deletedAt&&!['Annulé','Annulée'].includes(w.status));
@@ -57,6 +63,7 @@ export function dailySituation(data,today=localDay()){
     equipmentHours:done.filter(w=>w.equipmentId).reduce((sum,w)=>sum+Math.max(0,number(w.duration)??0),0),
     grazingMoves:(data.grazingSessions||[]).filter(s=>!s.deletedAt&&s.startDate===today).length};
 }
+/** @param {Partial<import('parcelles/types').AppState>} data @param {string} id @param {string} [today] */
 export function parcelSituation(data,id,today=localDay()){
   const works=(data.interventions||[]).filter(w=>w.parcelId===id&&!w.deletedAt);
   const tasks=(data.tasks||[]).filter(t=>t.parcelId===id);
@@ -79,14 +86,19 @@ export function weatherOpportunity(weather,preferences={},now=new Date()){
   // The existing rain preference is daily, so never compare it to hourly rain.
   const wind=number(preferences.weatherWindThreshold),rain=0.2;
   if(!(wind>0))return {stale:false,window:null,risk:null,why:[],missing:['Seuil de vent non réglé dans les paramètres']};
-  let start=null,end=null,risk=null,best=null,unknown=0;
+  /** @type {any} */
+  let start=null,end=null;
+  /** @type {{time:string, reason:string}|null} */
+  let risk=null;
+  /** @type {{start:string, end:string}|null} */
+  let best=null,unknown=0;
   hourly.time.forEach((time,i)=>{
     const date=new Date(time),speed=number(hourly.wind_gusts_10m?.[i]??hourly.wind_speed_10m?.[i]),wet=number(hourly.precipitation?.[i]);
     if(date<now||localDay(date)!==localDay(now))return;
     if(speed===null||wet===null){unknown++;start=end=null;return;}
     const good=speed<wind&&wet<rain;
     if(!good&&!risk)risk={time,reason:wet>=rain?'Pluie':'Vent'};
-    if(good){if(!start||date-new Date(end)>3600000)start=time;end=time;if(!best||new Date(end)-new Date(start)>new Date(best.end)-new Date(best.start))best={start,end};}
+    if(good){if(!start||date.getTime()-new Date(end).getTime()>3600000)start=time;end=time;if(!best||new Date(end).getTime()-new Date(start).getTime()>new Date(best.end).getTime()-new Date(best.start).getTime())best={start,end};}
     else start=end=null;
   });
   const window=best&&best.end!==best.start?best:null,clock=t=>`${new Date(t).getHours()} h`;
@@ -96,15 +108,17 @@ export function weatherOpportunity(weather,preferences={},now=new Date()){
   return {stale:false,risk,window,why,missing:unknown?[`${unknown} heure${unknown>1?'s':''} sans vent ou pluie prévus : exclue${unknown>1?'s':''}`]:[]};
 }
 
+/** @param {Partial<import('parcelles/types').AppState>} data @param {string} [today] @param {number} [threshold] */
 export function grazingWatch(data,today=localDay(),threshold=7){
   if(!(Number(threshold)>0))return [];
   const parcels=new Map((data.parcelles||[]).filter(p=>!p.deletedAt).map(p=>[p.id,p]));
   return filterGrazingSessions(data.grazingSessions,{date:today}).filter(s=>s.startDate).flatMap(s=>{
-    const days=Math.floor((new Date(`${today}T12:00:00Z`)-new Date(`${s.startDate}T12:00:00Z`))/86400000);
+    const days=Math.floor((new Date(`${today}T12:00:00Z`).getTime()-new Date(`${s.startDate}T12:00:00Z`).getTime())/86400000);
     return days>=Number(threshold)?[{id:s.id,parcelId:s.parcelId,days,label:`${parcels.get(s.parcelId)?.nom||'Parcelle'} · animaux présents depuis ${days} jours`}]:[];
   });
 }
 
+/** @param {import('parcelles/types').Equipment} machine */
 export function maintenanceRemaining(machine){
   const due=number(machine.maintenanceDue),current=number(machine.currentMeter);
   return due===null||current===null?null:due-current;

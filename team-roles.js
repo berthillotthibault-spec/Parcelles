@@ -7,7 +7,7 @@
 // - le responsable gère les grades inférieurs au sien et n’attribue que ces grades ;
 // - les autres grades ne gèrent personne ;
 // - chacun peut quitter l’exploitation, sauf le propriétaire tant qu’il n’a pas transféré la propriété.
-import {ROLES, assignableRoles, canMutate, normalizeRole, roleCan, roleLabel} from './permissions.js';
+import {OPERATOR_MATERIEL_FIELDS, ROLES, assignableRoles, canMutate, normalizeRole, roleCan, roleLabel} from './permissions.js';
 
 export const ROLE_ORDER = ['owner', 'manager', 'editor', 'operator', 'accountant', 'viewer'];
 
@@ -150,6 +150,10 @@ export function permissionMatrix() {
     label,
     cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(canMutate(r, {...op, action: 'update'}))]))
   }));
+  // Vague 12 : l'opérateur terrain relève le compteur des engins sans modifier le reste de la fiche.
+  const machines = rows.find(row => row.label === 'Matériel');
+  for (const r of ROLE_ORDER) if (machines.cells[r].value === 'no' && canMutate(r, {entity: 'materiels', action: 'update', fields: OPERATOR_MATERIEL_FIELDS}))
+    machines.cells[r] = {value: 'partial', note: 'compteur seulement'};
   rows.push({label: 'Mettre à la corbeille', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'delete'))]))});
   rows.push({label: 'Supprimer définitivement', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'purge'))]))});
   rows.push({label: 'Restaurer une sauvegarde', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'restore'))]))});

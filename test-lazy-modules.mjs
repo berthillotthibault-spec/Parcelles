@@ -197,6 +197,9 @@ function lazyIdentifiers() {
   for (const m of app.matchAll(/lazy\.onLoad\('(\w+)',m=>(?:\{?([\w$]+)=|m\.create)/g)) ids[m[1]].add(m[2] || `onLoad:${m[1]}`);
   for (const m of app.matchAll(/(?:function ([\w$]+)\(\)\{return (?:[\w$]+\|\|\()?)?([\w$]+)(?:\?\?=|\|\|=|=)lazy\.get\('(\w+)'\)/g)) { ids[m[3]].add(m[2]); if (m[1]) ids[m[3]].add(`${m[1]}()`); }
   // Un module chargé au démarrage peut tirer un module différé avec le chargeur qu'app.js lui passe (n° 13, saisie vocale).
+  // Module de logique pure lu à la demande (n° 147) : const {…}=lazy.get('x'), lazy.get('x').f(…) ou (await lazy.load('x')).f(…).
+  for (const re of [/const \{[\w$,]+\}=lazy\.get\('(\w+)'\)/g, /lazy\.get\('(\w+)'\)\.[\w$]+\(/g, /\(await lazy\.load\('(\w+)'\)\)\.[\w$]+\(/g])
+    for (const m of app.matchAll(re)) ids[m[1]].add(`logique:${m[1]}`);
   if (/createVoiceNotesUI\(\{[^}]*\blazy\b/.test(app)) for (const m of read('voice-notes-ui.js').matchAll(/host\.lazy\.need\('(\w+)'[^]*?host\.lazy\.get\('\1'\)/g)) ids[m[1]].add(`voice-notes-ui:${m[1]}`);
   return ids;
 }
@@ -217,7 +220,8 @@ const SAFE_WITHOUT_MODULE = [
   /fieldTrackerUI\?\.refresh\(\)/, // mode terrain jamais ouvert : rien à rafraîchir
   /intel\(\)\?\.assistantActionRequiresConfirmation\(action\)\?\?true/, // sans le module, confirmation exigée par défaut
   /\(mode==='edit'\?contourEditUI\(\):walkMeasureUI\(\)\)\.askAbandon/, // outil actif, donc déjà chargé
-  /hereUI\?(?:\.(?:pill|sheetHtml)\(|hereUI\.apply\()/ // n° 111 : sans position connue, ni pastille ni parcelle contextuelle
+  /hereUI\?(?:\.(?:pill|sheetHtml)\(|hereUI\.apply\()/, // n° 111 : sans position connue, ni pastille ni parcelle contextuelle
+  /get ([\w$]+)\(\)\{return \1;\}/ // n° 147 : accesseur du contexte partagé ; ses utilisateurs attendent le module (test-actions.mjs)
 ];
 
 test('aucune utilisation d’un module différé sans attente de son chargement', () => {
@@ -261,7 +265,7 @@ test('chaque data-action littéral garde un gestionnaire', () => {
   files.forEach((file, n) => { for (const m of sources[n].matchAll(/data-action=\\?["']([a-z0-9-]+)\\?["']/g)) rendered.set(m[1], file); });
   const handled = new Set();
   for (const s of sources) {
-    for (const re of [/action\s*===?\s*'([a-z0-9-]+)'/g, /'([a-z0-9-]+)'\s*===?\s*(?:action|[\w.]*dataset\.action)/g, /dataset\.action\s*===?\s*'([a-z0-9-]+)'/g, /\[data-action=\\?["']([a-z0-9-]+)\\?["']\]/g, /case\s+'([a-z0-9-]+)'/g, /'([a-z0-9-]+)'\s*:\s*(?:\(|async|\w+\s*=>|function)/g])
+    for (const re of [/action\s*===?\s*'([a-z0-9-]+)'/g, /'([a-z0-9-]+)'\s*===?\s*(?:action|[\w.]*dataset\.action)/g, /dataset\.action\s*===?\s*'([a-z0-9-]+)'/g, /\[data-action=\\?["']([a-z0-9-]+)\\?["']\]/g, /case\s+'([a-z0-9-]+)'/g, /'([a-z0-9-]+)'\s*:\s*(?:\(|async|\w+\s*=>|function)/g, /^\s*(?:async\s+)?'([a-z0-9-]+)'\s*\(/gm])
       for (const m of s.matchAll(re)) handled.add(m[1]);
     for (const m of s.matchAll(/(?:ACTIONS|actions)\s*=\s*(?:Object\.freeze\()?(?:new Set\()?\[([^\]]*)\]/g)) for (const x of m[1].matchAll(/'([a-z0-9-]+)'/g)) handled.add(x[1]);
   }

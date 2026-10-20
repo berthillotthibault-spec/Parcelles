@@ -63,6 +63,14 @@ export const LAZY_MODULES = Object.freeze({
   publicWorks: () => import('./public-works-ui.js'),
   fieldTracker: () => import('./field-tracker-ui.js'),
   fieldCoverage: () => import('./field-coverage-ui.js'),
+  // n° 147 : formulaires Travail / Travail groupé, écrans Compte & équipe, Synchronisation et Diagnostic sortis d'app.js
+  workForm: () => import('./work-form-ui.js'),
+  account: () => import('./account-ui.js'),
+  diagnostic: () => import('./diagnostic-ui.js'), // écran Santé de l’application
+  // n° 147 : logique servie seulement à l’enregistrement ou à l’import (le graphe de démarrage ne grossit pas)
+  mapRecords: () => import('./map-records.js'),
+  integrations: () => import('./integrations.js'),
+  measureLib: () => import('./walk-measure.js'), // périmètre de l’outil Mesurer de la carte
   // Imports, exports et sauvegardes complètes ; assistant
   importExport: () => import('./import-export.js'),
   shareTarget: () => import('./share-target-ui.js'),

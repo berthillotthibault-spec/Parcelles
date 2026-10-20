@@ -1,5 +1,5 @@
+@layer features{
 /* Short, quiet motion; all long-running animation belongs to active work. */
-:root{--motion-ease:cubic-bezier(.2,.7,.2,1)}
 .app-boot{position:fixed;inset:0;z-index:45;display:grid;place-items:center;background:var(--bg);padding:24px}
 .app-boot[hidden],.activity-progress[hidden]{display:none}
 .boot-identity{width:min(290px,100%);text-align:center;animation:motion-rise .45s var(--motion-ease) both}
@@ -47,3 +47,4 @@
   .skeleton-line::after{display:none}
 }
 @media(forced-colors:active){.motion-track{border:1px solid CanvasText}.motion-track>span{background:Highlight}.motion-spinner{border-color:CanvasText;border-top-color:Highlight}}
+}

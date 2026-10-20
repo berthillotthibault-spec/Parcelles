@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Store} from './state.js';
 import {canMutate} from './permissions.js';
-import {keypadInput,parseDecimal,planTpDay,saveTpDay,tpDayAllowed,tpDayEquipment,tpDaySaveOperations,tpDayShareText,tpDayUndoScope,tpDayWriteCount,undoTpDay} from './public-works-day.js';
+import {limitedCloudPayload} from './sync.js';
+import {TP_DAY_METER_OPERATION,keypadInput,parseDecimal,planTpDay,saveTpDay,tpDayAllowed,tpDayEquipment,tpDaySaveOperations,tpDayShareText,tpDayUndoScope,tpDayWriteCount,undoTpDay} from './public-works-day.js';
 
 class MemoryStorage{
   constructor(){this.value=null;}
@@ -137,25 +138,63 @@ test('rôle lecture seule : aucune écriture', async ()=>{
   assert.equal(store.get('chantiers','c1').tpLogs.length,1);
 });
 
-test('opérateur terrain : compteur refusé dès le contrôle, journée simple annulable, annulation alignée sur les droits', async ()=>{
-  const store=new Store(new MemoryStorage());await store.init();await store.setPreferences({autoBackup:false});
+test('opérateur terrain : relevé de compteur et annulation permis, rien d’autre sur la fiche de l’engin (vague 12)', async ()=>{
+  const store=new Store(new MemoryStorage());await store.init();await store.setPreferences({autoBackup:false,syncEnabled:true});
   const seed=base();
   await store.mutate('Préparation',state=>{state.chantiers.push(...seed.chantiers);state.materiels.push(...seed.materiels);},{queue:false});
   const guard=op=>canMutate('operator',op);
   store.setWriteGuard(guard);
-  assert.equal(tpDayAllowed(guard,[{entity:'materiels',action:'update'}]),false,'case Compteur masquée pour l’opérateur');
-  const withMeter=planTpDay(store.state,store.get('chantiers','c1'),{date:'2026-10-15',rows:[{equipmentId:'m1',meter:'1207'}]});
-  assert.equal(tpDayAllowed(guard,tpDaySaveOperations('c1',tpDayWriteCount(withMeter,{photo:false}))),false,'refus annoncé dès « Vérifier »');
-  await assert.rejects(()=>saveTpDay(store,'c1',{date:'2026-10-15',rows:[{equipmentId:'m1',meter:'1207'}]}),/rôle/);
-  const simple=await saveTpDay(store,'c1',{date:'2026-10-15',rows:[{equipmentId:'m1',hours:'7',quantity:'30'}]});
-  assert.equal(tpDayAllowed(guard,tpDayUndoScope(store.state,'c1',simple.dayId).operations),true);
-  await undoTpDay(store,'c1',simple.dayId);
-  assert.equal(store.get('chantiers','c1').tpLogs.filter(l=>l.dayId===simple.dayId&&!l.deletedAt).length,0,'l’opérateur annule sa journée simple');
+  assert.equal(tpDayAllowed(guard,[TP_DAY_METER_OPERATION]),true,'case Compteur affichée pour l’opérateur');
+  assert.equal(tpDayAllowed(guard,[{entity:'materiels',action:'update'}]),false,'fiche complète de l’engin refusée');
+  const withMeter=planTpDay(store.state,store.get('chantiers','c1'),{date:'2026-10-15',rows:[{equipmentId:'m1',meter:'1207,5',hours:'7',quantity:'30'}]});
+  assert.equal(tpDayAllowed(guard,tpDaySaveOperations('c1',tpDayWriteCount(withMeter,{photo:false}))),true,'« Vérifier » accepte le relevé');
+  const day=await saveTpDay(store,'c1',{date:'2026-10-15',rows:[{equipmentId:'m1',meter:'1207,5',hours:'7',quantity:'30'}]});
+  const machine=store.get('materiels','m1');
+  assert.equal(machine.currentMeter,1207.5,'compteur relevé par l’opérateur');
+  assert.equal(machine.nom,'Pelle 8 t');
+  const queued=store.state.queue.find(item=>item.entity==='materiels'&&item.entityId==='m1');
+  assert.deepEqual(queued.fields,['currentMeter'],'seul le compteur part au cloud');
+  assert.equal(tpDayAllowed(guard,tpDayUndoScope(store.state,'c1',day.dayId).operations),true,'« Annuler » proposé');
+  await undoTpDay(store,'c1',day.dayId);
+  assert.equal(store.get('materiels','m1').currentMeter,1200,'annulation : compteur remis par l’opérateur');
+  assert.deepEqual(store.state.queue.find(item=>item.entity==='materiels'&&item.entityId==='m1').fields,['currentMeter'],'annulation toujours limitée au compteur');
+  assert.equal(store.get('chantiers','c1').tpLogs.filter(l=>l.dayId===day.dayId&&!l.deletedAt).length,0);
+  // Tout autre changement de la fiche reste refusé, compteur compris s'il est accompagné d'un autre champ.
+  await assert.rejects(()=>store.upsert('materiels',{id:'m1',nom:'Pelle 8 t',coutHoraire:0}),/rôle/);
+  await assert.rejects(()=>store.upsert('materiels',{id:'m1',nom:'Pelle 8 t',currentMeter:1300}),/rôle/,'upsert ordinaire : écriture complète refusée');
+  assert.equal(store.get('materiels','m1').currentMeter,1200);
+  assert.equal(canMutate('operator',{entity:'materiels',action:'update',fields:['currentMeter','coutHoraire']}),false);
+  assert.equal(canMutate('operator',{entity:'materiels',action:'update',fields:[]}),false);
+  for(const action of ['create','delete'])assert.equal(canMutate('operator',{entity:'materiels',action,fields:['currentMeter']}),false,`${action} d’engin refusé`);
+  assert.equal(canMutate('operator',{entity:'parcels',action:'update',fields:['currentMeter']}),false,'exception limitée aux engins');
+  assert.equal(canMutate('accountant',TP_DAY_METER_OPERATION),false,'comptabilité : pas de relevé');
+  assert.equal(canMutate('viewer',TP_DAY_METER_OPERATION),false);
   const fuel=await saveTpDay(store,'c1',{date:'2026-10-16',rows:[{equipmentId:'m1',hours:'7',fuel:'50'}]});
   const allowed=tpDayAllowed(guard,tpDayUndoScope(store.state,'c1',fuel.dayId).operations);
   assert.equal(allowed,canMutate('operator',{entity:'integrationImports',action:'delete',farmKind:'fuel'}),'« Annuler » proposé seulement si le rôle peut tout retirer');
   if(!allowed)await assert.rejects(()=>undoTpDay(store,'c1',fuel.dayId),/annuler/);
   assert.equal(tpDayAllowed(null,[{entity:'materiels',action:'update'}]),true,'sans garde-fou : tout est permis');
+});
+
+test('file d’envoi : écriture limitée au compteur, élargie par une écriture complète', async ()=>{
+  const store=new Store(new MemoryStorage());await store.init();await store.setPreferences({autoBackup:false,syncEnabled:true});
+  store.queue({entity:'materiels',entityId:'m1',action:'update',payload:{id:'m1'},fields:['currentMeter']});
+  store.queue({entity:'materiels',entityId:'m1',action:'update',payload:{id:'m1'},fields:['currentMeter']});
+  assert.deepEqual(store.state.queue.filter(item=>item.entityId==='m1').map(item=>item.fields),[['currentMeter']]);
+  store.queue({entity:'materiels',entityId:'m1',action:'update',payload:{id:'m1'}});
+  assert.equal(store.state.queue.find(item=>item.entityId==='m1').fields,undefined,'écriture complète : plus de limite');
+  store.queue({entity:'materiels',entityId:'m1',action:'update',payload:{id:'m1'},fields:['currentMeter']});
+  assert.equal(store.state.queue.find(item=>item.entityId==='m1').fields,undefined,'une écriture complète en attente reste complète');
+});
+
+test('sync : fiche limitée = fiche du serveur + compteur local', ()=>{
+  const remote={id:'m1',nom:'Pelle 8 t',coutHoraire:45,currentMeter:1200,version:3,updatedAt:5};
+  const local={id:'m1',nom:'Pelle modifiée',coutHoraire:0,currentMeter:1207.5,version:2,updatedAt:9};
+  const limited=limitedCloudPayload(remote,local,['currentMeter']);
+  assert.deepEqual(limited,{id:'m1',nom:'Pelle 8 t',coutHoraire:45,currentMeter:1207.5,version:4,updatedAt:9});
+  assert.equal(remote.currentMeter,1200,'fiche du serveur intacte');
+  assert.equal(limitedCloudPayload(remote,{id:'m1',version:7,updatedAt:9},['currentMeter']).currentMeter,null,'compteur vidé');
+  assert.equal(limitedCloudPayload(remote,{id:'m1',version:7,updatedAt:9},['currentMeter']).version,7);
 });
 
 test('virgule finale du pavé tolérée', ()=>{

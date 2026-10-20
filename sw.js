@@ -1,4 +1,4 @@
-const BUILD='2026.10.18-v10.19.0';
+const BUILD='2026.10.20-v10.20.0';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
@@ -10,6 +10,7 @@ const TILES=`${PREFIX}tiles-v1`;
 // Rappels en arrière-plan (n° 17) : une erreur de chargement ne doit jamais empêcher le cache de fonctionner.
 try{importScripts('./sw-reminders.js');}catch(error){console.warn('[Parcelles] rappels en arrière-plan indisponibles.',error);}
 const CORE=[
+ /* n° 147 */'./app-context.js','./actions.js','./work-actions.js','./parcel-actions.js','./work-form-ui.js','./account-ui.js','./diagnostic-ui.js',
  /* v7c */'./habits.js','./habits-ui.js','./agro-weather.js','./phenology.js','./phenology-ui.js','./agro-assistant.js','./agro-risk.js','./agro-risk-ui.js','./sowing.js','./sowing-ui.js','./rotation-advice.js','./rotation-advice-ui.js','./stock-capture.js','./stock-capture-ui.js','./share-target.js','./share-target-ui.js',
  /* v6c */'./activity-modules.js','./activity-modules-ui.js','./getting-started.js','./getting-started-ui.js','./whats-new.js','./whats-new-ui.js','./whatsnew.json','./friendly-errors.js','./friendly-errors-ui.js','./help.js','./help-ui.js','./theme.js','./theme-ui.js','./count-up.js','./count-up-ui.js',
  './geometry-ops.js','./contour-edit.js','./contour-edit-ui.js','./snap.js','./snap-ui.js','./walk-measure.js','./walk-measure-ui.js','./parcel-split.js','./parcel-split-ui.js','./approach.js','./approach-ui.js', // v6a

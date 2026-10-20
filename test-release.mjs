@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {parseArgs, buildString, setBuild, coverage, appendToList, CORE_RE, bumpCssVersion, changelogEntry, whatsNewEntry, release, UPLOAD_EXCLUDE} from './tools/release.mjs';
+import {parseArgs, buildString, setBuild, coverage, appendToList, CORE_RE, bumpCssVersion, bumpChangedCss, stylesheets, changelogEntry, whatsNewEntry, release, UPLOAD_EXCLUDE} from './tools/release.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
@@ -45,6 +45,22 @@ test('?v= de design-v3.css monté une seule fois par rapport à la référence',
   const once = bumpCssVersion(base, base);
   assert.equal(once.to, '4.4'); assert.match(once.html, /v=4\.4/);
   assert.equal(bumpCssVersion(once.html, base).changed, false);
+});
+
+test('?v= monté pour chaque feuille modifiée, et seulement celles-là (n° 153)', () => {
+  const base = '<link rel="stylesheet" href="./tokens.css?v=1">\n<link rel="stylesheet" href="./base.css?v=2">\n<link rel="stylesheet" href="./map.css">\n<link rel="stylesheet" href="./design-v3.css?v=4.8">';
+  assert.deepEqual(stylesheets(base).map(s => s.file + ':' + s.v), ['tokens.css:1', 'base.css:2', 'map.css:', 'design-v3.css:4.8']);
+  const once = bumpChangedCss(base, base, ['tokens.css', 'map.css', 'design-v3.css']);
+  assert.match(once.html, /tokens\.css\?v=2"/); assert.match(once.html, /base\.css\?v=2"/);
+  assert.match(once.html, /map\.css\?v=1"/); assert.match(once.html, /design-v3\.css\?v=4\.9"/);
+  assert.equal(once.done.length, 3);
+  // Relancé : rien ne bouge, sauf une feuille encore sans ?v=.
+  assert.deepEqual(bumpChangedCss(once.html, base, ['tokens.css', 'map.css', 'design-v3.css']).done, []);
+  // Le ?v= ajouté depuis la référence suffit (feuille sans ?v= dans la référence).
+  assert.equal(bumpCssVersion('<link rel="stylesheet" href="./map.css?v=1">', '<link rel="stylesheet" href="./map.css">', 'map.css').changed, false);
+  // Les ?v= d'index.html sont tous présents et chaque feuille liée existe.
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  for (const s of stylesheets(html)) { assert.ok(s.v, `${s.file} sans ?v=`); assert.ok(fs.existsSync(path.join(root, s.file)), s.file); }
 });
 
 test('CHANGELOG et whatsnew : entrée à compléter ajoutée une seule fois', () => {

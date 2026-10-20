@@ -1,3 +1,4 @@
+// @ts-check
 // Decode source bytes before any lossy UTF-8 conversion can replace accents.
 export function normalizeTextEncoding(label=''){
   let value=String(label??'').replace(/[\uFEFF\0]/g,'').trim().replace(/^["']|["']$/g,'').toLowerCase();

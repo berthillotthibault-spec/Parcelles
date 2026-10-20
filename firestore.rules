@@ -157,11 +157,32 @@ service cloud.firestore {
           && d.get('build', '') is string && d.get('build', '').size() <= 64
           && d.get('action', '') is string && d.get('action', '').size() <= 64;
       }
+      // Relevé de compteur par l'opérateur terrain (vague 12, permissions.js : OPERATOR_MATERIEL_FIELDS) :
+      // mise à jour d'un engin existant et non supprimé où seul le compteur change. Le document garde son type,
+      // son identifiant, son encodage et deletedAt ; dans payload (map, un niveau, jamais encodé puisque
+      // currentMeter est un nombre), seuls currentMeter et les métadonnées updatedAt / version bougent.
+      // sync.js (limitedCloudPayload) écrit la fiche du serveur + le compteur local.
+      // payloadEncoding peut apparaître (absent -> 'nested-arrays-v1') : les documents écrits avant l'encodage
+      // des charges utiles n'ont pas ce champ, que writeRemoteEntity pose toujours. Il ne peut ni changer ni disparaître.
+      function operatorMeterUpdate(workspaceId) {
+        let before = resource.data;
+        let after = request.resource.data;
+        return isMember(workspaceId) && memberRole(workspaceId) == 'operator'
+          && before.entityType == 'materiels' && after.entityType == 'materiels'
+          && before.get('deletedAt', null) == null
+          && (('payloadEncoding' in before) ? after.get('payloadEncoding', null) == before.payloadEncoding : after.get('payloadEncoding', null) == 'nested-arrays-v1')
+          && after.diff(before).affectedKeys().hasOnly(['payload','payloadEncoding','version','updatedAt','modifiedBy','modifiedEmail','deviceId','build','action','serverUpdatedAt'])
+          && before.payload is map && after.payload is map
+          && before.payload.get('deletedAt', null) == null
+          && after.payload.diff(before.payload).affectedKeys().hasOnly(['currentMeter','updatedAt','version'])
+          && (after.payload.get('currentMeter', null) == null || after.payload.currentMeter is number);
+      }
       match /data/{docId} {
         allow read: if isMember(workspaceId);
         allow create, update: if canWriteData(workspaceId, request.resource.data.entityType, request.resource.data)
           && (resource == null || canWriteData(workspaceId, resource.data.entityType, resource.data))
           && validEntityDoc(workspaceId, docId);
+        allow update: if operatorMeterUpdate(workspaceId) && validEntityDoc(workspaceId, docId);
         allow delete: if isOwner(workspaceId);
       }
 

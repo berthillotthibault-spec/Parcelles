@@ -115,3 +115,9 @@ test('branchements : service worker, diagnostic, app.js',()=>{
   for(const file of ['./voice-notes.js','./voice-notes-ui.js']){assert.ok(sw.includes(`'${file}'`));assert.ok(runtime.includes(`'${file}'`));}
   assert.match(app,/voiceNotes\(\)\.mountFab\(\)/);assert.match(app,/voiceNotesUI\?\.renderHome\(\)/);assert.match(app,/startsWith\('audio\/'\)/);
 });
+
+test('« Compléter le formulaire » attend le formulaire Travail chargé à la demande avant d’ouvrir « Plus de détails »',()=>{
+  // openWorkForm passe par lazy.run : au premier usage, le formulaire n'existe pas encore au retour de l'appel.
+  const ui=fs.readFileSync(new URL('./voice-notes-ui.js',import.meta.url),'utf8');
+  assert.match(ui,/Promise\.resolve\(host\.openWorkForm\([^;]*\)\)\.then\(\(\)=>\{\s*const details=document\.querySelector\('#work-form details'\)/);
+});

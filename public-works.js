@@ -1,3 +1,4 @@
+// @ts-check
 import {clone,uid} from './utils.js';
 import {normalizeEntity} from './state.js';
 

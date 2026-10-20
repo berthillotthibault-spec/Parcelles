@@ -1,3 +1,4 @@
+// @ts-check
 import {isPending} from './home-priorities.js';
 import {normalizeActiveModules} from './activity-modules.js';
 

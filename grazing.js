@@ -1,3 +1,4 @@
+// @ts-check
 import {normalize} from './utils.js';
 
 const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -10,6 +11,7 @@ const count=value=>{
 
 // Calendar dates stay calendar dates. Timestamps are interpreted in the user's
 // local timezone, as is the date shown by the application's date inputs.
+/** @param {Date|string|number|null} [value] @returns {string} */
 export function grazingDate(value=new Date()){
   if(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value.trim())){
     const day=value.trim(),parsed=new Date(`${day}T00:00:00Z`);
@@ -66,6 +68,7 @@ export function grazingType(session){
   return text(session?.animalType)||text(session?.type)||'Non précisé';
 }
 
+/** @param {import('parcelles/types').GrazingSession} session @param {{date?:Date|string}} [options] */
 export function grazingStatus(session,{date=new Date()}={}){
   if(!isRecord(session))return 'invalid';
   if(session.deletedAt)return 'deleted';
@@ -78,6 +81,11 @@ export function grazingStatus(session,{date=new Date()}={}){
   return 'current';
 }
 
+/**
+ * @param {import('parcelles/types').GrazingSession[]|null|undefined} sessions
+ * @param {{status?:string, animalType?:string, parcelId?:string, query?:string, parcels?:import('parcelles/types').Parcelle[], date?:Date|string, gestation?:string}} [options]
+ * @returns {import('parcelles/types').GrazingSession[]}
+ */
 export function filterGrazingSessions(sessions,{status='current',animalType='',parcelId='',query='',parcels=[],date=new Date(),gestation='all'}={}){
   const parcelNames=new Map((Array.isArray(parcels)?parcels:[]).filter(isRecord).map(parcel=>[parcel.id,text(parcel.nom)||text(parcel.name)]));
   const search=normalize(query),type=normalize(animalType);
@@ -265,6 +273,10 @@ export function countGap(known,counted){
 }
 const CHECKS={water:{type:'Eau',title:'Abreuvoir à voir'},fence:{type:'Clôture',title:'Clôture cassée'}};
 /** Observation géolocalisée créée par « Abreuvoir à voir » ou « Clôture cassée ». */
+/**
+ * @param {string} kind
+ * @param {{parcel?:import('parcelles/types').Parcelle|null, gps?:{latitude?:number, longitude?:number, accuracy?:number}|null, date?:Date|string, lot?:string}} [options]
+ */
 export function grazingCheckObservation(kind,{parcel,gps=null,date=new Date(),lot=''}={}){
   const check=CHECKS[kind];if(!check||!parcel)return null;
   const finiteOrNull=v=>Number.isFinite(Number(v))&&v!==null&&v!==''?Number(v):null;

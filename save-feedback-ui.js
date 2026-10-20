@@ -1,6 +1,7 @@
 // n° 18 : vibration, grande coche verte plein écran (600 ms) et bip optionnel après un enregistrement terrain.
 // Réutilise haptic() de motion.js (plugin natif sinon navigator.vibrate ; iOS Safari l'ignore sans effet).
 import {haptic} from './motion.js';
+import {overlayHost} from './utils.js';
 import {SAVED_OVERLAY_MS, beepNotes, feedbackPlan} from './save-feedback.js';
 
 const CHECK = '<svg viewBox="0 0 24 24" width="96" height="96" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7"/></svg>';
@@ -31,8 +32,9 @@ export function createSaveFeedbackUI({preferences = () => ({}), native = () => n
       layer = document.createElement('div'); layer.id = 'saved-check'; layer.className = 'saved-check';
       layer.setAttribute('role', 'status'); layer.setAttribute('aria-live', 'polite');
       layer.innerHTML = `<span class="saved-check-disc">${CHECK}</span><span class="sr-only">Enregistré</span>`;
-      document.body.append(layer);
     }
+    // n° 154 : au-dessus de la fenêtre <dialog> ouverte (couche supérieure), sinon dans la page.
+    const host = overlayHost(); if (host && layer.parentNode !== host) host.append(layer);
     layer.classList.toggle('is-static', !animate);
     layer.classList.remove('is-visible'); void layer.offsetWidth; layer.classList.add('is-visible');
     clearTimeout(overlayTimer);

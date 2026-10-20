@@ -25,5 +25,5 @@ test('le fond de carte est assombri en thème sombre et en cabine de nuit', () =
   const css = fs.readFileSync(new URL('./design-v3.css', import.meta.url), 'utf8');
   assert.match(css, /\.theme-dark \.leaflet-tile-pane\{filter:brightness/);
   assert.match(css, /\.theme-night \.leaflet-tile-pane\{filter:brightness/);
-  assert.match(css, /:root\.theme-night\{/);
+  assert.match(fs.readFileSync(new URL('./tokens.css', import.meta.url), 'utf8'), /:root\.theme-night\{/, 'variables de la cabine de nuit dans tokens.css (n° 153)');
 });

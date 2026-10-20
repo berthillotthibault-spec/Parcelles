@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.20.0",
+      "date": "2026-10-20",
+      "title": "Fiabilité et accessibilité",
+      "items": [
+        "Fenêtres plus accessibles : clavier, lecteur d’écran et retour Android gérés par le navigateur, contrastes renforcés.",
+        "Enregistrement plus léger : seules les données modifiées sont réécrites sur l’appareil.",
+        "L’opérateur terrain peut relever le compteur des engins en fin de journée de chantier.",
+        "Démarrage un peu plus rapide et affichage identique, sur des fondations remises à plat."
+      ]
+    },
+    {
       "version": "10.19.0",
       "date": "2026-10-18",
       "title": "Dictée, chantiers et mode gants",

@@ -156,3 +156,59 @@ test('notify : une seule copie partagée, gelée en surface, distincte de l’é
   assert.throws(()=>{'use strict';seen[0].tasks=[];},TypeError);
   assert.equal(seen[0].tasks.find(t=>t.id==='n1').title,'Une');
 });
+
+test('opérateur terrain (vague 12) : seul le compteur de l’engin part, posé sur la fiche du serveur',async()=>{
+  const db=cloud(),op=await device(db,'C');
+  op.sync.member={role:'operator'};
+  db.docs.set(`workspaces/${WS}/members/C`,{uid:'C',role:'operator'});
+  db.docs.set(`workspaces/${WS}/data/materiels__m1`,{entityType:'materiels',entityId:'m1',payload:{id:'m1',nom:'Pelle 8 t',coutHoraire:45,currentMeter:1200,version:3,updatedAt:5},payloadEncoding:'nested-arrays-v1',version:3,updatedAt:5,deletedAt:null,modifiedBy:'A',deviceId:'dev-A'});
+  op.store.setWriteGuard(o=>op.sync.canWriteEntity(o.entity,o.action,o.farmKind,o.fields));
+  // Copie locale en retard sur le serveur (coût horaire ancien) : elle ne doit pas écraser la fiche distante.
+  await op.store.mutate('Préparation',state=>{state.materiels.push({id:'m1',nom:'Pelle 8 t',coutHoraire:30,currentMeter:1200,version:2,updatedAt:4});},{queue:false,bypassPermissions:true});
+  await assert.rejects(()=>op.store.upsert('materiels',{id:'m1',nom:'Pelle 8 t',coutHoraire:0}),/rôle/);
+  await op.store.mutate('Relevé',state=>{const m=state.materiels.find(x=>x.id==='m1');m.currentMeter=1207.5;m.version=3;m.updatedAt=realNow();op.store.queue({entity:'materiels',entityId:'m1',action:'update',payload:structuredClone(m),fields:['currentMeter']});},{entity:'materiels',entityId:'m1',action:'update',fields:['currentMeter'],queue:false});
+  const result=await op.sync.pushPending();
+  assert.equal(result.sent,1);assert.equal(result.errors,0);
+  const remote=db.docs.get(`workspaces/${WS}/data/materiels__m1`);
+  assert.equal(remote.payload.currentMeter,1207.5);
+  assert.equal(remote.payload.coutHoraire,45,'le reste de la fiche du serveur est conservé');
+  assert.equal(remote.payload.version,4);
+  assert.equal(op.store.get('materiels','m1').coutHoraire,45,'copie locale réalignée sur le serveur');
+  assert.equal(op.store.get('materiels','m1').currentMeter,1207.5);
+  // Engin absent du cloud : l’envoi échoue sans rien écrire, le relevé reste en file.
+  await op.store.mutate('Engin local',state=>{state.materiels.push({id:'m9',nom:'Local',currentMeter:5});op.store.queue({entity:'materiels',entityId:'m9',action:'update',payload:{id:'m9',nom:'Local',currentMeter:5},fields:['currentMeter']});},{queue:false,bypassPermissions:true});
+  const missing=await op.sync.pushPending();
+  assert.equal(missing.errors,1);assert.equal(db.docs.has(`workspaces/${WS}/data/materiels__m9`),false);
+  assert.match(opFor(op.store,'m9').lastError,/absente du cloud/);
+});
+
+test('opérateur terrain (vague 12) : un relevé concurrent plus récent du serveur n’est jamais écrasé',async()=>{
+  const db=cloud(),op=await device(db,'C');
+  op.sync.member={role:'operator'};
+  db.docs.set(`workspaces/${WS}/members/C`,{uid:'C',role:'operator'});
+  op.store.setWriteGuard(o=>op.sync.canWriteEntity(o.entity,o.action,o.farmKind,o.fields));
+  const machine={id:'m1',nom:'Pelle 8 t',currentMeter:1100,version:3,updatedAt:5};
+  await op.store.mutate('Préparation',state=>{state.materiels.push(structuredClone(machine));},{queue:false,bypassPermissions:true});
+  await op.sync.saveBase('materiels',machine);
+  // L'opérateur B a relevé 1300 h et synchronisé pendant que C, hors connexion, relevait 1200 h.
+  const remoteB={entityType:'materiels',entityId:'m1',payload:{...machine,currentMeter:1300,version:4,updatedAt:realNow()+1000},payloadEncoding:'nested-arrays-v1',version:4,updatedAt:realNow()+1000,deletedAt:null,modifiedBy:'B',deviceId:'dev-B'};
+  db.docs.set(`workspaces/${WS}/data/materiels__m1`,structuredClone(remoteB));
+  const read=async value=>op.store.mutate('Relevé',state=>{const m=state.materiels.find(x=>x.id==='m1');m.currentMeter=value;m.version=(m.version||0)+1;m.updatedAt=realNow();op.store.queue({entity:'materiels',entityId:'m1',action:'update',payload:structuredClone(m),fields:['currentMeter']});},{entity:'materiels',entityId:'m1',action:'update',fields:['currentMeter'],queue:false});
+  const reset=()=>op.store.mutate('Nettoyage',state=>{state.queue=[];state.syncConflicts=[];},{queue:false,log:false,bypassPermissions:true});
+  await read(1200);
+  const result=await op.sync.pushPending();
+  assert.equal(result.sent,0);assert.equal(result.conflicts,1);
+  assert.equal(db.docs.get(`workspaces/${WS}/data/materiels__m1`).payload.currentMeter,1300,'le compteur du serveur ne recule pas');
+  assert.equal(opFor(op.store,'m1').status,'conflict');
+  const conflict=op.store.list('syncConflicts').find(c=>c.entityId==='m1'&&c.status==='open');
+  assert.deepEqual(conflict.conflictFields,['currentMeter']);assert.equal(conflict.suggestedMerge,null);
+  // Annulation tardive (retour à la base 1100) par-dessus le relevé de B : conflit aussi.
+  await reset();await read(1100);
+  const undo=await op.sync.pushPending();
+  assert.equal(undo.conflicts,1);assert.equal(db.docs.get(`workspaces/${WS}/data/materiels__m1`).payload.currentMeter,1300);
+  // Un relevé plus haut que celui du serveur et que la base reste valable : il part.
+  await reset();await read(1350);
+  const ahead=await op.sync.pushPending();
+  assert.equal(ahead.sent,1);assert.equal(ahead.conflicts,0);
+  assert.equal(db.docs.get(`workspaces/${WS}/data/materiels__m1`).payload.currentMeter,1350);
+});

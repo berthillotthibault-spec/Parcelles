@@ -64,7 +64,8 @@ test('libellé de l’heure : « 10:42 » le jour même, date sinon',()=>{
 });
 
 test('formulaires branchés : travail, tâche, observation, pièce jointe (note seulement), entretien, pâturage',()=>{
-  const app=readFileSync(new URL('app.js',import.meta.url),'utf8'),grazing=readFileSync(new URL('grazing-ui.js',import.meta.url),'utf8');
+  // n° 147 : le formulaire Travail est dans work-form-ui.js (chargé en différé).
+  const app=readFileSync(new URL('app.js',import.meta.url),'utf8')+readFileSync(new URL('work-form-ui.js',import.meta.url),'utf8'),grazing=readFileSync(new URL('grazing-ui.js',import.meta.url),'utf8');
   for(const key of ["draftKey('interventions'","draftKey('tasks'","draftKey('observations'","draftKey('attachment'","draftKey('maintenanceRecords'","draftKey('grazingSessions'"])assert.ok(app.includes(key),key);
   assert.match(app,/draftKey\('attachment',[^;]*\{only:\['note'\]\}/);
   assert.ok(grazing.includes('draft?.clear()'));

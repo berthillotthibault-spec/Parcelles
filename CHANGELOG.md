@@ -1,5 +1,31 @@
 # Changelog
 
+## 10.20.0 · fiabilité, accessibilité et fondations techniques — 2026-10-20
+
+Données : pas de changement de schéma (version 17). Le rangement sur l’appareil change (n° 137, étape 2) : l’état est désormais enregistré par collection. La conversion est automatique au premier lancement, précédée d’un instantané « Avant mise à jour du format ». Une version antérieure de Parcelles restée en cache sur un autre appareil ou onglet passe en lecture seule (« données d’une version plus récente ») au lieu d’écraser quoi que ce soit ; elle redevient utilisable après sa mise à jour.
+
+À faire par le propriétaire de l’exploitation cloud : `firestore.rules` change (relevé de compteur par l’opérateur). Tester avec `node tools/test-rules.mjs` (émulateur Firebase) puis publier avec `firebase deploy --only firestore:rules`. Tant que les règles ne sont pas publiées, le serveur refuse l’envoi du relevé fait par un opérateur.
+
+Nouveautés :
+- relevé de compteur par l’opérateur terrain (n° 20) : dans la fin de journée chantier, l’opérateur peut saisir et annuler le compteur des engins, sans pouvoir modifier autre chose sur la fiche ;
+- fenêtres natives (n° 154) : clavier, Échap, retour Android et lecteurs d’écran gérés par le navigateur ; contrastes corrigés sur les travaux faits et la rotation de la fiche parcelle ; les fenêtres restent fermées sous l’écran de verrouillage.
+
+Vitesse et fiabilité :
+- enregistrement par collection (n° 137, étape 2) : une modification ne réécrit plus tout l’état, seulement ce qui a changé, dans une seule transaction protégée entre onglets ;
+- app.js allégé (n° 147) : les actions passent par un registre, les formulaires Travail, Compte et Diagnostic se chargent à la demande ; démarrage un peu plus rapide.
+
+Technique (sans effet visible) :
+- feuilles CSS rangées en couches et couleurs en jetons (n° 153), toutes les feuilles versionnées pour le cache ; vérifié par comparaison des styles de 347 000 éléments sur 1 260 états ;
+- vérification du code et des types (n° 151), contrôle d’accessibilité automatique (n° 154) et 68 tests de captures de référence sur téléphone et ordinateur, en clair et en sombre (n° 146) ;
+- fins de ligne normalisées en LF dans tout le dépôt (n° 155).
+
+Corrections (relecture avant publication) :
+- stockage : une version antérieure se verrouille en lecture seule au lieu d’écraser les données converties, instantanés aussi au changement d’espace de travail ;
+- relevé de compteur : engins synchronisés avant l’encodage des données acceptés par les règles, et un compteur changé ailleurs depuis la dernière synchronisation crée un conflit au lieu d’être écrasé (sauf relevé plus élevé) ;
+- fenêtres : maintenues fermées pendant le verrouillage PIN ou Face ID ;
+- note vocale : « Plus de détails » ouvert dans le formulaire Travail chargé à la demande ;
+- CSS : mode terrain sur 3 colonnes, mode compact et mode plein soleil identiques à la version précédente.
+
 ## 10.19.0 · dictée, fin de journée chantier, mode gants, plan imprimable et chiffres verts — 2026-10-18
 
 Données : pas de changement de schéma (version 17). Les surnoms des parcelles et des engins (`aliases`) sont un champ facultatif.

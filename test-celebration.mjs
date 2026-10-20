@@ -62,8 +62,11 @@ test('les modules de célébration sont servis hors connexion et branchés sur l
   const sw=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
   for(const file of ['celebration.js','celebration-ui.js'])assert.match(sw,new RegExp(`'\\./${file.replace('.','\\.')}'`));
   const app=fs.readFileSync(new URL('./app.js',import.meta.url),'utf8');
-  assert.match(app,/action==='finish-work'\)\{const w=store\.get\('interventions',id\);armCelebration\(/);
-  assert.match(app,/action==='finish-task'\)\{const t=store\.get\('tasks',id\);armCelebration\(/);
+  // n° 147 : terminer un travail ou une tâche est géré par work-actions.js (registre d’actions).
+  const actions=fs.readFileSync(new URL('./work-actions.js',import.meta.url),'utf8');
+  assert.match(actions,/function armDone\(control, id, kind\) \{\n\s+armCelebration\(control,/);
+  assert.match(actions,/'finish-work'\(\{id, control\}\) \{\n\s+const w = work\(id\);\n\s+armDone\(control, id, 'work'\);/);
+  assert.match(actions,/'finish-task'\(\{id, control\}\) \{\n\s+const t = task\(id\);\n\s+armDone\(control, id, 'task'\);/);
   assert.match(app,/decorateDayReview\(\$\('#day-review'\)/);
   const css=fs.readFileSync(new URL('./design-v3.css',import.meta.url),'utf8');
   assert.match(css,/prefers-reduced-motion:reduce\)\{\.day-review\{transition:none\}\.review-bloom\{display:none\}/);

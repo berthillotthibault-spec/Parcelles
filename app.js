@@ -20,7 +20,7 @@ import {createGrazingUI,parcelGrazingHtml} from './grazing-ui.js';
 import {endGrazingSession} from './grazing-records.js';
 import {icon,emptyState} from './ui.js';
 import {updateBoot, finishBoot, revealView, dismissToast, startProgress, withProgress} from './motion.js';
-import {armCelebration, decorateDayReview} from './celebration-ui.js';import {createQuickEntryUI} from './quick-entry-ui.js';let quickEntryUI=null;import {createSoilWaterUI} from './soil-water-ui.js';let soilWaterUI=null;import {createTeamWorkUI} from './team-work-ui.js';let teamWorkUI=null;let teamRolesUI=null,pendingInviteToken='';
+import {decorateDayReview} from './celebration-ui.js';import {createQuickEntryUI} from './quick-entry-ui.js';let quickEntryUI=null;import {createSoilWaterUI} from './soil-water-ui.js';let soilWaterUI=null;import {createTeamWorkUI} from './team-work-ui.js';let teamWorkUI=null;let teamRolesUI=null,pendingInviteToken='';
 let habitsUI=null; // v7c
 import {createAgroWeather} from './agro-weather.js';import {createPhenologyUI} from './phenology-ui.js';let agroWeather=null,phenologyUI=null; // v7c
 import {createAgroRiskUI} from './agro-risk-ui.js';let agroRiskUI=null; // v7c
@@ -53,20 +53,18 @@ let nitrogenUI=null; // v5b n° 63
 let pacUI=null; // v5b n° 58
 let coversUI=null; // v5b n° 74
 import {normalizeBaseLayer,cadastreReference} from './basemaps.js';
-import {addRpgParcel,addCadastreParcel,updateMapPoint} from './map-records.js';
 import {StorageService} from './storage.js';
 import {createHistoryUI} from './history-ui.js';
 import {draftKey,persistFormDraft,purgeStaleDrafts} from './form-drafts.js';
 import {ParcelMap} from './map.js';
 import {SyncService} from './sync.js';
-import {verifyDeployment, registerAppServiceWorker, markAppReady, requestPersistentStorage, storageHealth, clearAppCaches, serviceWorkerStatus, resetRuntimeAndReload, downloadEmergencyState} from './runtime.js';
-import {farmInsights, searchEverything, recentWorkSuggestions} from './insights.js';
-import {installErrorRecorder, getRecordedErrors, clearRecordedErrors} from './diagnostics.js';
-import {PerformanceMonitor, idleTask, performanceHistory, resourceTimingSummary} from './performance.js';
+import {verifyDeployment, registerAppServiceWorker, markAppReady, requestPersistentStorage, resetRuntimeAndReload, downloadEmergencyState} from './runtime.js';
+import {farmInsights, searchEverything} from './insights.js';
+import {installErrorRecorder} from './diagnostics.js';
+import {PerformanceMonitor, idleTask} from './performance.js';
 import {computeNotifications, requestNotificationPermission, showBrowserNotification} from './notifications.js';
 import {farmReportHtml, parcelReportHtml, clientReportHtml, equipmentReportHtml, pilotageReportHtml, stockReportHtml, traceabilityReportHtml, documentsReportHtml, openPrintableReport} from './reports.js';
 import {createPhytoUI} from './phyto-ui.js';import {createPhytoCatalogUI} from './phyto-catalog-ui.js';import {createIftUI} from './ift-ui.js';
-import {buildStatistics} from './statistics.js';
 import {buildPilotage, stockSummary} from './pilotage.js';
 import {buildInterventionFromSession, chantierProgress, formatElapsed, locateParcels, nextChantierParcelId, sessionElapsedMs} from './field-ops.js';
 import {createPhotoGeoUI} from './photo-geo-ui.js';
@@ -82,7 +80,7 @@ import {parseLaunchRoute,shouldResumeField} from './shortcuts.js';
 import {parseQrRoute} from './qr-labels.js';
 import {workWeatherSlot,SLOT_DISCLAIMER} from './work-weather.js';
 import {automationActions, automationRuleLabel, automationTemplates, evaluateAutomationRules, interpolateAutomationText, newAutomationFromTemplate} from './automations.js';
-import {DEFAULT_PBKDF2_ITERATIONS, decryptJsonPayload, encryptJsonPayload, encryptedHint, passwordStrength, queueStats} from './security.js';
+import {DEFAULT_PBKDF2_ITERATIONS, decryptJsonPayload, encryptJsonPayload, encryptedHint, passwordStrength} from './security.js';
 let remoteAiMod=null; // n° 144 : remote-ai.js chargé à la première question distante (lazy-modules.js)
 import {html} from './safe-html.js';
 import {createLiveSyncUI} from './live-sync-ui.js';
@@ -97,15 +95,14 @@ import {fetchRpgFeatures} from './rpg.js';let parcelCheckUI=null; // v8a n° 47
 import {createRegulatoryUI} from './regulatory-ui.js';let regulatoryUI=null; // v8a n° 48
 let regulatedOpsUI=null,greenUI=null; // v8a n° 72, v11 n° 71
 import {authorOf} from './live-sync.js';
-import {buildTraceWorkSuggestions, inspectAgriculturalText, matchTraceToParcels, stationSummary} from './integrations.js';
-import {PlatformService, platformSummary} from './platform.js';
+import {PlatformService} from './platform.js';
 import {assignableRoles, roleLabel, roleCan, canSeeTreasury} from './permissions.js';
 import {createMapModes, actionLeavesMode, isDrawDirty} from './map-modes.js';
 import {createSyncStatusUI} from './sync-status-ui.js';
 import {createDossierUI} from './dossier-ui.js';
 import {createRenderScheduler, viewsForEvent} from './render-scheduler.js';
 import {createInstallUI} from './install-ui.js';
-import {enhanceWorkForm, enhanceTaskForm, enhanceMapFilter, validateForm} from './form-chips-ui.js';
+import {enhanceTaskForm, enhanceMapFilter, validateForm} from './form-chips-ui.js';
 import {createWorkSubviewsUI} from './work-subviews-ui.js';
 import {createQueryEngineUI} from './query-engine-ui.js';
 import {createWeekPlannerUI} from './week-planner-ui.js';
@@ -113,13 +110,15 @@ import {createChartsUI} from './charts-ui.js';
 import {createViewTransitions} from './view-transitions-ui.js';
 import {workSubviewHash} from './work-subviews.js';
 import {createSnapUI} from './snap-ui.js';
-import {measurePerimeterM,formatMeters} from './walk-measure.js';
 import {lineageLabel} from './parcel-split.js';
 import {createApproachUI} from './approach-ui.js';
+// n° 147 : contexte partagé, registre d’actions et actions par domaine (travaux, parcelles) sortis du délégué de clics.
+import {ctx as appContext,initContext} from './app-context.js';import {hasAction,runAction,registerActions} from './actions.js';
+import {workActions} from './work-actions.js';import {parcelActions} from './parcel-actions.js';
 import {
   APP_VERSION, BUILD_ID, ENTITY_TYPES, campaignFor, download, downloadBlob, escapeHtml, formatEuro,
   formatNumber, geometryAreaHa, geometryCentroid, haversineMeters, isoDate, localDate, localDateTime,
-  normalize, parseImportDate, pointInGeometry, toNullableNumber, toNumber, uid, routeUrl
+  normalize, parseImportDate, pointInGeometry, toNullableNumber, toNumber, uid, routeUrl, overlayHost, suspendModalDialog, openModalDialog
 } from './utils.js';
 
 const $=selector=>document.querySelector(selector);const $$=selector=>[...document.querySelectorAll(selector)];
@@ -160,7 +159,7 @@ function writeLocalJson(key,value){try{return writeLocalText(key,JSON.stringify(
 async function copyText(text){
   const value=String(text??'');
   try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);return true;}}catch(error){console.warn('[Parcelles] presse-papiers moderne indisponible.',error);}
-  try{const area=document.createElement('textarea');area.value=value;area.setAttribute('readonly','');area.style.position='fixed';area.style.opacity='0';area.style.pointerEvents='none';document.body.append(area);area.select();area.setSelectionRange(0,area.value.length);const ok=document.execCommand?.('copy')===true;area.remove();return ok;}catch(error){console.warn('[Parcelles] copie de secours impossible.',error);return false;}
+  try{const area=document.createElement('textarea');area.value=value;area.setAttribute('readonly','');area.style.position='fixed';area.style.opacity='0';area.style.pointerEvents='none';overlayHost().append(area);area.select();area.setSelectionRange(0,area.value.length);const ok=document.execCommand?.('copy')===true;area.remove();return ok;}catch(error){console.warn('[Parcelles] copie de secours impossible.',error);return false;}
 }
 function normalizeWeatherData(value){
   if(!value||typeof value!=='object'||!value.current||!Number.isFinite(Number(value.current.temperature_2m)))return null;
@@ -177,6 +176,21 @@ const recentParcelIds=Array.isArray(readLocalJson('parcelles:recent',[]))?readLo
 
 async function init(){
   perf.mark('init-start');
+  // n° 147 : contexte partagé (app-context.js) ; les valeurs qui changent pendant la session sont des accesseurs.
+  initContext({$,$$,lazy,recentParcelIds,state,active,parcelById,todayIso,toast,savedToast,modal,closeModal,confirmDelete,switchView,readLocalText,
+    renderAll,renderNetwork,renderToday,renderWork,renderParcels,renderParcelDetailPage,viewTransitions,workSubviews,workSwipe,nextAction,neighbors,photoGeo,
+    approachUI,entityTypeLabel,openWorkForm,openBatchWorkForm,openWorkActions,openWorkFilters,openTaskForm,openTasks,openCalendar,openAttachmentForm,
+    openParcel,openParcelDetail,openParcelForm,openParcelActions,openParcelFilters,openParcelWeather,openNote,routeParcel,shareParcel,
+    startParcelDrawing,startNewParcelDrawing,closeFieldMode,activeFieldSession,copyText,scheduler,perf,
+    get store(){return store;},get sync(){return sync;},get parcelMap(){return parcelMap;},get nativeBridge(){return nativeBridge;},
+    get weatherCache(){return weatherCache;},get lastGps(){return lastGps;},get fieldModeOpen(){return fieldModeOpen;},get currentView(){return currentView;},
+    get currentParcelTab(){return currentParcelTab;},get selectedParcelId(){return selectedParcelId;},
+    get workFilters(){return workFilters;},set workFilters(value){workFilters=value;},
+    get pendingInviteToken(){return pendingInviteToken;},set pendingInviteToken(value){pendingInviteToken=value;},
+    get quickEntryUI(){return quickEntryUI;},get teamWorkUI(){return teamWorkUI;},get phytoUI(){return phytoUI;},get hedgesUI(){return hedgesUI;},
+    get historyUI(){return historyUI;},get habitsUI(){return habitsUI;},get seedsUI(){return seedsUI;}});
+  registerActions(workActions);registerActions(parcelActions);
+  lazy.onLoad('workForm',m=>workFormUI=m.createWorkFormUI(appContext));lazy.onLoad('account',m=>accountUI=m.createAccountUI(appContext));lazy.onLoad('diagnostic',m=>diagnosticUI=m.createDiagnosticUI(appContext));
   installErrorRecorder({buildId:BUILD_ID});
   window.addEventListener('unhandledrejection',reportUnhandledActionError);
   updateBoot(0,'Ouverture des données locales…');
@@ -189,7 +203,7 @@ async function init(){
   platform=new PlatformService(store,sync);perf.mark('platform-ready');
   if(nativeBridge.capabilities.native)writeLocalText('parcelles:native-platform',nativeBridge.capabilities.platform||'ios');
   if(state().preferences.biometricLock&&nativeBridge.capabilities.native)await ensureNativeUnlocked({force:true});
-  store.setWriteGuard(operation=>sync.canWriteEntity(operation.entity,operation.action,operation.farmKind??operation.payload?.farmKind??(operation.entityId?store.get(operation.entity,operation.entityId,{includeDeleted:true})?.farmKind:undefined)));await startTabCoordination();
+  store.setWriteGuard(operation=>sync.canWriteEntity(operation.entity,operation.action,operation.farmKind??operation.payload?.farmKind??(operation.entityId?store.get(operation.entity,operation.entityId,{includeDeleted:true})?.farmKind:undefined),operation.fields));await startTabCoordination();
   parcelMap=new ParcelMap({onSelect:parcel=>{if(mapModes.is('measure')&&!parcelMap.measure)mapModes.exit({name:'measure'});selectedParcelId=parcel.id;rememberRecent(parcel.id);renderMapSheet();},onToast:toast});snapUI().attach();approachUI().attach();
   homeStoryUI=createHomeStoryUI({store,modal,closeModal,toast,refreshWeather});lazy.onLoad('habits',m=>habitsUI=m.createHabitsUI({store,state,toast}));agroWeather=createAgroWeather({state,weather:()=>weatherCache,onChange:()=>{phenologyUI?.refreshDom();agroRiskUI?.renderHome();sowingUI?.refreshDom();}});lazy.onLoad('stockCapture',m=>stockCaptureUI=m.createStockCaptureUI({store,state,modal,closeModal,toast,withProgress}));lazy.onLoad('shareTarget',m=>shareTargetUI=m.createShareTargetUI({store,modal,closeModal,toast,bindChipChoices,importParcels:files=>inspectAndShowImport(files,{}),importTracks:files=>importAgriculturalFiles(files),stockCapture:{open:options=>lazy.run('stockCapture',()=>stockCaptureUI.open(options))}}));lazy.onLoad('rotationAdvice',m=>rotationAdviceUI=m.createRotationAdviceUI({store,state,modal,closeModal,toast,canWrite:()=>document.documentElement.dataset.role!=='viewer',reopen:()=>openRotations()}));sowingUI=createSowingUI({store,state,modal,closeModal,toast,agro:agroWeather,canWrite:()=>document.documentElement.dataset.role!=='viewer'});agroRiskUI=createAgroRiskUI({store,state,modal,closeModal,toast,agro:agroWeather,canWrite:()=>document.documentElement.dataset.role!=='viewer'});phenologyUI=createPhenologyUI({store,state,modal,closeModal,toast,bindChipChoices,agro:agroWeather,canWrite:()=>document.documentElement.dataset.role!=='viewer'});lazy.onLoad('compliance',m=>complianceUI=m.createComplianceUI({store,modal,closeModal,toast,bindChipChoices,openPrintableReport}));herdHealthUI=createHerdHealthUI({store,modal,closeModal,toast,today:()=>todayIso()});campaignCardUI=createCampaignCardUI({role:()=>sync?.role||'owner'});lazy.onLoad('simulator',m=>simulatorUI=m.createSimulatorUI({modal,state}));lazy.onLoad('cropMargins',m=>cropMarginsUI=m.createCropMarginsUI({store,modal,toast}));lazy.onLoad('grainStock',m=>grainStockUI=m.createGrainStockUI({store,modal,toast,openPrintableReport}));lazy.onLoad('herdEconomics',m=>herdEconomicsUI=m.createHerdEconomicsUI({store,modal,toast}));lazy.onLoad('land',m=>landUI=m.createLandUI({store,modal,toast}));lazy.onLoad('claims',m=>claimsUI=m.createClaimsUI({store,modal,closeModal,toast}));lazy.onLoad('fuel',m=>fuelUI=m.createFuelUI({store,modal,toast}));lazy.onLoad('netMargin',m=>netMarginUI=m.createNetMarginUI({store,modal,toast}));lazy.onLoad('treasury',m=>treasuryUI=m.createTreasuryUI({store,modal,toast,bindChipChoices,role:cloudRole}));lazy.onLoad('accountingExport',m=>accountingExportUI=m.createAccountingExportUI({store,modal,toast}));lazy.onLoad('campaignHistory',m=>campaignHistoryUI=m.createCampaignHistoryUI({store,modal}));lazy.onLoad('machineCosts',m=>machineCostsUI=m.createMachineCostsUI({store,modal,toast,refreshEquipment:id=>openEquipmentDetail(id)}));lazy.onLoad('forage',m=>forageUI=m.createForageUI({store,modal,toast,agroWeather:()=>agroWeather}));lazy.onLoad('seeds',m=>seedsUI=m.createSeedsUI({store,modal,toast}));lazy.onLoad('soilAnalysis',m=>soilAnalysisUI=m.createSoilAnalysisUI({store,modal,toast}));hedgesUI=createHedgesUI({store,modal,toast,draw:drawInfraOnMap});stockLotsUI=createStockLotsUI({store,modal,closeModal,toast,lookup:q=>phytoCatalogUI?.lookup(q)||null});lazy.onLoad('nitrogen',m=>nitrogenUI=m.createNitrogenUI({store,modal,toast,bindChipChoices}));lazy.onLoad('covers',m=>coversUI=m.createCoversUI({store,modal,toast,bindChipChoices}));lazy.onLoad('pac',m=>pacUI=m.createPacUI({store,modal,toast,bindChipChoices,showMapMode:async mode=>{closeModal();await store.setPreferences({mapColorMode:mode});switchView('map');}}));phytoCatalogUI=createPhytoCatalogUI({store,modal,toast});phytoUI=createPhytoUI({store,modal,closeModal,toast,openPrintableReport,getWeather:()=>weatherCache,catalogLookup:query=>phytoCatalogUI?.lookup(query)||null,catalogNotice:()=>phytoCatalogUI?.staleNotice()||''});iftUI=createIftUI({store,modal,catalogLookup:query=>phytoCatalogUI?.lookup(query)||null});lazy.onLoad('rpgOnboarding',m=>rpgOnboardingUI=m.createRpgOnboardingUI({store,modal,closeModal,toast,importFile:()=>$('#import-file-input').click(),showMap:()=>{switchView('map');setTimeout(()=>parcelMap?.fitParcels?.(),120);}}));voiceNotes().mountFab();offlineMap();satelliteUI=createSatelliteUI({store,sync,map:parcelMap,openParcel:openParcelDetail,showMap:id=>{switchView('map');parcelMap.map?.invalidateSize({pan:false});parcelMap.select(id);},observe:(id,note)=>{openObservationForm(null,{parcelId:id});$('#observation-form [name=title]').value='Signal satellite à vérifier';$('#observation-form [name=note]').value=note;$('#observation-form [name=useGps]').checked=false;},modal,closeModal,toast});
   lazy.onLoad('yield',m=>yieldUI=m.createYieldUI({store,map:parcelMap,modal,closeModal,openParcel:openParcelDetail,showMap:id=>{switchView('map');parcelMap.select(id);}}));lazy.onLoad('explain',m=>m.createExplainUI({state,weather:()=>weatherCache,agroWeather:()=>agroWeather?.get(),canEdit:()=>sync?.role!=='viewer'&&!store?.tabReadOnly}));lazy.onLoad('farmPlan',m=>m.createFarmPlanUI({state,active,getMap:()=>parcelMap,selectedParcelId:()=>selectedParcelId,modal,closeModal,toast}));lazy.onLoad('share',m=>m.createShareUI({store,state,nativeBridge,catalog:q=>phytoCatalogUI?.lookup(q)||null,toast,copyText,today:todayIso}));lazy.onLoad('techCenters',m=>techCentersUI=m.createTechCentersUI({state,store,sync,platform,nativeBridge,active,parcelById,modal,closeModal,toast,lazy,impex,importAgriculturalFiles}));lazy.onLoad('automations',m=>automationsUI=m.createAutomationsUI({state,store,active,modal,toast,weather:()=>weatherCache}));lazy.onLoad('mapLayers',m=>mapLayersUI=m.createMapLayersUI({state,store,active,modal,toast,getMap:()=>parcelMap,getSatellite:()=>satelliteUI,regulatory,photoGeo,renderMapSheet}));lazy.onLoad('here',m=>{hereUI=m.createHereUI({state,todayIso,onChange:()=>renderMapSheet(),initial:lastGps});renderMapSheet();});lazy.onLoad('settings',m=>settingsUI=m.createSettingsUI({state,store,sync,modal,closeModal,toast,renderAll}));lazy.onLoad('dayReview',m=>dayReviewUI=m.createDayReviewUI({store,state,modal,closeModal,toast,canWrite:()=>document.documentElement.dataset.role!=='viewer'}));lazy.onLoad('measuredYield',m=>measuredYieldUI=m.createMeasuredYieldUI({store,state,map:parcelMap,modal,closeModal,toast,showMap:id=>{switchView('map');parcelMap.select(id);},canWrite:()=>document.documentElement.dataset.role!=='viewer',onApplied:({campaign})=>{if($('#measured-yield-pilotage')?.isConnected)openStatistics(campaign);}}));
@@ -295,8 +309,6 @@ function active(type,data=state()){return(data[type]||[]).filter(item=>!item.del
 function parcelById(id,data=state()){return(data.parcelles||[]).find(p=>p.id===id&&!p.deletedAt);}
 // Échéance pour un travail à faire, date de réalisation pour un travail clos.
 function workDate(item){return isPending(item)?item.plannedDate||item.date:item.date||item.plannedDate;}
-// Statut d’avant « fait », connu pendant la session, pour qu’une réouverture le rétablisse.
-const statusBeforeDone=new Map();
 function todayIso(){return localDay();}
 function setText(selector,text){const el=$(selector);if(el)el.textContent=text;}
 function cloudRoleOptions(selected='viewer'){return assignableRoles().map(role=>`<option value="${role}" ${selected===role?'selected':''}>${escapeHtml(roleLabel(role))}</option>`).join('');}
@@ -335,7 +347,6 @@ function renderAfterStoreChange(data,event={}){
   let marked=views;if(views.includes('map')&&!scheduler().mapChanged(event,data)){marked=views.filter(view=>view!=='map');if(currentView==='map')renderMapSheet(mapRenderState(data));}
   scheduler().invalidate(marked);
 }
-function renderStatsLabel(){const names={today:'Aujourd’hui',parcels:'Parcelles',work:'Travaux',map:'Carte',parcel:'Fiche'};const rows=Object.entries(scheduler().stats());return rows.length?rows.map(([v,r])=>`${names[v]||v} ${r.count}× · ${String(r.lastMs).replace('.',',')} ms (max ${String(r.maxMs).replace('.',',')})`).join(' ; '):'—';}
 function renderAll(){const data=state();renderCommon(data);renderMoreModules();help().mountViewHelp();scheduler().remember(data);scheduler().renderNow();}
 function renderNetwork(){
   if(!store)return;privacy().renderBadge();const data=state(),pending=data.queue.filter(item=>item.status==='pending').length,offline=!navigator.onLine;
@@ -635,14 +646,30 @@ function openOnboardingData(){
 
 function modal(title,description,body,footer='',size='',{helpKey=''}={}){const helpId=store?help().keyFor(title,helpKey):''; // n° 125 : « ? » d’aide
   if($('#modal-root')?.querySelector('#map-layer-form'))parcelMap?.cancelRpgLoad();
-  const root=$('#modal-root');if(!root.classList.contains('has-modal'))lastFocused=document.activeElement;root.classList.add('has-modal');root.innerHTML=`<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${size}" role="dialog" aria-modal="true" aria-labelledby="modal-title"${description?' aria-describedby="modal-description"':''}><header class="modal-header"><div><h2 id="modal-title">${escapeHtml(title)}</h2>${description?`<p id="modal-description">${escapeHtml(description)}</p>`:''}</div>${helpId?help().headerButtonHtml(helpId,title):''}<button class="modal-close" data-action="close-modal" aria-label="Fermer">${icon('close',{size:20})}</button></header><div class="modal-body">${body}</div>${footer?`<footer class="modal-footer">${footer}</footer>`:''}</section>`;
-  const dialog=root.querySelector('[role="dialog"]');if(helpId)help().decorateModal(dialog,helpId);root.querySelectorAll('.segmented').forEach(list=>{if(list.querySelector(':scope>button[data-action]'))watchTabSemantics(list);});
+  const root=$('#modal-root');if(!root.classList.contains('has-modal'))lastFocused=document.activeElement;root.classList.add('has-modal');root.setAttribute('aria-labelledby','modal-title');if(description)root.setAttribute('aria-describedby','modal-description');else root.removeAttribute('aria-describedby');root.innerHTML=`<div class="modal-backdrop" data-action="close-modal"></div><section class="modal ${size}"><header class="modal-header"><div><h2 id="modal-title">${escapeHtml(title)}</h2>${description?`<p id="modal-description">${escapeHtml(description)}</p>`:''}</div>${helpId?help().headerButtonHtml(helpId,title):''}<button class="modal-close" data-action="close-modal" aria-label="Fermer">${icon('close',{size:20})}</button></header><div class="modal-body">${body}</div>${footer?`<footer class="modal-footer">${footer}</footer>`:''}</section>`;
+  const dialog=root.querySelector('.modal');if(helpId)help().decorateModal(dialog,helpId);root.querySelectorAll('.segmented').forEach(list=>{if(list.querySelector(':scope>button[data-action]'))watchTabSemantics(list);});
+  lendModalGuests(root,true);showModalDialog(root);
+  const focusTarget=()=>dialog.querySelector('[data-autofocus]')||dialog.querySelector('.modal-close');focusTarget()?.focus({preventScroll:true});
   setTimeout(()=>{
-    if(!dialog?.isConnected||root.querySelector('[role="dialog"]')!==dialog||dialog.contains(document.activeElement))return;
-    const target=dialog.querySelector('[data-autofocus]')||dialog.querySelector('.modal-close');target?.focus({preventScroll:true});
+    if(!dialog?.isConnected||root.querySelector('.modal')!==dialog||dialog.contains(document.activeElement))return;
+    focusTarget()?.focus({preventScroll:true});
   },0);
 }
-function closeModal(){const root=$('#modal-root');if(!root.classList.contains('has-modal'))return;if(root.querySelector('#map-layer-form'))parcelMap?.cancelRpgLoad();root.classList.remove('has-modal');root.innerHTML='';if(lastFocused?.isConnected)lastFocused.focus?.({preventScroll:true});lastFocused=null;}
+// n° 154 : <dialog> unique ouvert avec showModal() (page inerte, focus contenu, Échap = « cancel ») ;
+// toasts et région vivante y sont prêtés pour rester visibles et annoncés.
+let modalGuests=null;
+function lendModalGuests(root,on){
+  if(on){modalGuests??=[$('#toast-root'),$('#live-region')].filter(Boolean).map(node=>({node,parent:node.parentNode,next:node.nextSibling}));modalGuests.forEach(guest=>{if(guest.node.parentNode!==root)root.append(guest.node);});return;}
+  for(const guest of modalGuests||[])guest.parent.insertBefore(guest.node,guest.next?.parentNode===guest.parent?guest.next:null);modalGuests=null;
+}
+function showModalDialog(root){openModalDialog(root);} // verrou actif : la fenêtre reste suspendue sous l’écran de verrouillage
+function watchModalDialog(){
+  const root=$('#modal-root');if(!root?.showModal)return;
+  root.addEventListener('cancel',event=>{event.preventDefault();closeModal();});
+  // Fermeture imposée par le navigateur : même nettoyage.
+  root.addEventListener('close',()=>{if(!root.open&&!root.dataset.suspended&&root.classList.contains('has-modal'))closeModal();});
+}
+function closeModal(){const root=$('#modal-root');if(!root.classList.contains('has-modal'))return;if(root.querySelector('#map-layer-form'))parcelMap?.cancelRpgLoad();root.classList.remove('has-modal');lendModalGuests(root,false);root.innerHTML='';delete root.dataset.suspended;if(root.open)root.close();if(lastFocused?.isConnected)lastFocused.focus?.({preventScroll:true});lastFocused=null;}
 function submitModalForm(event){
   const form=event.target,root=form.closest?.('#modal-root');if(!root||event.defaultPrevented)return;
   // External action buttons are used by these forms. Never navigate/reload on Enter.
@@ -727,29 +754,10 @@ function startNewParcelDrawing(){if(mapModes.current){mapModes.leave(startNewPar
 function startParcelDrawing(id){const p=parcelById(id);if(!p)return;if(mapModes.current){mapModes.leave(()=>startParcelDrawing(id),{reason:'switch'});return;}drawingParcelId=id;switchView('map');selectedParcelId=id;renderMapSheet();const panel=$('#map-draw-panel'),count=$('#map-draw-count');panel.classList.remove('hidden');enterDrawMode(panel);parcelMap.startPolygonDrawing({onUpdate:n=>{count.textContent=n===0?'Touchez la carte pour placer les sommets (3 minimum).':n<3?`${n} point${n>1?'s':''} · minimum 3`:`${n} sommets · vous pouvez terminer`;},onCancel:()=>{panel.classList.add('hidden');drawingParcelId=null;mapModes.release('draw');},onComplete:async geometry=>{mapModes.release('draw');const current=parcelById(id);if(!current)return;const area=geometryAreaHa(geometry);await store.upsert('parcelles',{...current,geometry,surfaceHa:toNullableNumber(current.surfaceHa)??Number(area.toFixed(4)),source:current.source||'local'},{label:`Géométrie dessinée : ${current.nom}`});panel.classList.add('hidden');drawingParcelId=null;parcelMap.select(id);toast(`Contour enregistré${area?` · ${formatNumber(area)} ha calculés`:''}.`);}});}
 
 
-function openWorkForm(work=null,parcelId=null,{duplicate=false}={}){
-  const data=state(),parcels=active('parcelles',data);if(!parcels.length){toast('Créez ou importez d’abord une parcelle.','error');return;}
-  const templates=active('templates',data),machines=active('materiels',data),recentWorks=[...active('interventions',data)].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));const source=work||{};const chosenParcel=parcelById(parcelId||source.parcelId||selectedParcelId,data)||parcels[0];
-  const distinct=(key)=>[...new Set(recentWorks.map(w=>w[key]).filter(Boolean))].slice(0,12);
-  const item={...source,...(duplicate?{actualMetrics:undefined,plannedMetrics:undefined,statusHistory:[],prescriptionId:undefined,resourceEffects:undefined}:{}),id:duplicate?undefined:source.id,parcelId:chosenParcel.id,date:duplicate?todayIso():(source.date||todayIso()),plannedDate:duplicate?'':(source.plannedDate||''),startTime:source.startTime||'',endTime:source.endTime||'',type:source.type||'',status:duplicate?'À faire':(source.status||'Terminé'),product:source.product||'',culture:source.culture||chosenParcel.culture||'',dose:source.dose??'',doseUnit:source.doseUnit||'',productUnitPrice:source.productUnitPrice??'',surfaceWorked:source.surfaceWorked??(source.id?null:chosenParcel.surfaceHa),duration:source.duration??'',fuel:source.fuel??'',operator:source.operator||data.preferences.defaultOperator||recentWorks.find(w=>w.operator)?.operator||'',equipmentId:source.equipmentId||'',cost:source.cost??'',machineCost:source.machineCost??'',fuelCost:source.fuelCost??'',inputCost:source.inputCost??'',operatorCost:source.operatorCost??'',otherCost:source.otherCost??'',note:source.note||'',weatherSnapshot:source.weatherSnapshot||null};
-  const datalists=`<datalist id="recent-work-types">${distinct('type').map(v=>`<option value="${escapeHtml(v)}"></option>`).join('')}</datalist><datalist id="recent-products">${distinct('product').map(v=>`<option value="${escapeHtml(v)}"></option>`).join('')}</datalist><datalist id="recent-operators">${distinct('operator').map(v=>`<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
-  modal(work?.id&&!duplicate?'Modifier le travail':duplicate?'Refaire ce travail':'Nouveau travail','Un cas simple peut être enregistré avec les champs essentiels uniquement.',`${item.costReviewRequired?'<p class="notice warning">Les mesures réelles ont changé. Vérifiez les coûts, stocks et heures matériel associés avant validation.</p>':''}${datalists}<form id="work-form"><div class="form-grid"><label>Parcelle *<select name="parcelId" required>${parcels.map(p=>`<option value="${p.id}" ${item.parcelId===p.id?'selected':''}>${escapeHtml(p.nom)}</option>`).join('')}</select></label><label>Modèle<select id="work-template"><option value="">Aucun modèle</option>${recentWorkSuggestions(data,3).map((w,i)=>`<option value="history:${i}">Habitude · ${escapeHtml(w.type)}${w.product?` · ${escapeHtml(w.product)}`:''}</option>`).join('')}${templates.map(t=>`<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('')}</select></label><label>Type *<input name="type" list="recent-work-types" required value="${escapeHtml(item.type)}" placeholder="Fauche, semis…"></label><label>Date<input name="date" type="date" required value="${isoDate(item.date)}"></label><label>Statut<select name="status">${['À faire','À préparer','Prêt','En cours','Bloqué','Terminé','En retard','Annulé','Brouillon'].map(v=>`<option ${item.status===v?'selected':''}>${v}</option>`).join('')}</select></label><label>Surface travaillée (ha)<input name="surfaceWorked" inputmode="decimal" type="number" min="0" step="any" value="${item.surfaceWorked??''}"></label></div>
-  <details class="form-section"><summary>Plus de détails</summary><div class="form-grid"><label>Heure début<input name="startTime" type="time" value="${escapeHtml(item.startTime)}"></label><label>Heure fin<input name="endTime" type="time" value="${escapeHtml(item.endTime)}"></label><label>Culture<input name="culture" value="${escapeHtml(item.culture)}"></label><label>Produit<input name="product" list="recent-products" value="${escapeHtml(item.product)}"></label><label>Dose<input name="dose" inputmode="decimal" value="${escapeHtml(item.dose)}"></label><label>Unité dose<select name="doseUnit"><option value="">—</option>${['kg/ha','L/ha','t/ha','m³/ha','unité/ha','graines/ha','q/ha','mm','autre'].map(v=>`<option ${item.doseUnit===v?'selected':''}>${v}</option>`).join('')}</select></label><label>AMM (si phytosanitaire)<input name="amm" value="${escapeHtml(item.amm||'')}"></label><label><input type="checkbox" name="isPhytosanitary" ${item.isPhytosanitary?'checked':''}> Intervention phytosanitaire</label><label>Prix produit / unité (€)<input name="productUnitPrice" inputmode="decimal" value="${item.productUnitPrice??''}"></label><label>Durée (h)<input name="duration" type="number" min="0" step="any" value="${item.duration??''}"></label><label>Carburant (L)<input name="fuel" type="number" min="0" step="0.1" value="${item.fuel??''}"></label><label>Opérateur<input name="operator" list="recent-operators" value="${escapeHtml(item.operator)}"></label><label>Matériel<select name="equipmentId"><option value="">Non renseigné</option>${machines.map(m=>`<option value="${m.id}" ${item.equipmentId===m.id?'selected':''}>${escapeHtml(m.nom)}</option>`).join('')}</select></label><label>Coût machine (€)<input name="machineCost" inputmode="decimal" value="${item.machineCost??''}" placeholder="auto si vide"></label><label>Coût carburant (€)<input name="fuelCost" inputmode="decimal" value="${item.fuelCost??''}" placeholder="auto si vide"></label><label>Coût intrants (€)<input name="inputCost" inputmode="decimal" value="${item.inputCost??''}"></label><label>Coût opérateur (€)<input name="operatorCost" inputmode="decimal" value="${item.operatorCost??''}"></label><label>Autres coûts (€)<input name="otherCost" inputmode="decimal" value="${item.otherCost??''}"></label><label>Coût total (€)<input name="cost" inputmode="decimal" value="${item.cost??''}" placeholder="somme automatique si vide"></label><label class="span-2">Note<textarea name="note">${escapeHtml(item.note)}</textarea></label><label><input type="checkbox" name="saveTemplate"> Enregistrer comme modèle</label><label><input type="checkbox" name="weatherSnapshot" ${item.weatherSnapshot?'checked':''}> Conserver la météo actuelle</label><label><input type="checkbox" name="addPhotoAfter"> Ajouter une photo après</label></div></details></form>`,`<button class="button secondary" data-action="close-modal">Annuler</button>${work?.id&&!duplicate&&work.status==='Terminé'?`<button class="button secondary" data-farm="effects" data-id="${escapeHtml(work.id)}">Stocks / heures / coûts</button>`:''}${work?.id&&!duplicate?'<button class="button secondary" id="attach-work">Pièce jointe</button><button class="button secondary" id="delete-work">Supprimer</button>':''}<button class="button primary" id="save-work">Enregistrer</button>`,'large');
-  const form=$('#work-form');enhanceWorkForm(form,{data,today:todayIso(),recentIds:recentParcelIds});phytoUI?.enhanceWorkForm(form,item);hedgesUI?.enhanceWorkForm(form,item);{const late=lazy.need(['habits','seeds'],{silent:true}),lateFields=()=>{habitsUI.enhanceWorkForm(form,item);seedsUI.enhanceWorkForm(form,item);};if(lazy.ready(['habits','seeds']))lateFields();else late.then(ok=>ok&&form.isConnected&&lateFields());} /* n° 144 : le formulaire s’ouvre sans attendre, habitudes et semences s’y ajoutent à l’arrivée */neighbors().enhanceWorkForm(form);if(item.id&&!duplicate)historyUI?.attach(form,'interventions',item.id);const draft=persistFormDraft(form,draftKey('interventions',duplicate?null:item.id));
-  $('#work-template').onchange=()=>{const value=$('#work-template').value,t=value.startsWith('history:')?recentWorkSuggestions(data,3)[Number(value.split(':')[1])]:templates.find(x=>x.id===value);if(!t)return;for(const key of ['type','product','dose','doseUnit','operator','equipmentId','culture'])if(t[key]!==undefined&&form.elements[key])form.elements[key].value=t[key];};
-  let autoSurface=form.elements.surfaceWorked.value;form.elements.parcelId.onchange=()=>{const p=parcelById(form.elements.parcelId.value);if(p&&(!String(form.elements.surfaceWorked.value).trim()||form.elements.surfaceWorked.value===autoSurface)){form.elements.surfaceWorked.value=p.surfaceHa??'';autoSurface=form.elements.surfaceWorked.value;}};
-  const recalcDuration=()=>{const a=form.elements.startTime.value,b=form.elements.endTime.value;if(!a||!b||String(form.elements.duration.value).trim())return;const [ah,am]=a.split(':').map(Number),[bh,bm]=b.split(':').map(Number);let minutes=(bh*60+bm)-(ah*60+am);if(minutes<0)minutes+=1440;if(minutes>=0)form.elements.duration.value=(minutes/60).toFixed(2);};form.elements.endTime.onchange=recalcDuration;form.elements.startTime.onchange=recalcDuration;
-  $('#save-work').onclick=async()=>{if(!validateForm(form))return;recalcDuration();const v=Object.fromEntries(new FormData(form));const machine=machines.find(m=>m.id===v.equipmentId),duration=toNullableNumber(v.duration),fuel=toNullableNumber(v.fuel);const machineCost=String(v.machineCost).trim()?toNumber(v.machineCost):(machine&&duration!==null?duration*toNumber(machine.hourlyCost):0);const fuelCost=String(v.fuelCost).trim()?toNumber(v.fuelCost):(fuel!==null?fuel*toNumber(data.preferences.fuelPrice):0);const inputCost=String(v.inputCost).trim()?toNumber(v.inputCost):(toNullableNumber(v.dose)!==null&&toNullableNumber(v.productUnitPrice)!==null&&toNullableNumber(v.surfaceWorked)!==null?toNumber(v.dose)*toNumber(v.productUnitPrice)*toNumber(v.surfaceWorked):0);const operatorCost=toNumber(v.operatorCost),otherCost=toNumber(v.otherCost),components=machineCost+fuelCost+inputCost+operatorCost+otherCost,total=String(v.cost).trim()?toNumber(v.cost):components;const weatherSnapshot=form.elements.weatherSnapshot.checked&&weatherCache?{capturedAt:Date.now(),place:weatherCache.place,temperature:weatherCache.current?.temperature_2m,precipitation:weatherCache.current?.precipitation,wind:weatherCache.current?.wind_speed_10m,gust:weatherCache.current?.wind_gusts_10m,humidity:weatherCache.current?.relative_humidity_2m,windDirection:weatherCache.current?.wind_direction_10m,forecastAt:weatherCache.loadedAt}:item.weatherSnapshot;const entity={...item,...v,isPhytosanitary:form.elements.isPhytosanitary.checked,costReviewRequired:false,id:item.id,cost:total,surfaceWorked:toNullableNumber(v.surfaceWorked),dose:toNullableNumber(v.dose)??v.dose,productUnitPrice:toNullableNumber(v.productUnitPrice),duration,fuel,machineCost,fuelCost,inputCost,operatorCost,otherCost,weatherSnapshot,campaignId:campaignFor(v.date),source:item.id?'local':(source.source||'local')};if(v.status!=='Terminé'&&item.plannedDate&&v.date!==item.date)entity.plannedDate=v.date;if(phytoUI&&!(await phytoUI.guardWork(form,entity)))return;{if(!lazy.ready('seeds'))await lazy.need('seeds',{silent:true});const seedError=seedsUI?.applyToWork(entity)||hedgesUI?.guardWork(entity,form);if(seedError){toast(seedError,'error');return;}}if(v.status!=='Terminé'&&!entity.plannedMetrics)entity.plannedMetrics={areaHa:entity.surfaceWorked,dose:toNullableNumber(entity.dose),duration:entity.duration};if(v.status==='Terminé')entity.actualMetrics={areaHa:entity.surfaceWorked,dose:toNullableNumber(entity.dose),duration:entity.duration};const saved=await store.upsert('interventions',entity,{label:`Travail ${item.id?'modifié':'enregistré'} : ${v.type}`});draft.clear();if(v.status==='Terminé'&&(!source.id||duplicate||source.status!=='Terminé'))habitsUI?.afterFinish(saved);if(form.elements.saveTemplate.checked){await store.upsert('templates',{name:`${v.type}${v.product?` · ${v.product}`:''}`,type:v.type,culture:v.culture,product:v.product,dose:v.dose,doseUnit:v.doseUnit,operator:v.operator,equipmentId:v.equipmentId},{label:`Modèle créé : ${v.type}`,queue:false});}const addPhoto=form.elements.addPhotoAfter.checked;closeModal();if(addPhoto){openAttachmentForm(saved.parcelId,{photoOnly:true,interventionId:saved.id});return;}savedToast('Travail enregistré.',{label:'Ouvrir',run:()=>openWorkForm(saved)});};
-  $('#attach-work')?.addEventListener('click',()=>{closeModal();openAttachmentForm(item.parcelId,{interventionId:item.id});});
-  $('#delete-work')?.addEventListener('click',()=>confirmDelete('interventions',item.id,'ce travail'));
-}
-
-function openBatchWorkForm(){
-  const data=state(),parcels=active('parcelles',data),machines=active('materiels',data);if(!parcels.length)return toast('Aucune parcelle disponible.','error');
-  modal('Travail groupé','Une seule saisie crée un travail relié pour chaque parcelle sélectionnée.',`<form id="batch-work-form"><div class="form-grid"><label class="span-2">Parcelles *</label><div class="span-2 batch-parcel-list">${parcels.map(p=>`<label class="check-row"><input type="checkbox" name="parcelIds" value="${p.id}"><span><strong>${escapeHtml(p.nom)}</strong><small>${escapeHtml(p.culture||'')} · ${formatNumber(p.surfaceHa)} ha</small></span></label>`).join('')}</div><div class="span-2"><button type="button" class="text-button" id="batch-select-all">Tout sélectionner</button> <button type="button" class="text-button" id="batch-clear">Effacer</button></div><label>Type *<input name="type" required placeholder="Fauche, semis…"></label><label>Date<input name="date" type="date" value="${todayIso()}" required></label><label>Statut<select name="status">${['À faire','En cours','Terminé'].map(v=>`<option>${v}</option>`).join('')}</select></label><label>Produit<input name="product"></label><label>Dose<input name="dose" inputmode="decimal"></label><label>Unité<select name="doseUnit"><option value="">—</option>${['kg/ha','L/ha','t/ha','m³/ha','unité/ha'].map(v=>`<option>${v}</option>`).join('')}</select></label><label>Matériel<select name="equipmentId"><option value="">Non renseigné</option>${machines.map(m=>`<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('')}</select></label><label>Coût total du lot (€)<input name="batchCost" inputmode="decimal" type="number" min="0" step=".01"></label><label class="span-2">Note<textarea name="note"></textarea></label></div></form>`,`<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="save-batch-work">Enregistrer le lot</button>`,'large');
-  $('#batch-select-all').onclick=()=>$$('#batch-work-form input[name="parcelIds"]').forEach(x=>x.checked=true);$('#batch-clear').onclick=()=>$$('#batch-work-form input[name="parcelIds"]').forEach(x=>x.checked=false);
-  $('#save-batch-work').onclick=async()=>{const form=$('#batch-work-form');if(!validateForm(form))return;const ids=$$('#batch-work-form input[name="parcelIds"]:checked').map(x=>x.value);if(!ids.length)return toast('Sélectionnez au moins une parcelle.','error');const fd=new FormData(form),v=Object.fromEntries(fd),batchId=uid('batch'),selected=ids.map(id=>parcelById(id)).filter(Boolean),totalSurface=selected.reduce((sum,p)=>sum+toNumber(p.surfaceHa),0),batchCost=toNumber(v.batchCost);const entities=selected.map(p=>({batchId,parcelId:p.id,type:v.type,date:v.date,status:v.status,product:v.product,dose:toNullableNumber(v.dose)??v.dose,doseUnit:v.doseUnit,equipmentId:v.equipmentId,note:v.note,surfaceWorked:toNumber(p.surfaceHa),cost:batchCost&&totalSurface?batchCost*(toNumber(p.surfaceHa)/totalSurface):0,campaignId:campaignFor(v.date),source:'local'}));await store.upsertMany('interventions',entities,{label:`Travail groupé : ${v.type} · ${selected.length} parcelles`});closeModal();savedToast(`${selected.length} travaux créés dans le même lot.`);};
-}
+// n° 147 : formulaires Travail et Travail groupé dans work-form-ui.js, chargés à la première ouverture (lazy-modules.js).
+let workFormUI=null;
+function openWorkForm(work=null,parcelId=null,options={}){return lazy.run('workForm',()=>workFormUI.open(work,parcelId,options));}
+function openBatchWorkForm(selected=[]){return lazy.run('workForm',()=>workFormUI.openBatch(selected));}
 
 function routePointForParcel(parcel,data=state()){const entry=active('points',data).find(pt=>pt.parcelId===parcel.id&&normalize(pt.type).includes('entree')&&Number.isFinite(Number(pt.latitude))&&Number.isFinite(Number(pt.longitude)));return entry?{latitude:Number(entry.latitude),longitude:Number(entry.longitude),source:'Entrée de champ'}:{...geometryCentroid(parcel.geometry),source:'Centre de parcelle'};}
 // n° 12 « Ma tournée du jour » : actions du jour ordonnées (field-ops.js), écran étape par étape (day-route-ui.js).
@@ -846,7 +854,7 @@ function openMapTools(){
     '<button class="button primary" data-action="close-modal">Revenir à la carte</button>','small map-tools-menu');enhanceMapFilter(document);
   mapRenderState(state());
 }
-function startMapMeasurement(kind){if(mapModes.current){mapModes.leave(()=>startMapMeasurement(kind),{reason:'switch'});return;}closeModal();switchView('map');const panel=$('#map-measure-panel'),title=$('#measure-title'),value=$('#measure-value');if(!panel)return;panel.classList.remove('hidden','is-result');const quit=panel.querySelector('[data-action="cancel-measure"]');if(quit)quit.textContent='Quitter';mapModes.enter('measure',{cleanup:()=>{parcelMap.cancelMeasurement(false);panel.classList.add('hidden');panel.classList.remove('is-result');}});title.textContent=kind==='area'?'Mesurer une surface':'Mesurer une distance';value.textContent='Touchez la carte pour placer les points.';parcelMap.startMeasurement(kind,{onCancel:()=>{panel.classList.add('hidden');panel.classList.remove('is-result');mapModes.release('measure');},onUpdate:detail=>{value.textContent=detail.points.length<2?`${detail.points.length} point${detail.points.length>1?'s':''}`:kind==='area'?`${detail.points.length} points · ${formatNumber(detail.value)} ha${detail.points.length>=3?` · périmètre ${formatMeters(measurePerimeterM(detail.points))}`:''}`:`${detail.points.length} points · ${detail.value<1000?`${Math.round(detail.value)} m`:`${formatNumber(detail.value/1000)} km`}`;},onComplete:detail=>{const result=kind==='area'?`${formatNumber(detail.value)} ha · périmètre ${formatMeters(measurePerimeterM(detail.points))}`:detail.value<1000?`${Math.round(detail.value)} m`:`${formatNumber(detail.value/1000)} km`;panel.classList.add('is-result');title.textContent=kind==='area'?'Surface mesurée':'Distance mesurée';value.textContent=`${result} · ${detail.points.length} points`;if(quit)quit.textContent='Effacer';}});}
+function startMapMeasurement(kind){if(mapModes.current){mapModes.leave(()=>startMapMeasurement(kind),{reason:'switch'});return;}if(lazy.wait('measureLib',()=>startMapMeasurement(kind)))return;const {measurePerimeterM,formatMeters}=lazy.get('measureLib'); /* n° 147 : walk-measure.js chargé à la demande */closeModal();switchView('map');const panel=$('#map-measure-panel'),title=$('#measure-title'),value=$('#measure-value');if(!panel)return;panel.classList.remove('hidden','is-result');const quit=panel.querySelector('[data-action="cancel-measure"]');if(quit)quit.textContent='Quitter';mapModes.enter('measure',{cleanup:()=>{parcelMap.cancelMeasurement(false);panel.classList.add('hidden');panel.classList.remove('is-result');}});title.textContent=kind==='area'?'Mesurer une surface':'Mesurer une distance';value.textContent='Touchez la carte pour placer les points.';parcelMap.startMeasurement(kind,{onCancel:()=>{panel.classList.add('hidden');panel.classList.remove('is-result');mapModes.release('measure');},onUpdate:detail=>{value.textContent=detail.points.length<2?`${detail.points.length} point${detail.points.length>1?'s':''}`:kind==='area'?`${detail.points.length} points · ${formatNumber(detail.value)} ha${detail.points.length>=3?` · périmètre ${formatMeters(measurePerimeterM(detail.points))}`:''}`:`${detail.points.length} points · ${detail.value<1000?`${Math.round(detail.value)} m`:`${formatNumber(detail.value/1000)} km`}`;},onComplete:detail=>{const result=kind==='area'?`${formatNumber(detail.value)} ha · périmètre ${formatMeters(measurePerimeterM(detail.points))}`:detail.value<1000?`${Math.round(detail.value)} m`:`${formatNumber(detail.value/1000)} km`;panel.classList.add('is-result');title.textContent=kind==='area'?'Surface mesurée':'Distance mesurée';value.textContent=`${result} · ${detail.points.length} points`;if(quit)quit.textContent='Effacer';}});}
 // v8b n° 70 : tracé d'une haie, d'une bande ou d'un contour avec l'outil de mesure de la carte.
 function drawInfraOnMap(kind,label){return new Promise((resolve,reject)=>{if(mapModes.current){mapModes.leave(()=>drawInfraOnMap(kind,label).then(resolve,reject),{reason:'switch'});return;}closeModal();switchView('map');const panel=$('#map-measure-panel'),title=$('#measure-title'),value=$('#measure-value');if(!panel){reject(Error('Carte indisponible.'));return;}panel.classList.remove('hidden','is-result');const quit=panel.querySelector('[data-action="cancel-measure"]');if(quit)quit.textContent='Annuler';mapModes.enter('measure',{cleanup:()=>{parcelMap.cancelMeasurement(false);panel.classList.add('hidden');}});title.textContent=label;value.textContent='Touchez la carte pour placer les points, puis Terminer.';parcelMap.startMeasurement(kind,{onCancel:()=>{panel.classList.add('hidden');mapModes.release('measure');reject(Error('Tracé annulé.'));},onUpdate:d=>{value.textContent=`${d.points.length} point${d.points.length>1?'s':''}${d.points.length>=2?` · ${kind==='area'?`${formatNumber(d.value)} ha`:`${Math.round(d.value)} m`}`:''}`;},onComplete:d=>{panel.classList.add('hidden');mapModes.release('measure');resolve(d);}});});}
 function openRpgParcelForm(id){
@@ -864,7 +872,7 @@ function openRpgParcelForm(id){
     if(button.disabled||!validateForm(form))return;
     const v=Object.fromEntries(new FormData(form));button.disabled=true;
     try{
-      const result=await addRpgParcel(store,feature,{...v,year,clientId:v.clientId==='__new__'?'':v.clientId,newClientName:v.clientId==='__new__'?v.newClientName:''});
+      const result=await (await lazy.load('mapRecords')).addRpgParcel(store,feature,{...v,year,clientId:v.clientId==='__new__'?'':v.clientId,newClientName:v.clientId==='__new__'?v.newClientName:''});
       if(form.isConnected){selectedParcelId=result.parcel.id;closeModal();parcelMap.map?.closePopup();parcelMap.select(result.parcel.id,{zoom:false});}
       toast(result.created?'Parcelle ajoutée.':'Cette parcelle est déjà présente.','success',{label:'Ouvrir la fiche',run:()=>openParcel(result.parcel.id)});
     }catch(error){toast(error.message,'error');button.disabled=false;}
@@ -891,7 +899,7 @@ function openCadastreParcelForm(idu){
     if(missing)return showError(`Champ obligatoire : ${missing}`);
     button.disabled=true;
     try{
-      const result=await addCadastreParcel(store,info,{nom:v.nom,culture:v.culture,ownershipType:v.ownershipType,clientId:needsClient&&!createClient?v.clientId:'',newClientName:createClient?v.newClientName:''});
+      const result=await (await lazy.load('mapRecords')).addCadastreParcel(store,info,{nom:v.nom,culture:v.culture,ownershipType:v.ownershipType,clientId:needsClient&&!createClient?v.clientId:'',newClientName:createClient?v.newClientName:''});
       if(form.isConnected){selectedParcelId=result.parcel.id;closeModal();parcelMap.clearCadastreSelection();parcelMap.select(result.parcel.id,{zoom:false});}
       toast(result.created?`Parcelle créée : ${result.parcel.nom}.`:'Cette parcelle cadastrale est déjà enregistrée.','success',{label:'Ouvrir la fiche',run:()=>openParcel(result.parcel.id)});
     }catch(err){if(form.isConnected){showError(err.message);button.disabled=false;}else toast(err.message,'error');}
@@ -919,7 +927,7 @@ function startMapPointPlacement({id=null,draft=null}={}){
       if(button.disabled)return;button.disabled=true;chooseAgain.disabled=true;
       try{
         let saved;
-        if(id)saved=await updateMapPoint(store,id,coords);
+        if(id)saved=await (await lazy.load('mapRecords')).updateMapPoint(store,id,coords);
         else{const nearest=nearestParcel(coords,state());saved=await store.upsert('points',{...draft,...coords,parcelId:nearest?.distance<100?nearest.parcel.id:null,source:'local'},{label:`Point ajouté : ${draft.nom||draft.type}`});}
         if(button.isConnected){closeModal();parcelMap.focusPoint(saved.id);}savedToast(id?'Point déplacé.':'Point enregistré.');
       }catch(error){toast(error.message,'error');button.disabled=false;chooseAgain.disabled=false;}
@@ -936,7 +944,7 @@ function openMapPointEditor(id){
   const form=$('#map-point-form'),button=$('#save-map-point');neighbors().bindPointForm(form);button.onclick=async()=>{
     if(button.disabled||!validateForm(form))return;button.disabled=true;
     const read=neighbors().readContact(form);if(!read){button.disabled=false;return;}
-    try{await updateMapPoint(store,id,read.values);const saved=store.get('points',id);if(read.contact.contactConsent||saved?.contactConsent||saved?.phone||saved?.email)await store.upsert('points',{...saved,...read.contact},{label:`Contact du point modifié : ${saved.nom||saved.type}`});if(form.isConnected){closeModal();parcelMap.focusPoint(id);}toast('Point modifié.');}
+    try{await (await lazy.load('mapRecords')).updateMapPoint(store,id,read.values);const saved=store.get('points',id);if(read.contact.contactConsent||saved?.contactConsent||saved?.phone||saved?.email)await store.upsert('points',{...saved,...read.contact},{label:`Contact du point modifié : ${saved.nom||saved.type}`});if(form.isConnected){closeModal();parcelMap.focusPoint(id);}toast('Point modifié.');}
     catch(error){toast(error.message,'error');button.disabled=false;}
   };
 }
@@ -1217,7 +1225,7 @@ async function runAutomationCycle({manual=false,event=null,ruleId=null,dryRun=fa
 
 let nativeLockBusy=false;
 function setNativeLockScreen(locked,message=''){
-  document.documentElement.dataset.nativeLocked=locked?'true':'false';
+  document.documentElement.dataset.nativeLocked=locked?'true':'false';suspendModalDialog(locked); // n° 154 : l’écran natif doit passer au-dessus de la fenêtre <dialog>
   let el=document.querySelector('#native-lock-screen');
   if(!locked){el?.remove();return;}
   if(!el){
@@ -1291,6 +1299,8 @@ function startVoiceAssistant(){if(!state().preferences.voiceEnabled){toast('Les 
 
 
 async function importAgriculturalFiles(files){
+  // n° 147 : lecture des fichiers agricoles chargée à la demande (integrations.js, lazy-modules.js).
+  if(!(await lazy.need('integrations')))return;const {inspectAgriculturalText,matchTraceToParcels,stationSummary}=lazy.get('integrations');
   let imported=0,trackCount=0,stationCount=0,waypointCount=0;
   for(const file of files){
     const text=await file.text();const result=inspectAgriculturalText(file.name,text);const importId=uid('integration');const machineRows=(result.machineRows||[]).slice(0,2000);
@@ -1310,7 +1320,7 @@ async function importAgriculturalFiles(files){
 }
 
 async function suggestWorkFromTrack(id){
-  const track=store.get('gpsTracks',id);if(!track)return;const suggestions=buildTraceWorkSuggestions(track,track.matchedParcels||[],{trackId:id});if(!suggestions.length){toast('Aucune suggestion suffisamment fiable sur cette trace.','error');return;}
+  const track=store.get('gpsTracks',id);if(!track||!(await lazy.need('integrations')))return;const suggestions=lazy.get('integrations').buildTraceWorkSuggestions(track,track.matchedParcels||[],{trackId:id});if(!suggestions.length){toast('Aucune suggestion suffisamment fiable sur cette trace.','error');return;}
   const names=suggestions.map(s=>parcelById(s.parcelId)?.nom||s.parcelId);
   if(!confirm(`Créer ${suggestions.length} ${(suggestions.length)>1?'travaux':'travail'} en brouillon à partir de cette trace ?\n\n${names.join('\n')}`))return;
   await store.upsertMany('interventions',suggestions,{label:`${suggestions.length} ${(suggestions.length)>1?'travaux':'travail'} brouillon ${(suggestions.length)>1?'préparés':'préparé'} depuis une trace GPS`});toast('Travaux préparés en brouillon. Vérifiez-les avant validation.','success');closeModal();switchView('work');renderWork(state());
@@ -1360,25 +1370,10 @@ function emptyTrash(){lazy.run('trash',()=>trash().empty());}
 function openLog(){lazy.run('activityLog',()=>activityLogUI.open().catch(error=>toast(error?.message||'Activité indisponible.','error')));}
 // Lien d’invitation (#invitation=CODE) : le code est retenu pour préremplir « Rejoindre » après connexion.
 function handleInvitationLink(){const m=/^#invitation=([A-Za-z0-9]{6,64})$/.exec(location.hash||'');if(!m)return;pendingInviteToken=m[1];try{history.replaceState(null,'',location.pathname+location.search);}catch{}toast('Invitation reçue : connectez-vous avec l’adresse invitée pour rejoindre l’exploitation.','success');setTimeout(()=>openAccountTeam().catch(()=>{}),300);}
-async function openAccountTeam(){
-  const prefs=state().preferences;
-  if(!prefs.syncEnabled){modal('Compte & équipe','Le cloud est facultatif : Parcelles fonctionne entièrement en local sans compte.',`<div class="notice info">Activez la synchronisation uniquement si vous souhaitez retrouver les mêmes données sur plusieurs appareils ou travailler en équipe.</div><p class="form-note">Une configuration Firebase sécurisée est nécessaire. Aucune donnée n’est envoyée tant que cette option reste désactivée.</p>`,`<button class="button secondary" data-action="close-modal">Fermer</button><button class="button primary" id="enable-cloud">Activer le cloud</button>`,'small');$('#enable-cloud').onclick=async()=>{await store.setPreferences({syncEnabled:true});await sync.init();closeModal();openAccountTeam();};return;}
-  await sync.init();
-  if(!sync.status.configured){modal('Compte & équipe','Configuration cloud requise.',`<div class="notice warning">${escapeHtml(sync.status.message)}</div><p>Renseignez <code>PARCELLES_FIREBASE_CONFIG</code> dans <strong>config.js</strong>, puis rechargez l’application. Les règles fournies dans le projet doivent être déployées avant toute utilisation réelle.</p>`,`<button class="button secondary" data-action="open-settings">Réglages</button><button class="button primary" data-action="close-modal">Fermer</button>`,'small');return;}
-  if(!sync.user){modal('Se connecter','Un compte permet la synchronisation multi-appareils.',`<form id="cloud-auth-form" class="form-grid"><label class="span-2">Email<input name="email" type="email" autocomplete="email" required></label><label class="span-2">Mot de passe<input name="password" type="password" autocomplete="current-password" minlength="8" required></label></form><div class="notice info">Le premier compte d’une exploitation peut ensuite créer son espace cloud et inviter des collaborateurs.</div>`,`<button class="button secondary" id="cloud-signup">Créer un compte</button><button class="button primary" id="cloud-login">Se connecter</button>`,'small');const auth=async mode=>{const f=$('#cloud-auth-form');if(!validateForm(f))return;const v=Object.fromEntries(new FormData(f));try{if(mode==='signup')await sync.signUp(v.email,v.password);else await sync.signIn(v.email,v.password);closeModal();renderNetwork();openAccountTeam();}catch(error){toast(error.message,'error');}};$('#cloud-login').onclick=()=>auth('login');$('#cloud-signup').onclick=()=>auth('signup');return;}
-  const workspaces=await sync.listWorkspaces().catch(()=>[]);
-  if(!sync.workspaceId||!sync.member){modal('Choisir une exploitation cloud',`Connecté : ${sync.user.email||sync.user.uid}`,`<div class="stack-list">${workspaces.length?workspaces.map(w=>`<button class="menu-row" data-workspace-id="${w.id}"><span>☁</span><span><strong>${escapeHtml(w.name||'Exploitation')}</strong><small>${escapeHtml(roleLabel(w.role||'viewer'))}</small></span><b>›</b></button>`).join(''):'<div class="empty-state">Aucune exploitation cloud liée à ce compte.</div>'}</div><hr><form id="create-workspace-form" class="form-grid"><label class="span-2">Nouvelle exploitation<input name="name" value="${escapeHtml(state().exploitation.nom||'Mon exploitation')}"></label></form><button class="button secondary" id="create-workspace">Créer l’espace</button><hr><form id="join-workspace-form" class="form-grid">${pendingInviteToken?'<div class="notice info span-2">Invitation reçue : vérifiez que vous êtes connecté avec l’adresse invitée, puis rejoignez l’exploitation.</div>':''}<label class="span-2">Code d’invitation<input name="token" autocomplete="off" placeholder="Code reçu" value="${escapeHtml(pendingInviteToken)}"></label></form><button class="button secondary" id="join-workspace">Rejoindre</button>`,`<button class="button secondary" id="cloud-signout">Se déconnecter</button><button class="button primary" data-action="close-modal">Fermer</button>`,'large');$$('[data-workspace-id]').forEach(b=>b.onclick=async()=>{await sync.selectWorkspace(b.dataset.workspaceId);closeModal();renderNetwork();openAccountTeam();});$('#create-workspace').onclick=async()=>{const name=new FormData($('#create-workspace-form')).get('name');try{await sync.createWorkspace(name);closeModal();renderNetwork();openAccountTeam();}catch(error){toast(error.message,'error');}};$('#join-workspace').onclick=async()=>{const token=new FormData($('#join-workspace-form')).get('token');try{await sync.acceptInvite(token);pendingInviteToken='';closeModal();renderNetwork();openAccountTeam();}catch(error){toast(error.message,'error');}};$('#cloud-signout').onclick=async()=>{await sync.signOut();closeModal();renderNetwork();openAccountTeam();};return;}
-  const [members,devices,activity]=await Promise.all([sync.listMembers().catch(()=>[]),sync.listDevices().catch(()=>[]),sync.listActivity(12).catch(()=>[])]);
-  modal('Compte & équipe',`${escapeHtml(sync.workspace?.name||state().exploitation.nom)} · ${escapeHtml(sync.roleName)}`,`<div class="preview-summary"><div class="preview-stat"><strong>${members.length}</strong><small>membres</small></div><div class="preview-stat"><strong>${devices.length}</strong><small>appareils</small></div><div class="preview-stat"><strong>${state().queue.filter(x=>x.status==='pending').length}</strong><small>à synchroniser</small></div></div><h3>Équipe</h3><div class="stack-list"><button class="menu-row" data-action="open-team-roles"><span>${icon('users',{size:19})}</span><span><strong>Équipe et autorisations</strong><small>${members.length} membre${members.length>1?'s':''} · vous êtes ${escapeHtml(sync.roleName.toLocaleLowerCase('fr'))} · grades, invitations, qui peut faire quoi</small></span><b>›</b></button></div><h3>Appareils</h3><div class="stack-list">${devices.length?devices.map(d=>`<div class="list-row"><div><strong>${escapeHtml(d.name||'Appareil')}</strong><small>${escapeHtml(d.email||'')} · ${d.lastSeen?localDateTime(d.lastSeen):'—'}</small></div>${d.id===sync.deviceId?'<span class="status-badge">Cet appareil</span>':''}</div>`).join(''):'<div class="empty-state">Aucun appareil enregistré.</div>'}</div><form id="device-name-form" class="form-grid"><label class="span-2">Nom de cet appareil<input name="name" value="${escapeHtml(readLocalText('parcelles:device-name')) }" placeholder="iPhone de Thibault"></label></form><button class="small-button" id="rename-device">Renommer</button>${activity.length?`<h3>Activité cloud récente</h3><div class="stack-list">${activity.map(a=>`<div class="list-row"><div><strong>${escapeHtml(a.action||'Action')}</strong><small>${escapeHtml(a.email||'')} · ${a.createdAt?localDateTime(a.createdAt):'—'}</small></div></div>`).join('')}</div>`:''}`,`<button class="button secondary" id="switch-workspace">Changer d’exploitation</button><button class="button secondary" id="cloud-signout">Se déconnecter</button><button class="button primary" data-action="open-sync">Synchroniser</button>`,'large');
-  $('#rename-device').onclick=async()=>{const name=new FormData($('#device-name-form')).get('name');try{await sync.renameDevice(name);toast('Appareil renommé.');openAccountTeam();}catch(error){toast(error.message,'error');}};$('#switch-workspace').onclick=async()=>{await store.switchWorkspace('local');await sync.refreshMembership();closeModal();renderAll();renderNetwork();openAccountTeam();};$('#cloud-signout').onclick=async()=>{await sync.signOut();closeModal();renderNetwork();openAccountTeam();};
-}
-
-async function openSync(){
-  const data=state(),stats=queueStats(data.queue),conflicts=active('syncConflicts',data).filter(c=>c.status==='open');
-  modal('Synchronisation','File robuste, reprises automatiques et conflits explicites.',`<dl class="definition-list"><div><dt>État</dt><dd>${escapeHtml(sync.status.message)}</dd></div><div><dt>Rôle</dt><dd>${escapeHtml(sync.roleName)}</dd></div><div><dt>Prêtes</dt><dd>${stats.ready}</dd></div><div><dt>Temporisées</dt><dd>${stats.waiting}</dd></div><div><dt>En erreur</dt><dd>${stats.error}</dd></div><div><dt>Conflits</dt><dd>${conflicts.length}</dd></div><div><dt>Dernière sync</dt><dd>${data.metadata.lastSyncAt?localDateTime(data.metadata.lastSyncAt):'Aucune'}</dd></div></dl>${data.metadata.lastSyncError?`<div class="notice warning">Dernière erreur : ${escapeHtml(data.metadata.lastSyncError)}</div>`:''}${sync.lastResult?`<div class="notice info">Dernière opération : ${sync.lastResult.sent||0} ${(sync.lastResult.sent||0)>1?'envoyées':'envoyée'}, ${sync.lastResult.pulled||0} ${(sync.lastResult.pulled||0)>1?'reçues':'reçue'}, ${sync.lastResult.merged||0} ${(sync.lastResult.merged||0)>1?'fusions':'fusion'} ${(sync.lastResult.merged||0)>1?'sûres':'sûre'}, ${sync.lastResult.errors||0} ${(sync.lastResult.errors||0)>1?'erreurs':'erreur'}, ${sync.lastResult.uploaded||0} ${(sync.lastResult.uploaded||0)>1?'fichiers':'fichier'} ${(sync.lastResult.uploaded||0)>1?'envoyés':'envoyé'}, ${sync.lastResult.downloaded||0} ${(sync.lastResult.downloaded||0)>1?'reçus':'reçu'}.</div>`:''}${conflicts.length?`<h3>Conflits à résoudre</h3><div class="stack-list">${conflicts.map(c=>`<button class="menu-row" data-action="open-sync-conflict" data-id="${c.id}"><span>!</span><span><strong>${escapeHtml(entityTypeLabel(c.entity))}</strong><small>${escapeHtml((c.conflictFields||[]).length?`Champs : ${c.conflictFields.join(', ')}`:c.entityId||'')}</small></span><b>›</b></button>`).join('')}</div>`:''}<div class="notice info" style="margin-top:14px">Une erreur réseau n’efface jamais la saisie locale. Les tentatives sont espacées progressivement et les opérations en échec restent visibles.</div>`,`<button class="button secondary" data-action="open-account">Compte & équipe</button><button class="button secondary" data-action="open-security">Sécurité</button>${stats.error?'<button class="button secondary" id="retry-sync-errors">Réessayer les erreurs</button>':''}<button class="button secondary" data-action="close-modal">Fermer</button>${sync.status.connected?'<button class="button primary" id="run-sync">Synchroniser maintenant</button>':''}`,'large');
-  $('#retry-sync-errors')?.addEventListener('click',async()=>{await sync.retryFailed();openSync();toast('File de synchronisation réarmée.');});
-  $('#run-sync')?.addEventListener('click',async()=>{const b=$('#run-sync');b.disabled=true;b.textContent='Synchronisation…';try{const r=await withProgress('Synchronisation des données…',()=>sync.sync({force:true}),{button:b});renderNetwork();openSync();toast(`${r.sent||0} ${(r.sent||0)>1?'envoyées':'envoyée'}, ${r.pulled||0} ${(r.pulled||0)>1?'reçues':'reçue'}, ${r.conflicts||0} ${(r.conflicts||0)>1?'conflits':'conflit'}.`);}catch(error){b.disabled=false;b.textContent='Synchroniser maintenant';toast(error.message,'error');}});
-}
+// n° 147 : écrans Compte & équipe et Synchronisation dans account-ui.js, chargés à la première ouverture (lazy-modules.js).
+let accountUI=null;
+function openAccountTeam(){return Promise.resolve(lazy.run('account',()=>accountUI.openAccountTeam()));}
+function openSync(){return Promise.resolve(lazy.run('account',()=>accountUI.openSync()));}
 
 // n° 131 : écran de conflit champ par champ (sync-conflict-ui.js).
 let syncConflictUI=null;
@@ -1388,49 +1383,8 @@ async function resolveSyncConflict(id,choice){
   await store.upsert('syncConflicts',{...c,status:choice==='remote'?'resolved-remote':choice==='merge'?'resolved-merge':'resolved-local',resolvedAt:Date.now()},{label:'Conflit de synchronisation résolu.',queue:false});openSync();toast('Conflit résolu.');
 }
 
-// Décalage mesuré pendant la synchronisation cloud (heure du serveur Firestore) ; la synchronisation n’en dépend plus.
-function clockSkewLabel(skew){
-  const ms=Number(skew?.deviceOffsetMs);if(!skew||!Number.isFinite(ms))return 'Non mesuré (synchronisation cloud requise)';
-  const abs=Math.abs(ms),tolerance=Math.max(2000,Number(skew.uncertaintyMs)||0);
-  if(abs<=tolerance)return `À l’heure (écart inférieur à ${Math.ceil(tolerance/1000)} s)`;
-  const value=abs>=60000?`${formatNumber(Math.round(abs/6000)/10)} min`:`${Math.round(abs/1000)} s`;
-  return `${ms>0?'+':'−'}${value} (l’appareil ${ms>0?'avance':'retarde'}) · mesuré le ${localDateTime(skew.measuredAt)}`;
-}
-function clockSkewIsLarge(skew){return Math.abs(Number(skew?.deviceOffsetMs)||0)>5*60000;}
-async function openDiagnostic(){
-  const [estimate,deploy,health,backups,breakdown,swStatus]=await Promise.all([
-    store.storage.estimate(),
-    verifyDeployment().catch(error=>({ok:false,failed:[{path:'deployment',error:error.message}],results:[]})),
-    storageHealth().catch(()=>({estimate:null,persisted:false})),
-    store.storage.backupList(store.workspaceContext().id).catch(()=>[]),
-    store.storage.breakdown().catch(()=>null),
-    serviceWorkerStatus().catch(()=>null)
-  ]);
-  const reg=await navigator.serviceWorker?.getRegistration?.();const data=state();const blobs=await store.storage.blobKeys().catch(()=>[]),errors=getRecordedErrors();const perfRows=performanceHistory(),resources=resourceTimingSummary();
-  const recentErrors=errors.filter(e=>Date.now()-Number(e.createdAt||0)<=24*3600*1000);const usagePct=estimate.quota?Math.round((estimate.usage||0)/(estimate.quota||1)*100):0;
-  const checks=[
-    {label:'Déploiement',ok:Boolean(deploy.ok),detail:deploy.ok?'Ressources cohérentes':`${deploy.failed?.length||0} ${(deploy.failed?.length||0)>1?'ressources':'ressource'} en erreur`},
-    {label:'Stockage local',ok:!store.storage.usingFallback,detail:store.storage.usingFallback?'Mode de secours':'IndexedDB opérationnel'},
-    {label:'Service worker',ok:Boolean(reg),detail:reg?'Installé':'Absent'},
-    {label:'Sauvegardes',ok:backups.length>0||!data.preferences.autoBackup,detail:backups.length?`${backups.length} ${(backups.length)>1?'sauvegardes':'sauvegarde'} ${(backups.length)>1?'locales':'locale'}`:data.preferences.autoBackup?'Aucune créée':'Automatiques désactivées'},
-    {label:'Erreurs 24 h',ok:recentErrors.length===0,detail:recentErrors.length?`${recentErrors.length} ${(recentErrors.length)>1?'erreurs':'erreur'} ${(recentErrors.length)>1?'enregistrées':'enregistrée'}`:'Aucune erreur enregistrée'},
-    {label:'Cloud',ok:!data.preferences.syncEnabled||Boolean(sync?.status?.connected),detail:!data.preferences.syncEnabled?'Désactivé':sync?.status?.message||'Non initialisé'},
-    {label:'Automatisations',ok:true,detail:`${active('automationRules',data).filter(r=>r.enabled).length} ${(active('automationRules',data).filter(r=>r.enabled).length)>1?'règles':'règle'} ${(active('automationRules',data).filter(r=>r.enabled).length)>1?'actives':'active'}`},
-    {label:'Horloge',ok:!clockSkewIsLarge(data.metadata.clockSkew),detail:clockSkewIsLarge(data.metadata.clockSkew)?`${clockSkewLabel(data.metadata.clockSkew)} · réglez l’heure automatique de l’appareil`:clockSkewLabel(data.metadata.clockSkew)},
-    {label:'Mode natif',ok:true,detail:nativeCapabilities().native?`Actif · ${nativeCapabilities().platform}`:'Web/PWA'}
-  ];
-  const diag={build:BUILD_ID,schema:APP_VERSION,revision:data.metadata.revision,clockSkew:data.metadata.clockSkew||null,userAgent:navigator.userAgent,language:navigator.language,online:navigator.onLine,serviceWorker:Boolean(reg),serviceWorkerController:Boolean(navigator.serviceWorker?.controller),serviceWorkerScope:reg?.scope||null,serviceWorkerReported:swStatus?.reported||null,indexedDbFallback:store.storage.usingFallback,storagePersisted:Boolean(health.persisted),storageUsage:estimate.usage,storageQuota:estimate.quota,storageUsagePercent:usagePct,blobCount:blobs.length,backupCount:backups.length,storageBreakdown:breakdown,performanceLatest:perfRows[0]||null,renderStats:scheduler().stats(),renderMarks:Object.fromEntries(Object.entries(perf.marks).filter(([k])=>k.startsWith('render:'))),resourceTiming:resources,lastImportAt:data.metadata.lastImportAt,lastAutoBackupDay:data.metadata.lastAutoBackupDay,lastSyncAt:data.metadata.lastSyncAt,deploymentOk:deploy.ok,deploymentFailures:deploy.failed,counts:Object.fromEntries(['parcelles','interventions','tasks','photos','documents','points','clients','observations','stockItems','materiels','platformJobs'].map(t=>[t,active(t,data).length])),recentErrors:errors.slice(0,20),cloud:{enabled:Boolean(data.preferences.syncEnabled),connected:Boolean(sync?.status?.connected),workspaceId:data.preferences.workspaceId||null,workspaceStorage:store.workspaceContext(),role:sync?.role||'owner',deviceId:sync?.deviceId||null,user:sync?.user?.email||null,status:sync?.status?.message||null},platform:platformSummary(data,store.workspaceContext()),native:nativeCapabilities(),automations:{enabled:data.preferences.automationEnabled!==false,rules:active('automationRules',data).length,runs:active('automationRuns',data).length,lastRunAt:data.metadata.automationLastRunAt||null}};
-  const failed=deploy.failed?.length?`<div class="notice danger"><strong>Ressources de déploiement manquantes</strong><br>${deploy.failed.map(x=>`${escapeHtml(x.path)} · ${escapeHtml(x.status||x.error||'erreur')}`).join('<br>')}</div>`:`<div class="notice info">✓ Toutes les ressources principales du déploiement répondent correctement.</div>`;
-  const healthHtml=`<div class="health-grid">${checks.map(c=>`<div class="health-card ${c.ok?'ok':'warn'}"><span>${c.ok?'✓':'!'}</span><div><strong>${escapeHtml(c.label)}</strong><small>${escapeHtml(c.detail)}</small></div></div>`).join('')}</div>`;
-  const errorsHtml=errors.length?`<details class="diagnostic-errors"><summary>Erreurs récentes (${errors.length})</summary><div class="stack-list">${errors.slice(0,10).map(e=>`<div class="list-row"><div><strong>${escapeHtml(e.source||'Erreur')}</strong><small>${localDateTime(e.createdAt)} · ${escapeHtml(e.message||'')}</small></div></div>`).join('')}</div></details>`:'<div class="notice info">Aucune erreur JavaScript enregistrée localement.</div>';
-  modal('Santé de l’application','État du build, du stockage et des composants essentiels.',`${healthHtml}${failed}<dl class="definition-list" style="margin:14px 0"><div><dt>Build</dt><dd>${escapeHtml(BUILD_ID)}</dd></div><div><dt>Décalage d’horloge de l’appareil</dt><dd>${escapeHtml(clockSkewLabel(data.metadata.clockSkew))}</dd></div><div><dt>Stockage persistant</dt><dd>${health.persisted?'Oui':'Non garanti'}</dd></div><div><dt>Espace utilisé</dt><dd>${formatNumber((estimate.usage||0)/1024/1024)} Mo / ${formatNumber((estimate.quota||0)/1024/1024)} Mo (${usagePct} %)</dd></div><div><dt>Pièces jointes</dt><dd>${blobs.length}</dd></div><div><dt>Sauvegardes locales</dt><dd>${backups.length}</dd></div><div><dt>Service worker</dt><dd>${reg?'Installé':'Absent'}</dd></div><div><dt>Démarrage 7.1</dt><dd>${perfRows[0]?.readyMs??'—'} ms</dd></div><div><dt>Rendu des écrans</dt><dd id="render-stats">${escapeHtml(renderStatsLabel())}</dd></div><div><dt>Blobs</dt><dd>${breakdown?`${formatNumber((breakdown.blobBytes||0)/1024/1024)} Mo`:'—'}</dd></div><div><dt>Sauvegardes</dt><dd>${backups.filter(b=>b.verified).length}/${backups.length} ${(backups.length)>1?'vérifiées':'vérifiée'}</dd></div></dl>${errorsHtml}<details><summary>Diagnostic complet</summary><pre class="diagnostic-pre">${escapeHtml(JSON.stringify(diag,null,2))}</pre></details>`,`<button class="button secondary" id="copy-diagnostic">Copier</button>${errors.length?'<button class="button secondary" id="clear-errors">Effacer erreurs</button>':''}<button class="button secondary" id="clear-cache">Nettoyer cache</button><button class="button secondary" id="force-update">Mise à jour</button><button class="button secondary" id="emergency-export">Export secours</button><button class="button danger" id="reset-runtime">Réinitialiser cache/PWA</button><button class="button primary" data-action="close-modal">Fermer</button>`,'large');
-  $('#copy-diagnostic').onclick=async()=>{const copied=await copyText(JSON.stringify(diag,null,2));toast(copied?'Diagnostic copié.':'Copie impossible sur ce navigateur.',copied?'success':'error');};
-  $('#emergency-export').onclick=async()=>{try{await downloadEmergencyState();toast('Export de secours téléchargé.');}catch(error){toast(error.message,'error');}};
-  $('#reset-runtime').onclick=async()=>{if(!confirm('Réinitialiser le cache et le service worker ? Vos données IndexedDB seront conservées.'))return;await resetRuntimeAndReload();};
-  $('#clear-errors')?.addEventListener('click',()=>{clearRecordedErrors();toast('Journal d’erreurs effacé.');openDiagnostic();});
-  $('#clear-cache').onclick=async()=>{await clearAppCaches();toast('Caches applicatifs nettoyés. Rechargez la page.');};
-  $('#force-update').onclick=async()=>{try{await reg?.update?.();toast('Recherche de mise à jour terminée.');}catch(error){toast(error.message,'error');}};
-}
+// n° 147 : écran Santé de l’application (diagnostic-ui.js), chargé à la première ouverture (lazy-modules.js).
+let diagnosticUI=null;function openDiagnostic(){return Promise.resolve(lazy.run('diagnostic',()=>diagnosticUI.open()));}
 
 function applyTheme(){if(!store)return;const theme=state().preferences.theme||'system';(themeUI||=createThemeUI({onSystemChange:()=>parcelMap?.map?.invalidateSize?.()})).apply(theme);document.documentElement.dataset.assistantDock=state().preferences.assistantDock===false?'hidden':'visible';document.documentElement.classList.toggle('high-contrast',Boolean(state().preferences.highContrast));document.documentElement.classList.toggle('compact-mode',Boolean(state().preferences.compactMode));document.documentElement.classList.toggle('plein-champ',state().preferences.pleinChamp===true);applyGloves();}
 // n° 21 : mode gants, module chargé seulement quand la préférence est active.
@@ -1580,7 +1534,8 @@ function bindEvents(){
     const action=control.dataset.action,id=control.dataset.id;
     if(control.closest('#global-search-results')&&action!=='search-hint'){const q=$('#global-search-input')?.value;if(q?.trim())rememberRecentSearch(q);}
     try{
-      if(action==='close-modal')closeModal();
+      if(hasAction(action))await runAction(action,control,event); // n° 147 : actions par domaine (work-actions.js, parcel-actions.js)
+      else if(action==='close-modal')closeModal();
       else if(action==='field-track-map'||action==='field-track-gpx'){if(action==='field-track-map')closeFieldMode();fieldCoverage().action(action,control);}
       else if(action==='personalize')openPersonalization({preferences:state().preferences,modal,closeModal,toast,save:async preferences=>{await store.setPreferences(preferences);renderAll();}});
       else if(action==='hide-assistant'){await store.setPreferences({assistantDock:false});toast('Assistant masqué. Réactivez-le dans Personnaliser.','success',{label:'Annuler',run:()=>store.setPreferences({assistantDock:true})});}
@@ -1589,15 +1544,10 @@ function bindEvents(){
       else if(action==='map-mode-discard')discardMapMode();
       else if(action==='map-multiple'){if(parcelMap.multiple){mapModes.exit({name:'multiple'});if(parcelMap.multiple)parcelMap.toggleMultiple(false);}else startMultipleSelection();}
       else if(action==='map-multiple-cancel'){mapModes.exit({name:'multiple'});if(parcelMap.multiple)parcelMap.toggleMultiple(false);}
-      else if(action==='map-multiple-work'){const ids=[...parcelMap.selectedIds];if(ids.length){openBatchWorkForm();$$('#batch-work-form input[type=checkbox]').forEach(el=>{el.checked=ids.includes(el.value);});}}
-      else if(action==='map-multiple-task'){const ids=[...parcelMap.selectedIds];if(ids.length)openTaskForm(null,{parcelIds:ids});}
       else if(action==='map-multiple-info'){modal('Parcelles sélectionnées','', [...parcelMap.selectedIds].map(id=>{const p=parcelById(id);return p?`<button class="list-row" data-action="open-parcel" data-id="${escapeHtml(id)}">${escapeHtml(p.nom)} · ${formatNumber(p.surfaceHa)} ha</button>`:'';}).join(''),'<button class="button secondary" data-action="close-modal">Fermer</button>');}
-      else if(action==='review-finished-work'){const w=store.get('interventions',id);if(w)openWorkForm({...w,status:'Terminé',date:todayIso()});}
       else if(action==='voice-journal'){closeFieldMode();openVoiceJournal();}
       else if(action==='palette-map'){closeModal();switchView('map');}
       else if(action==='global-search')openGlobalSearch();
-      else if(action==='calendar-day-overview'){openCalendar(new Date(),'week');}
-      else if(action==='start-planned-work'){const w=store.get('interventions',id);if(w&&isPending(w)){closeFieldMode();closeModal();openWorkForm({...w,status:'En cours'});}}
       else if(action==='getting-started-hide')await gettingStartedUI?.hide();
       else if(action==='toggle-theme'){closeModal();const previous=state().preferences.theme||'system',next=toggledTheme(previous,themeUI?.systemDark());await store.setPreferences({theme:next});applyTheme();toast(next==='dark'?'Thème sombre.':'Thème clair.','success',{label:'Annuler',run:async()=>{await store.setPreferences({theme:previous});applyTheme();}});}
       else if(action==='help-topic')help().openTopic(control.dataset.helpKey||'');
@@ -1608,13 +1558,9 @@ function bindEvents(){
       else if(action==='more-show-all-tools'||action==='more-modules-filter'){activities().setShowAll(action==='more-show-all-tools');renderMoreModules();}
       else if(action==='open-more-category'){renderMoreCategory(control.dataset.category||'production');switchView('more-category');}
       else if(action==='open-advanced-tools')openAdvancedTools();
-      else if(action==='parcel-filters')openParcelFilters();
-      else if(action==='work-actions')openWorkActions(id);
-      else if(action==='postpone-work'){closeModal();await workSwipe().postpone(id);}
       else if(action==='network-details'&&syncStatusUI)syncStatusUI.openSheet({autoRetry:true});
       else if(action==='sync-sheet'&&syncStatusUI)syncStatusUI.openSheet();
       else if(action==='network-details')modal('État de l’application',navigator.onLine?'Connexion disponible':'Hors connexion',`<div class="notice ${navigator.onLine?'info':'warning'}">${navigator.onLine?'Les fonctions réseau sont disponibles.':'Les données locales restent accessibles et modifiables.'}</div>`,`<button class="button primary" data-action="close-modal">Fermer</button>`,'small');
-      else if(action==='new-parcel')openParcelForm();
       else if(action==='open-compliance'){closeModal();complianceUI?.open();}
       else if(action==='open-nitrogen'){closeModal();nitrogenUI?.open();}
       else if(action==='open-pac'){closeModal();pacUI?.open();}
@@ -1645,27 +1591,8 @@ function bindEvents(){
       else if(action==='open-phyto-catalog'){closeModal();phytoCatalogUI?.open();}
       else if(action==='ift-open')iftUI?.open(id);
       else if(action==='rpg-onboarding')rpgOnboardingUI?.open({commune:state().exploitation.commune||''});
-      else if(action==='open-parcel'){closeModal();closeFieldMode();if(currentView!=='parcel')viewTransitions().shareFromRow(control);openParcel(id);}
-      else if(action==='edit-parcel'){closeModal();openParcelForm(parcelById(id));}
-      else if(action==='delete-parcel')confirmDelete('parcelles',id,'cette parcelle');
-      else if(action==='archive-parcel'){const p=parcelById(id);if(p){await store.upsert('parcelles',{...p,archived:!p.archived},{label:`Parcelle ${p.archived?'réactivée':'archivée'} : ${p.nom}`});closeModal();toast(p.archived?'Parcelle réactivée.':'Parcelle archivée.');}}
-      else if(action==='parcel-actions'){closeModal();openParcelActions(id);}
-      else if(action==='parcel-tab'){closeModal();openParcelDetail(id,control.dataset.tab,{historyMode:'replace'});}
-      else if(action==='toggle-favorite'){const p=parcelById(id);if(!p)return;await store.upsert('parcelles',{...p,favorite:!p.favorite},{label:`Favori ${!p.favorite?'activé':'désactivé'} : ${p.nom}`,queue:false});renderParcelDetailPage(id,currentParcelTab,state());}
-      else if(action==='add-note'){closeModal();openNote(id);}
-      else if(action==='new-work'){closeModal();closeFieldMode();openWorkForm(null,control.dataset.parcelId||id||null);}
-      else if(action==='open-team-work'){closeModal();teamWorkUI?.open();}
       else if(action==='open-team-roles')await teamRolesUI?.open();
-      else if(action==='quick-work'){const fieldParcel=fieldModeOpen?(activeFieldSession()?.parcelId||$('#field-parcel-choice')?.value||null):null;closeModal();closeFieldMode();quickEntryUI?.open({parcelId:fieldParcel||control.dataset.parcelId||null});}
-      else if(action==='batch-work'){closeModal();openBatchWorkForm();}
-      else if(action==='edit-work'){closeModal();openWorkForm(store.get('interventions',id));}
-      else if(action==='duplicate-work'){closeModal();openWorkForm(store.get('interventions',id),null,{duplicate:true});}
-      else if(action==='finish-work'){const w=store.get('interventions',id);armCelebration(control,{id,kind:'work',preferences:state().preferences,native:nativeBridge});nextAction().armFlip(control,id);statusBeforeDone.set(`work:${id}`,w.status);const doneWork=await store.upsert('interventions',{...w,status:'Terminé',plannedDate:w.plannedDate||w.date||'',date:todayIso()},{label:`Travail terminé : ${w.type}`});toast('Travail marqué terminé.','success',{label:'Annuler',run:()=>store.upsert('interventions',w,{label:'Statut restauré'})});lazy.need('habits',{silent:true}).then(ok=>ok&&habitsUI.afterFinish(doneWork));}
-      else if(action==='add-photo'){closeModal();photoGeo().open(id);}
-      else if(action==='attach-file'){closeModal();openAttachmentForm(id);}
       else if(action==='view-attachment'){await viewAttachment(control.dataset.type,id);}
-      else if(action==='cycle-parcel-sort'){const s=$('#parcel-sort');if(s){s.selectedIndex=(s.selectedIndex+1)%s.options.length;s.dispatchEvent(new Event('change',{bubbles:true}));s.dispatchEvent(new Event('input',{bubbles:true}));if(typeof renderParcels==='function')renderParcels(state());if(s.value==='distance'&&!lastGps)toast('Position inconnue : parcelles triées par nom. Activez « Me localiser » sur la carte.');}}
-      else if(action==='parcel-on-map'){closeModal();switchView('map');setTimeout(()=>parcelMap.select(id),250);}
       else if(action==='show-point'){const point=store.get('points',id);if(point){closeModal();switchView('map');parcelMap.focusPoint(id);}}
       else if(action==='add-rpg-parcel')openRpgParcelForm(id);
       else if(action==='add-cadastre-parcel')openCadastreParcelForm(id);
@@ -1673,8 +1600,6 @@ function bindEvents(){
       else if(action==='move-map-point')startMapPointPlacement({id});
       else if(action==='delete-map-point'){const point=store.get('points',id);if(point){parcelMap.cancelPointPlacement();parcelMap.map?.closePopup();confirmDelete('points',id,point.nom||point.name||point.type||'ce point');}}
       else if(action==='cancel-map-point'){mapModes.exit({name:'point'});parcelMap.cancelPointPlacement();$('#map-point-panel').classList.add('hidden');}
-      else if(action==='route-parcel')routeParcel(id);
-      else if(action==='draw-parcel'){closeModal();if(id)startParcelDrawing(id);else startNewParcelDrawing();}
       else if(action==='edit-contour'){closeModal();contourEditUI().start(id);}
       else if(lazy.get('contourEdit')?.CONTOUR_EDIT_ACTIONS.includes(action))contourEditUI().handleAction(action);
       else if(action==='map-snap-toggle')await snapUI().toggle();
@@ -1684,10 +1609,6 @@ function bindEvents(){
       else if(action==='split-parcel'){closeModal();parcelSplitUI().startSplit(id);}
       else if(lazy.get('parcelSplit')?.SPLIT_ACTIONS.includes(action))parcelSplitUI().handleAction(action);
       else if(action==='map-multiple-merge')parcelSplitUI().openMerge([...parcelMap.selectedIds]);
-      else if(action==='approach-parcel'){closeModal();approachUI().openApproach(id);}
-      else if(action==='parcel-entry-here')approachUI().defineEntryHere(id);
-      else if(action==='parcel-weather'){closeModal();await openParcelWeather(id);}
-      else if(action==='share-parcel')await shareParcel(id);
       else if(action==='map-search-open'){selectedParcelId=id;rememberRecent(id);if(parcelMap.map)parcelMap.select(id);else renderMapSheet(state());const results=$('#map-search-results');if(results){results.classList.add('hidden');results.innerHTML='';}const input=$('#map-search-input');if(input)input.value='';}
       else if(action==='close-map-parcel-sheet'){selectedParcelId=null;parcelMap.selectedId=null;renderMapSheet();parcelMap.render(mapRenderState(state()));}
       else if(action==='locate')await requestGps();
@@ -1709,7 +1630,7 @@ function bindEvents(){
       else if(action==='open-day-route')openDayRoute();
       else if(action==='equipment-qr')(await getEquipmentQrUI()).openLabel('equipment',id);
       else if(action==='point-qr')(await getEquipmentQrUI()).openLabel('point',id);
-      else if(action==='print-qr-labels')(await getEquipmentQrUI()).openPicker();else if(action==='clear-legend-filter'){legendParcelFilter=null;renderParcels(state());}else if(action==='export-parcels-format')await getParcelFormatsUI().run(id);else if(action==='ics-work')getIcsUI().addToAgenda('work',id);else if(action==='ics-task')getIcsUI().addToAgenda('task',id);else if(action==='open-ics-agenda')getIcsUI().openAgenda();else if(action==='ics-export-30')getIcsUI().exportUpcoming();else if(action==='ics-enable-reminders')getIcsUI().enableReminders();
+      else if(action==='print-qr-labels')(await getEquipmentQrUI()).openPicker();else if(action==='clear-legend-filter'){legendParcelFilter=null;renderParcels(state());}else if(action==='export-parcels-format')await getParcelFormatsUI().run(id);else if(action==='ics-work')getIcsUI().addToAgenda('work',id);else if(action==='ics-task')getIcsUI().addToAgenda('task',id);else if(action==='open-ics-agenda')getIcsUI().openAgenda();else if(action==='ics-export-30')getIcsUI().exportUpcoming();else if(action==='ics-enable-reminders')getIcsUI().enableReminders();
       else if(action==='open-public-works')getPublicWorksUI().openList();
       else if(action==='open-chantiers')openChantiers();
       else if(action==='new-chantier'){closeModal();openChantierForm();}
@@ -1718,7 +1639,6 @@ function bindEvents(){
       else if(action==='start-chantier')await startChantier(id);
       else if(action==='start-chantier-parcel'){closeModal();openFieldSessionStart(id,{chantierId:control.dataset.chantierId});}
       else if(action==='open-rotations')openRotations();else if(action==='stock-capture')stockCaptureUI?.open();else if(action==='rotation-delays')rotationAdviceUI?.openSettings();else if(action==='sowing-settings')sowingUI?.openSettings();else if(action==='open-agro-risks')agroRiskUI?.openList();else if(action==='pheno-observed')phenologyUI?.openObserved(id);else if(action==='pheno-settings')phenologyUI?.openSettings(id);
-      else if(action==='filter-culture'){closeModal();switchView('parcels');const input=$('#parcel-search');if(input)input.value=control.dataset.culture||'';renderParcels(state());}
       else if(action==='prepare-next-campaign')await prepareNextCampaign();
       else if(action==='open-campaign-planner')openCampaignPlanner();
       else if(action==='add-rotation'){closeModal();openRotationForm(id);}
@@ -1743,16 +1663,6 @@ function bindEvents(){
       else if(action==='new-client'){closeModal();openClientForm();}
       else if(action==='edit-client'){closeModal();openClientForm(store.get('clients',id));}
       else if(action==='print-client-report')openPrintableReport(clientReportHtml(state(),id));
-      else if(action==='open-tasks')openTasks();
-      else if(action==='new-task'){closeModal();openTaskForm();}
-      else if(action==='edit-task'){closeModal();openTaskForm(store.get('tasks',id));}
-      else if(action==='reopen-work'){const w=store.get('interventions',id);if(w){const previous=statusBeforeDone.get(`work:${id}`);statusBeforeDone.delete(`work:${id}`);await store.upsert('interventions',{...w,status:previous&&isPending({status:previous})?previous:'À faire',date:w.plannedDate||w.date},{label:`Travail rouvert : ${w.type}`});toast('Travail rouvert.','success',{label:'Annuler',run:()=>store.upsert('interventions',w,{label:'Statut restauré'})});}}
-      else if(action==='reopen-task'){const t=store.get('tasks',id);if(t){const previous=statusBeforeDone.get(`task:${id}`);statusBeforeDone.delete(`task:${id}`);await store.upsert('tasks',{...t,status:previous&&isPending({status:previous},'task')?previous:'À faire'},{label:`Tâche rouverte : ${t.title}`});toast('Tâche rouverte.','success',{label:'Annuler',run:()=>store.upsert('tasks',t,{label:'Statut restauré'})});}}
-      else if(action==='finish-task'){const t=store.get('tasks',id);armCelebration(control,{id,kind:'task',preferences:state().preferences,native:nativeBridge});nextAction().armFlip(control,id);statusBeforeDone.set(`task:${id}`,t.status);await store.upsert('tasks',{...t,status:'Terminé'},{label:`Tâche terminée : ${t.title}`});if($('#modal-root').classList.contains('has-modal'))openTasks();else renderToday(state());toast('Tâche terminée.','success',{label:'Annuler',run:()=>store.upsert('tasks',t,{label:'Statut restauré'})});}
-      else if(action==='open-calendar')openCalendar();
-      else if(action==='calendar-mode')workSubviews().setCalendar({mode:control.dataset.mode||'month'});
-      else if(action==='calendar-today')workSubviews().setCalendar({date:new Date()});
-      else if(action==='calendar-day')workSubviews().selectDay(control.dataset.date);
       else if(action==='open-weather')openWeather();
       else if(action==='open-integrations')techCentersUI.openIntegrations();
       else if(action==='open-integration-track')techCentersUI.openIntegrationTrack(id);
@@ -1824,8 +1734,6 @@ function bindEvents(){
       else if(action==='verify-auto-backup'){const result=await store.storage.backupVerify(id);toast(result.ok?'Sauvegarde vérifiée.':'Sauvegarde invalide. ',result.ok?'success':'error');await openAutoBackups();}
       else if(action==='export-auto-backup')await exportAutoBackup(id);
       else if(action==='delete-auto-backup'){await store.storage.backupDelete(id);await openAutoBackups();}
-      else if(action==='clear-work-filter'){workFilters={...workFilters,[control.dataset.filter]:''};renderWork(state());}
-      else if(action==='clear-work-filters'){workFilters={parcel:'',type:''};if($('#work-search'))$('#work-search').value='';renderWork(state());}
       else if(action==='open-log')openLog();
       else if(action==='open-app-lock')appLockUI.openSettings().catch(error=>toast(error?.message||'Verrouillage indisponible.','error'));
       else if(action==='open-sync')await openSync();
@@ -1851,7 +1759,6 @@ function bindEvents(){
       else if(action==='export-geojson'){download(`parcelles-${todayIso()}.geojson`,impex().exportGeoJson(state()),'application/geo+json;charset=utf-8');toast('GeoJSON téléchargé.');}
       else if(action==='search-hint'){const input=$('#global-search-input');if(input){input.value=control.dataset.query||'';renderGlobalSearch(input.value);input.focus();}}
       else if(action==='global-open'){const type=control.dataset.resultType;closeModal();if(type==='template'){const t=store.get('templates',id);if(t)openWorkForm({type:t.type,culture:t.culture,product:t.product,dose:t.dose,doseUnit:t.doseUnit,equipmentId:t.equipmentId,operator:t.operator,status:'À faire',date:todayIso()});}else if(type==='parcel')openParcel(id);else if(type==='work')openWorkForm(store.get('interventions',id));else if(type==='task')openTaskForm(store.get('tasks',id));else if(type==='equipment'){openEquipmentDetail(id);}else if(type==='client'){openClientDetail(id);}else if(type==='point'){const pt=store.get('points',id);if(pt){switchView('map');parcelMap.map?.setView([Number(pt.latitude),Number(pt.longitude)],18);}}else if(type==='observation'){openObservationForm(store.get('observations',id));}else if(type==='stock'){openStockForm(store.get('stockItems',id));}else if(type==='document'){await viewAttachment('documents',id);}else if(type==='chantier'){openChantierDetail(id);}}
-      else if(action==='work-filters')openWorkFilters();
     }catch(error){
       // Lecture seule attendue (autre fenêtre ou données plus récentes) : message clair avec l’action utile, sans erreur console.
       if(error?.name==='SchemaVersionError'){toast(error.message,'error',{label:'Mettre à jour',run:updateAppNow});return;}
@@ -1866,11 +1773,11 @@ function bindEvents(){
     if(event.target.matches('#more-search'))renderMoreSearch(event.target.value);
   });
   document.addEventListener('change',event=>{if(event.target.matches('#parcel-sort'))renderParcels(state());});
-  watchTabSemantics($('#parcel-detail-tabs'));watchTabSemantics($('#work-tabs'));
+  watchTabSemantics($('#parcel-detail-tabs'));watchTabSemantics($('#work-tabs'));watchModalDialog();
   document.addEventListener('keydown',event=>{
     if(document.getElementById('app-boot'))return;
     const modalOpen=$('#modal-root').classList.contains('has-modal');
-    const trapRoot=modalOpen?$('#modal-root'):fieldModeOpen?$('#field-mode'):null;
+    const trapRoot=!modalOpen&&fieldModeOpen?$('#field-mode'):null; // fenêtre <dialog> : focus contenu par le navigateur (n° 154)
     if(event.key==='Tab'&&trapRoot){const nodes=[...trapRoot.querySelectorAll('button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),a[href],summary,[tabindex]:not([tabindex="-1"])')].filter(x=>x.getClientRects().length&&!x.closest('[inert],details:not([open])>:not(summary)'));if(nodes.length){const first=nodes[0],last=nodes.at(-1);if(!trapRoot.contains(document.activeElement)){event.preventDefault();(event.shiftKey?last:first).focus();}else if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}
     if(event.key==='Escape'){if(modalOpen){closeModal();return;}if(fieldModeOpen){closeFieldMode();return;}if(pendingMapModeLeave){keepMapMode();return;}if(mapModes.current){mapModes.leave(null,{reason:'escape'});return;}closeMapSearch();return;}
     if((event.key==='ArrowRight'||event.key==='ArrowLeft')&&event.target.matches?.('[role="tab"]')){const list=event.target.parentElement,tabs=[...list.querySelectorAll(':scope>[role="tab"]')],next=tabs[(tabs.indexOf(event.target)+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length];if(next){event.preventDefault();const key=next.dataset.tab||next.dataset.workTab||next.dataset.mode;next.click();requestAnimationFrame(()=>{const target=[...list.querySelectorAll(':scope>[role="tab"]')].find(t=>(t.dataset.tab||t.dataset.workTab||t.dataset.mode)===key)||next;target.focus?.();});}return;}

@@ -1,6 +1,5 @@
+@layer features{
 /* The assistant is a single floating circle; the map keeps its full height. */
-:root{--assistant-clearance:64px}
-html[data-assistant-dock="hidden"]{--assistant-clearance:0px}
 .assistant-dock{position:fixed;z-index:34;left:max(12px,var(--safe-left));bottom:calc(88px + max(8px,var(--safe-bottom)));width:50px;height:50px;padding:0;background:none;border:0}
 .assistant-launcher{width:50px;height:50px;padding:6px;border:0;border-radius:50%;background:var(--brand);color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;touch-action:manipulation;box-shadow:0 3px 14px #173e2926}
 .assistant-launcher .ui-icon{width:22px;height:22px}
@@ -20,3 +19,4 @@ html[data-view="map"]:has(.map-draw-panel:not(.hidden)) .assistant-dock,html[dat
  main,html[data-view="map"] main{padding-bottom:0}
 }
 @media print{.assistant-dock{display:none}main{padding-bottom:0}}
+}

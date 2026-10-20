@@ -1,7 +1,9 @@
+// @ts-check
 import {PERSONALIZATION_DEFAULTS,normalizePersonalization} from './personalization.js';
 import {HISTORY_MAX_AGE_DAYS,HISTORY_MAX_PER_ENTITY,buildHistoryEntry,isMeaningfulEntry,shouldRecordHistory} from './history.js';
 import {APP_VERSION, ENTITY_TYPES, campaignFor, clone, isoDate, now, parseImportDate, toNumber, uid, validateIntervention, validateParcel} from './utils.js';
 
+/** @returns {import('parcelles/types').AppState} État vierge au format APP_VERSION. */
 export function emptyState(){
   const timestamp=now();
   return {
@@ -314,9 +316,20 @@ function tabReadOnlyError(message){const error=new Error(message||TAB_READ_ONLY_
 export function storedSchemaVersion(value){const version=Number(value?.version);return Number.isFinite(version)&&version>0?Math.floor(version):null;}
 export function isNewerSchema(value){const version=storedSchemaVersion(value);return version!==null&&version>APP_VERSION;}
 export const NEWER_SCHEMA_MESSAGE='Vos données viennent d’une version plus récente de Parcelles. Mettez à jour l’application pour les modifier : rien n’est enregistré ici en attendant.';
-export function newerSchemaError(version,message=NEWER_SCHEMA_MESSAGE){const error=new Error(message);error.name='SchemaVersionError';error.storedVersion=version??null;error.appVersion=APP_VERSION;return error;}
+export function newerSchemaError(version,message=NEWER_SCHEMA_MESSAGE){const error=/** @type {Error & {storedVersion?:number|null, appVersion?:number}} */(new Error(message));error.name='SchemaVersionError';error.storedVersion=version??null;error.appVersion=APP_VERSION;return error;}
 // Instantanés pris avant une migration montante : jamais élagués par la rotation quotidienne, 2 au plus par espace.
 export const PRE_MIGRATION_BACKUP_LIMIT=2;
+
+// n° 137 (étape 2) : stockage par collection. Empreinte JSON de chaque clé de premier niveau de l’état ; comparée à celle
+// de la dernière lecture ou écriture, elle désigne les seules collections à réécrire. L’état est du JSON (sauvegardes,
+// synchronisation) : cette empreinte voit toute modification utile, y compris une fiche modifiée sur place.
+export function collectionFingerprints(state){const map=new Map();for(const name of Object.keys(state||{}))map.set(name,JSON.stringify(state[name])??'undefined');return map;}
+// Plan d’écriture : changed=null (tout écrire) sans empreintes de référence, sinon la liste des collections modifiées.
+export function planCollections(state,previous=null){
+  const keys=Object.keys(state),fingerprints=new Map(),reference=previous?.size?previous:null,changed=reference?[]:null;
+  for(const name of keys){const json=JSON.stringify(state[name])??'undefined';fingerprints.set(name,json);if(changed&&reference.get(name)!==json)changed.push(name);}
+  return {state,keys,changed,fingerprints};
+}
 
 // Sauvegarde hors de l’appareil (export ZIP ou JSON) : rappel au-delà de 14 jours, masquable 7 jours.
 // Sans aucun export, le délai court depuis la première donnée saisie (pas de rappel le premier jour).
@@ -333,9 +346,10 @@ export function externalBackupStatus(data,at=now()){
 }
 
 export class Store{
-  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';this.writePromise=Promise.resolve();this.backupRetryAt=0;this.persistedStamp=null;this.tabReadOnly=null;this.onPersisted=null;this.schemaLock=null;this.historyActor=null;this.recentChanges=[];this.historySeq=0;this.historyPruned=false;}
+  constructor(storage){this.storage=storage;this.state=emptyState();this.listeners=new Set();this.writeGuard=null;this.workspaceId='local';this.storageKey='state';this.writePromise=/** @type {Promise<any>} */(Promise.resolve());this.backupRetryAt=0;this.persistedStamp=null;this.tabReadOnly=null;this.onPersisted=null;this.schemaLock=null;this.historyActor=null;this.recentChanges=[];this.historySeq=0;this.historyPruned=false;this.persistedCollections=new Map();this.legacyOnlyKeys=new Set();}
 
   // A failed write must not restore a snapshot taken before another edit.
+  /** @template T @param {() => T|PromiseLike<T>} operation @returns {Promise<T>} */
   enqueueWrite(operation){const result=this.writePromise.then(operation);this.writePromise=result.catch(()=>{});return result;}
 
   setWriteGuard(fn){this.writeGuard=typeof fn==='function'?fn:null;}
@@ -371,6 +385,37 @@ export class Store{
       return null;
     }
   }
+  // n° 137 (étape 2) : lecture de l’état d’un espace, par collection si le stockage le permet (sinon un seul objet).
+  // Résultat : {value,format,unchanged,legacy} (voir StorageService.readState).
+  async _readStored(key,{fresh=false,unchanged=null}={}){
+    if(typeof this.storage.readState==='function')return this.storage.readState(key,{unchanged});
+    const value=fresh&&typeof this.storage.getStored==='function'?await this.storage.getStored(key):await this.storage.get(key);
+    if(value&&unchanged?.(value))return {value:null,format:'legacy',unchanged:true,legacy:null};
+    return {value:value??null,format:value?'legacy':null,unchanged:false,legacy:null};
+  }
+  // Empreintes de ce qui est réellement stocké (avant toute migration) : rien n’est connu pour l’ancienne forme,
+  // la prochaine écriture sera donc complète (conversion).
+  _adoptStored(result){this.persistedCollections=result?.format==='collections'&&result.value?collectionFingerprints(result.value):new Map();if(result?.format==='collections')this.legacyOnlyKeys.clear();}
+  // Écriture complète inconditionnelle (autre espace, démonstration) ; renvoie les empreintes écrites.
+  async _writeFull(key,state){
+    if(typeof this.storage.writeState!=='function'){await this.storage.set(key,state);return new Map();}
+    let fingerprints=new Map();
+    await this.storage.writeState(key,()=>{const plan=planCollections(state,null);fingerprints=plan.fingerprints;return plan;});
+    // Nouvelle forme écrite : les enregistrements suivants de cet espace passent par writeState (plus par l’ancienne clé).
+    this.legacyOnlyKeys.delete(key);
+    return fingerprints;
+  }
+  // Instantané de l’ancienne forme avant sa conversion (ou d’une ancienne clé réécrite par une version antérieure) :
+  // un retour arrière garde ainsi une restauration complète possible. Jamais pour la démonstration ; jamais bloquant.
+  async _backupStoredForm(saved,reason,workspaceId=this.workspaceId){
+    if(!saved||typeof this.storage.writeState!=='function'||this.storage.usingFallback||workspaceId===DEMO_WORKSPACE_ID||isDemoState(saved))return null;
+    const createdAt=now(),version=storedSchemaVersion(saved),id=`pre_${reason}_${createdAt}`;
+    try{
+      await this.storage.backupPut({id,workspaceId,period:'migration',fromVersion:version,toVersion:version,storageFormat:reason,createdAt,state:clone(saved)});
+      await this.storage.pruneBackups?.({migration:PRE_MIGRATION_BACKUP_LIMIT});
+      return id;
+    }catch(error){console.warn('[Parcelles] instantané avant changement de stockage impossible.',error);return null;}
+  }
   workspaceStorageKey(id='local'){const value=String(id||'local').trim();return value&&value!=='local'?`state:workspace:${value.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';}
   workspaceContext(){return {id:this.workspaceId,key:this.storageKey,isLocal:this.workspaceId==='local',demo:this.isDemo};}
   get isDemo(){return this.workspaceId===DEMO_WORKSPACE_ID;}
@@ -386,11 +431,11 @@ export class Store{
     next.preferences={...next.preferences,workspaceId:DEMO_WORKSPACE_ID,cloudRole:null,syncEnabled:false,autoSync:false,autoBackup:false,platformBackendEnabled:false,remoteAiEnabled:false};
     next.metadata={...next.metadata,demo:true,demoReturnWorkspace:returnTo,lastWorkspaceSwitchAt:now()};
     next.queue=[];next.syncConflicts=[];
-    const previous={workspaceId:this.workspaceId,storageKey:this.storageKey,state:this.state,persistedStamp:this.persistedStamp,schemaLock:this.schemaLock};
+    const previous={workspaceId:this.workspaceId,storageKey:this.storageKey,state:this.state,persistedStamp:this.persistedStamp,persistedCollections:this.persistedCollections,schemaLock:this.schemaLock};
     try{
-      await this.storage.set(key,next);
+      const fingerprints=await this._writeFull(key,next);
       await this.storage.set('active-workspace',{id:DEMO_WORKSPACE_ID,updatedAt:now()});
-      this.workspaceId=DEMO_WORKSPACE_ID;this.storageKey=key;this.state=next;this.persistedStamp=stateStamp(next);this.schemaLock=null;this.backupRetryAt=0;this.recentChanges=[];
+      this.workspaceId=DEMO_WORKSPACE_ID;this.storageKey=key;this.state=next;this.persistedStamp=stateStamp(next);this.persistedCollections=fingerprints;this.schemaLock=null;this.backupRetryAt=0;this.recentChanges=[];
     }catch(error){Object.assign(this,previous);throw error;}
     this.notify({label:'Mode démonstration.',kind:'workspace-switch',entity:'state',workspaceId:DEMO_WORKSPACE_ID,queue:false});
     return true;
@@ -402,9 +447,10 @@ export class Store{
     if(this.tabReadOnly)throw tabReadOnlyError(this.tabReadOnly);
     const wanted=String(this.state.metadata?.demoReturnWorkspace||'local').trim()||'local',back=wanted===DEMO_WORKSPACE_ID?'local':wanted;
     const demoKey=this.storageKey,backKey=this.workspaceStorageKey(back);
-    let saved=await this.storage.get(backKey);if(!saved&&back==='local')saved=await this.storage.get('state');
+    let stored=await this._readStored(backKey);if(!stored.value&&back==='local'&&backKey!=='state')stored=await this._readStored('state');
+    const saved=stored.value;
     await this.storage.set('active-workspace',{id:back,updatedAt:now()});
-    this.workspaceId=back;this.storageKey=backKey;this.persistedStamp=stateStamp(saved);this.recentChanges=[];
+    this.workspaceId=back;this.storageKey=backKey;this.persistedStamp=stateStamp(saved);this.recentChanges=[];this._adoptStored(stored);
     this.state=this._loadSaved(saved);if(back!=='local')this.state.preferences.workspaceId=back;
     await this._purgeDemo(demoKey);
     this.notify({label:'Retour à votre exploitation.',kind:'workspace-switch',entity:'state',workspaceId:back,queue:false});
@@ -412,7 +458,7 @@ export class Store{
   }
   // Vide l’espace démo et les instantanés qui en proviendraient (import annulable, réparation de texte…).
   async _purgeDemo(key=this.workspaceStorageKey(DEMO_WORKSPACE_ID)){
-    try{if(typeof this.storage.delete==='function')await this.storage.delete(key);else await this.storage.set(key,null);}
+    try{if(typeof this.storage.deleteState==='function')await this.storage.deleteState(key);else if(typeof this.storage.delete==='function')await this.storage.delete(key);else await this.storage.set(key,null);}
     catch(error){console.warn('[Parcelles] espace de démonstration non vidé.',error);}
     try{
       for(const row of await this.storage.backupList?.()||[])if(String(row.workspaceId||'')===DEMO_WORKSPACE_ID||isDemoState(row.state))await this.storage.backupDelete(row.id);
@@ -424,16 +470,21 @@ export class Store{
     const active=await this.storage.get('active-workspace');
     this.workspaceId=String(active?.id||'local');
     this.storageKey=this.workspaceStorageKey(this.workspaceId);
-    let saved=await this.storage.get(this.storageKey);
+    let stored=await this._readStored(this.storageKey);
     // Compatibilité : les données historiques vivent dans `state`.
-    if(!saved&&this.workspaceId==='local')saved=await this.storage.get('state');
-    const savedVersion=saved?.version;
+    if(!stored.value&&this.workspaceId==='local'&&this.storageKey!=='state')stored=await this._readStored('state');
+    const saved=stored.value,savedVersion=saved?.version;
     this.persistedStamp=stateStamp(saved);
+    this._adoptStored(stored);
     this.state=this._loadSaved(saved);
     if(this.workspaceId!=='local')this.state.preferences.workspaceId=this.workspaceId;
     // Données plus récentes que ce build : ni migration ni écriture.
     if(this.schemaLock)return this.state;
     const backupId=saved?await this._backupBeforeMigration(saved):null;
+    // n° 137 : l’ancienne forme est convertie par l’enregistrement ci-dessous (instantané d’abord, pour un retour arrière) ;
+    // une ancienne clé réécrite par une version antérieure à côté de la nouvelle forme est conservée en instantané.
+    if(!backupId&&stored.format==='legacy')await this._backupStoredForm(saved,'collections');
+    if(stored.legacy)await this._backupStoredForm(stored.legacy,'legacy');
     if(saved && savedVersion!==this.state.version)this.log('migration',`Données mises à jour vers le format v${this.state.version}.`,{from:savedVersion,to:this.state.version,backupId});
     // Une autre fenêtre a écrit pendant l’ouverture : on reprend sa version plutôt que de l’écraser.
     try{await this.persist();}catch(error){if(error?.name!=='StaleStateError')throw error;await this._reloadFromStorage({notify:false});}
@@ -449,30 +500,34 @@ export class Store{
     // Un espace verrouillé (version plus récente) n’est jamais réécrit : on peut seulement le quitter.
     if(!this.schemaLock){try{await this.persist();}catch(error){if(error?.name!=='StaleStateError')throw error;}}
     const nextKey=this.workspaceStorageKey(nextId);
-    let saved=await this.storage.get(nextKey);const savedFromStorage=Boolean(saved);
+    const stored=await this._readStored(nextKey);let saved=stored.value;const savedFromStorage=Boolean(saved);
     if(!saved&&seed){saved=clone(seed);saved.queue=[];saved.syncConflicts=[];saved.preferences={...(saved.preferences||{}),workspaceId:nextId,cloudRole:null,syncEnabled:true};saved.metadata={...(saved.metadata||{}),lastSyncAt:null,lastSyncError:null,syncFailureCount:0,syncBackoffUntil:null,syncCursors:{},syncServerCursors:{}};}
-    const previous={workspaceId:this.workspaceId,storageKey:this.storageKey,state:this.state,persistedStamp:this.persistedStamp,schemaLock:this.schemaLock};
+    const previous={workspaceId:this.workspaceId,storageKey:this.storageKey,state:this.state,persistedStamp:this.persistedStamp,persistedCollections:this.persistedCollections,schemaLock:this.schemaLock};
     if(saved&&isNewerSchema(saved)){
       // Destination écrite par une version plus récente : affichée en lecture seule, jamais réécrite.
       try{
         await this.storage.set('active-workspace',{id:nextId,updatedAt:now()});
-        this.workspaceId=nextId;this.storageKey=nextKey;this.backupRetryAt=0;this.persistedStamp=stateStamp(saved);
+        this.workspaceId=nextId;this.storageKey=nextKey;this.backupRetryAt=0;this.persistedStamp=stateStamp(saved);this._adoptStored(stored);
         this.state=this._loadSaved(saved);this.state.preferences.workspaceId=nextId==='local'?'':nextId;
       }catch(error){Object.assign(this,previous);throw error;}
       this.notify({label:'Espace de travail changé.',kind:'workspace-switch',entity:'state',workspaceId:nextId});
       return this.state;
     }
     const migrationBackupId=savedFromStorage?await this._backupBeforeMigration(saved,nextId):null;
+    // n° 137 : mêmes instantanés qu’à l’ouverture avant que _writeFull ne remplace l’ancienne clé de la destination.
+    if(!migrationBackupId&&stored.format==='legacy')await this._backupStoredForm(saved,'collections',nextId);
+    if(stored.legacy)await this._backupStoredForm(stored.legacy,'legacy',nextId);
     const next=migrateData(saved||emptyState());
     next.preferences.workspaceId=nextId==='local'?'':nextId;
     next.preferences.cloudRole=null;
-    next.metadata.lastWorkspaceSwitchAt=now();
+    // Horodatage renouvelé : une autre fenêtre ouverte sur cet espace voit l’écriture (empreinte changée) et recharge.
+    next.metadata.lastWorkspaceSwitchAt=now();next.metadata.updatedAt=now();
     if(name&&(!next.exploitation.nom||next.exploitation.nom==='Mon exploitation'))next.exploitation.nom=String(name);
     try{
       // Persist the destination before changing the startup pointer.
-      await this.storage.set(nextKey,next);
+      const fingerprints=await this._writeFull(nextKey,next);
       await this.storage.set('active-workspace',{id:nextId,updatedAt:now()});
-      this.workspaceId=nextId;this.storageKey=nextKey;this.state=next;this.backupRetryAt=0;this.persistedStamp=stateStamp(next);this.schemaLock=null;
+      this.workspaceId=nextId;this.storageKey=nextKey;this.state=next;this.backupRetryAt=0;this.persistedStamp=stateStamp(next);this.persistedCollections=fingerprints;this.schemaLock=null;
     }catch(error){Object.assign(this,previous);throw error;}
     if(migrationBackupId)this.log('migration','Instantané conservé avant la mise à jour du format des données.',{backupId:migrationBackupId});
     this.notify({label:'Espace de travail changé.',kind:'workspace-switch',entity:'state',workspaceId:nextId});
@@ -489,6 +544,25 @@ export class Store{
     // Dernier rempart : des données plus récentes ne sont jamais écrasées par ce build.
     this.assertSchemaWritable();
     const expected=this.persistedStamp;
+    if(typeof this.storage.writeState==='function'&&!this.legacyOnlyKeys.has(this.storageKey)){
+      // n° 137 : seules les collections modifiées, la méta et la vérification de révision, en une transaction atomique.
+      // Le plan est calculé dans la transaction, juste avant les écritures : empreintes et contenu écrit concordent.
+      let fingerprints=null,stamp=null,converting=false;
+      try{
+        await this.storage.writeState(this.storageKey,({format})=>{
+          converting=format!=='collections';
+          const plan=planCollections(this.state,converting?null:this.persistedCollections);
+          fingerprints=plan.fingerprints;stamp=stateStamp(this.state);return plan;
+        },{isCurrent:stored=>stateStamp(stored)===expected});
+        this.persistedCollections=fingerprints;this.persistedStamp=stamp;return;
+      }catch(error){
+        // Conversion impossible (quota presque plein…) : rien n’a été écrit, l’ancienne clé est intacte. On reste sur
+        // l’ancienne forme pour cette session plutôt que de bloquer l’enregistrement ; nouvel essai au prochain lancement.
+        if(!converting||error?.name==='StaleStateError'||typeof this.storage.setIfCurrent!=='function'||this.storage.usingFallback)throw error;
+        console.warn('[Parcelles] stockage par collection différé ; enregistrement sous l’ancienne forme.',error);
+        this.legacyOnlyKeys.add(this.storageKey);this.persistedCollections=new Map();
+      }
+    }
     if(typeof this.storage.setIfCurrent==='function')await this.storage.setIfCurrent(this.storageKey,this.state,stored=>stateStamp(stored)===expected);
     else await this.storage.set(this.storageKey,this.state);
     this.persistedStamp=stateStamp(this.state);
@@ -529,16 +603,20 @@ export class Store{
   // Recharge l’état enregistré par une autre fenêtre. Sans changement d’empreinte, rien n’est fait.
   reloadFromStorage(options={}){return this.enqueueWrite(()=>this._reloadFromStorage(options));}
   async _reloadFromStorage({notify=true}={}){
-    const saved=typeof this.storage.getStored==='function'?await this.storage.getStored(this.storageKey):await this.storage.get(this.storageKey);
-    if(!saved)return false;
+    // Empreinte inchangée : seule la méta est lue, les collections ne sont pas relues.
+    const expected=this.persistedStamp;
+    const stored=await this._readStored(this.storageKey,{fresh:true,unchanged:value=>stateStamp(value)===expected});
+    const saved=stored.value;
+    if(stored.unchanged||!saved)return false;
     const stamp=stateStamp(saved);
     if(stamp===this.persistedStamp)return false;
     // Une fenêtre plus récente a enregistré un format plus récent : on l’affiche sans jamais le réécrire.
     const wasLocked=Boolean(this.schemaLock);
     if(!isNewerSchema(saved))await this._backupBeforeMigration(saved);
+    const fingerprints=stored.format==='collections'?collectionFingerprints(saved):new Map();
     const next=this._loadSaved(saved);
     if(this.workspaceId!=='local')next.preferences.workspaceId=this.workspaceId;
-    this.state=next;this.persistedStamp=stamp;
+    this.state=next;this.persistedStamp=stamp;this.persistedCollections=fingerprints;if(stored.format==='collections')this.legacyOnlyKeys.delete(this.storageKey);
     if(notify&&this.schemaLock&&!wasLocked)this.notify({label:NEWER_SCHEMA_MESSAGE,kind:'schema-lock',entity:'state',queue:false});
     else if(notify)this.notify({label:'Données mises à jour depuis une autre fenêtre.',kind:'external-reload',entity:'state',queue:false});
     return true;
@@ -559,6 +637,9 @@ export class Store{
     const existingIndex=this.state.queue.findIndex(item=>['pending','error','conflict'].includes(item.status)&&item.entity===operation.entity&&item.entityId===operation.entityId);
     const existing=existingIndex>=0?this.state.queue[existingIndex]:null;
     const next={id:uid('op'),entity:operation.entity,entityId:operation.entityId,action:operation.action,payload:operation.payload,createdAt:now(),firstQueuedAt:existing?.firstQueuedAt||existing?.createdAt||now(),status:'pending',attempts:0,lastError:null,nextRetryAt:0};
+    // n° 20 (vague 12) : écriture limitée à quelques champs (relevé de compteur de l'opérateur terrain).
+    // Une écriture complète déjà en attente reste complète ; deux écritures limitées réunissent leurs champs.
+    if(Array.isArray(operation.fields)&&operation.fields.length&&(!existing||Array.isArray(existing.fields)))next.fields=[...new Set([...(existing?.fields||[]),...operation.fields])];
     if(existingIndex>=0)this.state.queue[existingIndex]=next;else this.state.queue.push(next);
     if(this.state.queue.length>1000)this.state.queue=this.state.queue.filter(item=>item.status!=='done');
   }
@@ -614,6 +695,7 @@ export class Store{
   list(type,{includeDeleted=false}={}){return(this.state[type]||[]).filter(item=>includeDeleted||!item.deletedAt);}
 
   upsert(type,entity,options={}){return this.enqueueWrite(()=>this._upsert(type,entity,options));}
+  /** @param {string} type @param {object} entity @param {{label?:string, queue?:boolean, historyAction?:string|null}} [options] */
   async _upsert(type,entity,{label,queue=true,historyAction=null}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     const existing=entity.id?this.get(type,entity.id,{includeDeleted:true}):null;
@@ -699,6 +781,7 @@ export class Store{
     return normalized;
   }
 
+  /** @param {string} type @param {object} entity @param {{expectedQueueId?:string|null}} [options] */
   async applyRemote(type,entity,{expectedQueueId}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     const incoming=clone(entity);

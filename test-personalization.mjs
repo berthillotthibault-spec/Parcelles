@@ -64,5 +64,5 @@ test('startup waits only the missing presentation time and respects reduced moti
 test('personalization resources are included in the offline release',()=>{
   const read=file=>fs.readFileSync(new URL(file,import.meta.url),'utf8');
   for(const file of ['runtime.js','sw.js'])for(const asset of ['personalization.js','personalization-ui.js','personalization.css'])assert.ok(read(file).includes(`'./${asset}'`));
-  assert.ok(read('index.html').includes('href="./personalization.css"'));
+  assert.match(read('index.html'),/href="\.\/personalization\.css(\?v=[\d.]+)?"/);
 });

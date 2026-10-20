@@ -1,3 +1,4 @@
+// @ts-check
 // Historique des fiches (n° 130) : logique pure, sans DOM ni IndexedDB.
 // Chaque modification enregistrée produit une ligne { avant, différences } conservée hors de l’état
 // synchronisé (object store IndexedDB « history ») ; la géométrie n’y est jamais copiée en entier.

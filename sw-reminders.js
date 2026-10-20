@@ -24,6 +24,23 @@
   }
 
   function request(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+  // n° 137 : état rangé par collection (<clé>/meta + <clé>/c/<nom>), sinon ancienne forme (un seul objet).
+  // Une seule transaction, requêtes enchaînées dans les rappels : lecture cohérente, jamais à moitié écrite.
+  function readStored(db,base){
+    return new Promise(resolve=>{
+      try{
+        const tx=db.transaction('app','readonly'),store=tx.objectStore('app');let value=null;
+        const metaReq=store.get(base+'/meta');
+        metaReq.onsuccess=()=>{
+          const meta=metaReq.result;
+          if(!meta||!Array.isArray(meta.keys)){const legacyReq=store.get(base);legacyReq.onsuccess=()=>{value=legacyReq.result||null;};return;}
+          value={};
+          for(const name of meta.keys){const req=store.get(base+'/c/'+name);req.onsuccess=()=>{if(req.result!==undefined)value[name]=req.result;};}
+        };
+        tx.oncomplete=()=>resolve(value);tx.onerror=tx.onabort=()=>resolve(null);
+      }catch{resolve(null);}
+    });
+  }
   async function readState(){
     if(!root.indexedDB)return null;
     // Ne jamais créer la base : si elle n'existe pas encore, l'ouverture est annulée.
@@ -36,8 +53,7 @@
       const active=await request(store.get('active-workspace')).catch(()=>null);
       const id=String(active?.id||'local');
       const key=id!=='local'?`state:workspace:${id.replace(/[^a-zA-Z0-9_-]/g,'_')}`:'state';
-      const tx=db.transaction('app','readonly').objectStore('app');
-      return (await request(tx.get(key)).catch(()=>null))||(key!=='state'?await request(db.transaction('app','readonly').objectStore('app').get('state')).catch(()=>null):null);
+      return (await readStored(db,key))||(key!=='state'?await readStored(db,'state'):null);
     }finally{db.close();}
   }
 

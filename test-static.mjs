@@ -51,13 +51,25 @@ assert.match(sheets.at(-1),/^\.\/design-v3\.css/);
 // Le dépôt EST le site publié : seules des extensions de site sont admises à la racine.
 // Un export de parcellaire (.shp, .dbf, .zip…) ou un tableur ne doit jamais y réapparaître.
 const SERVED_EXT=new Set(['.html','.js','.mjs','.css','.json','.webmanifest','.md','.txt','.rules','.png','.svg','.ico','.jpg','.jpeg','.webp','.woff','.woff2']);
-const ROOT_DIRS=new Set(['tools','fixtures','node_modules','audit','dist-github-root']);
+const ROOT_DIRS=new Set(['tools','fixtures','tests-visual','node_modules','audit','dist-github-root']);
 for(const entry of fs.readdirSync(root,{withFileTypes:true})){
   if(entry.name.startsWith('.'))continue;
   const isDir=entry.isDirectory()||(entry.isSymbolicLink()&&fs.statSync(path.join(root,entry.name)).isDirectory());
   if(isDir){assert.ok(ROOT_DIRS.has(entry.name),`dossier inattendu à la racine publiée : ${entry.name}/`);continue;}
   const ext=path.extname(entry.name).toLowerCase();
   assert.ok(SERVED_EXT.has(ext),`${entry.name} : extension ${ext||'(aucune)'} interdite à la racine publiée (données réelles ou fichier non servi ?)`);
+}
+// Régression visuelle (n° 146) : tests-visual/ ne contient que la configuration, les scénarios (.mjs)
+// et les références PNG de __screenshots__ ; les sorties d'exécution (.resultats, .rapport) sont ignorées par git.
+const VISUAL_DIR=path.join(root,'tests-visual');
+if(fs.existsSync(VISUAL_DIR))for(const e of fs.readdirSync(VISUAL_DIR,{withFileTypes:true})){
+  if(e.name.startsWith('.'))continue;
+  if(e.isDirectory()){
+    assert.equal(e.name,'__screenshots__',`tests-visual/${e.name}/ : dossier inattendu`);
+    for(const png of fs.readdirSync(path.join(VISUAL_DIR,e.name)))assert.match(png,/^[a-z0-9-]+-(darwin|linux|win32)\.png$/,`tests-visual/__screenshots__/${png} : référence visuelle mal nommée`);
+    continue;
+  }
+  assert.match(e.name,/\.mjs$/,`tests-visual/${e.name} : seuls des modules .mjs sont attendus`);
 }
 // Données géographiques, archives et tableurs : uniquement la fixture anonymisée explicitement autorisée
 // (générée par tools/make-fixture.mjs), nulle part ailleurs dans les dossiers publiés.

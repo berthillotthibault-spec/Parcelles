@@ -1,3 +1,4 @@
+// @ts-check
 import {pointInGeometry,uid} from './utils.js';
 import {readImportText} from './text-encoding.js';
 import {attachmentBlob} from './storage-care.js';

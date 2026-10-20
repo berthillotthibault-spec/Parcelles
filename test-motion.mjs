@@ -75,7 +75,7 @@ test('invalid progress totals never invent a percentage',()=>{
 test('flat release includes motion assets in HTML, offline cache and diagnostics',()=>{
   const read=file=>fs.readFileSync(new URL(file,import.meta.url),'utf8');
   for(const file of ['sw.js','runtime.js'])for(const asset of ['./motion.js','./motion.css'])assert.ok(read(file).includes(`'${asset}'`));
-  const html=read('index.html');assert.ok(html.includes('href="./motion.css"'));assert.ok(html.includes('id="activity-progress"'));assert.ok(html.includes("document.getElementById('app-boot')?.remove()"));
+  const html=read('index.html');assert.match(html,/href="\.\/motion\.css(\?v=[\d.]+)?"/);assert.ok(html.includes('id="activity-progress"'));assert.ok(html.includes("document.getElementById('app-boot')?.remove()"));
   const version=read('utils.js').match(/BUILD_ID = '([^']+)'/)[1];assert.ok(read('sw.js').includes(version));assert.ok(html.includes(version));
   assert.ok(read('motion.css').includes('@media(prefers-reduced-motion:reduce)'));
 });

@@ -286,8 +286,10 @@ export function createVoiceNotesUI(host){
       const [work]=workDraftsFromEntry(entry,{parcelIds:ids.length?ids:[''],type:form.elements.type.value.trim(),status:form.elements.status.value,date:form.elements.date.value||entry.date});
       draft.handled=true;
       const parcelId=ids[0]||active('parcelles')[0]?.id||null;
-      host.openWorkForm({...work,parcelId,surfaceWorked:work.surfaceWorked??undefined},parcelId);
-      const details=document.querySelector('#work-form details');if(details)details.open=true;
+      // openWorkForm peut être asynchrone (module du formulaire chargé à la demande) : attendre avant d'ouvrir « Plus de détails ».
+      Promise.resolve(host.openWorkForm({...work,parcelId,surfaceWorked:work.surfaceWorked??undefined},parcelId)).then(()=>{
+        const details=document.querySelector('#work-form details');if(details)details.open=true;
+      });
     };
   }
 

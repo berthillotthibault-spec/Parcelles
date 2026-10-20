@@ -60,5 +60,7 @@ test('Travaux : la recherche texte compte comme un filtre actif et « Effacer le
   assert.match(app, /const workFiltered=\(\)=>Boolean\(workFilters\.parcel\|\|workFilters\.type\|\|\$\('#work-search'\)\?\.value\.trim\(\)\)/);
   assert.match(app, /text:workFiltered\(\)\?/);
   assert.match(app, /workFiltered\(\)&&\{label:'Effacer les filtres',action:'clear-work-filters'/);
-  assert.match(app, /action==='clear-work-filters'\)\{workFilters=\{parcel:'',type:''\};if\(\$\('#work-search'\)\)\$\('#work-search'\)\.value='';renderWork/);
+  // n° 147 : gestionnaire dans work-actions.js (registre d’actions).
+  const actions = fs.readFileSync(new URL('./work-actions.js', import.meta.url), 'utf8');
+  assert.match(actions, /'clear-work-filters'\(\) \{\n\s+ctx\.workFilters = \{parcel: '', type: ''\};\n\s+if \(ctx\.\$\('#work-search'\)\) ctx\.\$\('#work-search'\)\.value = '';\n\s+ctx\.renderWork/);
 });
