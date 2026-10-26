@@ -5,7 +5,7 @@
 // non synchronisée) : pas de nouvelle collection ni de changement de schéma. Estimation, non contractuelle.
 import {active,completed} from './farm-memory.js';
 import {contracts,contractPrice,toTonnes,pricePerTonne} from './sales.js';
-import {invoices,invoiceStatus,creditNotesOf} from './invoices.js';
+import {expectedReceipts} from './invoices.js';
 import {hasCost,proposeCost,costReferences} from './costs.js';
 import {farmRecords} from './farm-records.js';
 import {pacAids} from './crop-margins.js';
@@ -91,12 +91,10 @@ export function treasuryFlows(state,{start=monthKey(),today=`${start}-01`,horizo
       push(month,t*p,`Vente ${text(lot.crop||lot.code||lot.name)}`,'vente');
     }
   }
-  // Factures émises non payées : reste dû (avoirs déduits) à l'échéance.
-  for(const inv of invoices(state)){
-    const s=invoiceStatus(inv,state,today);if(s!=='emise'&&s!=='retard')continue;
-    const credited=creditNotesOf(state,inv).reduce((x,a)=>x+Math.abs(num(a.totals?.ttc)||0),0),rest=Math.max(0,(num(inv.totals?.ttc)||0)-credited);
-    const due=monthOf(inv.dueDate)||monthOf(inv.issueDate)||start,late=s==='retard'||due<start;
-    push(late?start:due,rest,`Facture ${text(inv.number)||'émise'}`,'facture',late);
+  // Factures émises non soldées : reste dû (avoirs et paiements partiels déduits), échéance par échéance.
+  for(const r of expectedReceipts(state,today)){
+    const due=monthOf(r.date)||start,late=r.late||due<start;
+    push(late?start:due,r.amount,`Facture ${text(r.invoice.number)||'émise'}`,'facture',late);
   }
   // Aides PAC saisies en €/ha × surface des parcelles (calendrier indicatif).
   const aids=pacAids(state);

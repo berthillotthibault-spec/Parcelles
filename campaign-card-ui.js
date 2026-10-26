@@ -1,13 +1,13 @@
 // n° 88 — interface de la carte « Ma campagne » (repliable, montants masqués « •••• € »).
 import {escapeHtml as e} from './utils.js';
-import {campaignCardModel,MIN_RELIABILITY} from './campaign-card.js';
+import {campaignCardModel,billingHomeModel,MIN_RELIABILITY} from './campaign-card.js';
 
 const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const KEY='parcelles:campaign-card';
 const readPref=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch{return{};}};
 const writePref=v=>{try{localStorage.setItem(KEY,JSON.stringify(v));}catch{}};
 
-export function createCampaignCardUI({role,today=()=>new Date()}={}){
+export function createCampaignCardUI({role,today=()=>new Date(),onHideBilling=null}={}){
   let revealed=false;
   const money=v=>revealed?`${v<0?'−':''}${n0.format(Math.abs(v))} €`:'•••• €';
   function ensureCard(){
@@ -17,7 +17,27 @@ export function createCampaignCardUI({role,today=()=>new Date()}={}){
     card=document.createElement('article');card.className='panel campaign-card';card.dataset.homeCard='campaign';
     anchor.parentElement.append(card);return card;
   }
+  // Facturation (vague 13) : carte compacte des factures en retard, juste après « À faire maintenant ».
+  function renderBilling(data){
+    let card=document.getElementById('home-billing-card');
+    const m=billingHomeModel(data,{role:role(),enabled:data?.preferences?.billingHomeCard!==false});
+    if(m.hidden){if(card){card.hidden=true;card.innerHTML='';}return;}
+    if(!card){card=document.createElement('article');card.id='home-billing-card';card.className='panel bh-home-card';card.setAttribute('aria-label','Facturation');}
+    card.hidden=false;
+    card.innerHTML=`<button type="button" class="bh-home-main" data-action="open-invoices" data-tab="afaire"><span class="bh-home-text"><strong>${e(m.text)} · ${e(`${n0.format(Math.round(m.amount)).replace(/\u202f/g,'\u00a0')}\u00a0€`)}</strong>${m.detail?`<small>${e(m.detail)}</small>`:''}</span><span class="bh-home-cta">Relancer</span></button><button type="button" class="text-button bh-home-hide" data-billing-home-hide aria-label="Masquer la carte des factures en retard">Masquer</button>`;
+    // « Masquer » : la carte disparaît ; le focus passe à la carte suivante de l’accueil (jamais sur <body>).
+    card.querySelector('[data-billing-home-hide]').onclick=async()=>{
+      const next=card.nextElementSibling;await onHideBilling?.();
+      requestAnimationFrame(()=>{const a=document.activeElement;if(a&&a!==document.body&&!card.contains(a))return;
+        let target=next;while(target&&(target.hidden||target.classList.contains('hidden')))target=target.nextElementSibling;
+        if(!target)return;const inner=target.querySelector('button:not([disabled]),a[href],input:not([disabled]),[tabindex]:not([tabindex="-1"])');
+        if(inner){inner.focus({preventScroll:true});return;}if(!target.hasAttribute('tabindex'))target.setAttribute('tabindex','-1');target.focus({preventScroll:true});});
+    };
+    placeBilling(card);
+  }
+  function placeBilling(card=document.getElementById('home-billing-card')){const anchor=document.querySelector('[data-home-card="today"]');if(card&&anchor&&anchor.nextElementSibling!==card)anchor.after(card);}
   function render(data){
+    renderBilling(data);
     const card=ensureCard();if(!card)return;
     const m=campaignCardModel(data,{role:role()});
     if(m.hidden){card.classList.add('hidden');card.innerHTML='';card.dataset.roleHidden='1';return;}
@@ -32,6 +52,6 @@ export function createCampaignCardUI({role,today=()=>new Date()}={}){
     const reveal=card.querySelector('[data-campaign-reveal]');if(reveal)reveal.onclick=()=>{revealed=!revealed;render(data);};
   }
   // Après la mise en page de l’accueil : la carte reste cachée au rôle lecture seule.
-  function enforce(){const card=document.querySelector('[data-home-card="campaign"]');if(card?.dataset.roleHidden)card.classList.add('hidden');}
+  function enforce(){const card=document.querySelector('[data-home-card="campaign"]');if(card?.dataset.roleHidden)card.classList.add('hidden');placeBilling();}
   return{render,enforce};
 }

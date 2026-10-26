@@ -1,5 +1,48 @@
 # Changelog
 
+## 10.21.0 · service de facturation complet et envoi de messages — 2026-10-26
+
+Données : pas de changement de schéma (version 17). Les nouveaux documents (devis, catalogue, récurrences, contacts, modèles et journal des messages) sont des enregistrements de l’exploitation, synchronisés comme les autres. Les factures et avoirs déjà émis restent valables et leur numérotation continue.
+
+À faire par le propriétaire de l’exploitation cloud : `firestore.rules` change (droits de la facturation, des contacts et des messages, en plus du relevé de compteur de la 10.20.0). Tester avec `node tools/test-rules.mjs` (émulateur Firebase) puis publier avec `firebase deploy --only firestore:rules`.
+
+Facturation (Plus › Gestion › Facturation) :
+- documents : devis (validité, acceptation datée avec signataire, refus), factures d’acompte en % ou en montant, facture de solde qui déduit les acomptes, factures, avoirs totaux ou partiels, pro forma, duplication ; pour toute l’activité, pas seulement les travaux saisis dans l’appli ;
+- éditeur : client recherché ou créé sur place (SIREN, TVA intracommunautaire, adresses de facturation et de livraison, conditions et remise par défaut), lignes libres, depuis le catalogue ou depuis les travaux, chantiers et carburant non facturés, sections, sous-totaux, commentaires, remise par ligne et globale, frais, TVA par ligne et totaux par taux, aperçu fidèle, enregistrement automatique ;
+- conformité : mentions obligatoires contrôlées avant émission (avec un bouton pour corriger), régimes de TVA (franchise, autoliquidation, exonération, débits ou encaissements), mentions de la réforme 2026-2027, document figé une fois émis, numérotation paramétrable par série sans trou ni doublon ;
+- paiements partiels (virement, chèque, espèces, carte, prélèvement), reste dû, trop-perçu reporté ou remboursé, échéancier ;
+- suivi : tableau de bord (facturé et encaissé par mois, en-cours, retards par ancienneté, délai moyen de paiement, taux de devis acceptés, meilleurs clients, prévision d’encaissements reliée à la trésorerie), liste « À faire » (relances à envoyer, devis à suivre ou expirant, prestations réalisées non facturées, factures récurrentes à générer, doublons probables, clients à risque), carte sur l’accueil, onglet facturation dans la fiche client ;
+- relances à plusieurs niveaux, envoyées en un geste par e-mail ou SMS, et historique de chaque document ;
+- catalogue d’articles et de prestations avec prix par client et import CSV ; factures récurrentes générées en brouillon, jamais émises sans confirmation ;
+- saisie rapide en français (« devis Dupont 3 h de pelle à 65 € et 12 t de cailloux à 18 € ») et prix suggéré d’après l’historique ;
+- personnalisation : identité et mentions, IBAN avec QR code de virement SEPA, conditions, pénalités, escompte, taux de TVA personnalisés, textes des relances, modèle visuel (logo, couleur, police, colonnes, pied de page, conditions générales) avec aperçu ;
+- exports : XML Factur-X (EN 16931) vérifié avant téléchargement, journal des ventes au format FEC et CSV des lignes pour le comptable.
+
+Messages (Plus › Planifier › Messages & SMS, ou depuis un travail) :
+- carnet de contacts (clients, équipe, chauffeurs, ETA, vétérinaire…) avec accord SMS et e-mail daté ;
+- modèles personnalisables avec variables : planning du jour, consigne, changement de planning, rendez-vous, alerte météo, envoi de devis et de facture, relances, remerciement ;
+- envoi par le téléphone (SMS, WhatsApp, e-mail, partage avec le PDF joint), gratuit et sans serveur ; en option, envoi automatique par une passerelle que vous configurez (exemple de Worker Cloudflare dans tools/, clés gardées côté serveur) ;
+- « Envoyer le planning » : un SMS prérempli par personne avec ses travaux et tâches du jour (heure, parcelle, produit, matériel, consignes, lien de localisation) ; « Envoyer la consigne » sur un travail confié ; « Confier à… » depuis le menu d’un travail ; proposition chaque soir du planning du lendemain ;
+- journal des messages préparés ou envoyés.
+
+Rôles : la comptabilité gère la facturation ; l’opérateur terrain envoie ses plannings et consignes mais ne voit ni la facturation ni les messages des autres ; le lecteur n’envoie rien. Ce masquage est fait par l’application : côté serveur, tout membre de l’exploitation peut lire les données (limite documentée).
+
+Vitesse : le moteur de facturation et ses feuilles de style se chargent à l’ouverture des écrans ; le démarrage reste au niveau de la 10.20.0.
+
+Limites :
+- les réglages de facturation (identité, numérotation, modèle) sont propres à chaque appareil : chaque membre qui émet doit les saisir ;
+- deux appareils hors connexion qui émettent en même temps peuvent produire le même numéro (contrôle des doublons dans les réglages) ;
+- le XML Factur-X est fourni à côté du PDF (pas de PDF/A-3), et le dépôt sur une plateforme agréée reste à faire hors de l’appli ;
+- sans passerelle, l’appli prépare les SMS et e-mails mais c’est vous qui les envoyez : rien ne part appli fermée.
+
+Corrections (relectures avant publication) :
+- sécurité : texte d’une raison sociale qui pouvait sortir de la feuille de style d’un document imprimé, écriture cloud forgée qui pouvait contourner les droits sur les factures, formules neutralisées dans les CSV, opposition d’un contact respectée même en saisissant son numéro ;
+- numéros de mobiles 06 81, 06 87 et 06 89 pris à tort pour des numéros du Pacifique ;
+- double appui : paiement, acompte ou envoi enregistrés deux fois ;
+- facture de solde : déduction d’acompte exacte au centime, avoir partiel avec la remise et les frais, solde bloqué si une autre facture finale existe ;
+- comptabilité qui ne pouvait pas émettre, entrée Facturation visible pour l’opérateur et le lecteur ;
+- partage avec pièces jointes qui perdait le texte, saisie rapide des m³.
+
 ## 10.20.0 · fiabilité, accessibilité et fondations techniques — 2026-10-20
 
 Données : pas de changement de schéma (version 17). Le rangement sur l’appareil change (n° 137, étape 2) : l’état est désormais enregistré par collection. La conversion est automatique au premier lancement, précédée d’un instantané « Avant mise à jour du format ». Une version antérieure de Parcelles restée en cache sur un autre appareil ou onglet passe en lecture seule (« données d’une version plus récente ») au lieu d’écraser quoi que ce soit ; elle redevient utilisable après sa mise à jour.

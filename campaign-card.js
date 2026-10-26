@@ -4,7 +4,7 @@
 import {campaignFor} from './utils.js';
 import {marginModel} from './pilotage.js';
 import {commercialisation} from './sales.js';
-import {clientsToBill,billableItems,lineTotal} from './invoices.js';
+import {clientsToBill,billableItems,lineTotal,overdueInvoices,invoiceBalance,isoDay} from './invoices-core.js';
 import {normalizeRole} from './permissions.js';
 
 export const MIN_RELIABILITY=50;
@@ -25,4 +25,15 @@ export function campaignCardModel(state,{campaign=campaignFor(),role='owner'}={}
     :sold!==null&&sold<0.5?{kind:'sales',text:'Moins de la moitié de la récolte vendue : voir la commercialisation'}
     :null;
   return{hidden:false,campaign,previous:prevId,reliable,reliability:t.reliability,margin:reliable?t.margin:null,delta,sold,toBill:Math.round(toBill*100)/100,toBillCount,action,detail:m.reliability.detail};
+}
+
+// Facturation (vague 13) : carte compacte « 3 factures en retard · 2 450 € — relancer » de l’accueil.
+// Masquée au lecteur et à l’opérateur terrain, désactivable (préférence billingHomeCard), absente sans retard.
+export function billingHomeModel(state,{role='owner',today=isoDay(),enabled=true}={}){
+  const r=normalizeRole(role);if(!enabled||r==='viewer'||r==='operator')return{hidden:true,reason:enabled?'role':'off'};
+  const late=(()=>{try{return overdueInvoices(state,today);}catch{return[];}})();
+  const amount=Math.round(late.reduce((s,i)=>s+(invoiceBalance(state,i).due||0),0)*100)/100;
+  if(!late.length||!(amount>0))return{hidden:true,reason:'empty'};
+  const clients=new Set(late.map(i=>i.clientId||i.clientName)).size;
+  return{hidden:false,count:late.length,amount,clients,text:`${late.length} facture${late.length>1?'s':''} en retard`,detail:clients>1?`${clients} clients`:late[0].clientName||''};
 }

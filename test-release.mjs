@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {parseArgs, buildString, setBuild, coverage, appendToList, CORE_RE, bumpCssVersion, bumpChangedCss, stylesheets, changelogEntry, whatsNewEntry, release, UPLOAD_EXCLUDE} from './tools/release.mjs';
+import {parseArgs, buildString, setBuild, coverage, appendToList, CORE_RE, bumpCssVersion, bumpChangedCss, stylesheets, lazySheets, sheetVersions, bumpLazySheets, changelogEntry, whatsNewEntry, release, UPLOAD_EXCLUDE} from './tools/release.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,7 +27,7 @@ test('le CORE du dépôt couvre modules, index.html, icônes et vendor', () => {
   const cov = coverage(root);
   assert.deepEqual(cov.missingOnDisk, []);
   assert.deepEqual(cov.missingCore, []);
-  for (const f of ['./app.js', './icon-192.png', './xlsx.full.min.js', './shp.min.js', './layers.png', './instrument-sans-latin.woff2', './whatsnew.json', './sw-reminders.js']) assert.ok(cov.files.includes(f), f);
+  for (const f of ['./app.js', './icon-192.png', './xlsx.full.min.js', './shp.min.js', './layers.png', './instrument-sans-latin.woff2', './whatsnew.json', './sw-reminders.js', './lazy-styles.js', './billing-docs.css', './billing-hub.css']) assert.ok(cov.files.includes(f), f);
 });
 
 test('ajout à une liste : une ligne avant « ]; », fins de ligne conservées', () => {
@@ -61,6 +61,23 @@ test('?v= monté pour chaque feuille modifiée, et seulement celles-là (n° 153
   // Les ?v= d'index.html sont tous présents et chaque feuille liée existe.
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   for (const s of stylesheets(html)) { assert.ok(s.v, `${s.file} sans ?v=`); assert.ok(fs.existsSync(path.join(root, s.file)), s.file); }
+});
+
+test('?v= des feuilles différées (lazy-styles.js) monté une seule fois, depuis leur version d’index.html', () => {
+  const src = "export const LAZY_SHEETS = Object.freeze({\n  'billing-docs.css': '1',\n  'billing-hub.css': '2.1'\n});\n";
+  assert.deepEqual(lazySheets(src), [{file: 'billing-docs.css', v: '1'}, {file: 'billing-hub.css', v: '2.1'}]);
+  // Référence : feuille encore liée par index.html (avant lazy-styles.js), ou constante de lazy-styles.js.
+  const base = sheetVersions('<link rel="stylesheet" href="./billing-docs.css?v=1">', "export const LAZY_SHEETS = Object.freeze({'billing-hub.css': '2.1'});");
+  assert.deepEqual([...base], [['billing-docs.css', '1'], ['billing-hub.css', '2.1']]);
+  const once = bumpLazySheets(src, base, ['billing-docs.css', 'billing-hub.css', 'design-v3.css']);
+  assert.match(once.src, /'billing-docs\.css': '2',/); assert.match(once.src, /'billing-hub\.css': '2\.2'\n/);
+  assert.deepEqual(once.done, ['billing-docs.css ?v=1 → 2', 'billing-hub.css ?v=2.1 → 2.2']);
+  // Relancé : rien ne bouge ; feuille non modifiée ou ajoutée depuis la référence : inchangée.
+  assert.deepEqual(bumpLazySheets(once.src, base, ['billing-docs.css', 'billing-hub.css']).done, []);
+  assert.equal(bumpLazySheets(src, base, ['billing-hub.css']).src.includes("'billing-docs.css': '1'"), true);
+  assert.deepEqual(bumpLazySheets(src, new Map(), ['billing-docs.css']).done, []);
+  // Le dépôt : chaque feuille différée a un ?v= et existe.
+  for (const s of lazySheets(fs.readFileSync(path.join(root, 'lazy-styles.js'), 'utf8'))) { assert.ok(s.v, `${s.file} sans ?v=`); assert.ok(fs.existsSync(path.join(root, s.file)), s.file); }
 });
 
 test('CHANGELOG et whatsnew : entrée à compléter ajoutée une seule fois', () => {

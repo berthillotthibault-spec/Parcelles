@@ -1,7 +1,8 @@
 // n° 123 : page Confidentialité. Logique pure, fidèle au code (relu le 2026-10-12) :
 // app.js (météo Open-Meteo, géocodage), agro-weather.js / soil-water.js / claims.js (archives météo),
 // basemaps.js / offline-map.js / rpg.js (IGN Géoplateforme, Esri), satellite.js (Worker, contour + jeton),
-// remote-ai.js (assistant distant configuré par l'utilisateur), sync.js (Firebase, SDK chargé depuis gstatic
+// remote-ai.js (assistant distant configuré par l'utilisateur), messaging-ui.js (liens sms:/wa.me/mailto: et
+// passerelle d'envoi facultative de l'utilisateur), sync.js (Firebase, SDK chargé depuis gstatic
 // seulement si la synchronisation est activée), utils.js (itinéraires Apple, Google, Waze).
 
 // Ce qui reste sur l'appareil.
@@ -10,7 +11,8 @@ export const LOCAL_ITEMS = [
   'Photos et documents joints',
   'Votre position GPS en direct (jamais envoyée automatiquement)',
   'Sauvegardes automatiques et historique des modifications',
-  'Règles d’automatisation, évaluées sur l’appareil'
+  'Règles d’automatisation, évaluées sur l’appareil',
+  'Carnet de contacts, accords RGPD, modèles et journal des messages ; le jeton de la passerelle d’envoi (jamais dans les sauvegardes)'
 ];
 
 // Services externes : id, nom, destinataire, données envoyées, quand, pourquoi, réglage éventuel (clé de préférence).
@@ -46,6 +48,13 @@ export function privacyServices(prefs = {}, env = {}) {
       data: 'Votre question et un contexte réduit aux données utiles (parcelles citées, travaux, tâches…) ; l’image ou le PDF seulement pour une lecture de document que vous confirmez',
       when: 'Seulement si vous l’activez et posez une question', why: 'Réponses et lecture de documents par une IA de votre choix',
       state: p.remoteAiEnabled && p.remoteAiEndpoint ? 'on' : 'off', setting: 'remoteAiEnabled', needsEndpoint: !p.remoteAiEndpoint},
+    {id: 'messages', name: 'Messages depuis le téléphone', recipient: 'Votre application SMS, WhatsApp ou de messagerie, puis votre opérateur',
+      data: 'Le texte du message et les numéros ou adresses des destinataires choisis', when: 'Seulement quand vous touchez « Ouvrir le SMS », « WhatsApp », « Ouvrir l’e-mail » ou « Partager »',
+      why: 'Envoyer le planning, une consigne ou un document à l’équipe et aux clients', state: 'on-demand', setting: null, manage: 'open-messages',
+      note: 'Les destinataires. L’accord ou l’opposition de chaque contact est noté dans sa fiche ; une opposition bloque l’envoi par ce canal.'},
+    {id: 'messages-gateway', name: 'Passerelle d’envoi automatique', recipient: p.messagingGatewayUrl ? `Votre passerelle : ${hostOf(p.messagingGatewayUrl)}, puis votre fournisseur SMS / e-mail` : 'La passerelle HTTPS que vous déployez (aucune par défaut)',
+      data: 'Numéros ou adresses, texte du message et jeton de l’exploitation (pas de pièce jointe)', when: 'Seulement si vous l’activez et choisissez l’envoi automatique, ou pour réessayer un envoi en attente',
+      why: 'Envoyer sans manipuler le téléphone, ou à une heure programmée', state: p.messagingGatewayEnabled && p.messagingGatewayUrl ? 'on' : 'off', setting: null, manage: 'open-messages'},
     {id: 'routes', name: 'Itinéraires', recipient: 'Apple Plans, Google Maps ou Waze (selon votre choix)',
       data: 'Les coordonnées de la parcelle de destination', when: 'Seulement quand vous touchez « Itinéraire »', why: 'Guider jusqu’à la parcelle',
       state: 'on-demand', setting: null}
@@ -58,7 +67,7 @@ export const STATE_LABELS = {on: 'Actif', 'on-demand': 'À la demande', ready: '
 
 // « 100 % local » : rien n'est stocké hors de l'appareil (cloud et assistant distant éteints).
 export function isLocalOnly(prefs = {}) {
-  return !prefs?.syncEnabled && !(prefs?.remoteAiEnabled && prefs?.remoteAiEndpoint);
+  return !prefs?.syncEnabled && !(prefs?.remoteAiEnabled && prefs?.remoteAiEndpoint) && !(prefs?.messagingGatewayEnabled && prefs?.messagingGatewayUrl);
 }
 
 // Valeur effective d'un interrupteur (les préférences absentes prennent leur valeur par défaut).

@@ -40,6 +40,7 @@ export const LAZY_MODULES = Object.freeze({
   automations: () => import('./automations-ui.js'),
   techCenters: () => import('./tech-centers-ui.js'),
   teamRoles: () => import('./team-roles-ui.js'),
+  messaging: () => import('./messaging-ui.js'), // v13 : messages, SMS, e-mail, planning du jour
   activityLog: () => import('./activity-ui.js'),
   trash: () => import('./trash-ui.js'),
   restore: () => import('./restore-ui.js'),
@@ -76,7 +77,9 @@ export const LAZY_MODULES = Object.freeze({
   shareTarget: () => import('./share-target-ui.js'),
   demoFarm: () => import('./demo-farm.js'),
   remoteAi: () => import('./remote-ai.js'),
-  intelligence: () => import('./intelligence.js')
+  billingDocs: () => import('./billing-docs-ui.js'), // v13 : devis, factures, acomptes, avoirs, pro forma (éditeur et actions)
+  intelligence: () => import('./intelligence.js'),
+  billingHub: () => import('./billing-hub-ui.js') // v13 : centre Facturation (suivi, relances, catalogue, réglages)
 });
 
 // Actions du délégué de clics d'app.js dont le gestionnaire appelle un module différé : le clic est
@@ -114,6 +117,7 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('techCenters', 'open-native', 'open-platform', 'platform-run-job', 'open-security', 'repair-text', 'open-integrations', 'open-integration-track'),
   ...actions('automations', 'open-automations', 'new-automation', 'edit-automation', 'add-automation-template', 'toggle-automation', 'delete-automation', 'toggle-automation-engine'),
   ...actions('teamRoles', 'open-team-roles'),
+  ...actions('messaging', 'open-messages'),
   ...actions('trash', 'restore-trash', 'purge-trash'),
   ...actions('mapLayers', 'open-map-layers'),
   ...actions('contourEdit', 'edit-contour'),
@@ -124,12 +128,14 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('publicWorks', 'open-public-works'),
   ...actions('demoFarm', 'open-demo'),
   ...actions('fieldCoverage', 'field-track-map', 'field-track-gpx'),
-  ...actions('importExport', 'export-work-csv', 'export-geojson', 'export-parcels-csv')
+  ...actions('importExport', 'export-work-csv', 'export-geojson', 'export-parcels-csv'),
+  ...actions('billingHub', 'open-invoices', 'new-invoice')
 ]));
 
 // Boutons traités par l'écouteur propre d'un module différé mais affichés par un module chargé au
-// démarrage (carte de campagne de l’accueil, légende de la carte n° 90, boutons Partager n° 19, Imprimer un plan n° 54) : même traitement que les actions ci-dessus.
-export const LAZY_TRIGGERS = Object.freeze({'[data-cost]': 'costs', '[data-my]': 'measuredYield', '[data-share]': 'share', '[data-explain]': 'explain', '[data-plan]': 'farmPlan'});
+// démarrage (carte de campagne de l’accueil, légende de la carte n° 90, boutons Partager n° 19, Imprimer un plan n° 54,
+// boutons Messages v13 : « Envoyer le planning », « Envoyer la consigne ») : même traitement que les actions ci-dessus.
+export const LAZY_TRIGGERS = Object.freeze({'[data-cost]': 'costs', '[data-my]': 'measuredYield', '[data-share]': 'share', '[data-explain]': 'explain', '[data-plan]': 'farmPlan', '[data-msg]': 'messaging', '[data-bdoc]': 'billingDocs'});
 
 const keyList = keys => [].concat(keys ?? []).filter(Boolean);
 // Chemin littéral d'un module différé, lu dans sa fonction d'import (nouvelle tentative après un échec).

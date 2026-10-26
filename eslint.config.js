@@ -86,7 +86,7 @@ export default [
   },
   // Exemple de Worker Cloudflare (non servi).
   {
-    files: ['tools/worker-assistant.example.js'],
+    files: ['tools/worker-assistant.example.js', 'tools/worker-messages.example.js'],
     languageOptions: {sourceType: 'module', globals: {...globals.serviceworker}},
   },
 ];

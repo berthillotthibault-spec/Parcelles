@@ -149,7 +149,7 @@ test('nouveaux fichiers servis listés dans sw.js et runtime.js', () => {
 
 test('factures et ventes : comptabilité oui, opérateur terrain non ; capteurs : opérateur oui, comptabilité non', async () => {
   const {canMutate} = await import('./permissions.js');
-  for (const farmKind of ['invoice', 'salesContract']) {
+  for (const farmKind of ['invoice', 'quote', 'billingItem', 'billingSchedule', 'salesContract']) {
     assert.equal(canMutate('accountant', {entity: 'integrationImports', action: 'update', farmKind}), true);
     assert.equal(canMutate('operator', {entity: 'integrationImports', action: 'update', farmKind}), false);
     assert.equal(canMutate('operator', {entity: 'integrationImports', action: 'create', payload: {farmKind}}), false);

@@ -720,7 +720,8 @@ export class Store{
     const {label='Mise à jour groupée'}=options;
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     this.assertTabWritable();
-    if(this.writeGuard&&!this.writeGuard({entity:type,action:'update'}))throw new Error('Votre rôle ne permet pas cette modification.');
+    // Contrôle fiche par fiche (comme upsert) : le rôle peut dépendre de la nature de la fiche (farmKind, ancienne version).
+    if(this.writeGuard)for(const entity of entities){const existing=entity?.id?this.get(type,entity.id,{includeDeleted:true}):null;if(!this.writeGuard({entity:type,action:existing?'update':'create',...(entity?.id?{entityId:entity.id}:{}),farmKind:entity?.farmKind??existing?.farmKind,payload:entity}))throw new Error('Votre rôle ne permet pas cette modification.');}
     const previous=this.snapshot();
     try{
       const normalized=entities.map(entity=>{const existing=entity.id?this.get(type,entity.id,{includeDeleted:true}):null;const value=normalizeEntity(type,entity,existing);const errors=validate(type,value);if(errors.length)throw new Error(errors.join(' — '));return{value,existing};});
@@ -839,7 +840,8 @@ export class Store{
   recordExternalBackup(kind='zip'){return this.mutate('Sauvegarde hors de l’appareil effectuée.',state=>{state.metadata.lastExternalBackupAt=now();state.metadata.lastExternalBackupKind=String(kind||'zip');state.metadata.externalBackupReminderHiddenUntil=null;},{queue:false,kind:'backup',entity:'preferences',action:'update',bypassPermissions:true});}
   snoozeExternalBackupReminder(days=EXTERNAL_BACKUP_SNOOZE_DAYS){return this.mutate('Rappel de sauvegarde masqué.',state=>{state.metadata.externalBackupReminderHiddenUntil=now()+Math.max(1,Number(days)||EXTERNAL_BACKUP_SNOOZE_DAYS)*86400000;},{queue:false,log:false,kind:'settings',entity:'preferences',action:'update',bypassPermissions:true});}
   async setPreferences(patch){return this.mutate('Préférences mises à jour.',state=>Object.assign(state.preferences,patch),{queue:false,kind:'settings',entity:'preferences',action:'update'});}
-  async setExploitation(patch){return this.mutate('Informations de l’exploitation mises à jour.',state=>Object.assign(state.exploitation,patch,{updatedAt:now()}),{queue:false,kind:'settings',entity:'exploitation',action:'update'});}
+  // farmKind : réglages d’un domaine (« invoice » : facturation), pour les droits du rôle (permissions.js).
+  async setExploitation(patch,{farmKind=''}={}){return this.mutate('Informations de l’exploitation mises à jour.',state=>Object.assign(state.exploitation,patch,{updatedAt:now()}),{queue:false,kind:'settings',entity:'exploitation',action:'update',...(farmKind?{farmKind}:{})});}
 
   replaceState(next,label='Données remplacées',options={}){return this.enqueueWrite(()=>this._replaceState(next,label,options));}
   async _replaceState(next,label='Données remplacées',{kind='restore',log=true,bypassPermissions=false}={}){

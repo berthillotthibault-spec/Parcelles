@@ -122,6 +122,21 @@ test('cycle complet : brouillon, émission numérotée sans trou, immuabilité, 
   const draftHtml=invoiceHtml(store.state,{...d3,status:'brouillon',lines:[]});assert.match(draftHtml,/Brouillon · sans valeur/);
 });
 
+test('document imprimable : raison sociale ou numéro piégés ne sortent jamais de la feuille de style',async()=>{
+  const {PRINT_SCRIPT,PRINT_SCRIPT_HASH}=await import('./dossier.js');
+  const evil='Ferme</style><img src=x onerror=alert(document.domain)>"\\';
+  const html=invoiceHtml(emptyState(),{id:'x',number:'F1</style><script>alert(1)</script>',status:'emise',lines:[],seller:{legalName:evil,template:{}}});
+  assert.equal(html.split('</style>').length,2,'une seule fermeture de <style>');
+  assert.ok(!/<img src=x/.test(html)&&!/<script>alert/.test(html));
+  assert.match(html,/@bottom-left\{content:"Ferme\\3c \\2f style\\3e /);
+  // Seul le script d’impression, désigné par son empreinte, peut s’exécuter dans l’onglet du document.
+  const {createHash}=await import('node:crypto');
+  assert.equal(PRINT_SCRIPT_HASH,`sha256-${createHash('sha256').update(PRINT_SCRIPT).digest('base64')}`);
+  assert.ok(html.indexOf('Content-Security-Policy')<html.indexOf('<title>'));
+  assert.ok(html.includes(`<script>${PRINT_SCRIPT}</script>`));
+  assert.match(read('dossier-ui.js'),/class="dz-viewer-frame"[^>]*sandbox="allow-same-origin allow-modals"/);
+});
+
 test('numérotation : doublons hors ligne et trous détectés ; droits d’écriture respectés',async()=>{
   const s=emptyState();s.integrationImports=[{id:'a',farmKind:INVOICE_KIND,status:'emise',number:'F2026-0001'},{id:'b',farmKind:INVOICE_KIND,status:'emise',number:'F2026-0001'},{id:'c',farmKind:INVOICE_KIND,status:'emise',number:'F2026-0004'},{id:'d',farmKind:INVOICE_KIND,status:'emise',number:'B2026-0001'}];
   assert.deepEqual(numberingIssues(s),{duplicates:['F2026-0001'],gaps:['F2026-0002','F2026-0003']});

@@ -3,7 +3,7 @@
 // Boutons repérés par data-invoice : un seul écouteur délégué, installé une fois.
 import {escapeHtml as e,download} from './utils.js';
 import {active} from './farm-memory.js';
-import {ACCENTS,LOGO_MAX_BYTES,INVOICE_KIND,PAYMENT_TERMS,STATUS_LABELS,UNITS,VAT_RATES,addDays,billableItems,clientsToBill,createCreditNote,createDraft,creditNotesOf,dateFr,deleteDraft,emissionProblems,emitInvoice,invoiceHtml,invoiceSettings,invoiceStatus,invoiceTotals,invoices,invoicesCsv,isoDay,lineTotal,markPaid,nextNumber,numberingIssues,receivable,saveDraft,saveSettings,settingsReady,sortInvoices,validateDraft} from './invoices.js';
+import {ACCENTS,LOGO_MAX_BYTES,INVOICE_KIND,PAYMENT_TERMS,STATUS_LABELS,UNITS,VAT_RATES,addDays,billableItems,clientsToBill,createCreditNote,createDraft,creditNotesOf,dateFr,deleteDraft,documentTotals,emissionProblems,emitInvoice,fingerprintOk,invoiceHtml,invoiceSettings,invoiceStatus,invoiceTotals,invoices,invoicesCsv,isoDay,lineTotal,markPaid,nextNumber,numberingIssues,receivable,saveDraft,saveSettings,settingsReady,sortInvoices,validateDraft} from './invoices.js';
 import {openPrintable,assetBase} from './dossier-ui.js';
 import {invoicePdf,invoiceFileName} from './invoice-pdf.js';
 import {dataUrlBytes,isTouchDevice,pdfFile,sharePdf} from './pdf-lite.js';
@@ -69,7 +69,10 @@ const logoPreview=url=>url?`<img src="${e(url)}" alt="Logo de l’entreprise">`:
 
 export function statusPill(status){return`<span class="inv-pill is-${e(status)}">${e(STATUS_LABELS[status]||status)}</span>`;}
 
-export function createInvoicesUI({store,modal,closeModal,toast}){
+// Vague 13 : relais vers le centre Facturation (billing-hub-ui.js). open, prepare et settings ouvrent le centre
+// (anciens appels : Plus, accueil, fiche client, chantiers TP) ; l’ancien écran reste disponible en repli
+// (legacyOpen, legacyPrepare, legacySettings) si le centre ne se charge pas.
+export function createInvoicesUI({store,modal,closeModal,toast,hub=null}){
   const state=()=>store.state||store.snapshot();
   const canWrite=()=>!store.writeGuard||store.writeGuard({entity:'integrationImports',action:'update',farmKind:'invoice'});
   let filter='all',prep={clientId:'',from:'',to:isoDay(),fuel:true},draftLines=new Map();
@@ -78,7 +81,7 @@ export function createInvoicesUI({store,modal,closeModal,toast}){
   function open(nextFilter=filter){
     filter=FILTERS.some(([f])=>f===nextFilter)?nextFilter:'all';
     const data=state(),today=isoDay(),r=receivable(data,today),issues=numberingIssues(data),toBill=clientsToBill(data),write=canWrite();
-    const all=sortInvoices(invoices(data)),match=inv=>{const s=invoiceStatus(inv,data,today);return filter==='all'||(filter==='due'?s==='emise'||s==='retard':s===filter);};
+    const all=sortInvoices(invoices(data)),match=inv=>{const s=invoiceStatus(inv,data,today);return filter==='all'||(filter==='due'?s==='emise'||s==='retard'||s==='partielle':s===filter);};
     const list=all.filter(match);
     const row=inv=>{const s=invoiceStatus(inv,data,today),t=inv.status==='brouillon'?invoiceTotals(inv.lines||[]):inv.totals||invoiceTotals(inv.lines||[]);
       const meta=[inv.status==='brouillon'?`créé le ${dateFr(inv.issueDate)}`:dateFr(inv.issueDate),inv.docType!=='avoir'&&inv.status!=='brouillon'&&!inv.paidAt?`échéance ${dateFr(inv.dueDate)}`:'',inv.paidAt?`payée le ${dateFr(inv.paidAt)}`:''].filter(Boolean).join(' · ');
@@ -172,8 +175,8 @@ ${clients.length?'':'<p class="span-2 notice info">Aucun client enregistré : cr
   }
   function renumber(form){form.querySelectorAll('.inv-line').forEach((card,i)=>{card.querySelector('.inv-line-head strong').textContent=`Ligne ${i+1}`;card.querySelector('.inv-remove').setAttribute('aria-label',`Supprimer la ligne ${i+1}`);});}
   async function confirmEmit(form){
-    const saved=await save(form,{silent:true});if(!saved)return;const data=state(),avoir=saved.docType==='avoir',problems=emissionProblems(data,saved,saved.docType||'facture'),settings=invoiceSettings(data);
-    const year=Number(String(saved.issueDate||isoDay()).slice(0,4)),{number}=nextNumber(data,{prefix:settings.prefix,year}),t=invoiceTotals(saved.lines||[]);
+    const saved=await save(form,{silent:true});if(!saved)return;const data=state(),avoir=saved.docType==='avoir',problems=emissionProblems(data,saved,saved.docType||'facture');
+    const {number}=nextNumber(data,{docType:saved.docType||'facture',date:saved.issueDate||isoDay()}),t=documentTotals(saved);
     const body=problems.length?`<div class="notice danger inv-notice" role="alert"><p><strong>À compléter avant l’émission${colon}</strong></p><ul>${problems.map(p=>`<li>${e(p)}</li>`).join('')}</ul></div>`:`<p class="inv-confirm">${avoir?'L’avoir':'La facture'} recevra le numéro <strong>${e(number)}</strong> pour un total de <strong>${e(money(t.ttc))} TTC</strong>.</p><div class="notice warning inv-notice"><p>Une facture émise ne se modifie plus et ne se supprime pas${colon} toute correction passera par un avoir. La numérotation reste continue, sans trou.</p></div>`;
     const settingsButton=problems.some(p=>/Paramètres/.test(p))?'<button type="button" class="button secondary" data-invoice="settings">Paramètres</button>':'';
     modal(avoir?'Émettre l’avoir':'Émettre la facture',`${saved.clientName} · ${money(t.ttc)} TTC`,body,`<button type="button" class="button secondary" data-invoice="edit" data-id="${e(saved.id)}">Retour au brouillon</button>${settingsButton}${problems.length?'':`<button type="button" class="button primary inv-primary" data-invoice="emit-confirm" data-id="${e(saved.id)}" data-version="${e(saved.version??'')}">Émettre définitivement</button>`}`,'small');
@@ -189,7 +192,7 @@ ${clients.length?'':'<p class="span-2 notice info">Aucun client enregistré : cr
 <dl class="definition-list"><div><dt>Client</dt><dd>${e(inv.clientName)}</dd></div><div><dt>Date</dt><dd>${e(dateFr(inv.issueDate))}</dd></div>${avoir?`<div><dt>Facture d’origine</dt><dd>${original?`<button type="button" class="text-button" data-invoice="view" data-id="${e(original.id)}">${e(inv.creditOfNumber||original.number)}</button>`:e(inv.creditOfNumber||'—')}</dd></div>`:`<div><dt>Échéance</dt><dd>${e(dateFr(inv.dueDate))}</dd></div>`}<div><dt>Total HT</dt><dd>${e(money(t.ht))}</dd></div><div><dt>TVA</dt><dd>${e(money(t.tva))}</dd></div></dl>
 <h3 class="inv-h3">${e(plural((inv.lines||[]).length,'ligne','lignes'))}</h3><div class="stack-list">${(inv.lines||[]).map(l=>`<div class="list-row"><div><strong>${e(l.label)}</strong><small>${e(qty(l.quantity))}${NB}${e(l.unit)} × ${e(money(l.unitPrice))} · TVA ${e(rateLabel(l.vatRate))}</small></div><strong>${e(money(lineTotal(l)))}</strong></div>`).join('')}</div>
 ${credits.length?`<h3 class="inv-h3">Avoirs</h3><div class="stack-list">${credits.map(a=>`<button type="button" class="list-row is-button" data-invoice="view" data-id="${e(a.id)}"><div><strong>${e(a.number)}</strong><small>${e(dateFr(a.issueDate))}</small></div><strong>${e(money(a.totals?.ttc))}</strong></button>`).join('')}</div>`:''}
-${pay}<p class="cost-detail">${avoir?'Avoir émis':'Facture émise'} : non modifiable.${!avoir&&s!=='annulee'?' Pour corriger un montant, établissez un avoir.':''}</p>`;
+${fingerprintOk(inv)===false?'<p class="form-error" role="alert">Ce document a été modifié depuis son émission (empreinte différente : synchronisation, import ou correction directe). Vérifiez-le avant de le réimprimer ou de l’exporter.</p>':''}${pay}<p class="cost-detail">${avoir?'Avoir émis':'Facture émise'} : non modifiable.${!avoir&&s!=='annulee'?' Pour corriger un montant, établissez un avoir.':''}</p>`;
     modal(`${avoir?'Avoir':'Facture'} ${inv.number}`,inv.clientName,body,`<button type="button" class="button secondary" data-invoice="list">Retour</button>${!avoir&&write&&s!=='annulee'?`<button type="button" class="button secondary" data-invoice="credit" data-id="${e(inv.id)}">Créer un avoir</button>`:''}${pdfButtons(inv)}`,'small');
     warmLogo(invoiceSettings(data).logo);
   }
@@ -293,6 +296,8 @@ ${pay}<p class="cost-detail">${avoir?'Avoir émis':'Facture émise'} : non modif
     const prepForm=event.target.closest?.('#invoice-prepare-form');if(prepForm&&['clientId','from','to','fuel'].includes(event.target.name))refreshItems(prepForm);
     const f=event.target.closest?.('#invoice-form');if(f&&event.target.name==='issueDate'&&event.target.value){const due=f.dueDate;if(due&&(!due.value||due.value<event.target.value))due.value=addDays(event.target.value,invoiceSettings(state()).paymentDays);}
   });
-  return{open,prepare,edit,view,settings};
+  const relay=async(fn,fallback)=>{const h=hub?await hub().catch(()=>null):null;return h?fn(h):fallback();};
+  return{open:filter=>relay(h=>h.open(filter==='retard'?'afaire':'suivi'),()=>open(filter)),prepare:clientId=>relay(h=>h.newInvoice(clientId||''),()=>prepare(clientId)),settings:()=>relay(h=>h.openSettings('identite'),()=>settings()),
+    edit,view,legacyOpen:open,legacyPrepare:prepare,legacySettings:settings};
 }
 export {INVOICE_KIND};

@@ -1,6 +1,6 @@
 // @ts-check
 export const APP_VERSION = 17;
-export const BUILD_ID = '2026.10.20-v10.20.0';
+export const BUILD_ID = '2026.10.26-v10.21.0';
 export const ENTITY_TYPES = [
   'parcelles','interventions','tasks','rotations','grazingSessions','materiels',
   'products','clients','documents','photos','points','templates','importSessions','syncConflicts','notifications','observations','stockItems','stockMovements','maintenanceRecords','routeSessions','fieldSessions','chantiers','members','assistantMessages','devices','automationRules','automationRuns','gpsTracks','integrationImports','weatherStations','platformJobs','platformEvents','vetTreatments'

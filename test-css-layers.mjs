@@ -2,12 +2,17 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import fs from 'node:fs';
+import {LAZY_SHEETS, loadSheet, sheetHref} from './lazy-styles.js';
 
 const read = f => fs.readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
 const LAYERS = ['reset', 'tokens', 'base', 'components', 'screens', 'features', 'theme', 'overrides'];
 const VENDOR = new Set(['leaflet.min.css']);
 const html = read('index.html');
-const sheets = [...html.matchAll(/<link rel="stylesheet" href="\.\/([^"?]+\.css)(?:\?v=([\d.]+))?"/g)].map(m => ({file: m[1], v: m[2] || ''}));
+const linked = [...html.matchAll(/<link rel="stylesheet" href="\.\/([^"?]+\.css)(?:\?v=([\d.]+))?"/g)].map(m => ({file: m[1], v: m[2] || ''}));
+// Feuilles différées (lazy-styles.js) : liées à l'ouverture de leur écran, juste avant design-v3.css.
+const lazySheets = Object.entries(LAZY_SHEETS).map(([file, v]) => ({file, v}));
+// Toutes les feuilles, dans l'ordre de la cascade.
+const sheets = [...linked.slice(0, -1), ...lazySheets, ...linked.slice(-1)];
 const stripComments = css => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 // Règles de premier niveau : [{prelude, body}] (accolades équilibrées, chaînes ignorées).
@@ -71,4 +76,81 @@ test(`couleurs codées en dur hors tokens.css : au plus ${MAX_HEX} (cliquet)`, (
     count += n; if (n) detail.push(`${file} ${n}`);
   }
   assert.ok(count <= MAX_HEX, `${count} couleurs hexadécimales hors tokens.css (plafond ${MAX_HEX}) : ${detail.join(', ')}`);
+});
+
+// Feuilles différées (lazy-styles.js) : hors d'index.html, servies hors connexion, liées une fois à leur place.
+test('feuilles différées : absentes d’index.html, dans CORE et REQUIRED_ASSETS, attendues par leur module', () => {
+  const sw = read('sw.js'), runtime = read('runtime.js');
+  assert.ok(lazySheets.length >= 2);
+  for (const file of [...lazySheets.map(s => s.file), 'lazy-styles.js']) {
+    assert.ok(!linked.some(s => s.file === file), `${file} ne doit plus bloquer le premier rendu (index.html)`);
+    assert.ok(fs.existsSync(new URL(`./${file}`, import.meta.url)), file);
+    assert.ok(sw.includes(`'./${file}'`), `${file} dans CORE`);
+    assert.ok(runtime.includes(`'./${file}'`), `${file} dans REQUIRED_ASSETS`);
+  }
+  assert.match(read('billing-docs-ui.js'), /\nawait loadSheet\('billing-docs\.css'\);\n/);
+  assert.match(read('billing-hub-ui.js'), /\nawait loadSheet\('billing-hub\.css'\);\n/);
+  // Nouvel essai à chaque ouverture si la feuille a échoué au chargement du module.
+  assert.match(read('billing-docs-ui.js'), /api\[name\] = \(\.\.\.args\) => \{ loadSheet\('billing-docs\.css'\);/);
+  assert.match(read('billing-hub-ui.js'), /\n {4}loadSheet\('billing-hub\.css'\);\n/);
+});
+
+// Sélecteurs d'une règle, découpés aux virgules hors parenthèses.
+const selectors = prelude => {
+  const out = []; let depth = 0, cur = '';
+  for (const ch of prelude) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && !depth) { out.push(cur.trim()); cur = ''; } else cur += ch; }
+  return [...out, cur.trim()];
+};
+test('feuilles différées : seulement des classes de leurs écrans ; ce qu’affichent l’accueil et la fiche client reste chargé', () => {
+  const preludes = css => [...stripComments(css).matchAll(/([^{};]+)\{/g)].map(m => m[1].trim()).filter(p => !p.startsWith('@'));
+  for (const {file} of lazySheets) {
+    for (const prelude of preludes(read(file))) for (const sel of selectors(prelude)) assert.match(sel, /\.(bd|bh)(-|\b)/, `${file} : « ${sel} » toucherait des éléments hors de ses écrans`);
+  }
+  // Classes bd-/bh- employées par les autres modules (accueil, fiche client) : définies dans une feuille d'index.html.
+  const staticCss = linked.map(s => stripComments(read(s.file))).join('\n');
+  for (const f of fs.readdirSync(new URL('./', import.meta.url)).filter(n => n.endsWith('.js') && !n.startsWith('billing-'))) {
+    for (const m of read(f).matchAll(/(?:^|[^\w.-])((?:bh|bd)-[a-z0-9-]+)/g)) assert.ok(staticCss.includes(`.${m[1]}`), `${f} : .${m[1]} doit rester dans une feuille d'index.html`);
+  }
+  for (const rule of ['.client-billing summary{', '.is-late{color:var(--danger)}']) assert.ok(staticCss.includes(rule), rule);
+});
+
+// Document minimal : <head> et ses <link>, insertion avant un nœud, événements load / error.
+function fakeDoc(hrefs) {
+  const head = {children: [], append(n) { n.parentNode = head; head.children.push(n); }, insertBefore(n, ref) { n.parentNode = head; head.children.splice(head.children.indexOf(ref), 0, n); }};
+  const make = () => {
+    const ev = {};
+    const l = {rel: '', href: '', dataset: {}, sheet: null, getAttribute: k => (k === 'href' ? l.href : null), addEventListener: (t, fn) => { ev[t] = fn; }, fire: t => ev[t]?.(), remove: () => { head.children.splice(head.children.indexOf(l), 1); }};
+    return l;
+  };
+  for (const h of hrefs) { const l = make(); l.rel = 'stylesheet'; l.href = h; head.append(l); }
+  return {head, createElement: make,
+    querySelector: sel => head.children.find(l => sel === `link[data-lazy-sheet="${l.dataset.lazySheet}"]`) || null,
+    querySelectorAll: () => head.children.filter(l => l.rel === 'stylesheet'),
+    files: () => head.children.map(l => l.href.replace(/^\.\//, '').split('?')[0])};
+}
+
+test('feuille différée : liée une fois, avec son ?v=, à sa place dans la cascade, attendue avec un délai maximal', async () => {
+  const doc = fakeDoc(['./tokens.css?v=1', './personalization.css?v=1', './design-v3.css?v=4.9']);
+  const hub = loadSheet('billing-hub.css', {doc, timeout: 1000});
+  assert.equal(loadSheet('billing-hub.css', {doc}), hub, 'une seule insertion');
+  const docs = loadSheet('billing-docs.css', {doc, timeout: 1000});
+  // Même ordre que l'ancien index.html, quel que soit l'ordre d'ouverture des écrans.
+  assert.deepEqual(doc.files(), ['tokens.css', 'personalization.css', 'billing-docs.css', 'billing-hub.css', 'design-v3.css']);
+  const link = f => doc.head.children.find(l => l.dataset.lazySheet === f);
+  assert.equal(link('billing-hub.css').href, sheetHref('billing-hub.css'));
+  assert.equal(sheetHref('billing-hub.css'), `./billing-hub.css?v=${LAZY_SHEETS['billing-hub.css']}`);
+  link('billing-hub.css').fire('load');
+  assert.equal(await hub, true);
+  // Erreur : lien retiré, nouvel essai à la prochaine ouverture.
+  link('billing-docs.css').fire('error');
+  assert.equal(await docs, false);
+  assert.ok(!doc.files().includes('billing-docs.css'));
+  const again = loadSheet('billing-docs.css', {doc, timeout: 5});
+  assert.notEqual(again, docs);
+  // Délai maximal dépassé : l'écran s'affiche ; le lien reste en place et s'appliquera à son arrivée.
+  assert.equal(await again, false);
+  assert.deepEqual(doc.files(), ['tokens.css', 'personalization.css', 'billing-docs.css', 'billing-hub.css', 'design-v3.css']);
+  // Sans document (Node) ou feuille inconnue : rien n'est lié.
+  assert.equal(await loadSheet('billing-hub.css', {doc: null}), false);
+  assert.equal(await loadSheet('inconnue.css', {doc}), false);
 });

@@ -8,16 +8,28 @@ service cloud.firestore {
     function isOwner(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) == 'owner'; }
     // Écriture des données selon le rôle, même périmètre que permissions.js (canMutate) :
     // propriétaire, responsable et collaborateur partout ; opérateur terrain et comptabilité sur leurs entités.
-    // Factures et contrats de vente (integrationImports, payload.farmKind) : comptabilité, pas opérateur terrain.
-    function financeKind(d) { return d.payload is map && d.payload.get('farmKind', '') in ['invoice','salesContract']; }
+    // Facturation (factures, devis, catalogue, récurrences) et contrats de vente (integrationImports,
+    // payload.farmKind) : comptabilité, pas opérateur terrain. Même liste que permissions.js (FINANCE_KINDS).
+    function financeKind(d) { return d.payload is map && d.payload.get('farmKind', '') in ['invoice','quote','billingItem','billingSchedule','salesContract']; }
+    // Messages (v13) : carnet de contacts et modèles réservés à la gestion ; le journal des messages est aussi
+    // écrit par l'opérateur terrain et par la comptabilité (permissions.js : DIRECTORY_KINDS, MESSAGE_LOG_KINDS).
+    function directoryKind(d) { return d.payload is map && d.payload.get('farmKind', '') in ['contact','messageTemplate']; }
+    function messageLogKind(d) { return d.payload is map && d.payload.get('farmKind', '') == 'message'; }
+    // Journal des messages hors gestion : un message de la facturation (payload.finance) n'est écrit que par la
+    // comptabilité, les autres seulement par leur auteur (payload.authorUid). canWriteData s'applique au document
+    // écrit et au document existant : on ne peut ni réécrire le message d'un autre, ni s'en approprier un.
+    function messageWritable(role, d) {
+      return d.payload.get('finance', false) == true ? role == 'accountant' : d.payload.get('authorUid', '') == request.auth.uid;
+    }
     // vetTreatments (carnet sanitaire, n° 76) : propriétaire, responsable et collaborateur seulement.
     function canWriteData(workspaceId, entityType, d) {
       let role = memberRole(workspaceId);
       return isMember(workspaceId) && (role in ['owner','manager','editor']
         || (role == 'operator' && (entityType in ['interventions','tasks','observations','fieldSessions','chantiers','points','photos','documents','routeSessions','gpsTracks']
-          || (entityType == 'integrationImports' && !financeKind(d))))
+          || (entityType == 'integrationImports' && !financeKind(d) && !directoryKind(d) && (!messageLogKind(d) || messageWritable(role, d)))))
         || (role == 'accountant' && (entityType in ['clients','documents','stockItems','stockMovements','products','maintenanceRecords']
-          || (entityType == 'integrationImports' && financeKind(d)))));
+          || (entityType == 'integrationImports' && financeKind(d))
+          || (entityType == 'integrationImports' && messageLogKind(d) && messageWritable(role, d)))));
     }
     function invitePath(token) { return /databases/$(database)/documents/invites/$(token); }
     // Rôles connus de l'application (permissions.js : ROLES / assignableRoles).
@@ -152,6 +164,11 @@ service cloud.firestore {
           && string(d.entityId).size() > 0 && string(d.entityId).size() <= 256
           && docId == d.entityType + '__' + string(d.entityId)
           && (d.payload == null || (d.payload is map && d.payload.keys().size() <= 500))
+          // La racine du payload n'est jamais échappée par encodeCloudPayload (sync.js) : un payload racine
+          // { parcellesEscapedObjectV1: '<json>' } serait lu '' ici (farmKind) mais décodé en facture chez le client.
+          // farmKind est toujours une chaîne : les droits ci-dessus se lisent sur la même valeur que l'application.
+          && (d.payload == null || (!d.payload.keys().hasAny(['parcellesEscapedObjectV1','parcellesNestedArrayV1'])
+            && d.payload.get('farmKind', '') is string))
           && d.get('modifiedEmail', '') is string && d.get('modifiedEmail', '').size() <= 320
           && d.get('deviceId', '') is string && d.get('deviceId', '').size() <= 128
           && d.get('build', '') is string && d.get('build', '').size() <= 64
@@ -178,6 +195,9 @@ service cloud.firestore {
           && (after.payload.get('currentMeter', null) == null || after.payload.currentMeter is number);
       }
       match /data/{docId} {
+        // Lecture : tout membre lit toutes les fiches, y compris factures, contacts et journal des messages.
+        // Le masquage de la facturation (canSeeBilling) et du journal d'autrui est un confort d'interface,
+        // pas une confidentialité (ARCHITECTURE.md §4, « Lecture »).
         allow read: if isMember(workspaceId);
         allow create, update: if canWriteData(workspaceId, request.resource.data.entityType, request.resource.data)
           && (resource == null || canWriteData(workspaceId, resource.data.entityType, resource.data))

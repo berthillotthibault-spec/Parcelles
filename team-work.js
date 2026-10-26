@@ -63,6 +63,7 @@ export function myAgenda(data = {}, me = {}, today = isoDay()) {
 }
 
 // Personnes proposées pour « Confier à… » : membres cloud, personnes déjà désignées, opérateurs saisis.
+const TEAM_CONTACT_ROLES = new Set(['Chauffeur', 'Salarié', 'Saisonnier', 'ETA / entrepreneur']);
 export function knownPeople(data = {}, {members = [], identity = ''} = {}) {
   const people = new Map();
   const add = (name, id = '', weight = 1) => {
@@ -76,6 +77,14 @@ export function knownPeople(data = {}, {members = [], identity = ''} = {}) {
   for (const item of [...live(data.interventions), ...live(data.tasks)]) {
     if (item.assigneeName) add(item.assigneeName, item.assigneeId, 2);
     if (item.operator) add(item.operator, '', 1);
+  }
+  // v13 : contacts du carnet (messaging.js, farmKind « contact ») qui travaillent sur l'exploitation, sous le nom
+  // de « Confier à… » auquel ils sont rattachés : leur planning leur est ensuite envoyé par SMS.
+  for (const c of live(data.integrationImports)) {
+    if (c.farmKind !== 'contact') continue;
+    const alias = Array.isArray(c.assigneeNames) ? c.assigneeNames.find(Boolean) : '';
+    if (alias) add(alias, c.memberUid || '', 1.5);
+    else if (TEAM_CONTACT_ROLES.has(c.role)) add(c.name, c.memberUid || '', 1.5);
   }
   if (identity) add(identity, '', 0.5);
   return [...people.values()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'fr'));

@@ -2,7 +2,7 @@
 // Fonctions pures, sans accès au DOM ni écriture : de simples gabarits de phrases
 // assemblés à partir des données déjà présentes (agenda, météo en cache, pâturage, stocks, matériel).
 import {dailySituation, isLowStock, localDay, maintenanceRemaining} from './home-priorities.js';
-import {overdueInvoices} from './invoices.js';
+import {invoiceBalance,overdueInvoices} from './invoices-core.js';
 import {filterGrazingSessions, grazingTotal, grazingType} from './grazing.js';
 import {WEATHER_RULES, forecastTime, weatherWindows} from './weather-decision.js';
 
@@ -172,7 +172,8 @@ function maintenanceSentence(data) {
 function invoiceSentence(data, today) {
   const late = overdueInvoices(data, today);
   if (!late.length) return null;
-  const total = late.reduce((sum, inv) => sum + (num(inv.totals?.ttc) ?? 0), 0), first = late[0];
+  // Reste dû (paiements partiels et avoirs déduits), pas le TTC complet.
+  const total = late.reduce((sum, inv) => sum + invoiceBalance(data, inv).due, 0), first = late[0];
   const amount = `${nf.format(Math.round(total))} € TTC`;
   const text = late.length === 1 ? `Facture ${first.number} en retard de paiement : ${clean(first.clientName) || 'client'}, ${amount}.` : `${late.length} factures en retard de paiement (${amount}), dont ${first.number} · ${clean(first.clientName) || 'client'}.`;
   return {key: 'invoice', tone: 'warn', text, action: 'open-invoices'};

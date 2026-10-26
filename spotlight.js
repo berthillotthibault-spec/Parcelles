@@ -24,7 +24,9 @@ export const SPOTLIGHT_ACTIONS = [
   ['carte', 'Carte', 'palette-map', 'Ouvrir la carte'],
   ['theme sombre clair nuit', 'Basculer clair / sombre', 'toggle-theme', 'Apparence'],
   ['terrain gps', 'Mode terrain', 'open-field-mode', 'GPS et actions rapides'],
-  ['meteo pluie vent', 'Météo', 'open-weather', 'Prévisions et seuils']
+  ['meteo pluie vent', 'Météo', 'open-weather', 'Prévisions et seuils'],
+  ['facturation factures devis relances impayes retard catalogue tarifs', 'Facturation', 'open-invoices', 'Suivi, relances, catalogue et réglages'],
+  ['nouvelle facture facturer client', 'Nouvelle facture', 'new-invoice', 'Facturer un client']
 ];
 
 function levenshtein(a, b) {

@@ -40,6 +40,17 @@ test('myAgenda : en cours, en retard, du jour, sans date, terminé aujourd’hui
   assert.equal(myAgenda(base(), {name: ''}, TODAY).length, 0);
 });
 
+test('knownPeople : contacts du carnet (v13) sous leur nom de « Confier à… », sans fournisseurs', () => {
+  const data = {integrationImports: [
+    {id: 'c1', farmKind: 'contact', name: 'Paul Martin', role: 'Chauffeur', assigneeNames: ['Paulo']},
+    {id: 'c2', farmKind: 'contact', name: 'Lucie Bernard', role: 'Saisonnier', assigneeNames: []},
+    {id: 'c3', farmKind: 'contact', name: 'Coop du Val', role: 'Fournisseur'},
+    {id: 'c4', farmKind: 'contact', name: 'Ancien', role: 'Chauffeur', deletedAt: 5},
+    {id: 'i1', farmKind: 'invoice', name: 'Facture'}
+  ]};
+  const names = knownPeople(data).map(p => p.name);
+  assert.deepEqual(names, ['Lucie Bernard', 'Paulo']);
+});
 test('knownPeople : membres cloud, personnes désignées et opérateurs, sans doublon', () => {
   const people = knownPeople(base(), {members: [{id: 'uid-m', email: 'marie@ferme.fr'}], identity: 'Thibault'});
   const names = people.map(p => p.name);

@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.21.0",
+      "date": "2026-10-26",
+      "title": "Facturation et messages",
+      "items": [
+        "Devis, factures, acomptes, avoirs et pro forma pour toute votre activité, avec un catalogue d’articles et de prestations.",
+        "Suivi : tableau de bord, paiements partiels, relances, factures récurrentes et travaux non facturés repérés.",
+        "Modèle de document personnalisable, mentions légales vérifiées, export Factur-X et pour le comptable.",
+        "Envoyez par SMS, WhatsApp ou e-mail : planning du jour à vos chauffeurs, devis, factures et relances."
+      ]
+    },
+    {
       "version": "10.20.0",
       "date": "2026-10-20",
       "title": "Fiabilité et accessibilité",

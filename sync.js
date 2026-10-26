@@ -57,16 +57,21 @@ export function limitedMeterAhead(remotePayload,localPayload,base,fields){
 }
 export function decodeCloudDocument(doc){
   if(!doc||doc.payloadEncoding!=='nested-arrays-v1')return doc;
-  const decode=value=>{
-    if(Array.isArray(value))return value.map(decode);
+  // Seules les formes produites par encodeCloudPayload sont décodées : un objet échappé contient lui-même une
+  // clé réservée, un tableau échappé contient un tableau, et la racine n'est jamais échappée. Sinon un payload
+  // lu autrement par firestore.rules (farmKind '' ou objet) deviendrait ici une facture : document ignoré.
+  const decode=(value,root=false)=>{
+    if(Array.isArray(value))return value.map(v=>decode(v));
     if(value&&typeof value==='object'){
-      if(Object.keys(value).length===1&&typeof value[OBJECT_TAG]==='string')return JSON.parse(value[OBJECT_TAG]);
-      if(Object.keys(value).length===1&&typeof value[ARRAY_TAG]==='string'){const result=JSON.parse(value[ARRAY_TAG]);if(!Array.isArray(result))throw new Error('Tableau cloud invalide.');return result;}
+      const single=Object.keys(value).length===1;
+      if(single&&typeof value[OBJECT_TAG]==='string'){if(root)throw new Error('Charge utile cloud invalide.');const result=JSON.parse(value[OBJECT_TAG]);if(!result||typeof result!=='object'||Array.isArray(result)||!(Object.hasOwn(result,OBJECT_TAG)||Object.hasOwn(result,ARRAY_TAG)))throw new Error('Objet cloud invalide.');return result;}
+      if(single&&typeof value[ARRAY_TAG]==='string'){if(root)throw new Error('Charge utile cloud invalide.');const result=JSON.parse(value[ARRAY_TAG]);if(!Array.isArray(result)||!result.some(Array.isArray))throw new Error('Tableau cloud invalide.');return result;}
       return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,decode(v)]));
     }
     return value;
   };
-  return {...doc,payload:decode(doc.payload)};
+  try{return {...doc,payload:decode(doc.payload,true)};}
+  catch(error){console.warn('[Parcelles] document cloud ignoré',doc.entityType,doc.entityId,error?.message);return {...doc,payload:null,invalidPayload:true};}
 }
 
 async function loadScript(src){
@@ -103,7 +108,7 @@ export class SyncService{
   serverTimestamp(){return this.firebaseSdk()?.firestore?.FieldValue?.serverTimestamp?.()??null;}
   serverTimeAt(ms){return this.firebaseSdk()?.firestore?.Timestamp?.fromMillis?.(ms)??null;}
   can(capability){return roleCan(this.role,capability);}
-  canWriteEntity(entity,action,farmKind,fields){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action,farmKind,fields});}
+  canWriteEntity(entity,action,farmKind,fields,{record=null,previous=null}={}){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action,farmKind,fields,record,previous,uid:this.user?.uid||''});}
   queueSummary(){return queueStats(this.store.snapshot().queue);}
   networkAllows({attachments=false,live=false}={}){const p=this.store.snapshot().preferences,kind=connectionKind();if(!navigator.onLine)return false;if((p.syncWifiOnly||attachments&&p.syncAttachmentsWifiOnly||live&&p.syncLiveWifiOnly)&&['cellular','2g','3g','4g','5g'].includes(kind))return false;return true;}
 
@@ -218,7 +223,7 @@ export class SyncService{
     this.queueStatusBuffer=[];
     try{for(const operation of pending){
       try{
-        if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}const farmKind=operation.payload?.farmKind??this.store.get?.(operation.entity,operation.entityId,{includeDeleted:true})?.farmKind;if(!this.canWriteEntity(operation.entity,operation.action,farmKind,operation.fields)){await this.markQueueDone(operation.id);continue;}
+        if(!CLOUD_ENTITY_TYPES.includes(operation.entity)){await this.markQueueDone(operation.id);continue;}const queuedLocal=this.store.get?.(operation.entity,operation.entityId,{includeDeleted:true}),farmKind=operation.payload?.farmKind??queuedLocal?.farmKind;if(!this.canWriteEntity(operation.entity,operation.action,farmKind,operation.fields,{record:queuedLocal||operation.payload||null})){await this.markQueueDone(operation.id);continue;}
         const localEntity=this.store.get(operation.entity,operation.entityId,{includeDeleted:true});const localPayload=localEntity||operation.payload||{id:operation.entityId,deletedAt:Date.now()};const remote=await this.remoteRef(operation.entity,operation.entityId).get(),remoteData=remote.exists?decodeCloudDocument(remote.data()):null;
         // n° 20 (vague 12) : rôle limité à quelques champs (relevé de compteur de l'opérateur terrain) : seuls ces champs
         // partent, posés sur la fiche du serveur (firestore.rules refuse tout autre changement), puis la copie locale s'aligne.

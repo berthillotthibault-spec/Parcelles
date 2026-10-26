@@ -81,3 +81,24 @@
 @media(max-width:600px){#work-tabs button{min-height:44px}}
 @media(orientation:landscape) and (max-height:540px) and (max-width:1023px){.map-tools-menu .map-quick-tool{gap:4px;padding:8px 4px}}
 }
+/* v13 : facturation, règles visibles hors de ses écrans (billing-docs.css et billing-hub.css ne se chargent qu'à
+   leur ouverture, lazy-styles.js). Même couche et même place dans la cascade : juste avant design-v3.css. */
+@layer features{
+/* Carte compacte de l'accueil */
+.bh-home-card{display:flex;align-items:stretch;gap:4px;padding:6px}
+.bh-home-card[hidden]{display:none}
+.bh-home-main{display:flex;align-items:center;justify-content:space-between;gap:10px;flex:1;min-height:52px;padding:8px 10px;border:0;border-radius:12px;background:var(--warning-soft);color:var(--text-primary);font:inherit;text-align:left;cursor:pointer}
+.bh-home-text{display:grid;min-width:0}
+.bh-home-text small{font-size:12px;color:var(--text-secondary)}
+.bh-home-cta{flex:none;font-weight:700;color:var(--text-primary);text-decoration:underline;text-underline-offset:3px}
+.bh-home-hide{flex:none;font-size:13px}
+.bh-home-main:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+body.gloves .bh-home-main{min-height:var(--a11y-hit)}
+/* Fiche client d'app.js : section Facturation et bloc Facturation du formulaire */
+.bh-client-section{display:grid;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.bh-client-section h3{margin:0}
+.client-billing summary{cursor:pointer;font-weight:600;min-height:var(--a11y-hit,40px);display:flex;align-items:center}
+.client-billing[open]>.form-grid{margin-top:8px}
+/* Retard (accueil, travaux, carte, tâches, facturation) */
+.is-late{color:var(--danger)}
+}

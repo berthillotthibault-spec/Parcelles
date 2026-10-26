@@ -5,7 +5,7 @@
 import {campaignFor,normalize} from './utils.js';
 import {active} from './farm-memory.js';
 import {farmRecords} from './farm-records.js';
-import {invoices,invoiceTotals} from './invoices.js';
+import {DOC_LABELS,docTypeOf,invoices,invoiceTotals} from './invoices.js';
 import {campaignSales} from './sales.js';
 import {fuelEntries} from './fuel.js';
 import {valuationAt,INVENTORY_HEADERS,inventoryTable} from './stock-lots.js';
@@ -72,10 +72,11 @@ const line=(plan,{date,piece='',label,category,parcel=null,culture='',ht,vatRate
 export function accountingRows(state,{from='',to=''}={}){
   const plan=accountingPlan(state),rows=[],warnings=[],parcels=new Map(active(state,'parcelles').map(p=>[p.id,p])),works=new Map(active(state,'interventions').map(w=>[w.id,w]));
   const cultureOf=(p,date)=>p?cultureForCampaign(state,p,campaignFor(date)):'';
-  // Factures et avoirs émis : TVA du document, une ligne par taux.
+  // Factures, acomptes et avoirs émis : TVA du document, une ligne par taux (remise, frais et acomptes
+  // déduits compris). Journal détaillé par compte avec lettrage : billing-export.js (billingJournal).
   for(const inv of invoices(state).filter(i=>i.status!=='brouillon'&&inPeriod(day(i.issueDate),from,to))){
     const t=inv.totals||invoiceTotals(inv.lines);
-    for(const r of t.byRate)rows.push(line(plan,{date:day(inv.issueDate),piece:inv.number||'',label:`${inv.docType==='avoir'?'Avoir':'Facture'} ${inv.clientName||''}`.trim(),category:'prestations',ht:r.base,vatRate:r.rate,tva:r.tax,source:'Facture émise'}));
+    for(const r of t.byRate)rows.push(line(plan,{date:day(inv.issueDate),piece:inv.number||'',label:`${DOC_LABELS[docTypeOf(inv)]} ${inv.clientName||''}`.trim(),category:'prestations',ht:r.base,vatRate:r.rate,tva:r.tax,source:'Facture émise'}));
   }
   // Ventes de récolte (lots), aux campagnes couvertes par la période.
   const campaigns=new Set(farmRecords(state,'harvest').map(l=>l.date&&campaignFor(l.date)).filter(Boolean));
@@ -122,7 +123,10 @@ export function accountSummary(rows){
 
 export const OPERATION_HEADERS=['Date','Pièce','Libellé','Compte','Catégorie','Sens','Parcelle','Culture','Montant HT','Taux TVA','TVA','TTC','Origine'];
 export const operationTable=rows=>rows.map(r=>[r.date,r.piece,r.label,r.account,r.categoryLabel,r.side==='vente'?'Produit':'Charge',r.parcel,r.culture,r.ht,r.vatRate??'',r.tva??'',r.ttc??'',r.source]);
-const cell=x=>{const s=typeof x==='number'?String(x).replace('.',','):String(x??'');return/[;"\n\r]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+// Texte commençant par = + - @ (ou tabulation, retour chariot) : apostrophe en tête, sinon Excel ou LibreOffice
+// l'évalue comme une formule à l'ouverture (nom de client, désignation importée). Les nombres restent des nombres.
+export const csvCell=x=>{let s=typeof x==='number'?String(x).replace('.',','):String(x??'');if(typeof x!=='number'&&/^[=+\-@\t\r]/.test(s))s=`'${s}`;return/[;"\n\r]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+const cell=csvCell;
 export const toCsv=(head,table)=>'﻿'+[head,...table].map(r=>r.map(cell).join(';')).join('\r\n');
 export function operationsCsv(result){return toCsv(OPERATION_HEADERS,operationTable(result.rows));}
 export function stocksCsv(state,date){return toCsv(INVENTORY_HEADERS,inventoryTable(valuationAt(state,date)));}

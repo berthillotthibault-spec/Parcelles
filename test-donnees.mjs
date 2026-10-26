@@ -106,6 +106,25 @@ test('aller-retour cloud : 500 valeurs aléatoires (graine fixe)',()=>{
   const legacy={payload:{a:[1,2]}};assert.equal(decodeCloudDocument(legacy),legacy);
 });
 
+test('transport cloud : une racine ou un champ échappés à la main ne deviennent jamais une facture',()=>{
+  const invoice={id:'x',farmKind:'invoice',finance:true,number:'F1'};
+  const decodeDoc=payload=>decodeCloudDocument({entityType:'integrationImports',entityId:'x',payloadEncoding:'nested-arrays-v1',payload});
+  // Racine échappée : les règles lisent farmKind '' (écriture d'opérateur), le client ne décode pas.
+  for(const payload of [{parcellesEscapedObjectV1:JSON.stringify(invoice)},{parcellesNestedArrayV1:'[[1]]'}]){
+    const doc=decodeDoc(payload);assert.equal(doc.payload,null);assert.equal(doc.invalidPayload,true);
+  }
+  // Champ échappé : farmKind serait un objet pour les règles et 'invoice' une fois décodé.
+  assert.equal(decodeDoc({id:'x',farmKind:{parcellesEscapedObjectV1:'"invoice"'}}).payload,null);
+  assert.equal(decodeDoc({id:'x',finance:{parcellesEscapedObjectV1:'true'}}).payload,null);
+  assert.equal(decodeDoc({id:'x',a:{parcellesNestedArrayV1:'[1,2]'}}).payload,null);
+  // Un objet légitime portant une clé réservée fait toujours l'aller-retour.
+  const tagged={id:'y',meta:{parcellesEscapedObjectV1:'texte'},geo:[[1,2]]};assert.deepEqual(roundTrip(tagged),tagged);
+  const rules=fs.readFileSync(new URL('./firestore.rules',import.meta.url),'utf8');
+  const valid=rules.slice(rules.indexOf('function validEntityDoc'),rules.indexOf('function operatorMeterUpdate'));
+  assert.match(valid,/!d\.payload\.keys\(\)\.hasAny\(\['parcellesEscapedObjectV1','parcellesNestedArrayV1'\]\)/);
+  assert.match(valid,/d\.payload\.get\('farmKind', ''\) is string/);
+});
+
 // ---------- Règles Firestore (sans émulateur) ----------
 test('firestore.rules couvre chaque collection de emptyState() avec les mêmes rôles que permissions.js',()=>{
   const rules=fs.readFileSync(new URL('./firestore.rules',import.meta.url),'utf8');

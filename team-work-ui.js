@@ -60,9 +60,13 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
     }
     const pending = [...(data().interventions || []).map(i => ['work', i]), ...(data().tasks || []).map(i => ['task', i])]
       .filter(([kind, i]) => i && !i.deletedAt && isAssigned(i) && !CLOSED.has(i.status) && (String(kind === 'task' ? i.dueDate || '' : i.plannedDate || i.date || '').slice(0, 10) || '0000') <= today());
-    if (!pending.length) return '';
+    if (!pending.length) {
+      // Rien de confié aujourd’hui : on propose le planning de demain s’il existe (v13).
+      const day = canWrite() ? assignedDay() : '';
+      return day ? `<button type="button" class="text-button team-plan-send" data-msg="plan" data-date="${day}">Envoyer le planning de demain par SMS</button>` : '';
+    }
     const names = [...new Set(pending.map(([, i]) => i.assigneeName).filter(Boolean))];
-    return `<button type="button" class="team-home-line" data-team="open"><span><strong>${plural(pending.length, 'travail confié', 'travaux confiés')} aujourd’hui</strong><small>${e(names.slice(0, 3).join(', '))}${names.length > 3 ? '…' : ''} · Choisissez qui vous êtes pour voir vos tâches</small></span><b aria-hidden="true">›</b></button>`;
+    return `<button type="button" class="team-home-line" data-team="open"><span><strong>${plural(pending.length, 'travail confié', 'travaux confiés')} aujourd’hui</strong><small>${e(names.slice(0, 3).join(', '))}${names.length > 3 ? '…' : ''} · Choisissez qui vous êtes pour voir vos tâches</small></span><b aria-hidden="true">›</b></button>${canWrite() ? `<button type="button" class="text-button team-plan-send" data-msg="plan" data-date="${today()}">Envoyer le planning par SMS</button>` : ''}`;
   }
 
   function renderHome() {
@@ -75,6 +79,37 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
       anchor.after(root);
     }
     root.innerHTML = homeHtml();
+  }
+
+  // v13 : « Envoyer le planning » dans l’onglet Travaux, seulement quand un travail ou une tâche est confié(e)
+  // pour aujourd’hui (retards compris) ou demain ; le bouton ouvre le module Messages (différé, [data-msg]).
+  function assignedDay() {
+    const t = today(), d = new Date(`${t}T12:00:00`); d.setDate(d.getDate() + 1);
+    const tomorrow = isoDay(d);
+    let first = '';
+    for (const [kind, list] of [['work', data().interventions], ['task', data().tasks]]) {
+      for (const item of list || []) {
+        if (!item || item.deletedAt || !isAssigned(item) || CLOSED.has(item.status)) continue;
+        const date = String(kind === 'task' ? item.dueDate || '' : item.plannedDate || item.date || '').slice(0, 10);
+        if (date && date <= t) return t;
+        if (date === tomorrow) first = tomorrow;
+      }
+    }
+    return first;
+  }
+  function renderWorkBar() {
+    const bar = doc?.querySelector('#view-work .context-tools');
+    if (!bar) return;
+    let button = bar.querySelector('[data-msg="plan"]');
+    const day = canWrite() ? assignedDay() : '';
+    if (!day) { button?.remove(); return; }
+    if (!button) {
+      button = doc.createElement('button');
+      button.type = 'button'; button.className = 'small-button'; button.dataset.msg = 'plan';
+      bar.append(button);
+    }
+    button.dataset.date = day;
+    button.textContent = day === today() ? 'Envoyer le planning' : 'Planning de demain';
   }
 
   async function punch(kind, id, mode) {
@@ -121,16 +156,16 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
       }
     }
     if (!groups.size) return '<p class="team-empty">Aucun travail confié pour aujourd’hui.</p>';
-    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map(g => `<section class="team-person"><h3>${e(g.name)}</h3><ul class="team-list">${g.rows.map(({kind, item, closed}) => {
+    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map(g => `<section class="team-person"><div class="team-person-head"><h3>${e(g.name)}</h3>${canWrite() && g.rows.some(r => !r.closed) ? `<button type="button" class="text-button" data-msg="plan" data-date="${t}" data-name="${e(g.name)}">Envoyer son planning</button>` : ''}</div><ul class="team-list">${g.rows.map(({kind, item, closed}) => {
       const run = runningEntry(item);
       const status = closed ? `Terminé${kind === 'work' && punchedHours(item) > 0 ? ` · ${formatHours(punchedHours(item))}` : ''}` : run ? `En cours depuis ${clock(run.start)}` : 'À faire';
-      return `<li><button type="button" class="team-line" data-action="${kind === 'task' ? 'edit-task' : 'edit-work'}" data-id="${e(item.id)}"><span><strong>${e(itemTitle(item, kind))}</strong><small>${e([parcelName(item.parcelId), item.instructions ? `« ${item.instructions.slice(0, 60)}${item.instructions.length > 60 ? '…' : ''} »` : ''].filter(Boolean).join(' · '))}</small></span><span class="team-status is-${closed ? 'done' : run ? 'running' : 'todo'}">${e(status)}</span></button></li>`;
+      return `<li><button type="button" class="team-line" data-action="${kind === 'task' ? 'edit-task' : 'edit-work'}" data-id="${e(item.id)}"><span><strong>${e(itemTitle(item, kind))}</strong><small>${e([parcelName(item.parcelId), item.instructions ? `« ${item.instructions.slice(0, 60)}${item.instructions.length > 60 ? '…' : ''} »` : ''].filter(Boolean).join(' · '))}</small></span><span class="team-status is-${closed ? 'done' : run ? 'running' : 'todo'}">${e(status)}</span></button>${canWrite() && !closed ? `<button type="button" class="text-button team-line-msg" data-msg="${kind}" data-id="${e(item.id)}">Envoyer la consigne<span class="sr-only"> : ${e(itemTitle(item, kind))}</span></button>` : ''}</li>`;
     }).join('')}</ul></section>`).join('');
   }
 
   function openTeam() {
     modal('Consignes & heures', 'Travail confié, pointage et feuille d’heures', `<div id="team-body" class="team-body">${identityHtml()}<h3 class="team-h">Aujourd’hui</h3><div id="team-overview">${overviewHtml()}</div></div>`,
-      `${canWrite() ? '<button type="button" class="button primary team-wide" data-team="assign">Confier un travail</button>' : ''}<button type="button" class="button secondary team-wide" data-team="sheet">Feuille d’heures</button>`, 'small');
+      `${canWrite() ? `<button type="button" class="button primary team-wide" data-team="assign">Confier un travail</button><button type="button" class="button secondary team-wide" data-msg="plan" data-date="${today()}">Envoyer le planning (SMS)</button>` : ''}<button type="button" class="button secondary team-wide" data-team="sheet">Feuille d’heures</button>`, 'small');
     bindWho();
     loadMembers().then(() => {const form = doc.getElementById('team-who-form'); if (form && members.length) {form.outerHTML = identityHtml(); bindWho();}});
   }
@@ -290,7 +325,7 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
     else if (action === 'start' || action === 'finish') punch(kind, id, action);
     else if (action === 'who-save') saveWho();
     else if (action === 'who-reset') store.setPreferences({teamIdentity: ''}).then(openTeam);
-    else if (action === 'assign') openAssign();
+    else if (action === 'assign') openAssign(kind && id ? {kind, id} : {});
     else if (action === 'assign-save') saveAssign();
     else if (action === 'unassign') unassign(kind, id);
     else if (action === 'sheet') {sheetWeek = weekStart(today()); openSheet();}
@@ -307,5 +342,5 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
     if (form.id === 'team-who-form') saveWho(); else reportLabor();
   });
 
-  return {renderHome, open: openTeam, openAssign, openSheet};
+  return {renderHome, renderWorkBar, open: openTeam, openAssign, openSheet};
 }
