@@ -61,6 +61,13 @@ export default [
       // Globales du navigateur qui masquent une variable oubliée (« name », « status », « event »…) :
       // no-undef ne les voit pas, d'où cette liste. location, history, confirm restent permis (usage voulu).
       'no-restricted-globals': ['error', ...confusingGlobals.map(name => ({name, message: `Variable « ${name} » non déclarée : globale du navigateur prise par erreur ? Écrire window.${name} si c'est voulu.`}))],
+      // n° 152 : un gabarit littéral brut affecté à innerHTML/outerHTML repose sur des escapeHtml manuels.
+      // Le gabarit étiqueté html`…` de safe-html.js échappe chaque interpolation : il n'est pas signalé.
+      // Avertissement seulement (code existant à migrer écran par écran), compté dans le plafond --max-warnings.
+      'no-restricted-syntax': ['warn', ...['innerHTML', 'outerHTML'].map(prop => ({
+        selector: `AssignmentExpression[left.property.name='${prop}'][right.type='TemplateLiteral'][right.expressions.length>0]`,
+        message: `${prop} = \`…\` avec interpolations : utiliser le gabarit html\`…\` (safe-html.js), qui échappe automatiquement.`,
+      }))],
     },
   },
   // Scripts classiques : configuration publique (pose window.PARCELLES_*) et service worker.

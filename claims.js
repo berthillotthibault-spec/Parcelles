@@ -52,7 +52,8 @@ export function validateClaim(v){
   const loss=num(v.lossPct);if(loss!==null&&(loss<0||loss>100))return{error:'Taux de perte entre 0 et 100 %.'};
   for(const k of ['areaHa','expectedYield','price','areaPct','indemnity'])if(num(v[k])!==null&&num(v[k])<0)return{error:'Valeurs négatives impossibles.'};
   if(v.areaMode==='parcelle'&&num(v.areaPct)!==null&&num(v.areaPct)>100)return{error:'Part de la parcelle entre 0 et 100 %.'};
-  return{value:{...v,lossPct:loss,areaHa:num(v.areaHa),areaPct:num(v.areaPct),expectedYield:num(v.expectedYield),price:num(v.price),indemnity:num(v.indemnity)}};
+  const payment=String(v.expectedPaymentDate||'').trim();if(payment&&!/^\d{4}-\d{2}-\d{2}$/.test(payment))return{error:'Date de versement attendue invalide.'};
+  return{value:{...v,expectedPaymentDate:payment,lossPct:loss,areaHa:num(v.areaHa),areaPct:num(v.areaPct),expectedYield:num(v.expectedYield),price:num(v.price),indemnity:num(v.indemnity)}};
 }
 
 export function nextStatus(claim,status,date){
@@ -106,6 +107,15 @@ export function exifDate(bytes){
       const m2=/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2})/.exec(raw||'');return m2?`${m2[1]}-${m2[2]}-${m2[3]}T${m2[4]}:${m2[5]}`:null;}
     if(m===0xDA)return null;p+=2+len;}
   return null;
+}
+
+// n° 94 : sans date de versement saisie, l'indemnité est attendue 3 mois après le sinistre (estimation).
+export const CLAIM_PAYMENT_DELAY_MONTHS=3;
+/** Date de versement attendue : saisie, sinon date du sinistre + 3 mois (estimée). */
+export function claimPaymentDate(claim){
+  const own=String(claim?.expectedPaymentDate||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(own))return{date:own,estimated:false};
+  const d=String(claim?.date||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return null;
+  const t=new Date(`${d}T12:00:00Z`);t.setUTCMonth(t.getUTCMonth()+CLAIM_PAYMENT_DELAY_MONTHS);return{date:t.toISOString().slice(0,10),estimated:true};
 }
 
 /** Suivi en trésorerie : pertes estimées en attente d'indemnisation et indemnités reçues. */

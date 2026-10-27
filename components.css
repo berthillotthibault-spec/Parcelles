@@ -53,6 +53,8 @@ html.compact-mode .parcel-card,html.compact-mode .work-card{padding:10px 13px}
 .assistant-answer{padding:12px 14px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
 .assistant-answer.is-user{background:var(--surface-secondary)}
 .assistant-answer p{margin:.35rem 0 0;white-space:pre-wrap}
+.assistant-json{max-height:40vh;overflow:auto;margin:.5rem 0 0;padding:10px;border-radius:10px;background:var(--surface-secondary);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.assistant-diff{width:100%}.assistant-diff th,.assistant-diff td{text-align:left;vertical-align:top;overflow-wrap:anywhere}
 .assistant-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .member-role-select{min-height:40px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text-primary);padding:0 8px}
 .status-badge{display:inline-flex;align-items:center;min-height:28px;padding:0 9px;border-radius:999px;background:var(--brand-soft);color:var(--brand);font-size:12px;font-weight:700}

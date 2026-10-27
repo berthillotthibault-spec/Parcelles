@@ -5,7 +5,7 @@ import {campaignFor} from './utils.js';
 import {marginModel} from './pilotage.js';
 import {commercialisation} from './sales.js';
 import {clientsToBill,billableItems,lineTotal,overdueInvoices,invoiceBalance,isoDay} from './invoices-core.js';
-import {normalizeRole} from './permissions.js';
+import {normalizeRole,canSeeTreasury} from './permissions.js';
 
 export const MIN_RELIABILITY=50;
 export const previousCampaignId=id=>{const m=String(id||'').match(/^(\d{4})/);if(!m)return'';const y=Number(m[1])-1;return `${y}/${String(y+1).slice(-2)}`;};
@@ -37,4 +37,11 @@ export function billingHomeModel(state,{role='owner',today=isoDay(),enabled=true
   if(!late.length||!(amount>0))return{hidden:true,reason:'empty'};
   const clients=new Set(late.map(i=>i.clientId||i.clientName)).size;
   return{hidden:false,count:late.length,amount,clients,text:`${late.length} facture${late.length>1?'s':''} en retard`,detail:clients>1?`${clients} clients`:late[0].clientName||''};
+}
+
+// n° 88 : prochain point bas de trésorerie (treasuryForecast(state).low, calculé à la demande par
+// treasury.js) ; masqué aux rôles qui ne voient pas la trésorerie, comme le reste de l'économie.
+export function campaignTreasuryModel(low,{role='owner'}={}){
+  if(!canSeeTreasury(role)||!low||!Number.isFinite(low.balance))return null;
+  return{balance:low.balance,label:low.label,negative:low.balance<0,next:low.nextIncome?{label:low.nextIncome.label,amount:low.nextIncome.amount}:null};
 }

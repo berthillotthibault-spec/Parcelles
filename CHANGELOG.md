@@ -1,5 +1,39 @@
 # Changelog
 
+## 10.23.0 · sauvegardes automatiques, trésorerie complète, assistant et reprise d’historique — 2026-10-27
+
+Données : pas de changement de schéma (version 18). **Déployer `firestore.rules` et `storage.rules` avant de téléverser le site** (sinon l’écriture cloud se poursuit sans la version de schéma, en mode dégradé).
+
+Sauvegarde et synchronisation (n° 4, n° 5) :
+- sauvegarde complète écrite automatiquement chaque semaine dans le dossier choisi, si l’accès est encore accordé (sinon simple rappel) ; seules les N dernières sont gardées (8 par défaut), par exploitation ; Plus › Mes données › Sauvegardes automatiques ;
+- instantané cloud mensuel facultatif, réservé au propriétaire, chiffré par phrase secrète ou non chiffré après avertissement ; liste, restauration et suppression ;
+- chaque document cloud porte la version de schéma : un document écrit par une version plus récente n’est pas appliqué et le bandeau « Mettre à jour » s’affiche (une version forgée hors de portée est ignorée).
+
+Rappels et trésorerie (n° 17, 86, 88, 94, 102) :
+- rappels en arrière-plan et agenda .ics : entretiens, fin des délais avant récolte et de rentrée, lot à rentrer ;
+- la trésorerie reprend fermages, charges de structure, annuités et MSA, achats d’appro, pleins de GNR et indemnités de sinistre attendues, sans double compte avec l’échéancier ni avec les travaux prévus ; scénario « décaler un encaissement » ; le point bas cite le prochain encaissement et apparaît sur la carte « Ma campagne » ;
+- rappel « Travail habituel non fait », désactivable.
+
+Assistant (n° 104, 111) :
+- quatre nouvelles actions (observation, mouvement de stock, sortie de lot, planification), chacune avec une fiche « avant → après », contrôle du rôle, confirmation et Annuler ;
+- aperçu « Ce que j’envoie » et réglage « Anonymiser les noms envoyés » ;
+- « Voir sur la carte » sur les réponses de filtre, et questions du type « parcelles non fauchées / non semées ».
+
+Import, partage et stocks (n° 124, 19, 73) :
+- « Je viens d’un autre logiciel » (Mes Parcelles, Smag, Geofolia, tableur) : import de l’historique des travaux avec correspondance des colonnes, aperçu, dédoublonnage et annulation (le format Daplos n’est pas lu) ;
+- une photo reçue d’une autre application peut être rangée en « Photo terrain », rattachée à sa parcelle par sa position ; bon de chantier TP en PDF ;
+- lots, fournisseur et péremption repris des factures photographiées ; compteur d’emballages vides à rapporter ; lot consommé choisi sur les traitements et engrais.
+
+Simulateur et équipe (n° 89, 114, 129) :
+- « Et si… » recalcule la marge nette et le point bas de trésorerie, et compare un changement d’assolement ;
+- la page Confidentialité cite les heures pointées et l’affectation des salariés ;
+- date de fin d’accès facultative pour un membre, contrôlée par les règles ; un membre à accès limité ne peut pas donner un accès plus long que le sien.
+
+Outillage (n° 143, 149, 150, 152, 156) :
+- CI : tests des règles à l’émulateur, contrôle hors connexion, budget de performance (non bloquant) ;
+- test d’injection (parcelle nommée `<img src=x onerror=…>`) et règle ESLint sur `innerHTML` ; plafond d’avertissements porté à 239 par cette nouvelle règle ;
+- `DEPLOYMENT.md`, `CLOUD_SETUP.md`, `TEST_PLAN.md` et `TEST_RESULTS.md` supprimés, contenu repris dans `ARCHITECTURE.md`.
+
 ## 10.22.0 · troupeau bovin et accès conseiller — 2026-10-27
 
 Données : schéma en version 18 (nouvelles collections `animals`, `animalEvents` et `parcelComments`, créées vides ; les anciennes sauvegardes restent lisibles). Règles Firestore et Storage à redéployer, avec le nouveau fichier `firestore.indexes.json`.

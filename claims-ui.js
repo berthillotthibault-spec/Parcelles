@@ -5,7 +5,7 @@ import {flowPdf,pdfFile,sharePdf,jpegInfo} from './pdf-lite.js';
 import {saveFarmRecord} from './farm-records.js';
 import {attachmentBlob} from './storage-care.js';
 import {active} from './farm-memory.js';
-import {CLAIM_KIND,CLAIM_CAUSES,CLAIM_STATUSES,causeLabel,claimsFor,claimDraft,claimArea,estimateLoss,validateClaim,nextStatus,weatherUrl,parseWeather,weatherText,WEATHER_SOURCE,claimPdfBlocks,exifDate,claimsTreasury} from './claims.js';
+import {CLAIM_KIND,CLAIM_CAUSES,CLAIM_STATUSES,causeLabel,claimsFor,claimDraft,claimArea,estimateLoss,validateClaim,nextStatus,weatherUrl,parseWeather,weatherText,WEATHER_SOURCE,claimPdfBlocks,exifDate,claimsTreasury,CLAIM_PAYMENT_DELAY_MONTHS} from './claims.js';
 
 const n2=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
 const eur=v=>v===null||v===undefined?'—':`${n2.format(v)} €`;
@@ -39,6 +39,8 @@ export function createClaimsUI({store,modal,closeModal,toast}){
 <label>Zone mesurée<select name="zoneId"><option value="">—</option>${zones.map(z=>`<option value="${e(z.id)}" ${c.zoneId===z.id?'selected':''}>${e(z.name||z.title||'Zone')} · ${n2.format(z.areaHa)} ha</option>`).join('')}</select></label>
 <label>Part de la parcelle (%)<input name="areaPct" type="number" min="0" max="100" step="any" inputmode="decimal" value="${e(c.areaPct??'')}"></label>
 <label>Indemnité reçue ou proposée (€)<input name="indemnity" type="number" min="0" step="any" inputmode="decimal" value="${e(c.indemnity??'')}"></label>
+<label>Versement attendu le<input type="date" name="expectedPaymentDate" value="${e(c.expectedPaymentDate||'')}" aria-describedby="claim-payment-note"></label>
+<p class="form-note" id="claim-payment-note">Sert au prévisionnel de trésorerie ; sans date, ${CLAIM_PAYMENT_DELAY_MONTHS} mois après le sinistre.</p>
 <label class="span-2">Constat<textarea name="note">${e(c.note||'')}</textarea></label>
 <p class="form-note span-2">Pour tracer la zone touchée, mesurez-la en marchant (Carte › Mesurer une zone), puis choisissez-la ici.</p>
 <p class="form-error span-2" id="claim-error" role="alert" hidden></p></form>`,

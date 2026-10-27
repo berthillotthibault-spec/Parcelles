@@ -1,14 +1,23 @@
 // n° 88 — interface de la carte « Ma campagne » (repliable, montants masqués « •••• € »).
 import {escapeHtml as e} from './utils.js';
-import {campaignCardModel,billingHomeModel,MIN_RELIABILITY} from './campaign-card.js';
+import {campaignCardModel,billingHomeModel,campaignTreasuryModel,MIN_RELIABILITY} from './campaign-card.js';
 
 const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const KEY='parcelles:campaign-card';
 const readPref=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')||{};}catch{return{};}};
 const writePref=v=>{try{localStorage.setItem(KEY,JSON.stringify(v));}catch{}};
 
-export function createCampaignCardUI({role,today=()=>new Date(),onHideBilling=null}={}){
-  let revealed=false;
+export function createCampaignCardUI({role,today=()=>new Date(),onHideBilling=null,treasuryLow=null}={}){
+  let revealed=false,lowFor=null,low=null;
+  // n° 88 : point bas calculé à la demande (treasury.js n'est pas dans le graphe de démarrage), une fois par état.
+  function refreshLow(data){
+    if(!treasuryLow||data===lowFor)return;lowFor=data;low=null;
+    Promise.resolve().then(()=>treasuryLow(data)).then(v=>{if(lowFor===data){low=v||null;render(data);}},()=>{});
+  }
+  function treasuryHtml(){
+    const t=campaignTreasuryModel(low,{role:role()});if(!t)return'';
+    return`<p class="campaign-treasury"><span>Point bas de trésorerie</span> <button type="button" class="campaign-reveal" data-campaign-reveal aria-pressed="${revealed}" aria-label="${revealed?'Masquer les montants':'Afficher les montants'}">${e(money(t.balance))}</button> <small>fin ${e(t.label)}${t.negative?' · négatif':''}</small> <button type="button" class="text-button" data-action="open-treasury">Voir</button></p>`;
+  }
   const money=v=>revealed?`${v<0?'−':''}${n0.format(Math.abs(v))} €`:'•••• €';
   function ensureCard(){
     let card=document.querySelector('[data-home-card="campaign"]');
@@ -42,14 +51,15 @@ export function createCampaignCardUI({role,today=()=>new Date(),onHideBilling=nu
     const m=campaignCardModel(data,{role:role()});
     if(m.hidden){card.classList.add('hidden');card.innerHTML='';card.dataset.roleHidden='1';return;}
     delete card.dataset.roleHidden;
+    refreshLow(data);
     const collapsed=readPref().collapsed===true;
     const figures=m.reliable?`<dl class="campaign-figures"><div><dt>Marge estimée</dt><dd><button type="button" class="campaign-reveal" data-campaign-reveal aria-pressed="${revealed}" aria-label="${revealed?'Masquer les montants':'Afficher les montants'}">${e(money(m.margin))}</button></dd><small>fiable à ${m.reliability} %</small></div><div><dt>Écart N−1</dt><dd>${m.delta===null?'—':e((m.delta>=0?'+':'')+money(m.delta))}</dd><small>${e(m.previous)}</small></div><div><dt>Récolte vendue</dt><dd>${m.sold===null?'—':`${n0.format(m.sold*100)} %`}</dd><small>ventes et contrats</small></div><div><dt>À facturer</dt><dd>${m.toBillCount?e(money(m.toBill)):'—'}</dd><small>${m.toBillCount?`${m.toBillCount} prestation${m.toBillCount>1?'s':''}`:'rien en attente'}</small></div></dl>`
       :`<p class="campaign-unreliable">Chiffres masqués : fiabilité de ${m.reliability} % (moins de ${MIN_RELIABILITY} %).${m.detail?` ${e(m.detail)}.`:''}</p>`;
     const action=m.action?(m.action.kind==='costs'?`<button type="button" class="campaign-action" data-cost="complete" data-campaign="${e(m.campaign)}">${e(m.action.text)}</button>`
       :`<button type="button" class="campaign-action" data-action="${m.action.kind==='invoice'?'open-invoices':'open-statistics'}">${e(m.action.text)}</button>`):'';
-    card.innerHTML=`<div class="panel-heading"><h2>Ma campagne ${e(m.campaign)}</h2><button type="button" class="text-button campaign-toggle" data-campaign-toggle aria-expanded="${!collapsed}">${collapsed?'Afficher':'Replier'}</button></div><div class="campaign-body" ${collapsed?'hidden':''}>${figures}${action}</div>`;
+    card.innerHTML=`<div class="panel-heading"><h2>Ma campagne ${e(m.campaign)}</h2><button type="button" class="text-button campaign-toggle" data-campaign-toggle aria-expanded="${!collapsed}">${collapsed?'Afficher':'Replier'}</button></div><div class="campaign-body" ${collapsed?'hidden':''}>${figures}${treasuryHtml()}${action}</div>`;
     card.querySelector('[data-campaign-toggle]').onclick=()=>{writePref({...readPref(),collapsed:!collapsed});render(data);};
-    const reveal=card.querySelector('[data-campaign-reveal]');if(reveal)reveal.onclick=()=>{revealed=!revealed;render(data);};
+    for(const reveal of card.querySelectorAll('[data-campaign-reveal]'))reveal.onclick=()=>{revealed=!revealed;render(data);};
   }
   // Après la mise en page de l’accueil : la carte reste cachée au rôle lecture seule.
   function enforce(){const card=document.querySelector('[data-home-card="campaign"]');if(card?.dataset.roleHidden)card.classList.add('hidden');placeBilling();}

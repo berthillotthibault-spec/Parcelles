@@ -3,7 +3,22 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function memberPath(workspaceId, uid) { return /databases/$(database)/documents/workspaces/$(workspaceId)/members/$(uid); }
-    function isMember(workspaceId) { return signedIn() && exists(memberPath(workspaceId, request.auth.uid)); }
+    // n° 129 : accès limité dans le temps. memberExpiresAt (ms) facultatif sur le membre : absent ou null = illimité
+    // (membres existants inchangés) ; une fois la date passée, le membre n'est plus membre pour aucune règle.
+    function accessActive(m) { return m.get('memberExpiresAt', null) == null || m.memberExpiresAt > request.time.toMillis(); }
+    // Date de fin d'accès valide à l'écriture : absente, ou nombre dans le futur (3 ans au plus).
+    function validAccessEnd(d) {
+      return d.get('memberExpiresAt', null) == null
+        || (d.memberExpiresAt is number && d.memberExpiresAt > request.time.toMillis() && d.memberExpiresAt <= request.time.toMillis() + 1100 * 86400000);
+    }
+    // Un membre dont l'accès est limité ne donne pas plus que le sien : toute fin d'accès qu'il pose (invitation,
+    // membre créé, date changée) est présente et au plus égale à la sienne. Sans limite pour lui : rien à vérifier.
+    function withinAccessOf(m, d) {
+      return m.get('memberExpiresAt', null) == null
+        || (d.get('memberExpiresAt', null) is number && d.memberExpiresAt <= m.memberExpiresAt);
+    }
+    function withinOwnAccess(workspaceId, d) { return withinAccessOf(get(memberPath(workspaceId, request.auth.uid)).data, d); }
+    function isMember(workspaceId) { return signedIn() && exists(memberPath(workspaceId, request.auth.uid)) && accessActive(get(memberPath(workspaceId, request.auth.uid)).data); }
     function memberRole(workspaceId) { return get(memberPath(workspaceId, request.auth.uid)).data.role; }
     function isOwner(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) == 'owner'; }
     // Écriture des données selon le rôle, même périmètre que permissions.js (canMutate) :
@@ -82,8 +97,9 @@ service cloud.firestore {
     // (un responsable rétrogradé ou retiré ne peut plus faire entrer quelqu'un).
     function inviterStillAllowed(workspaceId, token) {
       let invite = get(invitePath(token)).data;
-      let inviterRole = get(memberPath(workspaceId, invite.createdBy)).data.role;
-      return inviterRole == 'owner' || (inviterRole == 'manager' && lowerThanManager(invite.role));
+      let inviter = get(memberPath(workspaceId, invite.createdBy)).data;
+      let inviterRole = inviter.role;
+      return accessActive(inviter) && withinAccessOf(inviter, invite) && (inviterRole == 'owner' || (inviterRole == 'manager' && lowerThanManager(invite.role)));
     }
     function isTeamManager(workspaceId) { return isMember(workspaceId) && memberRole(workspaceId) in ['owner','manager']; }
     function validInvite(token, workspaceId) {
@@ -120,14 +136,15 @@ service cloud.firestore {
           return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','updatedAt','updatedBy']);
         }
         function workspaceAfter() { return getAfter(/databases/$(database)/documents/workspaces/$(workspaceId)).data; }
-        allow read: if isMember(workspaceId);
+        // Chacun relit sa propre fiche, même après sa date de fin d'accès (n° 129 : message « accès terminé »).
+        allow read: if isMember(workspaceId) || (signedIn() && request.auth.uid == uid);
         // Trois chemins de création, chacun limité au rôle qu'il a le droit d'attribuer :
         // - propriétaire ou responsable existant : un rôle qu'il peut attribuer (jamais owner), pour un autre que lui ;
         // - créateur de l'exploitation (createWorkspace) : son propre document, rôle owner ;
         // - invité (acceptInvite) : son propre document, rôle EXACT de l'invitation,
         //   clés limitées, et l'invitation doit être supprimée dans le même lot (usage unique).
         allow create: if signedIn() && (
-          (request.auth.uid != uid && canAssignRole(workspaceId, request.resource.data.role))
+          (request.auth.uid != uid && canAssignRole(workspaceId, request.resource.data.role) && validAccessEnd(request.resource.data) && withinOwnAccess(workspaceId, request.resource.data))
           || (request.auth.uid == uid
               && getAfter(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerUid == request.auth.uid
               && request.resource.data.uid == uid
@@ -135,7 +152,8 @@ service cloud.firestore {
               && request.resource.data.keys().hasOnly(['uid','email','role','joinedAt','displayName']))
           || (request.auth.uid == uid
               && request.resource.data.uid == uid
-              && request.resource.data.keys().hasOnly(['uid','email','role','joinedAt','inviteToken'])
+              && request.resource.data.keys().hasOnly(['uid','email','role','joinedAt','inviteToken','memberExpiresAt'])
+              && request.resource.data.get('memberExpiresAt', null) == get(invitePath(request.resource.data.inviteToken)).data.get('memberExpiresAt', null)
               && validInvite(request.resource.data.inviteToken, workspaceId)
               && invitableRole(request.resource.data.role)
               && request.resource.data.role == get(invitePath(request.resource.data.inviteToken)).data.role
@@ -156,6 +174,7 @@ service cloud.firestore {
           || (request.auth.uid != uid
             && isOwner(workspaceId)
             && resource.data.role != 'owner'
+            && resource.data.get('memberExpiresAt', null) == null
             && request.resource.data.role == 'owner'
             && workspaceAfter().ownerUid == uid
             && getAfter(memberPath(workspaceId, request.auth.uid)).data.role == 'manager')
@@ -166,6 +185,13 @@ service cloud.firestore {
             && workspaceAfter().ownerUid != uid
             && getAfter(memberPath(workspaceId, workspaceAfter().ownerUid)).data.role == 'owner')
         );
+        // n° 129 : fin d'accès posée, changée ou retirée par quelqu'un qui gère ce grade (jamais sur soi, jamais
+        // sur le propriétaire : canManageTarget l'exclut). Seuls memberExpiresAt et updatedAt/updatedBy changent.
+        allow update: if signedIn() && request.auth.uid != uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberExpiresAt','updatedAt','updatedBy'])
+          && canManageTarget(workspaceId, resource.data.role)
+          && validAccessEnd(request.resource.data)
+          && withinOwnAccess(workspaceId, request.resource.data);
         // Retrait : par quelqu'un qui gère ce grade, ou départ volontaire (sauf le propriétaire).
         allow delete: if signedIn() && (
           (request.auth.uid != uid && canManageTarget(workspaceId, resource.data.role))
@@ -183,7 +209,7 @@ service cloud.firestore {
       function validEntityDoc(workspaceId, docId) {
         let d = request.resource.data;
         return d.keys().hasOnly(['entityType','entityId','payload','payloadEncoding','version','updatedAt','deletedAt',
-            'modifiedBy','modifiedEmail','deviceId','build','action','serverUpdatedAt'])
+            'modifiedBy','modifiedEmail','deviceId','build','schemaVersion','action','serverUpdatedAt'])
           && d.modifiedBy == request.auth.uid
           // serverUpdatedAt sert de curseur de synchronisation : seule l'heure du serveur est acceptée (FieldValue.serverTimestamp()).
           && (!('serverUpdatedAt' in d) || d.serverUpdatedAt == request.time)
@@ -200,6 +226,8 @@ service cloud.firestore {
           && d.get('modifiedEmail', '') is string && d.get('modifiedEmail', '').size() <= 320
           && d.get('deviceId', '') is string && d.get('deviceId', '').size() <= 128
           && d.get('build', '') is string && d.get('build', '').size() <= 64
+          // n° 5 : version du schéma de l'application qui a écrit (APP_VERSION) ; absente des documents plus anciens.
+          && (!('schemaVersion' in d) || (d.schemaVersion is int && d.schemaVersion >= 1 && d.schemaVersion <= 100))
           && d.get('action', '') is string && d.get('action', '').size() <= 64;
       }
       // Relevé de compteur par l'opérateur terrain (vague 12, permissions.js : OPERATOR_MATERIEL_FIELDS) :
@@ -216,7 +244,7 @@ service cloud.firestore {
           && before.entityType == 'materiels' && after.entityType == 'materiels'
           && before.get('deletedAt', null) == null
           && (('payloadEncoding' in before) ? after.get('payloadEncoding', null) == before.payloadEncoding : after.get('payloadEncoding', null) == 'nested-arrays-v1')
-          && after.diff(before).affectedKeys().hasOnly(['payload','payloadEncoding','version','updatedAt','modifiedBy','modifiedEmail','deviceId','build','action','serverUpdatedAt'])
+          && after.diff(before).affectedKeys().hasOnly(['payload','payloadEncoding','version','updatedAt','modifiedBy','modifiedEmail','deviceId','build','schemaVersion','action','serverUpdatedAt'])
           && before.payload is map && after.payload is map
           && before.payload.get('deletedAt', null) == null
           && after.payload.diff(before.payload).affectedKeys().hasOnly(['currentMeter','updatedAt','version'])
@@ -258,7 +286,9 @@ service cloud.firestore {
         && request.resource.data.email is string
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.expiresAt is number
-        && request.resource.data.expiresAt <= request.time.toMillis() + 31 * 86400000;
+        && request.resource.data.expiresAt <= request.time.toMillis() + 31 * 86400000
+        && validAccessEnd(request.resource.data)
+        && withinOwnAccess(request.resource.data.workspaceId, request.resource.data);
       // Lecture : l'invité, ou le propriétaire / un responsable de l'exploitation (invitations en attente).
       allow read: if signedIn() && (
         (request.auth.token.email != null && request.auth.token.email == resource.data.email)

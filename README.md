@@ -13,4 +13,7 @@ Aucune montée de version de ces bibliothèques n’a été effectuée.
 
 ## Documentation
 
-Architecture du code (modules, état, synchronisation, service worker, recettes) : [ARCHITECTURE.md](ARCHITECTURE.md).
+- [ARCHITECTURE.md](ARCHITECTURE.md) : architecture du code (modules, état, synchronisation, service worker, recettes), mise en service du cloud Firebase, jobs de la CI et vérifications manuelles.
+- [BUGS.md](BUGS.md) : dernière chasse aux bugs et corrections.
+- [AUDIT_MAQUETTE.md](AUDIT_MAQUETTE.md) : conformité de l'app à la maquette de conception.
+- [CHANGELOG.md](CHANGELOG.md) et [MISE_A_JOUR.md](MISE_A_JOUR.md) : historique des versions et mise à jour côté utilisateur.
