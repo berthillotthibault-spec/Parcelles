@@ -4,7 +4,8 @@
 import {
   ROLE_EXAMPLES, ROLE_ORDER, ROLE_SUMMARY, assignableRolesFor, canChangeRole, canLeave, canManageMember, canManageTeam,
   canRevokeInvite, canTransferOwnership, lastActivityByUser, manageBlockReason, pendingInvites,
-  inviteShareText, permissionMatrix, sortMembers, teamJournal, teamPowerSentence
+  inviteShareText, permissionMatrix, sortMembers, teamJournal, teamPowerSentence,
+  accessActive, accessEndInput, accessLabel, canSetAccessEnd, parseAccessEnd
 } from './team-roles.js';
 import {qrSvg} from './qr.js';
 import {normalizeRole, roleLabel} from './permissions.js';
@@ -66,6 +67,7 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
     const id = m.id || m.uid, self = id === myUid(), target = normalizeRole(m.role);
     const last = activityByUser[id];
     const meta = [self ? 'Vous' : '', last ? `Actif ${ago(last, now())}` : 'Activité inconnue', m.joinedAt ? `membre depuis le ${dateFr(m.joinedAt)}` : ''].filter(Boolean).join(' · ');
+    const access = accessLabel(m, now()), ended = !accessActive(m, now());
     const actions = [];
     let why = '';
     if (self) {
@@ -73,12 +75,13 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
       else why = 'Pour quitter l’exploitation, transférez d’abord la propriété.';
     } else if (canManageMember(role, target)) {
       actions.push(`<button class="small-button" data-team-role="${e(id)}" ${ro ? 'disabled' : ''}>Changer le grade</button>`);
+      if (canSetAccessEnd(role, target)) actions.push(`<button class="small-button" data-team-access="${e(id)}" ${ro ? 'disabled' : ''}>Fin d’accès</button>`);
       actions.push(`<button class="small-button danger" data-team-remove="${e(id)}" ${ro ? 'disabled' : ''}>Retirer</button>`);
-      if (canTransferOwnership(role, target)) actions.push(`<button class="small-button" data-team-transfer="${e(id)}" ${ro ? 'disabled' : ''}>Transférer la propriété</button>`);
+      if (canTransferOwnership(role, target) && !m.memberExpiresAt) actions.push(`<button class="small-button" data-team-transfer="${e(id)}" ${ro ? 'disabled' : ''}>Transférer la propriété</button>`);
     } else if (canManageTeam(role)) {
       why = manageBlockReason(role, target);
     }
-    return `<li class="tr-member${self ? ' is-self' : ''}"><span class="tr-avatar" aria-hidden="true">${initial(m)}</span><div class="tr-who"><strong>${e(m.displayName || m.email || id)}</strong>${m.displayName && m.email ? `<small>${e(m.email)}</small>` : ''}<small>${e(meta)}</small></div>${badge(target)}${actions.length || why ? `<div class="tr-actions">${actions.join('')}${why ? `<small class="tr-why">${e(why)}</small>` : ''}</div>` : ''}</li>`;
+    return `<li class="tr-member${self ? ' is-self' : ''}"><span class="tr-avatar" aria-hidden="true">${initial(m)}</span><div class="tr-who"><strong>${e(m.displayName || m.email || id)}</strong>${m.displayName && m.email ? `<small>${e(m.email)}</small>` : ''}<small>${e(meta)}</small>${access ? `<small class="tr-access${ended ? ' is-ended' : ''}">${e(access)}</small>` : ''}</div>${badge(target)}${actions.length || why ? `<div class="tr-actions">${actions.join('')}${why ? `<small class="tr-why">${e(why)}</small>` : ''}</div>` : ''}</li>`;
   }
 
   function inviteFormHtml(role, ro) {
@@ -89,6 +92,8 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
       <label>Adresse e-mail<input name="email" type="email" autocomplete="off" inputmode="email" placeholder="prenom.nom@exemple.fr" ${ro ? 'disabled' : ''}></label>
       <input type="hidden" name="role" value="${def}">
       <fieldset class="tr-role-pick" ${ro ? 'disabled' : ''}><legend>Grade proposé</legend><div class="chip-choices" data-chip-target="role">${roles.map(r => `<button type="button" class="choice-chip${r === def ? ' is-on' : ''}" aria-pressed="${r === def}" data-value="${r}">${e(roleLabel(r))}</button>`).join('')}</div><p class="form-note" data-team-example>${e(`${ROLE_SUMMARY[def]} Par exemple : ${ROLE_EXAMPLES[def]}`)}</p></fieldset>
+      <label>Fin d’accès (facultatif)<input name="accessEnd" type="date" min="${e(accessEndInput(now() + 86400000))}" ${ro ? 'disabled' : ''}></label>
+      <p class="form-note">Laissez vide pour un accès sans limite. À la date choisie, l’accès cloud s’arrête tout seul (conseiller, stagiaire, saisonnier…), contrôlé par le serveur.</p>
       <p class="form-note">${role === 'manager' ? 'En tant que responsable, vous invitez uniquement à un grade inférieur au vôtre.' : 'Le grade Propriétaire ne s’attribue pas par invitation : utilisez le transfert de propriété.'} L’invitation expire au bout de 7 jours et ne fonctionne qu’avec l’adresse prévue.</p>
       <p class="form-error hidden" role="alert"></p>
       <button class="button primary" type="submit" ${ro ? 'disabled' : ''}>Créer l’invitation</button></form></section>`;
@@ -98,7 +103,7 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
     if (!canManageTeam(role)) return '';
     if (ro) return `<section class="tr-section"><h3>Invitations en attente</h3><div class="empty-state">Disponibles une fois la connexion rétablie.</div></section>`;
     const list = pendingInvites(cache.invites, now());
-    return `<section class="tr-section"><h3>Invitations en attente${list.length ? ` <span class="tr-count">${list.length}</span>` : ''}</h3>${list.length ? `<ul class="tr-list">${list.map(i => `<li class="tr-invite-row"><div class="tr-who"><strong>${e(i.email)}</strong><small>Expire le ${dateFr(i.expiresAt)}</small></div>${badge(i.role)}<div class="tr-actions"><button class="small-button" data-team-copy="${e(i.token)}">Copier le lien</button><button class="small-button" data-team-qr="${e(i.token)}">QR code et partage</button>${canRevokeInvite(role, i.role) ? `<button class="small-button danger" data-team-revoke="${e(i.token)}">Révoquer</button>` : '<small class="tr-why">Seul le propriétaire révoque cette invitation.</small>'}</div></li>`).join('')}</ul>` : '<div class="empty-state">Aucune invitation en attente.</div>'}</section>`;
+    return `<section class="tr-section"><h3>Invitations en attente${list.length ? ` <span class="tr-count">${list.length}</span>` : ''}</h3>${list.length ? `<ul class="tr-list">${list.map(i => `<li class="tr-invite-row"><div class="tr-who"><strong>${e(i.email)}</strong><small>Expire le ${dateFr(i.expiresAt)}${i.memberExpiresAt ? ` · accès jusqu’au ${dateFr(i.memberExpiresAt)}` : ''}</small></div>${badge(i.role)}<div class="tr-actions"><button class="small-button" data-team-copy="${e(i.token)}">Copier le lien</button><button class="small-button" data-team-qr="${e(i.token)}">QR code et partage</button>${canRevokeInvite(role, i.role) ? `<button class="small-button danger" data-team-revoke="${e(i.token)}">Révoquer</button>` : '<small class="tr-why">Seul le propriétaire révoque cette invitation.</small>'}</div></li>`).join('')}</ul>` : '<div class="empty-state">Aucune invitation en attente.</div>'}</section>`;
   }
 
   function journalHtml() {
@@ -149,6 +154,7 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
     q('[data-team-refresh]')?.addEventListener('click', () => open());
     qa('[data-team-role]').forEach(b => { b.onclick = () => roleScreen(b.dataset.teamRole); });
     qa('[data-team-remove]').forEach(b => { b.onclick = () => removeScreen(b.dataset.teamRemove); });
+    qa('[data-team-access]').forEach(b => { b.onclick = () => accessScreen(b.dataset.teamAccess); });
     qa('[data-team-transfer]').forEach(b => { b.onclick = () => transferScreen(b.dataset.teamTransfer); });
     q('[data-team-leave]')?.addEventListener('click', leaveScreen);
     qa('[data-team-copy]').forEach(b => { b.onclick = async () => { const ok = await copyText(inviteLink(b.dataset.teamCopy)); toast(ok ? 'Lien d’invitation copié.' : 'Copie impossible sur ce navigateur.', ok ? 'success' : 'error'); }; });
@@ -165,8 +171,10 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
         ev.preventDefault();
         const err = form.querySelector('.form-error'), email = String(form.elements.email.value || '').trim();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { err.textContent = 'Saisissez une adresse e-mail valide.'; err.classList.remove('hidden'); form.elements.email.focus(); return; }
+        const end = parseAccessEnd(form.elements.accessEnd?.value, now());
+        if (end.error) { err.textContent = end.error; err.classList.remove('hidden'); form.elements.accessEnd.focus(); return; }
         const submit = form.querySelector('[type=submit]'); submit.disabled = true;
-        try { const invite = await sync.createInvite(email, form.elements.role.value); try { await onInvite(invite); } catch {} await load(); inviteDone(invite); }
+        try { const invite = await sync.createInvite(email, form.elements.role.value, {memberExpiresAt: end.value}); try { await onInvite(invite); } catch {} await load(); inviteDone(invite); }
         catch (error) { err.textContent = error.message; err.classList.remove('hidden'); submit.disabled = false; }
       };
     }
@@ -191,7 +199,7 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
     const link = inviteLink(invite.token);
     modal(title, `${invite.email} · ${roleLabel(invite.role)}`, `<p>Faites scanner ce QR code à la personne invitée, ou envoyez-lui le lien. Elle se connecte avec <strong>${e(invite.email)}</strong> puis rejoint l’exploitation.</p>
       <div class="qr-preview tr-qr">${qrSvg(link, {label: `QR code de l’invitation de ${invite.email}`})}</div>
-      <pre class="diagnostic-pre tr-link">${e(link)}</pre><p class="form-note">Grade ${e(roleLabel(invite.role))} : ${e(ROLE_SUMMARY[normalizeRole(invite.role)] || '')} Code seul : <code>${e(invite.token)}</code> · expire le ${dateFr(invite.expiresAt)}.</p>`,
+      <pre class="diagnostic-pre tr-link">${e(link)}</pre><p class="form-note">Grade ${e(roleLabel(invite.role))} : ${e(ROLE_SUMMARY[normalizeRole(invite.role)] || '')} Code seul : <code>${e(invite.token)}</code> · expire le ${dateFr(invite.expiresAt)}.${invite.memberExpiresAt ? ` Accès limité jusqu’au ${dateFr(invite.memberExpiresAt)}.` : ''}</p>`,
     `${back}<button class="button secondary" data-team-copy-code>Copier le code</button><button class="button secondary" data-team-copy-link>Copier le lien</button><button class="button primary" data-team-share>Partager</button>`, 'small');
     wireBack();
     document.querySelector('[data-team-copy-link]').onclick = async () => { const ok = await copyText(link); toast(ok ? 'Lien copié.' : 'Copie impossible : sélectionnez le lien.', ok ? 'success' : 'error'); };
@@ -215,6 +223,32 @@ export function createTeamRolesUI({sync, state, modal, closeModal, toast, copyTe
       ev.currentTarget.disabled = true;
       try { await sync.updateMemberRole(id, next); toast(`${nameOf(m)} est maintenant ${roleLabel(next).toLocaleLowerCase('fr')}.`, 'success'); await open(); }
       catch (error) { err.textContent = error.message; err.classList.remove('hidden'); ev.currentTarget.disabled = false; }
+    };
+  }
+
+  // n° 129 : poser, changer ou retirer la date de fin d’accès d’un membre.
+  function accessScreen(id) {
+    const m = member(id); if (!m) return;
+    const current = accessEndInput(m.memberExpiresAt), label = accessLabel(m, now());
+    modal('Fin d’accès', nameOf(m), `<form id="team-access-form" novalidate><p>${label ? e(label) : 'Accès actuellement sans limite.'}</p>
+      <label>Date de fin d’accès<input name="accessEnd" type="date" value="${e(current)}" min="${e(accessEndInput(now() + 86400000))}"></label>
+      <p class="form-note">Laissez vide pour un accès sans limite. Après cette date, ${e(nameOf(m))} ne lit et n’écrit plus rien dans l’exploitation cloud ; ses saisies déjà synchronisées restent.</p>
+      <p class="form-error hidden" role="alert"></p></form>`,
+    `${back}<button class="button primary" data-team-access-save>Enregistrer</button>`, 'small');
+    wireBack();
+    const form = document.querySelector('#team-access-form');
+    form.onsubmit = ev => { ev.preventDefault(); document.querySelector('[data-team-access-save]').click(); };
+    document.querySelector('[data-team-access-save]').onclick = async ev => {
+      const err = form.querySelector('.form-error'), end = parseAccessEnd(form.elements.accessEnd.value, now());
+      if (end.error) { err.textContent = end.error; err.classList.remove('hidden'); return; }
+      if ((end.value === null && !m.memberExpiresAt) || (end.value !== null && accessEndInput(end.value) === current)) { err.textContent = 'Aucun changement à enregistrer.'; err.classList.remove('hidden'); return; }
+      const button = ev.currentTarget, previous = m.memberExpiresAt ?? null; button.disabled = true;
+      try {
+        await sync.updateMemberAccessEnd(id, end.value);
+        const undo = previous === null || previous > now() ? {label: 'Annuler', run: async () => { try { await sync.updateMemberAccessEnd(id, previous); toast('Fin d’accès rétablie.', 'success'); } catch (error) { fail(error); } }} : undefined;
+        toast(end.value === null ? `${nameOf(m)} a un accès sans limite.` : `Accès de ${nameOf(m)} jusqu’au ${dateFr(end.value)}.`, 'success', undo);
+        await open();
+      } catch (error) { err.textContent = error.message; err.classList.remove('hidden'); button.disabled = false; }
     };
   }
 

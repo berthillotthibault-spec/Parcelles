@@ -3,7 +3,7 @@
 import {escapeHtml as e,download,downloadBlob,localDate} from './utils.js';
 import {validateForm} from './form-chips-ui.js';
 import {loadVendor} from './vendor-loader.js';
-import {inputAlerts,adivalorReminder,itemLots,valuationAt,inventoryCsv,inventoryTable,INVENTORY_HEADERS,workRevaluations,revaluedWork,ADIVALOR_NOTE} from './stock-lots.js';
+import {inputAlerts,adivalorReminder,itemLots,valuationAt,inventoryCsv,inventoryTable,INVENTORY_HEADERS,workRevaluations,revaluedWork,ADIVALOR_NOTE,packageCount,packagesAfter,productLotChoices} from './stock-lots.js';
 
 const n2=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
 const eur=v=>v===null||v===undefined?'—':`${n2.format(v)} €`;
@@ -20,10 +20,35 @@ export function createStockLotsUI({store,modal,closeModal,toast,lookup=()=>null}
   }
   function readMovementFields(v){for(const k of ['lotNumber','supplier','expiryDate']){const s=String(v[k]??'').trim();if(s&&v.type==='Entrée')v[k]=s;else delete v[k];}return v;}
 
+  const toBring=adv=>[adv.count?`${adv.count} PPNU`:'',adv.packages?`${adv.packages} emballage${adv.packages>1?'s':''} vide${adv.packages>1?'s':''}`:''].filter(Boolean).join(' et ');
+  const adviceHtml=adv=>adv.due?`<p class="notice warning">Collecte ADIVALOR le ${e(localDate(adv.next))} : ${e(toBring(adv))} à apporter.</p>`:adv.missingDate?`<p class="notice info">${e(toBring(adv))} à rapporter : renseignez la prochaine collecte ADIVALOR.</p>`:'';
+
+  /** Travail phyto ou engrais : choix du lot réellement consommé parmi les lots en stock du produit. */
+  function enhanceWorkForm(form,item={}){
+    const el=form?.elements,anchor=el?.product?.closest('label');if(!anchor||form.querySelector('[name=productLot]'))return;
+    anchor.insertAdjacentHTML('afterend','<label class="stock-work-lot" hidden>Lot du produit<select name="productLot"></select><small class="form-note">Lot en stock réellement utilisé (traçabilité).</small></label>');
+    const label=form.querySelector('.stock-work-lot'),select=label.querySelector('select');
+    const refresh=()=>{
+      const current=select.value||item.productLot||'',choices=productLotChoices(data(),{product:el.product.value,amm:el.amm?.value||''},{today:todayIso()});
+      const known=choices.some(c=>c.lotNumber===current);
+      select.innerHTML=`<option value="">—</option>${choices.map(c=>`<option value="${e(c.lotNumber)}" ${c.lotNumber===current?'selected':''}>${e(c.lotNumber)} · ${e(n2.format(c.remaining))} ${e(c.item.unit||'')}${c.expiryDate?` · pér. ${e(localDate(c.expiryDate))}`:''}${c.expired?' (périmé)':''}</option>`).join('')}${current&&!known?`<option value="${e(current)}" selected>${e(current)}</option>`:''}`;
+      label.hidden=!choices.length&&!current;
+    };
+    el.product.addEventListener('change',refresh);el.amm?.addEventListener('change',refresh);refresh();
+  }
+
+  async function setPackages(id,delta){
+    const item=store.get('stockItems',id);if(!item)return;
+    const before=packageCount(item),after=packagesAfter(item,delta);if(after===before)return openLots();
+    await store.upsert('stockItems',{...item,emptyPackages:after},{label:`${item.name} : emballages vides ${before} → ${after}`});
+    toast(delta===null?`${before} emballage${before>1?'s':''} rapporté${before>1?'s':''} : ${item.name}.`:`Emballages vides à rapporter : ${after} (${item.name}).`,'success',{label:'Annuler',run:async()=>{const cur=store.get('stockItems',id);if(cur)await store.upsert('stockItems',{...cur,emptyPackages:before},{label:`${item.name} : emballages vides rétablis`});if(document.querySelector('#adivalor-form'))openLots();}});
+    openLots();
+  }
+
   function sectionHtml(){
     const a=alerts(),adv=adivalorReminder(data(),{today:todayIso()}),danger=a.filter(x=>x.level==='danger').length;
     return`<div class="stock-lots-summary"><h3>Intrants : lots et alertes</h3>${a.length?`<ul class="stock-alerts">${a.slice(0,4).map(x=>`<li class="is-${e(x.level)}">${e(x.text)}</li>`).join('')}</ul>${a.length>4?`<p class="form-note">${a.length-4} autre(s) alerte(s).</p>`:''}`:'<p class="form-note">Aucun produit périmé, retiré ou à évacuer.</p>'}
-${adv.due?`<p class="notice warning">Collecte ADIVALOR le ${e(localDate(adv.next))} : ${adv.count} PPNU à apporter.</p>`:adv.missingDate?`<p class="notice info">${adv.count} PPNU à évacuer : renseignez la prochaine collecte ADIVALOR.</p>`:''}
+${adviceHtml(adv)}
 <div class="stock-lots-actions"><button type="button" class="button secondary" data-sl="lots">Lots et alertes${danger?` (${danger})`:''}</button><button type="button" class="button secondary" data-sl="inventory">Inventaire valorisé</button></div></div>`;
   }
 
@@ -34,8 +59,8 @@ ${adv.due?`<p class="notice warning">Collecte ADIVALOR le ${e(localDate(adv.next
 ${a.length?`<ul class="stock-alerts">${a.map(x=>`<li class="is-${e(x.level)}">${e(x.text)}</li>`).join('')}</ul>`:'<p class="form-note">Aucune alerte.</p>'}
 <p class="form-note">AMM d’après la fiche produit et le catalogue E-Phy chargé (indicatif). Vérifiez l’étiquette et le site E-Phy de l’Anses.</p>
 <div class="stack-list">${items.map(i=>{const lots=itemLots(d,i,{today}).filter(l=>l.remaining>0&&(l.lotNumber||l.expiryDate||l.supplier));return`<div class="list-row stock-lot-row"><div><strong>${e(i.name||'Produit')}</strong><small>${e(n2.format(Number(i.quantity)||0))} ${e(i.unit||'')}${i.ppnu?` · PPNU ${e(i.ppnu)}${i.ppnuAt?` le ${e(localDate(i.ppnuAt))}`:''}`:''}</small>${lots.map(l=>`<small class="${l.expired?'negative':''}">Lot ${e(l.lotNumber||'—')} · ${e(n2.format(l.remaining))} ${e(i.unit||'')}${l.supplier?` · ${e(l.supplier)}`:''}${l.expiryDate?` · péremption ${e(localDate(l.expiryDate))}`:''}</small>`).join('')}</div>
-<div class="stock-lot-actions">${i.ppnu==='à évacuer'?`<button type="button" class="small-button" data-sl="ppnu-done" data-id="${e(i.id)}">Évacué</button><button type="button" class="small-button" data-sl="ppnu-clear" data-id="${e(i.id)}">Annuler PPNU</button>`:i.ppnu==='évacué'?'':`<button type="button" class="small-button" data-sl="ppnu" data-id="${e(i.id)}">PPNU à évacuer</button>`}</div></div>`;}).join('')||'<div class="empty-state">Aucun intrant suivi.</div>'}</div>
-<h3>Collecte ADIVALOR</h3><form id="adivalor-form" class="form-grid"><label>Prochaine collecte<input name="next" type="date" value="${e(adv.next||'')}"></label></form><p class="form-note">${e(ADIVALOR_NOTE)}</p>`,
+<div class="stock-lot-actions">${packageCount(i)?`<small>${packageCount(i)} emballage${packageCount(i)>1?'s':''} vide${packageCount(i)>1?'s':''} à rapporter</small><button type="button" class="small-button" data-sl="pack-done" data-id="${e(i.id)}">Rapportés</button><button type="button" class="small-button" data-sl="pack-remove" data-id="${e(i.id)}" aria-label="Un emballage de moins">−1</button>`:''}<button type="button" class="small-button" data-sl="pack-add" data-id="${e(i.id)}">+1 emballage vide</button>${i.ppnu==='à évacuer'?`<button type="button" class="small-button" data-sl="ppnu-done" data-id="${e(i.id)}">Évacué</button><button type="button" class="small-button" data-sl="ppnu-clear" data-id="${e(i.id)}">Annuler PPNU</button>`:i.ppnu==='évacué'?'':`<button type="button" class="small-button" data-sl="ppnu" data-id="${e(i.id)}">PPNU à évacuer</button>`}</div></div>`;}).join('')||'<div class="empty-state">Aucun intrant suivi.</div>'}</div>
+<h3>Collecte ADIVALOR</h3>${adviceHtml(adv)}<form id="adivalor-form" class="form-grid"><label>Prochaine collecte<input name="next" type="date" value="${e(adv.next||'')}"></label></form><p class="form-note">${e(ADIVALOR_NOTE)}</p>`,
       `<button type="button" class="button secondary" data-action="open-stock">Stocks</button><button type="button" class="button primary" data-sl="adivalor-save">Enregistrer la collecte</button>`,'large');
   }
 
@@ -69,6 +94,9 @@ ${rev.length?`<h3>Sorties de travaux à revaloriser</h3><p class="form-note">Le 
     if(name==='ppnu')return setPpnu(control.dataset.id,'à évacuer');
     if(name==='ppnu-done')return setPpnu(control.dataset.id,'évacué');
     if(name==='ppnu-clear')return setPpnu(control.dataset.id,null);
+    if(name==='pack-add')return setPackages(control.dataset.id,1);
+    if(name==='pack-remove')return setPackages(control.dataset.id,-1);
+    if(name==='pack-done')return setPackages(control.dataset.id,null);
     if(name==='adivalor-save'){const f=$('#adivalor-form');if(!validateForm(f))return;await store.setPreferences({adivalorNextCollection:f.elements.next.value||null});toast('Date de collecte enregistrée.','success');return openLots();}
     if(name==='revalue')return confirmRevalue(control.dataset.id);
     if(name==='revalue-ok'){const r=workRevaluations(data()).find(x=>x.work.id===control.dataset.id);if(!r)return openInventory();await store.upsert('interventions',revaluedWork(r.work,r.expected),{label:'Coût d’intrant revalorisé au PMP'});toast('Travail revalorisé.','success');return openInventory();}
@@ -80,5 +108,5 @@ ${rev.length?`<h3>Sorties de travaux à revaloriser</h3><p class="form-note">Le 
     }
   }
   document.addEventListener('click',ev=>{const c=ev.target.closest('[data-sl]');if(!c||c.disabled)return;c.disabled=true;action(c.dataset.sl,c).catch(err=>toast(err.message,'error')).finally(()=>{c.disabled=false;});});
-  return{movementFieldsHtml,readMovementFields,sectionHtml,openLots,openInventory,alerts};
+  return{movementFieldsHtml,readMovementFields,enhanceWorkForm,sectionHtml,openLots,openInventory,alerts};
 }

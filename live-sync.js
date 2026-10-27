@@ -2,6 +2,8 @@
 // Au premier plan et en ligne, un onSnapshot suit les documents dont serverUpdatedAt dépasse le curseur serveur ;
 // il est fermé dès que l'application passe en arrière-plan, hors ligne ou hors Wi-Fi (option).
 // Les documents reçus passent par sync.applyLiveDocs, c'est-à-dire le même chemin que le pull (fusion, conflits).
+// n° 5 : un document écrit par une version plus récente du schéma y est retenu (ni appliqué ni dépassé par le
+// curseur serveur) et sync.onNewerSchema affiche le bandeau « Mettre à jour ».
 
 const AUTHORS_KEY = 'parcelles:live-authors:v1';
 const MAX_AUTHORS = 400;

@@ -133,7 +133,7 @@ export function createWorkFormUI(ctx) {
     ctx.modal(title, 'Un cas simple peut être enregistré avec les champs essentiels uniquement.', body, footer, 'large');
     const form = $('#work-form');
     enhanceWorkForm(form, {data, today: ctx.todayIso(), recentIds: ctx.recentParcelIds});
-    ctx.phytoUI?.enhanceWorkForm(form, item); ctx.hedgesUI?.enhanceWorkForm(form, item);
+    ctx.phytoUI?.enhanceWorkForm(form, item); ctx.hedgesUI?.enhanceWorkForm(form, item); ctx.stockLotsUI?.enhanceWorkForm(form, item);
     // n° 144 : le formulaire s’ouvre sans attendre, habitudes et semences s’y ajoutent à l’arrivée.
     const late = ctx.lazy.need(['habits', 'seeds'], {silent: true});
     const lateFields = () => { ctx.habitsUI.enhanceWorkForm(form, item); ctx.seedsUI.enhanceWorkForm(form, item); };
@@ -171,6 +171,7 @@ export function createWorkFormUI(ctx) {
       duration, fuel, machineCost, fuelCost, inputCost, operatorCost, otherCost, weatherSnapshot, campaignId: campaignFor(v.date),
       source: item.id ? 'local' : (source.source || 'local')};
     if (v.status !== 'Terminé' && item.plannedDate && v.date !== item.date) entity.plannedDate = v.date;
+    if (!entity.productLot && !item.productLot) delete entity.productLot; // n° 73 : lot du produit, seulement s'il est choisi
     if (ctx.phytoUI && !(await ctx.phytoUI.guardWork(form, entity))) return;
     if (!ctx.lazy.ready('seeds')) await ctx.lazy.need('seeds', {silent: true});
     const seedError = ctx.seedsUI?.applyToWork(entity) || ctx.hedgesUI?.guardWork(entity, form);

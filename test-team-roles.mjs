@@ -6,7 +6,7 @@ import {readFileSync} from 'node:fs';
 import {
   ROLE_ORDER, roleTier, assignableRolesFor, canManageTeam, canManageMember, canChangeRole, canRemoveMember,
   canRevokeInvite, canLeave, canTransferOwnership, manageBlockReason, sortMembers, lastActivityByUser,
-  pendingInvites, teamJournal, permissionMatrix, teamPowerSentence, ROLE_EXAMPLES, inviteShareText
+  pendingInvites, teamJournal, permissionMatrix, teamPowerSentence, ROLE_EXAMPLES, inviteShareText, accessEndWithinActor
 } from './team-roles.js';
 
 const LOWER = ['editor', 'operator', 'accountant', 'advisor', 'viewer'];
@@ -177,4 +177,12 @@ test('invitation (n° 122) : exemple métier pour chaque grade et texte de parta
   assert.match(text, /Connectez-vous avec paul@exemple\.fr\./);
   assert.match(text, /expire le 22 octobre/);
   assert.equal(inviteShareText({role: 'viewer'}), 'Rejoignez notre exploitation sur Parcelles, grade « Lecture seule ».');
+});
+
+test('accès limité : la fin d’accès donnée ne dépasse jamais celle de l’auteur', () => {
+  assert.equal(accessEndWithinActor(null, null), '');
+  assert.equal(accessEndWithinActor(undefined, 5000), '');
+  assert.match(accessEndWithinActor(1000, null), /fixez une date/);
+  assert.match(accessEndWithinActor(1000, 2000), /dépasser la vôtre/);
+  assert.equal(accessEndWithinActor(1000, 1000), '');
 });

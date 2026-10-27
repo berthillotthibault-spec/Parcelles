@@ -70,7 +70,8 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
     root.innerHTML = `<div class="sc-ean"><p>${found ? `EAN ${e(code)} : <strong>${e(found.name)}</strong> (dictionnaire local).` : `EAN ${e(code)} inconnu : choisissez l’article à associer, il sera reconnu la prochaine fois.`}</p>
       <div class="form-grid"><label>Article<select name="sc-item">${found ? itemOptions(found.id) : `<option value="">Choisir…</option>${itemOptions('')}`}</select></label>
       <label>Quantité reçue *<input name="sc-qty" type="number" min="0" step="any" inputmode="decimal"></label>
-      <label>Prix unitaire (€)<input name="sc-price" type="number" min="0" step="any" inputmode="decimal"></label><label>Lot<input name="sc-lot"></label></div>
+      <label>Prix unitaire (€)<input name="sc-price" type="number" min="0" step="any" inputmode="decimal"></label><label>N° de lot<input name="sc-lot" maxlength="60"></label>
+      <label>Fournisseur<input name="sc-supplier" maxlength="80"></label><label>Date de péremption<input name="sc-expiry" type="date"></label></div>
       <button type="button" class="button primary" id="sc-ean-save">Créer l’entrée</button></div>`;
     doc.getElementById('sc-ean-save').onclick = async () => {
       const form = doc.getElementById('stock-capture-form'), err = form.querySelector('.form-error');
@@ -81,7 +82,7 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
       const item = items().find(i => i.id === id);
       if (cleanEan(item.ean) !== code) await store.upsert('stockItems', {...item, ean: code}, {label: `EAN associé : ${item.name}`});
       const price = root.querySelector('[name="sc-price"]').value;
-      await store.recordStockMovement(entryMovement({product: item.name, quantity: qty, unitPrice: price === '' ? null : Number(price), lot: root.querySelector('[name="sc-lot"]').value.trim(), amm: ''}, id, {date: isoToday(), source: 'Étiquette'}));
+      await store.recordStockMovement(entryMovement({product: item.name, quantity: qty, unitPrice: price === '' ? null : Number(price), lot: root.querySelector('[name="sc-lot"]').value.trim(), supplier: root.querySelector('[name="sc-supplier"]').value.trim(), expiryDate: root.querySelector('[name="sc-expiry"]').value, amm: ''}, id, {date: isoToday(), source: 'Étiquette'}));
       const stored = await storePhoto('Étiquette');
       closeModal(); toast(`Entrée de stock créée : ${item.name}.${stored ? ' Photo rangée dans Documents.' : ''}`, 'success');
     };
@@ -92,7 +93,7 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
     root.innerHTML = `<p class="sc-hint">Vérifiez chaque ligne, choisissez l’article correspondant puis cochez « Valider ». Seules les lignes validées créent une entrée.</p>
       <div class="table-wrap"><table class="sc-table"><thead><tr><th>Valider</th><th>Ligne lue</th><th>Quantité</th><th>Prix unit.</th><th>Article du stock</th></tr></thead><tbody>
       ${rows.map((r, i) => `<tr data-line="${i}"><td data-label="Valider"><input type="checkbox" class="sc-ok" aria-label="Valider la ligne ${i + 1}"></td>
-        <td><strong>${e(r.line.product)}</strong><small>${[r.line.unit, r.line.amm ? `AMM ${r.line.amm}` : '', r.line.lot ? `lot ${r.line.lot}` : ''].filter(Boolean).map(e).join(' · ')}</small></td>
+        <td><strong>${e(r.line.product)}</strong><small>${[r.line.unit, r.line.amm ? `AMM ${r.line.amm}` : '', r.line.lot ? `lot ${r.line.lot}` : '', r.line.supplier || '', r.line.expiryDate ? `péremption ${r.line.expiryDate.split('-').reverse().join('/')}` : ''].filter(Boolean).map(e).join(' · ')}</small></td>
         <td data-label="Quantité"><input class="sc-qty" type="number" min="0" step="any" inputmode="decimal" value="${e(fmt(r.line.quantity))}" aria-label="Quantité"></td>
         <td data-label="Prix unitaire"><input class="sc-price" type="number" min="0" step="any" inputmode="decimal" value="${e(fmt(r.line.unitPrice))}" aria-label="Prix unitaire"></td>
         <td data-label="Article du stock"><select class="sc-item" aria-label="Article">${r.item ? itemOptions(r.item.id, r.line.product) : `<option value="">Choisir…</option>${itemOptions('', r.line.product)}`}</select><small class="sc-score">${r.item ? `Correspondance ${Math.round(r.score * 100)} % (${e(r.by)})` : 'Aucune correspondance sûre'}</small></td></tr>`).join('')}

@@ -129,6 +129,27 @@ export function tpDayShareText(plan,{chantier=null,clientName='',farmName=''}={}
 }
 
 /**
+ * Bon de chantier imprimable (n° 19) : blocs pour flowPdf (pdf-lite.js), mêmes données que le texte
+ * partagé (sans carburant), avec un tableau par engin et des cases de signature.
+ */
+export function tpDayVoucherBlocks(plan,{chantier=null,clientName='',farmName=''}={}){
+  const day=/^\d{4}-\d{2}-\d{2}$/.test(plan?.date||'')?plan.date.split('-').reverse().join('/'):'';
+  const v=x=>x===null||x===undefined?'':fr(x);
+  const blocks=[{type:'h1',text:`Bon de chantier : ${chantier?.type||'Chantier'}`},{type:'p',text:[day,clientName].filter(Boolean).join(' · ')||'—',bold:true}];
+  if(chantier?.address)blocks.push({type:'p',text:chantier.address,muted:true});
+  const rows=(plan?.entries||[]).filter(e=>e.hours!==null||e.volumeM3!==null||e.tonnage!==null)
+    .map(e=>[e.name||'Engin',v(e.hours),e.meterStart!==null&&e.meterEnd!==null?`${fr(e.meterStart)} → ${fr(e.meterEnd)}`:'',v(e.volumeM3),v(e.tonnage)]);
+  const t=plan?.totals||{};
+  if(rows.length)blocks.push({type:'table',head:['Engin','Heures','Compteur','m³','Tonnes'],align:['left','right','right','right','right'],rows:[...rows,['Total',v(t.hours||null),'',v(t.volumeM3||null),v(t.tonnage||null)]],bold:rows.map(()=>false).concat(true)});
+  else blocks.push({type:'p',text:'Aucune heure ni quantité saisie.',muted:true});
+  if(plan?.operator)blocks.push({type:'p',text:`Opérateur : ${plan.operator}`});
+  if(plan?.note)blocks.push({type:'p',text:`Travaux : ${plan.note}`});
+  blocks.push({type:'rule'},{type:'table',head:['Pour l’entreprise','Pour le client'],rows:[['Nom :','Nom :'],['Signature :\n\n\n','Signature :\n\n\n']]});
+  if(farmName)blocks.push({type:'p',text:farmName,small:true,muted:true});
+  return blocks;
+}
+
+/**
  * Relevé de compteur (vague 12) : seule la valeur du compteur de l'engin change. L'opérateur terrain peut l'écrire
  * (permissions.js : meterOnlyOperation, firestore.rules : operatorMeterUpdate) sans pouvoir modifier le reste de la fiche.
  */

@@ -57,7 +57,7 @@ export function createIcsUI({store,state,modal,closeModal,toast,escapeHtml}){
     const rows=events.slice(0,8).map(e=>`<li><strong>${escapeHtml(localDate(e.day))}${e.start?` · ${escapeHtml(e.start)}`:''}</strong> ${escapeHtml(e.summary)}</li>`).join('');
     const background=status==='unsupported'?'<p class="form-note">Rappels en arrière-plan : non disponibles sur cet appareil. Le fichier agenda reste la solution la plus sûre.</p>'
       :`<p class="form-note">Rappels en arrière-plan : ${status==='active'?'activés (vérification toutes les 12 h environ).':'possibles quand l’application est installée et les notifications autorisées.'}</p>${status==='active'?'':'<button type="button" class="button secondary" data-action="ics-enable-reminders">Activer les rappels en arrière-plan</button>'}`;
-    modal('Mes 30 prochains jours','Travaux et tâches à faire, avec une alarme, à importer dans l’agenda du téléphone.',
+    modal('Mes 30 prochains jours','Travaux, tâches et échéances (entretiens, fins de DAR et de délai de rentrée, lots à rentrer), avec une alarme, à importer dans l’agenda du téléphone.',
       `<div class="ics-agenda">${events.length?`<p><strong>${events.length}</strong> rendez-vous dans le fichier.</p><ul class="ics-agenda-list">${rows}</ul>${events.length>8?`<p class="form-note">et ${events.length-8} autre${events.length-8>1?'s':''}.</p>`:''}`:'<div class="empty-state">Rien de prévu dans les 30 prochains jours.</div>'}<p class="form-note">${escapeHtml(ICS_NOTICE)}</p>${background}</div>`,
       `<button class="button secondary" data-action="close-modal">Fermer</button>${events.length?'<button class="button primary" data-action="ics-export-30">Télécharger le .ics</button>':''}`,'small');
   }

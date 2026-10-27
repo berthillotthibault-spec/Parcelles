@@ -74,3 +74,34 @@ test('la culture vient de la rotation de la campagne si le travail n’en a pas'
   assert.equal(h.next['ble tendre|semis'], undefined);
   assert.ok(h.next['mais grain|semis']);
 });
+
+// n° 102 : rappel du travail habituel non fait, jour de semaine habituel.
+test('jour de semaine habituel : appris au-delà de la moitié des cas, date proposée alignée', async () => {
+  const {habitualWeekday, alignToWeekday, weekdayOf} = await import('./habits.js');
+  assert.equal(weekdayOf('2026-06-01'), 1);
+  assert.deepEqual(habitualWeekday([1, 1, 3]), {value: 1, count: 2, label: 'lundi'});
+  assert.equal(habitualWeekday([1, 2, 3, 4]), null);
+  assert.equal(alignToWeekday('2026-06-03', 1), '2026-06-01');
+  assert.equal(alignToWeekday('2026-06-05', 1), '2026-06-08');
+  // 2025-05-25 et 2024-06-01 tombent un dimanche et un samedi : aucun jour habituel retenu.
+  const s = farm([w('x1', 'p2', 'Semis', '2025-04-21'), w('x2', 'p2', 'Désherbage', '2025-05-26')]);
+  const habit = learnHabits(s, {now: NOW}).next['mais grain|semis'];
+  assert.equal(habit.weekday, undefined);
+});
+
+test('travail habituel non fait : rappel après le délai médian + 7 j, jamais s’il est prévu ou fait', async () => {
+  const {missedHabits} = await import('./habits.js');
+  const {computeNotifications} = await import('./notifications.js');
+  const at = day => Date.parse(`${day}T10:00:00Z`);
+  const s = farm([w('n1', 'p1', 'Semis', '2026-04-20')]); // désherbage attendu vers le 2026-05-28 (délai médian 38 j)
+  assert.deepEqual(missedHabits(s, {now: at('2026-06-01')}), [], 'dans le délai de grâce');
+  const [row] = missedHabits(s, {now: at('2026-06-06')});
+  assert.equal(row.type, 'Désherbage'); assert.equal(row.expected, '2026-05-28'); assert.equal(row.late, 9);
+  assert.match(row.message, /habituellement 38 j après Semis, attendu vers le 28 mai \(vu 2 fois\)/);
+  assert.deepEqual(missedHabits(s, {now: at('2026-07-15')}), [], 'trop tard : étape sans doute sautée');
+  assert.deepEqual(missedHabits(farm([w('n1', 'p1', 'Semis', '2026-04-20'), {id: 'n2', parcelId: 'p1', type: 'Désherbage', status: 'À faire', plannedDate: '2026-06-10'}]), {now: at('2026-06-06')}), [], 'déjà prévu');
+  assert.deepEqual(missedHabits(farm([w('n1', 'p1', 'Semis', '2026-04-20'), w('n2', 'p1', 'Désherbage', '2026-05-30')]), {now: at('2026-06-06')}), [], 'déjà fait');
+  const notes = computeNotifications({...s, preferences: {}}, {now: at('2026-06-06')}).filter(n => n.id.startsWith('habit-missed-'));
+  assert.equal(notes.length, 1); assert.equal(notes[0].title, 'Travail habituel non fait'); assert.match(notes[0].message, /^Désherbage · Les Noues/);
+  assert.equal(computeNotifications({...s, preferences: {habitReminders: false}}, {now: at('2026-06-06')}).filter(n => n.id.startsWith('habit-missed-')).length, 0, 'désactivable');
+});

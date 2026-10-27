@@ -1,8 +1,9 @@
 import {localDate} from './utils.js';
 import {agendaDate,isPending,localDay,grazingWatch,maintenanceRemaining,isLowStock,newParcelComments} from './home-priorities.js';
 import {deadlineNotifications} from './regulated-ops.js'; // v8a n° 72
+import {missedHabits} from './habits.js'; // n° 102
 
-export function computeNotifications(state,{uid=''}={}){
+export function computeNotifications(state,{uid='',now=Date.now()}={}){
   const today=localDay(); const rows=[];
   const active=t=>(state[t]||[]).filter(x=>!x.deletedAt);
   for(const task of active('tasks')){
@@ -38,6 +39,8 @@ export function computeNotifications(state,{uid=''}={}){
   const fresh=newParcelComments(state,{uid});
   if(fresh.count){const precos=fresh.precos===fresh.count,n=fresh.count;rows.push({id:'parcel-comments-new',level:'info',title:'Parcelles',message:`${n} ${precos?`nouvelle${n>1?'s':''} préconisation${n>1?'s':''}`:`nouveau${n>1?'x':''} commentaire${n>1?'s':''}`}`,entity:'parcelComments',entityId:fresh.comments[0].id});}
   rows.push(...deadlineNotifications(state,{today})); // v8a n° 72 : Certiphyto, contrôle, assurance, conseil stratégique
+  // n° 102 : travail habituel non fait à la période attendue (désactivable : preferences.habitReminders).
+  if(state.preferences?.habitReminders!==false)for(const h of missedHabits(state,{now}))rows.push({id:h.id,level:'info',title:'Travail habituel non fait',message:`${h.label} : ${h.message}`,entity:'interventions',entityId:h.afterId,date:h.expected});
   const grazingThresholds=active('automationRules').filter(r=>r.enabled&&r.kind==='grazing_duration'&&Number(r.threshold)>0).map(r=>Number(r.threshold));
   if(grazingThresholds.length)for(const row of grazingWatch(state,today,Math.min(...grazingThresholds)))rows.push({id:`grazing-${row.id}`,level:'warning',title:'Pâturage à surveiller',message:row.label,entity:'grazingSessions',entityId:row.id});
   const pending=(state.queue||[]).filter(x=>x.status==='pending').length;

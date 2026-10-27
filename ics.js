@@ -1,6 +1,7 @@
 // Export calendrier iCalendar (RFC 5545) : travaux et tâches à importer dans l'agenda du téléphone,
 // avec une alarme (VALARM) qui sonne même application fermée. Logique pure, sans DOM.
 import {agendaDate,isPending,localDay} from './home-priorities.js';
+import './sw-reminders.js'; // n° 17 : échéances communes avec les rappels en arrière-plan (ParcellesReminders.dueDates)
 
 const CRLF='\r\n';
 const pad=n=>String(n).padStart(2,'0');
@@ -44,7 +45,7 @@ export function itemEvent(item,kind='work',{parcelName='',alarmMinutes=30}={}){
     summary:parcelName?`${title} · ${parcelName}`:title,location:parcelName,description:notes.join('\n'),sequence:Math.max(0,Number(item.version)||0),alarmMinutes};
 }
 
-// Travaux et tâches à faire des N prochains jours (retards exclus : ils ne sonnent plus).
+// Travaux, tâches et échéances des N prochains jours (retards exclus : ils ne sonnent plus).
 export function upcomingEvents(state,{from=localDay(),days=30}={}){
   const until=addDays(from,days),parcels=new Map((state.parcelles||[]).map(p=>[p.id,p.nom||'']));
   const rows=[];
@@ -54,7 +55,18 @@ export function upcomingEvents(state,{from=localDay(),days=30}={}){
     const event=itemEvent(item,kind,{parcelName:parcels.get(parcelId)||''});
     if(event&&event.day>=from&&event.day<until)rows.push(event);
   }
+  // n° 17 : entretiens à date, fins de DAR et de délai de rentrée, lots à rentrer (même calcul que les rappels).
+  for(const row of dueEvents(state,{from,until}))rows.push(row);
   return rows.sort((a,b)=>a.day.localeCompare(b.day)||(a.start||'99').localeCompare(b.start||'99')||a.summary.localeCompare(b.summary,'fr'));
+}
+
+const DUE_CATEGORIES={maintenance:'Entretien',dar:'Délai avant récolte',reentry:'Délai de rentrée',grazing:'Pâturage'};
+/** Échéances datées des N prochains jours (l'entretien au compteur, sans date, reste un rappel). */
+export function dueEvents(state,{from=localDay(),until=addDays(from,30),alarmMinutes=0}={}){
+  const dueDates=globalThis.ParcellesReminders?.dueDates;if(typeof dueDates!=='function')return [];
+  return dueDates(state,{today:from}).filter(r=>!r.undated&&r.day>=from&&r.day<until).map(r=>({
+    uid:icsUid(r.kind,r.id),kind:r.kind,id:r.entityId,day:r.day,start:validTime(r.time),end:'',duration:r.time?0.5:null,
+    summary:r.label,location:'',description:r.detail||'',sequence:0,alarmMinutes,category:DUE_CATEGORIES[r.kind]||'Échéance'}));
 }
 
 function plusHours(day,time,hours){const d=new Date(`${day}T${time}:00`);d.setMinutes(d.getMinutes()+Math.round(hours*60));return {day:localDay(d),time:`${pad(d.getHours())}:${pad(d.getMinutes())}`};}
@@ -71,9 +83,9 @@ export function eventLines(event,{stamp=utcStamp(),notice=''}={}){
   if(event.location)lines.push(`LOCATION:${icsEscape(event.location)}`);
   const description=[event.description,notice].filter(Boolean).join('\n\n');
   if(description)lines.push(`DESCRIPTION:${icsEscape(description)}`);
-  lines.push(`CATEGORIES:${event.kind==='task'?'Tâche':'Travail'}`,'TRANSP:TRANSPARENT');
-  // Alarme : 30 min avant un créneau horaire, ou 7 h le jour même pour une journée entière.
-  const trigger=event.start?`-PT${Math.max(0,Number(event.alarmMinutes)||30)}M`:'PT7H';
+  lines.push(`CATEGORIES:${icsEscape(event.category||(event.kind==='task'?'Tâche':'Travail'))}`,'TRANSP:TRANSPARENT');
+  // Alarme : 30 min avant un créneau horaire (à l'heure pile pour une échéance), ou 7 h le jour même pour une journée entière.
+  const minutes=Number(event.alarmMinutes??30),trigger=event.start?`-PT${Number.isFinite(minutes)&&minutes>=0?minutes:30}M`:'PT7H';
   lines.push('BEGIN:VALARM','ACTION:DISPLAY',`DESCRIPTION:${icsEscape(event.summary)}`,`TRIGGER:${trigger}`,'END:VALARM','END:VEVENT');
   return lines;
 }

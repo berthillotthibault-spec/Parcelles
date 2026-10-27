@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.23.0",
+      "date": "2026-10-27",
+      "title": "Sauvegardes, trésorerie et assistant",
+      "items": [
+        "Sauvegarde automatique chaque semaine dans votre dossier, et instantané cloud mensuel pour le propriétaire.",
+        "La trésorerie reprend fermages, charges, achats, GNR et indemnités, avec un scénario « décaler une vente ».",
+        "L’assistant peut préparer observations, mouvements de stock et sorties de lot, toujours avec votre confirmation.",
+        "Reprise de l’historique des travaux depuis Mes Parcelles, Smag ou Geofolia, et accès d’équipe limité dans le temps."
+      ]
+    },
+    {
       "version": "10.22.0",
       "date": "2026-10-27",
       "title": "Troupeau et conseiller",

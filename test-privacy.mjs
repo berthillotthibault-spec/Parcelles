@@ -69,3 +69,19 @@ test('« Tout effacer » ferme la session cloud et supprime la persistance Fireb
     assert.ok(deleted.includes('parcelles-app'));
   } finally {Object.assign(globalThis, saved);}
 });
+
+test('n° 114 : heures pointées et affectation des salariés citées, avec qui les voit (conseiller compris)', async () => {
+  const {PEOPLE_ITEMS} = await import('./privacy.js');
+  const hours = PEOPLE_ITEMS.find(i => /Heures pointées/.test(i.title));
+  assert.ok(hours, 'rubrique heures pointées');
+  assert.match(hours.text, /Démarrer \/ Terminer/);
+  assert.match(hours.text, /confié/);
+  for (const who of ['propriétaire', 'opérateur', 'comptabilité', 'lecteur', 'conseiller']) assert.match(hours.who, new RegExp(who));
+  assert.ok(PEOPLE_ITEMS.some(i => /Bailleurs/.test(i.title)) && PEOPLE_ITEMS.some(i => /Riverains/.test(i.title)) && PEOPLE_ITEMS.some(i => i.title === 'Équipe'));
+  // Fidèle au code : champs de team-work.js et lecture du conseiller dans firestore.rules.
+  const tw = readFileSync(new URL('./team-work.js', import.meta.url), 'utf8'), rules = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
+  assert.match(tw, /timeLog/); assert.match(tw, /assigneeName/);
+  assert.match(rules, /function advisorReadable\(d\) \{\s*return d\.entityType in \['parcelles','interventions','tasks'/);
+  const ui = readFileSync(new URL('./privacy-ui.js', import.meta.url), 'utf8');
+  assert.match(ui, /PEOPLE_ITEMS\.map/); assert.match(ui, /escapeHtml\(i\.who\)/);
+});

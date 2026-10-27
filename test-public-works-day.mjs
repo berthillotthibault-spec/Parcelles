@@ -210,3 +210,23 @@ test('fichiers de la fin de journée dans CORE et REQUIRED_ASSETS', async ()=>{
   const [sw,runtime]=await Promise.all([readFile(new URL('./sw.js',import.meta.url),'utf8'),readFile(new URL('./runtime.js',import.meta.url),'utf8')]);
   for(const src of ['./public-works-day.js','./public-works-day-ui.js'])assert.ok(sw.includes(`'${src}'`)&&runtime.includes(`'${src}'`),`${src} dans CORE et REQUIRED_ASSETS`);
 });
+
+// n° 19 : bon de chantier imprimable en PDF, sans carburant.
+test('bon de chantier PDF : blocs, signatures et fichier PDF valide', async ()=>{
+  const {tpDayVoucherBlocks}=await import('./public-works-day.js');
+  const {flowPdf}=await import('./pdf-lite.js');
+  const plan=planTpDay(base(),chantier,{date:'2026-10-15',operator:'Paul',rows:[{equipmentId:'m1',meter:'1207,5',quantity:'42',fuel:'60'}]});
+  const blocks=tpDayVoucherBlocks(plan,{chantier,clientName:'Dupont SARL',farmName:'ETA Fictive'});
+  assert.equal(blocks[0].text,'Bon de chantier : Terrassement Dupont');
+  assert.match(blocks[1].text,/15\/10\/2026 · Dupont SARL/);
+  const table=blocks.find(b=>b.type==='table');
+  assert.deepEqual(table.head,['Engin','Heures','Compteur','m³','Tonnes']);
+  assert.equal(table.rows[0][0],'Pelle 8 t');
+  assert.equal(table.rows.at(-1)[0],'Total');
+  assert.ok(blocks.some(b=>b.type==='table'&&b.head[1]==='Pour le client'));
+  assert.doesNotMatch(JSON.stringify(blocks),/GNR|carburant|\b60\b/i);
+  const bytes=flowPdf(blocks,{title:'Bon',footer:'ETA Fictive'});
+  assert.equal(new TextDecoder().decode(bytes.slice(0,5)),'%PDF-');
+  const ui=(await import('node:fs')).readFileSync(new URL('./public-works-day-ui.js',import.meta.url),'utf8');
+  assert.ok(ui.includes('id="tp-day-pdf"')&&ui.includes('sharePdf(pdfFile('));
+});

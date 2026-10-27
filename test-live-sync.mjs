@@ -178,3 +178,72 @@ test('temps réel : modification locale non envoyée fusionnée, jamais écrasé
   assert.equal(received.filter(c => c.modifiedBy === 'B').length, 0);
   live.stop();
 });
+
+// n° 5 : version du schéma dans les documents cloud.
+const futureDoc = (db, path, patch) => { const d = db.docs.get(path); db.docs.set(path, {...d, ...patch, schemaVersion: 19, serverUpdatedAt: new Ts(db.commitTime()), updatedAt: Date.now() + 1, payload: {...d.payload, ...patch.payload, updatedAt: Date.now() + 1, version: Number(d.payload.version || 0) + 1}}); };
+test('schéma : chaque document porte schemaVersion ; un document plus récent est retenu au pull, sans écrasement ni curseur dépassé', async () => {
+  const db = cloud(), a = await device(db, 'A', 'paul@ex.fr'), b = await device(db, 'B', 'bob@ex.fr');
+  await a.store.upsert('tasks', {id: 't1', title: 'Clôture'});
+  await a.sync.sync({force: true});
+  const path = `workspaces/${WS}/data/tasks__t1`;
+  assert.equal(db.docs.get(path).schemaVersion, 18, 'APP_VERSION écrit par writeRemoteEntity');
+  await b.sync.sync({force: true});
+  const flagged = [];
+  b.sync.onNewerSchema = info => flagged.push(info);
+  await pause(5);
+  futureDoc(db, path, {payload: {title: 'Clôture (format 19)'}});
+  const cursorBefore = b.sync.serverCursor;
+  await b.sync.sync({force: true});
+  assert.equal(b.store.get('tasks', 't1').title, 'Clôture', 'document plus récent non appliqué');
+  assert.equal(b.sync.newerSchema?.version, 19);
+  assert.ok(flagged.length >= 1, 'bandeau « Mettre à jour » demandé');
+  assert.ok(b.sync.serverCursor < db.docs.get(path).serverUpdatedAt.ms, 'le document reste à relire après la mise à jour');
+  assert.ok(b.sync.serverCursor >= cursorBefore);
+  // Modification locale de la même fiche : reste en attente, le document plus récent n'est pas écrasé.
+  await b.store.upsert('tasks', {...b.store.get('tasks', 't1'), notes: 'local'});
+  await b.sync.sync({force: true});
+  assert.equal(db.docs.get(path).payload.title, 'Clôture (format 19)');
+  assert.equal(db.docs.get(path).schemaVersion, 19);
+  assert.ok(b.store.snapshot().queue.some(q => q.entityId === 't1' && q.status === 'pending'), 'opération gardée en attente');
+});
+test('schéma : une version forgée hors de portée (10000) ne bloque ni le pull ni le bandeau', async () => {
+  const db = cloud(), a = await device(db, 'A', 'paul@ex.fr'), b = await device(db, 'B', 'bob@ex.fr');
+  await a.store.upsert('tasks', {id: 't1', title: 'Clôture'});
+  await a.sync.sync({force: true});
+  await b.sync.sync({force: true});
+  const path = `workspaces/${WS}/data/tasks__t1`;
+  await pause(5);
+  futureDoc(db, path, {payload: {title: 'Clôture forgée'}});
+  db.docs.set(path, {...db.docs.get(path), schemaVersion: 10000});
+  await b.sync.sync({force: true});
+  assert.equal(b.store.get('tasks', 't1').title, 'Clôture forgée', 'document traité comme une écriture ordinaire');
+  assert.ok(!b.sync.newerSchema);
+});
+test('schéma : règles cloud pas encore redéployées, écriture reprise sans schemaVersion et retenue', async () => {
+  const writes = [];
+  const ref = {async set(doc) { writes.push(doc); if ('schemaVersion' in doc) { const e = new Error('denied'); e.code = 'permission-denied'; throw e; } }};
+  const self = {serverTimestamp: () => null, user: {uid: 'A', email: 'a@ex.fr'}, deviceId: 'd', remoteRef: () => ref};
+  await SyncService.prototype.writeRemoteEntity.call(self, 'tasks', 't1', {id: 't1', version: 1, updatedAt: 1});
+  assert.equal(writes.length, 2); assert.ok(!('schemaVersion' in writes[1])); assert.equal(self.schemaFieldRefused, true);
+  await SyncService.prototype.writeRemoteEntity.call(self, 'tasks', 't2', {id: 't2', version: 1, updatedAt: 1});
+  assert.equal(writes.length, 3, 'session suivante : directement sans la clé');
+  const denied = {async set() { const e = new Error('denied'); e.code = 'permission-denied'; throw e; }};
+  await assert.rejects(SyncService.prototype.writeRemoteEntity.call({...self, schemaFieldRefused: false, remoteRef: () => denied}, 'tasks', 't3', {id: 't3'}), /denied/, 'vrai refus : erreur d’origine');
+});
+test('schéma : en temps réel, un document plus récent est retenu et le curseur serveur reste avant lui', async () => {
+  const db = cloud(), a = await device(db, 'A', 'paul@ex.fr'), b = await device(db, 'B', 'bob@ex.fr');
+  await a.store.upsert('tasks', {id: 't2', title: 'Haie'});
+  await a.sync.sync({force: true});
+  await b.sync.sync({force: true});
+  const env = environment();
+  const live = createLiveSyncController({sync: b.sync, doc: env.doc, win: env.win, onChanges: () => {}});
+  live.refresh(); await pause(10); await live.idle();
+  const path = `workspaces/${WS}/data/tasks__t2`;
+  await pause(5);
+  futureDoc(db, path, {payload: {title: 'Haie (format 19)'}});
+  await db.notify(); await pause(10); await live.idle();
+  assert.equal(b.store.get('tasks', 't2').title, 'Haie');
+  assert.equal(b.sync.newerSchema?.version, 19);
+  assert.ok(b.sync.serverCursor < db.docs.get(path).serverUpdatedAt.ms);
+  live.stop();
+});

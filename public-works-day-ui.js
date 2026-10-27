@@ -3,7 +3,8 @@
 // depuis le dernier relevé, quantité en m³ ou en tonnes, carburant, photo du bon, récapitulatif
 // obligatoire avant validation, une seule écriture annulable et partage du bon au client.
 import {escapeHtml,uid} from './utils.js';
-import {TP_DAY_FIELDS,TP_DAY_METER_OPERATION,TP_DAY_UNITS,keypadInput,parseDecimal,planTpDay,saveTpDay,tpDayAllowed,tpDayEquipment,tpDaySaveOperations,tpDayShareText,tpDayUndoOperations,tpDayUndoScope,tpDayWriteCount,undoTpDay} from './public-works-day.js';
+import {flowPdf,pdfFile,sharePdf} from './pdf-lite.js';
+import {TP_DAY_FIELDS,TP_DAY_METER_OPERATION,TP_DAY_UNITS,keypadInput,parseDecimal,planTpDay,saveTpDay,tpDayAllowed,tpDayEquipment,tpDaySaveOperations,tpDayShareText,tpDayVoucherBlocks,tpDayUndoOperations,tpDayUndoScope,tpDayWriteCount,undoTpDay} from './public-works-day.js';
 
 const esc=value=>escapeHtml(String(value??''));
 const fr=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(value??0);
@@ -186,10 +187,23 @@ export function createPublicWorksDayUI({store,state,modal,closeModal,toast,onDon
   function done(chantierId,result,photo){
     const c=store.get('chantiers',chantierId),client=c?.clientId?(state().clients||[]).find(x=>x.id===c.clientId):null;
     const text=tpDayShareText(result.plan,{chantier:c,clientName:client?.name||'',farmName:state().exploitation?.name||''});
-    modal('Journée enregistrée',`${c?.type||'Chantier TP'} · ${dateLabel(result.plan.date)}`,`<section class="tp-day-done"><p>Les heures, quantités${result.count.fuels?', pleins':''}${result.count.photo?' et la photo du bon':''} sont enregistrés. Vous pouvez envoyer le bon au client (sans le carburant).</p><pre class="tp-day-share" tabindex="0" aria-label="Aperçu du bon">${esc(text)}</pre></section>`,`${canUndo(chantierId,result.dayId)?'<button class="button secondary" id="tp-day-undo">Annuler la journée</button>':''}<button class="button secondary" id="tp-day-share">Partager le bon</button><button class="button primary" id="tp-day-close" data-autofocus>Terminé</button>`,'large');
+    modal('Journée enregistrée',`${c?.type||'Chantier TP'} · ${dateLabel(result.plan.date)}`,`<section class="tp-day-done"><p>Les heures, quantités${result.count.fuels?', pleins':''}${result.count.photo?' et la photo du bon':''} sont enregistrés. Vous pouvez envoyer le bon au client (sans le carburant).</p><pre class="tp-day-share" tabindex="0" aria-label="Aperçu du bon">${esc(text)}</pre></section>`,`${canUndo(chantierId,result.dayId)?'<button class="button secondary" id="tp-day-undo">Annuler la journée</button>':''}<button class="button secondary" id="tp-day-pdf">Bon PDF</button><button class="button secondary" id="tp-day-share">Partager le bon</button><button class="button primary" id="tp-day-close" data-autofocus>Terminé</button>`,'large');
     $('#tp-day-close').addEventListener('click',()=>onDone?.(chantierId));
     $('#tp-day-undo')?.addEventListener('click',()=>undo(chantierId,result.dayId));
     $('#tp-day-share').addEventListener('click',()=>share(c?.type||'Bon de chantier',text,photo));
+    $('#tp-day-pdf').addEventListener('click',()=>voucherPdf(result.plan,{chantier:c,clientName:client?.name||'',farmName:state().exploitation?.name||''},photo));
+  }
+
+  // n° 19 : bon imprimable en PDF (fichier partageable, sinon téléchargé), photo du bon en annexe si JPEG.
+  async function voucherPdf(plan,meta,photo){
+    try{
+      const blocks=tpDayVoucherBlocks(plan,meta);
+      if(photo?.file&&/jpe?g/i.test(photo.file.type||photo.name||'')){try{blocks.push({type:'pagebreak'},{type:'h3',text:'Photo du bon'},{type:'jpeg',bytes:new Uint8Array(await photo.file.arrayBuffer())});}catch{/* photo illisible : bon sans annexe */}}
+      let bytes;try{bytes=flowPdf(blocks,{title:`Bon de chantier ${dateLabel(plan.date)}`,footer:meta.farmName||'Parcelles'});}
+      catch{bytes=flowPdf(blocks.filter(b=>b.type!=='jpeg'),{title:`Bon de chantier ${dateLabel(plan.date)}`,footer:meta.farmName||'Parcelles'});}
+      const how=await sharePdf(pdfFile(bytes,`bon-de-chantier-${plan.date||isoToday()}`),{title:meta.chantier?.type||'Bon de chantier'});
+      if(how==='downloaded')toast('Bon de chantier téléchargé en PDF.','success');
+    }catch(error){toast(`PDF impossible : ${error.message||'erreur'}.`,'error');}
   }
 
   async function share(title,text,photo){

@@ -37,10 +37,11 @@ export const ROLE_EXAMPLES = {
 };
 
 // Texte du partage d'une invitation (n° 122) : message prêt à envoyer avec le lien.
-export function inviteShareText({role, email = '', expiresAt = null} = {}, farmName = '') {
+export function inviteShareText({role, email = '', expiresAt = null, memberExpiresAt = null} = {}, farmName = '') {
   const farm = String(farmName || '').trim();
   const until = Number(expiresAt) > 0 ? ` Le lien expire le ${new Date(Number(expiresAt)).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'})}.` : '';
-  return `Rejoignez ${farm ? `l’exploitation « ${farm} »` : 'notre exploitation'} sur Parcelles, grade « ${roleLabel(role)} ».${email ? ` Connectez-vous avec ${email}.` : ''}${until}`;
+  const access = Number(memberExpiresAt) > 0 ? ` Accès jusqu’au ${new Date(Number(memberExpiresAt)).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', year: 'numeric'})}.` : '';
+  return `Rejoignez ${farm ? `l’exploitation « ${farm} »` : 'notre exploitation'} sur Parcelles, grade « ${roleLabel(role)} ».${email ? ` Connectez-vous avec ${email}.` : ''}${until}${access}`;
 }
 
 // Grades que `actor` peut attribuer (invitation ou changement de grade). Jamais « propriétaire » :
@@ -71,6 +72,51 @@ export function canRevokeInvite(actorRole, inviteRole) { return canManageMember(
 export function canLeave(role) { return normalizeRole(role) !== 'owner'; }
 export function canTransferOwnership(actorRole, targetRole, {self = false} = {}) {
   return !self && normalizeRole(actorRole) === 'owner' && normalizeRole(targetRole) !== 'owner';
+}
+
+// n° 129 : accès limité dans le temps. memberExpiresAt (ms) facultatif sur le membre, absent = illimité.
+// Même contrôle que firestore.rules / storage.rules (accessActive, validAccessEnd) : la date est posée à
+// l’invitation, puis changée ou retirée par qui gère ce grade (jamais sur soi, jamais sur le propriétaire).
+export const ACCESS_END_MAX_DAYS = 1095;
+const DAY_MS = 86400000;
+export function canSetAccessEnd(actorRole, targetRole, opts = {}) { return canManageMember(actorRole, targetRole, opts); }
+/** Fin d’accès posée par un membre dont l’accès est lui-même limité : présente et au plus égale à la sienne (firestore.rules : withinAccessOf). '' si permise, sinon le message d’erreur. */
+export function accessEndWithinActor(actorEnd, end) {
+  if (!(Number(actorEnd) > 0)) return '';
+  if (end === null || end === undefined) return 'Votre accès est limité dans le temps : fixez une date de fin d’accès.';
+  return Number(end) <= Number(actorEnd) ? '' : 'La date de fin d’accès ne peut pas dépasser la vôtre.';
+}
+/** Fin d’accès active à `now` ? (absente ou future). */
+export function accessActive(member, now = Date.now()) {
+  const end = member?.memberExpiresAt;
+  return end === undefined || end === null || Number(end) > now;
+}
+/** Date AAAA-MM-JJ (champ de formulaire) → fin de journée locale en ms ; vide → null (illimité). */
+export function parseAccessEnd(value, now = Date.now()) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return {value: null};
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  const date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 0) : null;
+  if (!date || date.getMonth() !== Number(m[2]) - 1) return {error: 'Saisissez une date de fin d’accès valide.'};
+  const ms = date.getTime();
+  if (ms <= now) return {error: 'La date de fin d’accès doit être dans le futur.'};
+  if (ms > now + ACCESS_END_MAX_DAYS * DAY_MS) return {error: 'La date de fin d’accès ne peut pas dépasser 3 ans.'};
+  return {value: ms};
+}
+/** Valeur du champ date (AAAA-MM-JJ, heure locale) pour une fin d’accès en ms. */
+export function accessEndInput(ms) {
+  if (!(Number(ms) > 0)) return '';
+  const d = new Date(Number(ms)), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+/** Libellé de l’équipe : « Accès jusqu’au … », « Accès terminé le … » ou '' (illimité). */
+export function accessLabel(member, now = Date.now()) {
+  const end = Number(member?.memberExpiresAt);
+  if (!(end > 0)) return '';
+  const day = new Date(end).toLocaleDateString('fr-FR', {day: 'numeric', month: 'long', year: 'numeric'});
+  if (end <= now) return `Accès terminé le ${day}`;
+  const left = Math.ceil((end - now) / DAY_MS);
+  return `Accès jusqu’au ${day}${left <= 7 ? ` (${left} jour${left > 1 ? 's' : ''})` : ''}`;
 }
 
 // Raison lisible d’un bouton indisponible (null si l’action est permise).
@@ -121,7 +167,8 @@ const TEAM_ACTIONS = {
   'member-role': 'Grade modifié',
   'member-remove': 'Membre retiré',
   'member-leave': 'A quitté l’exploitation',
-  'ownership-transfer': 'Propriété transférée'
+  'ownership-transfer': 'Propriété transférée',
+  'member-access-end': 'Fin d’accès modifiée'
 };
 export function teamJournal(activity = []) {
   return activity.filter(a => TEAM_ACTIONS[a?.action]).map(a => ({

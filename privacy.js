@@ -15,6 +15,22 @@ export const LOCAL_ITEMS = [
   'Carnet de contacts, accords RGPD, modèles et journal des messages ; le jeton de la passerelle d’envoi (jamais dans les sauvegardes)'
 ];
 
+// Données sur des personnes (section de la page Confidentialité). n° 114 : heures pointées et affectation des
+// salariés, fidèles à team-work.js (assigneeName, assigneeId, instructions, timeLog sur les travaux et tâches) et à
+// firestore.rules (advisorReadable : le conseiller lit les travaux et les tâches, donc ces champs ; le cloisonnement
+// se fait par document, pas par champ). Aucune donnée n'est déplacée : cette liste décrit l'existant.
+// title, text, who (qui voit), keep (conseil).
+export const PEOPLE_ITEMS = [
+  {title: 'Bailleurs (foncier)', text: 'Noms et coordonnées, sur cet appareil et dans le cloud si la synchronisation est active.',
+    keep: 'Informez vos bailleurs, limitez-vous au nécessaire et supprimez-les en fin de bail.'},
+  {title: 'Riverains et apiculteurs', text: 'Nom, téléphone et e-mail seulement avec l’accord daté de la personne.',
+    keep: 'Modifiez le point pour les effacer sur demande.'},
+  {title: 'Équipe', text: 'E-mail, rôle et éventuelle date de fin d’accès des membres.', who: 'Les membres de l’exploitation cloud.'},
+  {title: 'Heures pointées et affectation des salariés', text: 'Nom ou compte de la personne à qui un travail ou une tâche est confié, consigne, horodatages Démarrer / Terminer et feuille d’heures qui en découle. Ces informations sont rangées dans les fiches des travaux et des tâches.',
+    who: 'Sur cet appareil, toute personne qui l’utilise. Dans l’exploitation cloud, tous les membres qui lisent les travaux et les tâches : propriétaire, responsable, collaborateur, opérateur, comptabilité, lecteur, et aussi le conseiller / technicien (il voit les travaux, donc les noms et les heures, même si l’écran « Consignes & heures » lui est masqué).',
+    keep: 'Informez vos salariés de ce suivi, n’en faites qu’un usage de gestion (paie, coût de main-d’œuvre) et retirez les pointages devenus inutiles. Pour un conseiller, préférez un accès limité dans le temps.'}
+];
+
 // Services externes : id, nom, destinataire, données envoyées, quand, pourquoi, réglage éventuel (clé de préférence).
 export function privacyServices(prefs = {}, env = {}) {
   const p = prefs || {};
@@ -45,7 +61,7 @@ export function privacyServices(prefs = {}, env = {}) {
       data: 'Le contour de la parcelle, la période demandée et votre jeton de connexion cloud', when: 'Seulement quand vous cliquez sur « Charger les données »', why: 'Calculer l’indice de végétation de la parcelle',
       state: !satellite ? 'off' : connected ? 'on-demand' : 'ready', setting: null},
     {id: 'assistant', name: 'Assistant distant', recipient: p.remoteAiEndpoint ? `Votre service : ${hostOf(p.remoteAiEndpoint)}` : 'Le service HTTPS que vous configurez (aucun par défaut)',
-      data: 'Votre question et un contexte réduit aux données utiles (parcelles citées, travaux, tâches…) ; l’image ou le PDF seulement pour une lecture de document que vous confirmez',
+      data: 'Votre question et un contexte réduit aux données utiles (parcelles citées, travaux, tâches…), visible avant le premier envoi (« Ce que j’envoie »), noms remplaçables par des alias ; l’image ou le PDF seulement pour une lecture de document que vous confirmez',
       when: 'Seulement si vous l’activez et posez une question', why: 'Réponses et lecture de documents par une IA de votre choix',
       state: p.remoteAiEnabled && p.remoteAiEndpoint ? 'on' : 'off', setting: 'remoteAiEnabled', needsEndpoint: !p.remoteAiEndpoint},
     {id: 'messages', name: 'Messages depuis le téléphone', recipient: 'Votre application SMS, WhatsApp ou de messagerie, puis votre opérateur',

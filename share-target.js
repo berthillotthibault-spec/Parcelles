@@ -17,6 +17,7 @@ export const SHARE_KINDS = {
   ordonnance: {label: 'Ordonnance', hint: 'Rangée dans Documents (réglementaire).'},
   facture: {label: 'Facture', hint: 'Rangée dans Documents ; une photo peut être lue vers le stock.'},
   analyse: {label: 'Analyse de sol', hint: 'Rangée dans Documents (analyse de sol).'},
+  photo: {label: 'Photo terrain', hint: 'Rattachée à la parcelle d’après la position GPS de la photo, comme une photo prise dans l’app.'},
   document: {label: 'Autre document', hint: 'Rangé dans Documents.'}
 };
 
@@ -45,7 +46,9 @@ export function guessKinds(files = []) {
   if (geo) return ['contour', 'trace'];
   if (exts.has('kml')) return ['contour', 'trace'];
   if (exts.has('xml') && !docs) return ['trace', 'contour', 'document'];
-  const order = ['facture', 'ordonnance', 'analyse', 'document'];
+  // Que des JPEG sans indice dans le nom : très probablement une photo prise au champ.
+  const photos = files.length > 0 && [...exts].every(x => x === 'jpg' || x === 'jpeg');
+  const order = photos ? ['photo', 'facture', 'ordonnance', 'analyse', 'document'] : ['facture', 'ordonnance', 'analyse', 'document'];
   const first = /ordonnance|prescri/.test(names) ? 'ordonnance' : /facture|invoice|\bbl\b|livraison/.test(names) ? 'facture' : /analyse|labo|sol\b/.test(names) ? 'analyse' : null;
   return first ? [first, ...order.filter(k => k !== first)] : order;
 }
@@ -55,6 +58,7 @@ export function kindAccepts(kind, file) {
   const ext = extensionOf(file?.name);
   if (kind === 'contour') return ['zip', 'shp', 'kml', 'kmz', 'xml'].includes(ext);
   if (kind === 'trace') return ['gpx', 'kml', 'xml'].includes(ext);
+  if (kind === 'photo') return ['jpg', 'jpeg'].includes(ext);
   return ['pdf', 'jpg', 'jpeg', 'xml', 'zip'].includes(ext);
 }
 export const DOCUMENT_CATEGORY = {ordonnance: 'Réglementaire', facture: 'Facture', analyse: 'Analyse de sol', document: 'Autre'};

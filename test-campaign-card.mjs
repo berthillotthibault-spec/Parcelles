@@ -39,3 +39,15 @@ test('carte désactivable, ajoutée une fois aux accueils existants', () => {
   const off = {homeCards: ['weather'], homeCardOrder: ['weather', 'today', 'tasks', 'alerts', 'recent', 'campaign']};
   assert.deepEqual(normalizePersonalization(off).homeCards, ['weather']);
 });
+
+// n° 88 : prochain point bas de trésorerie sur la carte, masqué selon les rôles.
+test('point bas de trésorerie : affiché au gérant, masqué au lecteur et au conseiller', async () => {
+  const {campaignTreasuryModel} = await import('./campaign-card.js');
+  const {treasuryForecast} = await import('./treasury.js');
+  const s = {preferences: {treasury: {openingBalance: 500, items: [{id: 'a', label: 'Annuité', amount: 2000, sign: '-', periodicity: 'annuelle', startMonth: '2026-11'}]}}};
+  const low = treasuryForecast(s, {start: '2026-10', today: '2026-10-15'}).low;
+  assert.deepEqual(campaignTreasuryModel(low, {role: 'owner'}), {balance: -1500, label: 'nov. 26', negative: true, next: null});
+  assert.ok(campaignTreasuryModel(low, {role: 'editor'}));
+  for (const role of ['viewer', 'advisor']) assert.equal(campaignTreasuryModel(low, {role}), null, role);
+  assert.equal(campaignTreasuryModel(null, {role: 'owner'}), null);
+});

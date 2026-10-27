@@ -4,11 +4,27 @@
 import {escapeHtml as e} from './utils.js';
 import {validateForm} from './form-chips-ui.js';
 import {canSeeTreasury} from './permissions.js';
-import {treasuryForecast,treasuryChart,treasurySettings,validateItem,validateOpening,monthKey,dayKey,monthLabel,PERIODICITIES,DISCLAIMER} from './treasury.js';
+import {treasuryForecast,treasuryChart,treasurySettings,validateItem,validateOpening,monthKey,dayKey,monthLabel,addMonths,PERIODICITIES,DISCLAIMER} from './treasury.js';
 
 const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const eur=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${v<0?'−':''}${n0.format(Math.abs(v))} €`;
-const SOURCES={contrat:'Contrat',vente:'Vente',facture:'Facture',pac:'Aides PAC',travail:'Travail prévu',entretien:'Entretien',echeancier:'Échéancier'};
+const SOURCES={contrat:'Contrat',vente:'Vente',facture:'Facture',pac:'Aides PAC',travail:'Travail prévu',entretien:'Entretien',echeancier:'Échéancier',
+  fermage:'Foncier (fermage)',structure:'Marge nette (structure)',appro:'Stock (achat d’appro)',gnr:'Carburant (GNR)',sinistre:'Sinistre'};
+const SHIFTS=[-3,-2,-1,1,2,3,4,6];
+
+/** Texte du point bas, avec le prochain encaissement attendu (n° 86). */
+export function lowPointText(low){
+  if(!low)return'';
+  const next=low.nextIncome?` Prochain encaissement attendu : ${SOURCES[low.nextIncome.source]||low.nextIncome.source} « ${low.nextIncome.line} », ${eur(low.nextIncome.amount)} en ${low.nextIncome.label}.`:' Aucun encaissement attendu ensuite sur l’horizon.';
+  return`Point bas : ${eur(low.balance)} fin ${low.label}${low.negative?' : trésorerie négative, anticipez (report d’échéance, ouverture de crédit, vente).':'.'}${next}`;
+}
+/** Résultat du scénario « décaler un encaissement » : comparaison des points bas, sans écriture. */
+export function scenarioText(base,simulated,line,shift){
+  const to=addMonths(line.month,shift),out=simulated.months.length&&to>simulated.months.at(-1).key;
+  const where=out?'au-delà des 12 mois':`en ${monthLabel(to<simulated.start?simulated.start:to)}`;
+  const delta=simulated.low&&base.low?simulated.low.balance-base.low.balance:0;
+  return`Si « ${line.label} » (${eur(line.amount)}) arrive ${where} au lieu de ${monthLabel(line.month)} : point bas ${eur(simulated.low?.balance??0)} fin ${simulated.low?.label||'—'}${delta?` (${delta<0?'−':'+'}${n0.format(Math.abs(delta))} € par rapport au prévisionnel)`:' (inchangé)'}. Simulation : rien n’est enregistré.`;
+}
 
 export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=()=>'owner'}){
   const data=()=>store.snapshot?store.snapshot():store.state;
@@ -19,7 +35,11 @@ export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=
     if(m.works)notes.push(`${m.works} travail(aux) prévu(s) sans coût ni estimation`);
     if(m.contracts)notes.push(`${m.contracts} contrat(s) sans prix`);
     if(m.pac)notes.push('aides PAC non saisies (Marges par culture) : ajoutez-les à l’échéancier si besoin');
-    return notes.length?`<p class="notice warning" role="note">Sources manquantes : ${notes.map(e).join(' · ')}.</p>`:'';
+    if(m.rents)notes.push(`${m.rents} bail(aux) sans fermage calculable (Foncier)`);
+    if(m.appro)notes.push(`${m.appro} entrée(s) de stock à venir sans prix`);
+    if(m.fuel)notes.push(`${m.fuel} plein(s) de GNR sans montant`);
+    const dup=(f.duplicates||[]).length?`<p class="notice info" role="note">Non repris pour éviter un double compte : ${f.duplicates.map(d=>`${e(d.label)} (${d.note?e(d.note):`déjà « ${e(d.item)} » dans l’échéancier`})`).join(' · ')}.</p>`:'';
+    return (notes.length?`<p class="notice warning" role="note">Sources manquantes : ${notes.map(e).join(' · ')}.</p>`:'')+dup;
   }
 
   function tableHtml(f){
@@ -40,15 +60,27 @@ export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=
 <p class="form-error span-2" id="tr-item-error" role="alert" hidden></p><div class="mc-actions span-2"><button type="button" class="button primary" data-tr="add">Ajouter l’échéance</button></div></form></details>`;
   }
 
+  // Scénario « décaler une vente ou un encaissement » : simulation seule, aucune écriture.
+  function scenarioHtml(f){
+    const incomes=f.lines.filter(l=>l.amount>0&&l.source!=='pac');
+    if(!incomes.length)return'';
+    return`<details class="tr-scenario"><summary>Scénario : décaler une vente ou un encaissement</summary><form id="tr-scenario-form" class="form-grid">
+<label class="span-2">Encaissement<select name="line"><option value="">Choisir…</option>${incomes.map(l=>`<option value="${e(l.id)}">${e(monthLabel(l.month))} · ${e(SOURCES[l.source]||l.source)} · ${e(l.label)} · ${e(eur(l.amount))}</option>`).join('')}</select></label>
+<label class="span-2">Décalage<select name="shift">${SHIFTS.map(n=>`<option value="${n}" ${n===2?'selected':''}>${n>0?`${n} mois plus tard`:`${-n} mois plus tôt`}</option>`).join('')}</select></label>
+<p class="form-error span-2" id="tr-scenario-error" role="alert" hidden></p><div class="mc-actions span-2"><button type="button" class="button secondary" data-tr="simulate">Simuler</button></div>
+<p class="form-note span-2" id="tr-scenario-result" role="status" aria-live="polite"></p></form></details>`;
+  }
+
   function open(){
     if(!canSeeTreasury(role())){toast('La trésorerie n’est pas accessible en lecture seule.','info');return;}
     const state=data(),settings=treasurySettings(state),f=treasuryForecast(state,{start:monthKey(),today:dayKey()}),low=f.low;
     modal('Trésorerie','Prévisionnel sur 12 mois · estimation, non contractuelle',`
 <div class="preview-summary">${[['Solde de départ',eur(f.opening??0)],['Encaissements prévus',eur(f.totals.income)],['Décaissements prévus',eur(-f.totals.expense)],['Point bas',low?`${eur(low.balance)} (${low.label})`:'—']].map(([l,v])=>`<div class="preview-stat"><strong>${e(v)}</strong><small>${e(l)}</small></div>`).join('')}</div>
-${low?`<p class="notice ${low.negative?'danger':'info'}" role="${low.negative?'alert':'note'}">Point bas : <strong>${e(eur(low.balance))}</strong> fin ${e(low.label)}${low.negative?' : trésorerie négative, anticipez (report d’échéance, ouverture de crédit, vente).':'.'}</p>`:''}
+${low?`<p class="notice ${low.negative?'danger':'info'}" role="${low.negative?'alert':'note'}">${e(lowPointText(low))}</p>`:''}
 ${missingHtml(f)}
 <div class="cm-chart treasury-chart-wrap">${treasuryChart(f)}<p class="form-note"><span class="tr-key tr-key-in"></span> encaissements · <span class="tr-key tr-key-out"></span> décaissements · ligne : solde fin de mois</p></div>
 ${tableHtml(f)}
+${scenarioHtml(f)}
 ${scheduleHtml(f,settings)}
 <p class="form-note">${e(DISCLAIMER)}</p>`,
     `<button type="button" class="button secondary" data-action="open-statistics">Pilotage</button><button type="button" class="button primary" data-action="close-modal">Fermer</button>`,'large');
@@ -59,6 +91,15 @@ ${scheduleHtml(f,settings)}
   const fail=(id,msg)=>{const err=document.querySelector(id);if(err){err.textContent=msg;err.hidden=false;}};
 
   async function action(kind,c){
+    if(kind==='simulate'){
+      const form=document.querySelector('#tr-scenario-form'),values=form?Object.fromEntries(new FormData(form)):{};
+      const opts={start:monthKey(),today:dayKey()},base=treasuryForecast(data(),opts),line=base.lines.find(l=>l.id===values.line);
+      if(!line)return fail('#tr-scenario-error','Choisissez l’encaissement à décaler.');
+      const err=document.querySelector('#tr-scenario-error');if(err)err.hidden=true;
+      const shift=Number(values.shift)||0,simulated=treasuryForecast(data(),{...opts,shifts:{[line.id]:shift}});
+      const out=document.querySelector('#tr-scenario-result');if(out)out.textContent=scenarioText(base,simulated,line,shift);
+      return;
+    }
     if(kind==='opening'){
       const res=validateOpening(document.querySelector('#tr-opening-form [name="openingBalance"]')?.value);if(res.error)return fail('#tr-opening-error',res.error);
       await save({openingBalance:res.value});toast('Solde de départ enregistré.','success');return open();

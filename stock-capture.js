@@ -31,6 +31,18 @@ const num = v => {
   const n = s ? Number(s) : NaN;
   return Number.isFinite(n) ? n : null;
 };
+// Date de péremption lue : AAAA-MM-JJ, JJ/MM/AAAA ou MM/AAAA (dernier jour du mois) ; sinon vide.
+export function isoDay(v) {
+  const s = String(v ?? '').trim(), pad = n => String(n).padStart(2, '0');
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  const ok = (y, mo, d) => {const t = new Date(Date.UTC(y, mo - 1, d)); return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d ? `${y}-${pad(mo)}-${pad(d)}` : '';};
+  if (m) return ok(+m[1], +m[2], +m[3]);
+  m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(s);
+  if (m) return ok(+m[3], +m[2], +m[1]);
+  m = /^(\d{1,2})[/.-](\d{4})$/.exec(s);
+  if (m && +m[1] >= 1 && +m[1] <= 12) return ok(+m[2], +m[1], new Date(Date.UTC(+m[2], +m[1], 0)).getUTCDate());
+  return '';
+}
 const str = (v, max = 120) => String(v ?? '').trim().slice(0, max);
 const pick = (o, keys) => {for (const k of keys) if (o?.[k] !== undefined && o[k] !== null && o[k] !== '') return o[k]; return undefined;};
 
@@ -38,7 +50,7 @@ const pick = (o, keys) => {for (const k of keys) if (o?.[k] !== undefined && o[k
 export function validateExtraction(raw) {
   const list = Array.isArray(raw?.lignes) ? raw.lignes : Array.isArray(raw?.lines) ? raw.lines : null;
   if (!list) throw new Error('Réponse d’extraction invalide : « lignes » attendu.');
-  const lines = [];
+  const lines = [], headerSupplier = str(pick(raw, ['fournisseur', 'supplier', 'vendeur']), 80);
   for (const l of list.slice(0, MAX_LINES)) {
     if (!l || typeof l !== 'object') continue;
     const product = str(pick(l, ['produit', 'product', 'designation']));
@@ -46,7 +58,8 @@ export function validateExtraction(raw) {
     if (!product || quantity === null || quantity <= 0) continue;
     const price = num(pick(l, ['prix', 'price', 'unitPrice', 'prix_unitaire']));
     lines.push({product, quantity, unit: str(pick(l, ['unité', 'unite', 'unit']), 20), unitPrice: price !== null && price >= 0 ? price : null,
-      amm: str(pick(l, ['AMM', 'amm']), 20).replace(/\D/g, '').slice(0, 10), lot: str(pick(l, ['lot', 'Lot']), 40)});
+      amm: str(pick(l, ['AMM', 'amm']), 20).replace(/\D/g, '').slice(0, 10), lot: str(pick(l, ['lot', 'Lot', 'lotNumber']), 40),
+      supplier: str(pick(l, ['fournisseur', 'supplier']), 80) || headerSupplier, expiryDate: isoDay(pick(l, ['péremption', 'peremption', 'expiryDate', 'expiry', 'dlu', 'DLU']))});
   }
   return lines;
 }
@@ -76,8 +89,11 @@ export function matchLine(line, items = []) {
 }
 export const matchLines = (lines, items) => lines.map(line => ({line, ...matchLine(line, items)}));
 
-// Mouvement d'entrée pour une ligne validée.
+// Mouvement d'entrée pour une ligne validée : lot, fournisseur et péremption dans les champs lus par
+// stock-lots.js (itemLots, alertes de péremption), absents quand ils sont vides.
 export function entryMovement(line, stockItemId, {date, source = 'Facture'} = {}) {
+  const lotNumber = str(line.lot, 60), supplier = str(line.supplier, 80), expiryDate = isoDay(line.expiryDate);
   return {stockItemId, type: 'Entrée', quantity: line.quantity, unitPrice: line.unitPrice, date,
-    lot: line.lot || '', note: `${source} : ${line.product}${line.lot ? ` · lot ${line.lot}` : ''}${line.amm ? ` · AMM ${line.amm}` : ''}`};
+    ...(lotNumber ? {lotNumber} : {}), ...(supplier ? {supplier} : {}), ...(expiryDate ? {expiryDate} : {}),
+    note: `${source} : ${line.product}${lotNumber ? ` · lot ${lotNumber}` : ''}${line.amm ? ` · AMM ${line.amm}` : ''}`};
 }

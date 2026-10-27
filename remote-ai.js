@@ -3,16 +3,62 @@ import {grazingStatus, grazingTotal, grazingType, grazingDate} from './grazing.j
 import {farmRecords} from './farm-records.js';
 import {validateExtraction, EXTRACT_MODE} from './stock-capture.js';
 
+// n° 104 : create_observation, stock_movement, grazing_exit et plan_works écrivent après une fiche de
+// confirmation (assistant-actions.js) ; n° 111 : show_on_map surligne des parcelles sur la carte.
+export const WRITE_ACTIONS=Object.freeze(['create_work','create_task','create_observation','stock_movement','grazing_exit','plan_works']);
 const ALLOWED_ACTIONS=new Set([
-  'create_work','create_task','open_parcel','open_work','open_task','open_equipment',
-  'open_farm','open_stock','open_observation','open_chantier','open_map','search'
+  ...WRITE_ACTIONS,'open_parcel','open_work','open_task','open_equipment',
+  'open_farm','open_stock','open_observation','open_chantier','open_map','show_on_map','search'
 ]);
 
-function sanitizeAction(action){
+export function sanitizeAction(action){
   if(!action||!ALLOWED_ACTIONS.has(action.type))return null;
-  const payload=action.payload&&typeof action.payload==='object'?action.payload:{};
+  const payload=action.payload&&typeof action.payload==='object'&&!Array.isArray(action.payload)?action.payload:{};
   if(action.type==='open_farm'&&!['plan','memory','observations','results','zones','economics','decisions','team','machines','sensors','progress','weather'].includes(payload.section))return null;
-  return{type:action.type,label:String(action.label||'Action proposée').slice(0,120),payload:JSON.parse(JSON.stringify(payload)),requiresConfirmation:['create_work','create_task'].includes(action.type)};
+  let clean;try{clean=JSON.parse(JSON.stringify(payload));}catch{return null;}
+  if(action.type==='show_on_map'){const ids=Array.isArray(clean.parcelIds)?clean.parcelIds.filter(id=>typeof id==='string'&&id).slice(0,500):[];if(!ids.length)return null;clean={parcelIds:ids};}
+  if(action.type==='plan_works'&&(!Array.isArray(clean.works)||!clean.works.length))return null;
+  return{type:action.type,label:String(action.label||'Action proposée').slice(0,120),payload:clean,requiresConfirmation:WRITE_ACTIONS.includes(action.type)};
+}
+
+// n° 104 — Mode « anonymiser les noms » : parcelles, personnes, clients et nom de l'exploitation sont
+// remplacés par des alias stables (« Parcelle #3 ») dans la question et le contexte envoyés ; la réponse
+// et les actions reçues sont retraduites sur l'appareil. L'ordre des alias suit la date de création.
+const ALIAS_KINDS={parcel:'Parcelle',person:'Personne',client:'Client',farm:'Exploitation'};
+const byCreation=(a,b)=>(Number(a.createdAt)||0)-(Number(b.createdAt)||0)||String(a.id||'').localeCompare(String(b.id||''));
+export function buildAliases(state={}){
+  const live=t=>(state[t]||[]).filter(x=>x&&!x.deletedAt).sort(byCreation);
+  const map=new Map(),seen=new Set(),counts={};
+  const add=(kind,name)=>{const label=String(name||'').trim(),key=normalize(label);if(label.length<3||seen.has(key))return;seen.add(key);counts[kind]=(counts[kind]||0)+1;map.set(`${ALIAS_KINDS[kind]} #${counts[kind]}`,label);};
+  if(state.exploitation?.nom)add('farm',state.exploitation.nom);
+  for(const p of live('parcelles'))add('parcel',p.nom);
+  for(const c of live('clients'))add('client',c.name||c.nom||c.company);
+  const contacts=live('integrationImports').filter(x=>['contact','client'].includes(x.farmKind));
+  for(const c of contacts)add(c.farmKind==='client'?'client':'person',c.name||c.nom);
+  const people=[...live('members').map(m=>m.displayName||m.name),state.preferences?.defaultOperator,...live('interventions').map(w=>w.operator),...live('tasks').map(t=>t.assignee||t.assignedTo)];
+  for(const name of [...new Set(people.map(x=>String(x||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr')))add('person',name);
+  return map;
+}
+const escapeRe=value=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+function replacer(pairs){
+  // Les plus longs d'abord (« Grand Pré du Bas » avant « Grand Pré »), sans couper un mot.
+  const list=[...pairs].filter(([from])=>from).sort((a,b)=>b[0].length-a[0].length);
+  if(!list.length)return value=>value;
+  const index=new Map(list.map(([from,to])=>[from.toLocaleLowerCase('fr'),to]));
+  const re=new RegExp(`(?<![\\p{L}\\p{N}])(?:${list.map(([from])=>escapeRe(from)).join('|')})(?![\\p{L}\\p{N}])`,'giu');
+  return value=>String(value).replace(re,hit=>index.get(hit.toLocaleLowerCase('fr'))??hit);
+}
+const deep=(value,fn)=>typeof value==='string'?fn(value):Array.isArray(value)?value.map(v=>deep(v,fn)):value&&typeof value==='object'?Object.fromEntries(Object.entries(value).map(([k,v])=>[k,deep(v,fn)])):value;
+export function anonymizeValue(value,aliases){const fn=replacer([...aliases].map(([alias,real])=>[real,alias]));return deep(value,fn);}
+export function deanonymizeValue(value,aliases){const fn=replacer([...aliases]);return deep(value,fn);}
+
+// Corps exact de la requête envoyée au service (aussi affiché par l'aperçu « Ce que j'envoie »).
+export function buildRemoteRequest({question,state,context={},stream=false,anonymize=false}={}){
+  const q=String(question||'').slice(0,1200);
+  const body={question:q,context:buildAssistantContext(state,{...context,question:String(question||'')}),client:'Parcelles',mode:'assistant-v7.0',stream,allowedActions:[...ALLOWED_ACTIONS]};
+  if(!anonymize)return{body,aliases:null};
+  const aliases=buildAliases(state);
+  return{body:{...anonymizeValue(body,aliases),anonymized:true},aliases};
 }
 
 // Résumé météo : seulement un cache de moins de 72 h, jours à venir limités à 3 (72 h).
@@ -136,20 +182,22 @@ function finalAnswer(data){
   return{answer:String(answer).slice(0,6000),actions:(Array.isArray(data.actions)?data.actions:[]).map(sanitizeAction).filter(Boolean).slice(0,6)};
 }
 
-export async function askRemoteAssistant({endpoint,question,state,context={},timeoutMs=15000,onDelta=null,fetchImpl=(...a)=>fetch(...a)}={}){
+export async function askRemoteAssistant({endpoint,question,state,context={},timeoutMs=15000,onDelta=null,anonymize=false,fetchImpl=(...a)=>fetch(...a)}={}){
   if(!endpoint)throw new Error('Aucun endpoint IA configuré.');
   const url=new URL(endpoint,location.href);if(!/^https:$/.test(url.protocol)&&url.hostname!=='localhost')throw new Error('L’endpoint IA doit utiliser HTTPS.');
   const controller=new AbortController();let timer=setTimeout(()=>controller.abort(),timeoutMs);
   // En flux, le délai s'applique entre deux morceaux reçus, pas à la réponse entière.
   const rearm=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),timeoutMs);};
-  const stream=typeof onDelta==='function';
+  const stream=typeof onDelta==='function',{body,aliases}=buildRemoteRequest({question,state,context,stream,anonymize});
+  // Mode anonyme : le texte reçu en flux et la réponse finale sont retraduits avant affichage.
+  const local=value=>aliases?deanonymizeValue(value,aliases):value,delta=stream?text=>onDelta(local(text)):null;
   try{
-    const response=await fetchImpl(url.href,{method:'POST',headers:{'content-type':'application/json',accept:stream?'text/event-stream, application/x-ndjson, application/json;q=0.9':'application/json'},body:JSON.stringify({question:String(question).slice(0,1200),context:buildAssistantContext(state,{...context,question:String(question)}),client:'Parcelles',mode:'assistant-v7.0',stream,allowedActions:[...ALLOWED_ACTIONS]}),signal:controller.signal});
+    const response=await fetchImpl(url.href,{method:'POST',headers:{'content-type':'application/json',accept:stream?'text/event-stream, application/x-ndjson, application/json;q=0.9':'application/json'},body:JSON.stringify(body),signal:controller.signal});
     if(!response.ok)throw new Error(`Service IA ${response.status}`);
     const format=streamFormat(response.headers?.get?.('content-type'));
     // Repli : réponse JSON complète (comportement historique) si le service ne diffuse pas en flux.
-    if(!stream||format==='json'||typeof response.body?.getReader!=='function')return finalAnswer(await response.json());
-    return finalAnswer(await readStream(response,format,{onDelta,onChunk:rearm}));
+    if(!stream||format==='json'||typeof response.body?.getReader!=='function')return local(finalAnswer(await response.json()));
+    return local(finalAnswer(await readStream(response,format,{onDelta:delta,onChunk:rearm})));
   }finally{clearTimeout(timer);}
 }
 

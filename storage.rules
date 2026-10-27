@@ -5,7 +5,10 @@ service firebase.storage {
       return /databases/(default)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid);
     }
     function isMember(workspaceId) {
-      return request.auth != null && firestore.exists(memberPath(workspaceId));
+      // n° 129 : même contrôle que firestore.rules (accessActive) : memberExpiresAt absent = accès illimité.
+      return request.auth != null && firestore.exists(memberPath(workspaceId))
+        && (firestore.get(memberPath(workspaceId)).data.get('memberExpiresAt', null) == null
+          || firestore.get(memberPath(workspaceId)).data.memberExpiresAt > request.time.toMillis());
     }
     // Même périmètre que permissions.js (canMutate) : opérateur terrain photos et documents, comptabilité documents.
     function canWriteAttachment(workspaceId, entityType) {
@@ -36,6 +39,17 @@ service firebase.storage {
         && request.resource.metadata.entityId == fileId
         && request.resource.metadata.entityType == entityType;
       allow delete: if isOwner(workspaceId);
+    }
+
+    // n° 4 : instantanés cloud mensuels (backup-vault-ui.js) : propriétaire seul, en lecture (liste comprise),
+    // dépôt et suppression ; nom produit par snapshotFileName (backup-vault.js), JSON de 50 Mo au plus,
+    // jamais réécrit (un nouvel instantané a un nouveau nom). permissions.js : capacité 'cloud-snapshot'.
+    match /workspaces/{workspaceId}/snapshots/{fileId} {
+      allow read, delete: if isOwner(workspaceId);
+      allow create: if isOwner(workspaceId)
+        && fileId.matches('parcelles-instantane-[0-9]{8}T[0-9]{6}Z(-chiffre)?[.]json')
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType == 'application/json';
     }
   }
 }

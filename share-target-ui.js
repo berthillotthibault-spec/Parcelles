@@ -7,7 +7,7 @@ const pad = n => String(n).padStart(2, '0');
 const isoToday = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const size = n => (n >= 1048576 ? `${(n / 1048576).toFixed(1).replace('.', ',')} Mo` : `${Math.max(1, Math.round(n / 1024))} Ko`);
 
-export function createShareTargetUI({store, modal, closeModal, toast, bindChipChoices = () => {}, importParcels, importTracks, stockCapture, doc = globalThis.document, win = globalThis.window} = {}) {
+export function createShareTargetUI({store, modal, closeModal, toast, bindChipChoices = () => {}, importParcels, importTracks, stockCapture, photoGeo = null, doc = globalThis.document, win = globalThis.window} = {}) {
   function inboxDb() {
     return new Promise((resolve, reject) => {
       const r = win.indexedDB.open(INBOX_DB, 1);
@@ -75,6 +75,8 @@ export function createShareTargetUI({store, modal, closeModal, toast, bindChipCh
   async function route(kind, files) {
     if (kind === 'contour') {closeModal(); return importParcels(files);}
     if (kind === 'trace') {closeModal(); return importTracks(files);}
+    // n° 19 : photo terrain partagée (galerie, WhatsApp) : position EXIF → parcelle via photo-geo.
+    if (kind === 'photo' && photoGeo) {closeModal(); return photoGeo.open(files);}
     if (kind === 'facture' && files.length === 1 && /^image\//.test(files[0].type) && stockCapture) {closeModal(); return stockCapture.open({file: files[0]});}
     const category = DOCUMENT_CATEGORY[kind] || 'Autre';
     for (const file of files) {

@@ -27,9 +27,10 @@ export function itemLots(state,item,{today=day(new Date().toISOString())}={}){
   if(q0>0)lots.push({id:'initial',lotNumber:'',supplier:'',expiryDate:'',date:'',quantity:q0,remaining:q0});
   for(const m of moves){
     const d=signed(m);
-    if(m.type==='Entrée'&&d>0){lots.push({id:m.id,lotNumber:m.lotNumber||'',supplier:m.supplier||'',expiryDate:day(m.expiryDate),date:day(m.date),quantity:d,remaining:d,unitPrice:num(m.unitPrice)});continue;}
+    if(m.type==='Entrée'&&d>0){lots.push({id:m.id,lotNumber:m.lotNumber||m.lot||'',supplier:m.supplier||'',expiryDate:day(m.expiryDate),date:day(m.date),quantity:d,remaining:d,unitPrice:num(m.unitPrice)});continue;}
     if(m.type==='Ajustement'&&d>0){lots.push({id:m.id,lotNumber:'',supplier:'',expiryDate:'',date:day(m.date),quantity:d,remaining:d});continue;}
-    let out=-d;for(const lot of lots){if(out<=1e-9)break;const take=Math.min(lot.remaining,out);lot.remaining=r4(lot.remaining-take);out-=take;}
+    // Sortie d'un lot désigné (travail phyto ou engrais) : prise d'abord sur ce lot, puis FIFO.
+    let out=-d;const named=m.lotNumber?lots.filter(l=>l.lotNumber===m.lotNumber):[];for(const lot of [...named,...lots]){if(out<=1e-9)break;const take=Math.min(lot.remaining,out);lot.remaining=r4(lot.remaining-take);out-=take;}
   }
   return lots.map(l=>{const left=l.expiryDate?Math.round((dayMs(l.expiryDate)-dayMs(today))/864e5):null;return{...l,daysLeft:left,expired:left!==null&&left<0,expiringSoon:left!==null&&left>=0&&left<=EXPIRY_SOON_DAYS};});
 }
@@ -127,9 +128,32 @@ export function inputAlerts(state,{today=day(new Date().toISOString()),lookup=nu
   return out.sort((a,b)=>rank[a.level]-rank[b.level]||normalize(a.item.name).localeCompare(normalize(b.item.name)));
 }
 
-/** Rappel de collecte ADIVALOR : PPNU à évacuer et date de collecte saisie. */
+/** Emballages vides à rapporter, compteur entier par article (`emptyPackages`). */
+export const packageCount=item=>{const n=Math.floor(num(item?.emptyPackages)||0);return n>0?n:0;};
+export function emptyPackages(state){
+  const items=active(state,'stockItems').map(item=>({item,count:packageCount(item)})).filter(r=>r.count>0).sort((a,b)=>b.count-a.count||String(a.item.name).localeCompare(String(b.item.name),'fr'));
+  return{total:items.reduce((s,r)=>s+r.count,0),items};
+}
+/** Nouveau compteur après +n / −n (borné à 0..9999) ; `null` remet à zéro (emballages rapportés). */
+export function packagesAfter(item,delta){return delta===null?0:Math.max(0,Math.min(9999,packageCount(item)+Math.trunc(Number(delta)||0)));}
+
+/** Rappel de collecte ADIVALOR : PPNU à évacuer, emballages vides à rapporter et date de collecte saisie. */
 export function adivalorReminder(state,{today=day(new Date().toISOString())}={}){
   const ppnu=active(state,'stockItems').filter(i=>i.ppnu==='à évacuer'),next=day(state?.preferences?.adivalorNextCollection);
+  const packages=emptyPackages(state).total,any=ppnu.length>0||packages>0;
   const days=next?Math.round((dayMs(next)-dayMs(today))/864e5):null;
-  return{count:ppnu.length,items:ppnu,next:next||null,days,due:ppnu.length>0&&days!==null&&days>=0&&days<=30,missingDate:ppnu.length>0&&(!next||days<0)};
+  return{count:ppnu.length,items:ppnu,packages,next:next||null,days,due:any&&days!==null&&days>=0&&days<=30,missingDate:any&&(!next||days<0)};
+}
+
+/**
+ * Lots en stock proposés sur un travail phyto ou engrais : articles du même nom que le produit saisi
+ * (ou de même AMM), lots numérotés encore disponibles, le plus ancien d'abord. Les semences ont leur
+ * propre champ (seeds-ui.js).
+ */
+export function productLotChoices(state,{product='',amm=''}={},{today=day(new Date().toISOString())}={}){
+  const p=normalize(product),a=String(amm||'').replace(/\D/g,'');if(!p&&!a)return[];
+  const items=active(state,'stockItems').filter(i=>!/semence|récolte/i.test(String(i.category||''))&&((a&&String(i.amm||'').replace(/\D/g,'')===a)||(p&&normalize(i.name)===p)));
+  const out=[],seen=new Set();
+  for(const item of items)for(const l of itemLots(state,item,{today}))if(l.lotNumber&&l.remaining>0&&!seen.has(l.lotNumber)){seen.add(l.lotNumber);out.push({lotNumber:l.lotNumber,item,remaining:l.remaining,expiryDate:l.expiryDate,expired:l.expired,supplier:l.supplier});}
+  return out;
 }

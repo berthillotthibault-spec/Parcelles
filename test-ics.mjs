@@ -64,3 +64,45 @@ test('rappels du service worker : résumé du jour et des retards', () => {
   assert.match(summary.body,/^Retard \(retard\)\n08:00 Semis/);
   assert.equal(computeReminders({interventions:[]},'2026-10-08'),null);
 });
+
+// n° 17 : échéances de computeNotifications utiles, communes aux rappels et à l'agenda.
+const dueState=()=>({parcelles:[{id:'p1',nom:'Les Noues'}],
+  materiels:[{id:'m1',nom:'Tracteur',maintenanceDate:'2026-10-20'},{id:'m2',nom:'Télescopique',currentMeter:520,maintenanceDue:500},{id:'m3',nom:'Herse',currentMeter:100,maintenanceDue:300}],
+  stockItems:[{id:'s1',name:'Fongix',phyto:{dar:21,dre:48}}],
+  interventions:[{id:'t1',type:'Traitement fongicide',status:'Terminé',date:'2026-10-07',endTime:'10:00',parcelId:'p1',product:'Fongix'},
+    {id:'t2',type:'Désherbage',status:'Terminé',date:'2026-10-08',startTime:'09:00',parcelId:'p1',phytoLimits:{dar:3,dre:null}},
+    {id:'t3',type:'Désherbage',status:'À faire',plannedDate:'2026-10-09',parcelId:'p1',product:'Fongix'}],
+  automationRules:[{id:'r1',enabled:true,kind:'grazing_duration',threshold:7}],
+  grazingSessions:[{id:'g1',parcelId:'p1',startDate:'2026-10-01'},{id:'g2',parcelId:'p1',startDate:'2026-10-05',endDate:'2026-10-12'},{id:'g3',parcelId:'p1',startDate:'2026-09-01',endDate:'2026-09-10'}]});
+
+test('échéances : entretien à date et au compteur, fins de DAR et de DRE, lots à rentrer', () => {
+  const context={};vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('./sw-reminders.js',import.meta.url),'utf8'),context);
+  const rows=context.ParcellesReminders.dueDates(dueState(),{today:'2026-10-08'}).map(r=>`${r.kind}:${r.id}:${r.day}${r.time?' '+r.time:''}`);
+  assert.deepEqual([...rows],['reentry:t2:2026-10-08 15:00','maintenance:m2-meter:2026-10-08','grazing:g1:2026-10-08','reentry:t1:2026-10-09 10:00','dar:t2:2026-10-11','grazing:g2:2026-10-12','maintenance:m1-date:2026-10-20','dar:t1:2026-10-28']);
+  const summary=context.ParcellesReminders.computeReminders(dueState(),'2026-10-08');
+  assert.match(summary.body,/Rentrer le lot · Les Noues/);
+  assert.match(summary.body,/Entretien dû · Télescopique/);
+  assert.match(summary.body,/15:00 Fin du délai de rentrée · Les Noues/);
+  assert.doesNotMatch(summary.body+summary.title,/Herse|délai avant récolte/,'fin de DAR d’un autre jour et entretien non dû absents');
+});
+
+test('échéances : lot à sortie prévue rappelé le jour même, pas une sortie saisie ce jour-là', () => {
+  const context={};vm.createContext(context);
+  vm.runInContext(readFileSync(new URL('./sw-reminders.js',import.meta.url),'utf8'),context);
+  const state={parcelles:[{id:'p1',nom:'Les Noues'}],grazingSessions:[{id:'g2',parcelId:'p1',startDate:'2026-10-05',endDate:'2026-10-12',updatedAt:'2026-10-06T08:00:00.000Z'},{id:'g4',parcelId:'p1',startDate:'2026-10-05',endDate:'2026-10-12',updatedAt:'2026-10-12T10:00:00.000Z'}]};
+  assert.match(context.ParcellesReminders.computeReminders(state,'2026-10-12').body,/Rentrer le lot · Les Noues/);
+  assert.equal(context.ParcellesReminders.dueDates(state,{today:'2026-10-12'}).filter(r=>r.kind==='grazing').map(r=>r.id).join(),'g2');
+  assert.equal(context.ParcellesReminders.computeReminders(state,'2026-10-13'),null,'sortie passée : plus de rappel');
+});
+
+test('agenda : échéances datées exportées avec alarme et avertissement ; entretien au compteur exclu', () => {
+  const rows=upcomingEvents(dueState(),{from:'2026-10-08',days:30});
+  assert.deepEqual(rows.map(r=>r.uid.replace(/@.*/,'')),['parcelles-reentry-t2','parcelles-grazing-g1','parcelles-reentry-t1','parcelles-work-t3','parcelles-dar-t2','parcelles-grazing-g2','parcelles-maintenance-m1-date','parcelles-dar-t1']);
+  const ics=buildCalendar(rows,{stamp}),events=parseIcsEvents(ics),reentry=events.find(e=>e.UID.startsWith('parcelles-reentry-t1'));
+  assert.equal(reentry.DTSTART,'20261009T100000');assert.equal(reentry.CATEGORIES,'Délai de rentrée');assert.ok(reentry.alarm);
+  assert.match(ics,/TRIGGER:-PT0M/,'alarme à l’heure de fin du délai');
+  const dar=events.find(e=>e.UID.startsWith('parcelles-dar-t1'));
+  assert.equal(dar.DTSTART,'20261028');assert.match(dar.DESCRIPTION,/DAR de 21 j[^]*pas répercutée/);
+  assert.ok(!events.some(e=>/Télescopique/.test(e.SUMMARY)),'entretien au compteur : rappel seulement');
+});

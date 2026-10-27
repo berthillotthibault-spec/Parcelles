@@ -19,7 +19,11 @@ test('« C’est quoi ? » : proposition selon le fichier', () => {
   assert.equal(guessKinds([f('Facture-Agri-0425.pdf')])[0], 'facture');
   assert.equal(guessKinds([f('ordonnance_veto.jpg')])[0], 'ordonnance');
   assert.equal(guessKinds([f('Analyse terre labo.pdf')])[0], 'analyse');
-  assert.deepEqual(guessKinds([f('scan.jpg')]), ['facture', 'ordonnance', 'analyse', 'document']);
+  assert.deepEqual(guessKinds([f('scan.jpg')]), ['photo', 'facture', 'ordonnance', 'analyse', 'document']);
+  assert.deepEqual(guessKinds([f('scan.pdf')]), ['facture', 'ordonnance', 'analyse', 'document']);
+  assert.equal(guessKinds([f('facture.jpg')])[0], 'facture');
+  assert.equal(kindAccepts('photo', f('IMG_1.JPG')), true);
+  assert.equal(kindAccepts('photo', f('a.pdf')), false);
   assert.equal(kindAccepts('contour', f('a.pdf')), false);
   assert.equal(kindAccepts('trace', f('a.gpx')), true);
   assert.equal(kindAccepts('facture', f('a.gpx')), false);
@@ -39,4 +43,21 @@ test('manifeste et service worker cohérents', () => {
   assert.deepEqual(list, SHARE_EXTENSIONS, 'liste recopiée dans sw.js');
   assert.match(sw, /SHARE_MAX_BYTES=25\*1024\*1024,SHARE_MAX_FILES=10/);
   assert.match(sw, /req\.method==='POST'.*share-target/);
+});
+
+// n° 19 : « Photo terrain » passe par photo-geo (position EXIF → parcelle) au lieu des Documents.
+test('photo terrain partagée : routée vers photo-geo, sans écriture dans Documents', async () => {
+  const {createShareTargetUI} = await import('./share-target-ui.js');
+  const calls = [], writes = [];
+  const ui = createShareTargetUI({store: {upsert: async (...a) => writes.push(a), storage: {blobPut: async () => {}}}, modal() {}, closeModal() {}, toast() {},
+    importParcels() {}, importTracks() {}, photoGeo: {open: files => calls.push(files)}, doc: {}, win: {}});
+  const photo = {name: 'IMG_2001.jpg', size: 10, type: 'image/jpeg'};
+  await ui.route('photo', [photo]);
+  assert.deepEqual(calls, [[photo]]);
+  assert.equal(writes.length, 0);
+  const {readFileSync} = await import('node:fs');
+  const geo = readFileSync(new URL('./photo-geo-ui.js', import.meta.url), 'utf8');
+  assert.match(geo, /shared=\[\]/);
+  assert.match(geo, /fresh:false/);
+  assert.match(readFileSync(new URL('./app.js', import.meta.url), 'utf8'), /photoGeo:\{open:files=>photoGeo\(\)\.open\(null,\{shared:files\}\)\}/);
 });

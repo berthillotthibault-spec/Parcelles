@@ -22,7 +22,8 @@ export function createPhotoGeoUI({store,state,active,parcelById,toast,modal,clos
   }
   function setStatus(text){const el=document.querySelector('#photo-geo-status');if(el)el.textContent=text;}
 
-  function open(parcelId=null,{interventionId=null,observationId=null}={}){
+  // `shared` : photos reçues d'une autre application (n° 19) ; jamais « fraîches », seule la position EXIF compte.
+  function open(parcelId=null,{interventionId=null,observationId=null,shared=[]}={}){
     files=[];const parcels=active('parcelles');
     modal('Photos terrain','Position, précision et cap enregistrés. Aucune autre métadonnée de l’appareil n’est conservée.',`<form id="photo-geo-form" class="photo-geo-form" novalidate>
       <div class="photo-geo-pick"><label class="button primary photo-geo-btn">Prendre une photo<input type="file" name="camera" accept="image/*" capture="environment" class="sr-only"></label><label class="button secondary photo-geo-btn">Choisir des photos<input type="file" name="gallery" accept="image/*" multiple class="sr-only"></label></div>
@@ -33,12 +34,13 @@ export function createPhotoGeoUI({store,state,active,parcelById,toast,modal,clos
       <label class="field-label">Commentaire<input name="note" maxlength="240"></label>
       <p class="form-error" id="photo-geo-error" hidden></p></form>`,`<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="photo-geo-save">Enregistrer</button>`,'large');
     const form=document.querySelector('#photo-geo-form');
-    requestFix();
+    if(!shared.length)requestFix();
     const add=list=>{const now=Date.now();for(const file of list)files.push({file,addedAt:now,fresh:Math.abs(now-(file.lastModified||now))<120000});renderList();};
     form.camera.addEventListener('click',()=>{fix=null;requestFix();});
     form.camera.addEventListener('change',()=>{add([...form.camera.files]);form.camera.value='';});
     form.gallery.addEventListener('change',()=>{add([...form.gallery.files]);form.gallery.value='';});
     document.querySelector('#photo-geo-save').onclick=()=>save(form,{interventionId,observationId});
+    if(shared.length){for(const file of shared)files.push({file,addedAt:Date.now(),fresh:false});renderList();setStatus('Photos reçues : la position vient de leurs données GPS (EXIF), sinon choisissez la parcelle.');}
   }
   function renderList(){
     const host=document.querySelector('#photo-geo-list');if(!host)return;

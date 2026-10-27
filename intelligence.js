@@ -31,7 +31,24 @@ export function findParcelFromQuestion(question,state,{currentParcelId=null}={})
 
 function parseNumber(value){const n=Number(String(value||'').replace(',','.'));return Number.isFinite(n)?n:null;}
 
-export function filterParcelsStructured(question,state){
+// n° 111 : « parcelles non fauchées / non semées / sans désherbage cette campagne » = aucun travail
+// réalisé (ni à faire, ni annulé) de ce type sur la campagne en cours.
+const WORK_KINDS=[
+  {label:'fauche',ask:/\b(?:non|pas)\s+(?:encore\s+)?fauche(?:e|es|s)?\b|\bsans\s+(?:de\s+)?fauche\b/,work:/fauch|ensil|foin/},
+  {label:'semis',ask:/\b(?:non|pas)\s+(?:encore\s+)?seme(?:e|es|s)?\b|\bsans\s+(?:de\s+)?semis\b/,work:/\bsem|semis/},
+  {label:'désherbage',ask:/\b(?:non|pas)\s+(?:encore\s+)?desherbe(?:e|es|s)?\b|\bsans\s+(?:de\s+)?desherbage\b/,work:/desherb|herbicid/},
+  {label:'récolte',ask:/\b(?:non|pas)\s+(?:encore\s+)?recolte(?:e|es|s)?\b|\bsans\s+(?:de\s+)?recolte\b/,work:/recolt|moisson|battage/},
+  {label:'fertilisation',ask:/\b(?:non|pas)\s+(?:encore\s+)?fertilise(?:e|es|s)?\b|\bsans\s+(?:de\s+)?(?:fertilisation|engrais)\b/,work:/fertili|engrais|epand|azote/},
+  {label:'labour',ask:/\b(?:non|pas)\s+(?:encore\s+)?laboure(?:e|es|s)?\b|\bsans\s+(?:de\s+)?labour\b/,work:/labour/}
+];
+export function workKindMissing(question){const q=norm(question);return WORK_KINDS.find(kind=>kind.ask.test(q))||null;}
+function doneThisCampaign(state,kind,campaign){
+  const ids=new Set();
+  for(const w of active(state,'interventions'))if(!isPending(w)&&!['Annulé','Annulée'].includes(w.status)&&kind.work.test(norm(w.type))&&(w.campaignId||campaignFor(workDate(w)))===campaign)ids.add(w.parcelId);
+  return ids;
+}
+
+export function filterParcelsStructured(question,state,{now=Date.now()}={}){
   const parcels=active(state,'parcelles');const raw=String(question||'');const q=norm(raw);let rows=[...parcels];const applied=[];
   const cultureMatch=raw.match(/(?:^|\s)culture\s*:\s*([^<>:=]+?)(?=\s+(?:surface|commune|nom)\s*[:<>]|$)/i);
   const communeMatch=raw.match(/(?:^|\s)commune\s*:\s*([^<>:=]+?)(?=\s+(?:surface|culture|nom)\s*[:<>]|$)/i);
@@ -43,6 +60,8 @@ export function filterParcelsStructured(question,state){
   if(nameMatch){const value=norm(nameMatch[1]);rows=rows.filter(p=>norm(p.nom).includes(value));applied.push(`nom:${nameMatch[1].trim()}`);}
   if(surfaceMatch){const op=surfaceMatch[1],n=parseNumber(surfaceMatch[2]);if(n!==null){rows=rows.filter(p=>{const v=toNumber(p.surfaceHa);if(op==='>')return v>n;if(op==='<')return v<n;if(op==='>=')return v>=n;if(op==='<=')return v<=n;return Math.abs(v-n)<1e-9;});applied.push(`surface${op}${surfaceMatch[2]}`);}}
   if(/\bsans culture\b/.test(q)){rows=rows.filter(p=>!String(p.culture||'').trim());applied.push('sans culture');}
+  const kind=workKindMissing(raw);
+  if(kind){const campaign=campaignFor(now),done=doneThisCampaign(state,kind,campaign);rows=rows.filter(p=>!p.archived&&!done.has(p.id));applied.push(`sans ${kind.label} ${campaign}`);}
   return{recognized:applied.length>0,rows,applied};
 }
 
@@ -123,7 +142,13 @@ function extractWorkType(question,parcel){
   type=type.replace(/\b(aujourd’hui|aujourd'hui|demain|maintenant)\b/ig,'').trim();return type||'Travail';
 }
 
-export function assistantActionRequiresConfirmation(action){return ['create_work','create_task','create_observation','finish_work','resolve_observation'].includes(action?.type);}
+export function assistantActionRequiresConfirmation(action){return ['create_work','create_task','create_observation','stock_movement','grazing_exit','plan_works','finish_work','resolve_observation'].includes(action?.type);}
+
+// n° 111 : réponse-carte « Voir sur la carte » pour une liste de parcelles (seules celles qui ont un contour).
+export function showOnMapAction(state,ids,label='Voir sur la carte'){
+  const byId=parcelMap(state),parcelIds=[...new Set(ids)].filter(id=>byId.get(id)?.geometry);
+  return parcelIds.length?{type:'show_on_map',label:`${label} (${parcelIds.length})`,payload:{parcelIds}}:null;
+}
 
 export function answerLocalIntelligence(question,state,context={}){
   const farm=answerFarmQuestion(question,state,context);if(farm)return farm;
@@ -165,8 +190,8 @@ export function answerLocalIntelligence(question,state,context={}){
   if(/\bchantier/.test(q)&&/\b(en cours|actif|planifie|planifié|quels|quel)\b/.test(raw.toLowerCase())){const x=chantierAnswer(state);return{recognized:true,intent:'chantiers',...x};}
   if(/\bassolement\b/.test(q))return{recognized:true,intent:'crop_plan',answer:assolementAnswer(state),actions:[]};
 
-  const structured=filterParcelsStructured(raw,state);
-  if(structured.recognized){const area=structured.rows.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'parcel_filter',answer:`${structured.rows.length} parcelle${structured.rows.length>1?'s':''} correspondent (${fmt(area)} ha)${structured.rows.length?` : ${structured.rows.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:structured.rows.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}})),matches:structured.rows.map(p=>p.id)};}
+  const structured=filterParcelsStructured(raw,state,{now:context.now??Date.now()});
+  if(structured.recognized){const area=structured.rows.reduce((s,p)=>s+toNumber(p.surfaceHa),0),map=showOnMapAction(state,structured.rows.map(p=>p.id));return{recognized:true,intent:'parcel_filter',answer:`${structured.rows.length} parcelle${structured.rows.length>1?'s':''} correspondent (${fmt(area)} ha)${structured.rows.length?` : ${structured.rows.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:[...(map?[map]:[]),...structured.rows.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))],matches:structured.rows.map(p=>p.id)};}
   if(/\bsans culture\b/.test(q)){const list=parcels.filter(p=>!String(p.culture||'').trim());return{recognized:true,intent:'missing_crop',answer:`${list.length} parcelle${list.length>1?'s':''} sans culture${list.length?` : ${list.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:list.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))};}
   if(/\b(combien|nombre)\b/.test(q)&&/\bparcelle/.test(q)){const own=parcels.filter(p=>(p.ownershipType||'own')==='own'),area=own.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'parcel_count',answer:`${parcels.length} parcelles actives, dont ${own.length} de l’exploitation pour ${fmt(area)} ha.`,actions:[]};}
   const culture=cultureFromQuestion(raw,state);

@@ -28,11 +28,13 @@ export const FIELD_ALIASES={
   ilot:['NUM_ILOT','ilot','îlot','bloc'],
   exploitant:['RAIS_SOCIA','exploitant','client','raison sociale','raison_sociale'],
   status:['statut','status','a faire','à faire'],
-  type:['type','operation','opération','intervention','travail'],
-  date:['date','date intervention','date_intervention'],
-  product:['produit','product','intrant'],
-  dose:['dose','quantite','quantité'],
-  doseUnit:['unite dose','unité dose','dose_unit','doseunit'],
+  type:['type','operation','opération','intervention','travail','type intervention','type d intervention','libelle intervention','nature intervention'],
+  date:['date','date intervention','date_intervention','date d intervention','date de debut','date debut','date realisation','date de realisation'],
+  product:['produit','product','intrant','produit utilise','nom produit','intrant utilise'],
+  dose:['dose','quantite','quantité','dose ha','dose/ha','dose appliquee','quantite/ha','quantite ha'],
+  doseUnit:['unite dose','unité dose','dose_unit','doseunit','unite','unité','unit'],
+  workId:['n intervention','numero intervention','id intervention','identifiant intervention','code intervention','ref intervention'],
+  workSurface:['surface travaillee','surface traitee','surface realisee','surface intervention','surf travaillee'],
   cost:['cout','coût','cost','prix','montant'],
   pacCode:['CODE_CULTU'],
   declaredSurfaceHa:['SURF_ADM']
@@ -58,7 +60,7 @@ function objectFromRow(row,headers,mapping={}){
     surfaceHa:toNullableNumber(field('surfaceHa')),culture:String(field('culture')??'').trim(),
     commune:String(field('commune')??'').trim(),ilot:String(field('ilot')??'').trim(),exploitant:String(field('exploitant')??'').trim(),
     status:String(field('status')??'').trim(),type:String(field('type')??'').trim(),date:field('date'),
-    product:String(field('product')??'').trim(),dose:field('dose'),doseUnit:String(field('doseUnit')??'').trim(),cost:toNullableNumber(field('cost')),
+    product:String(field('product')??'').trim(),dose:field('dose'),doseUnit:String(field('doseUnit')??'').trim(),cost:toNullableNumber(field('cost')),workSurfaceHa:toNullableNumber(field('workSurface')),workId:String(field('workId')??'').trim(),
     pacCode:String(field('pacCode')??'').trim().toUpperCase(),declaredSurfaceHa:toNullableNumber(field('declaredSurfaceHa')),
     raw:row
   };
@@ -218,27 +220,70 @@ export async function inspectFiles(files,state,mapping={}){
 
   // n° 115 : export telepac reconnu d'après les colonnes ; PACAGE retiré avant toute autre étape.
   for(const source of parsed)if(isTelepacHeaders(source.headers)){source.rows=telepacRows(source.rows,source.headers);source.headers=telepacHeaders(source.headers);source.telepac=true;}
-  const normalized=normalizeSources(parsed,mapping);const parcelCandidates=normalized.filter(row=>row.nom&&!row.type);
+  // n° 124 : historique d'un autre logiciel ; seules les lignes d'intervention comptent, jamais de parcelle créée.
+  const history=isHistoryMapping(mapping),all=normalizeSources(parsed,mapping),normalized=history?all.filter(row=>row.type):all;const parcelCandidates=normalized.filter(row=>row.nom&&!row.type);
   const validParcels=parcelCandidates.filter(row=>!validateParcel(row).length);const probableInterventions=normalized.filter(row=>row.type&&(row.date||row.product));
   const invalidGeometry=normalized.filter(row=>row.geometry&&validateGeometry(row.geometry).length).length;
+  if(history)warnings.push(...historyWarnings(normalized,state,all.length-normalized.length));
   parsed.forEach(source=>{
-    if(!source.rows.length||source.prenormalized)return;const sample=source.rows[0],h=source.headers||Object.keys(sample||{}),missing=[];
+    if(!source.rows.length||source.prenormalized||history)return;const sample=source.rows[0],h=source.headers||Object.keys(sample||{}),missing=[];
     if(valueFromRow(sample,'name',h,mapping)===undefined)missing.push('nom (NOM_PARCEL)');
     if(valueFromRow(sample,'surfaceHa',h,mapping)===undefined)missing.push('surface (SURFACE)');
     if(source.hasGeometry&&valueFromRow(sample,'sourceId',h,mapping)===undefined)missing.push('identifiant (GUID_PARC)');
     if(missing.length)warnings.push(`${source.file}${source.sheet?` / ${source.sheet}`:''} : champs utiles absents : ${missing.join(', ')}.`);
   });
-  if(parsed.length&&!parcelCandidates.length&&!parsed.every(s=>s.prenormalized)){const keys=[...new Set(parsed.flatMap(s=>s.headers))].slice(0,40);warnings.unshift(`Aucune parcelle nommée détectée. Utilisez la correspondance manuelle des colonnes. Champs reçus : ${keys.join(', ')||'aucun'}.`);}
+  if(parsed.length&&!history&&!parcelCandidates.length&&!parsed.every(s=>s.prenormalized)){const keys=[...new Set(parsed.flatMap(s=>s.headers))].slice(0,40);warnings.unshift(`Aucune parcelle nommée détectée. Utilisez la correspondance manuelle des colonnes. Champs reçus : ${keys.join(', ')||'aucun'}.`);}
   const classification=classifyRows(normalized,state);
   const surface=validParcels.reduce((sum,row)=>sum+(row.surfaceHa||0),0);
   return{
-    engineBuild:IMPORT_ENGINE_BUILD,mapping,sources:parsed.map(s=>({file:s.file,sheet:s.sheet,rows:s.rows.length,type:s.type,hasGeometry:s.hasGeometry,headers:s.headers,engine:s.engine,diagnostic:s.diagnostic,telepac:Boolean(s.telepac)})),
+    engineBuild:IMPORT_ENGINE_BUILD,mapping,history,suggestedMapping:suggestMapping(parsed.flatMap(s=>s.headers||[]),mapping),sources:parsed.map(s=>({file:s.file,sheet:s.sheet,rows:s.rows.length,type:s.type,hasGeometry:s.hasGeometry,headers:s.headers,engine:s.engine,diagnostic:s.diagnostic,telepac:Boolean(s.telepac)})),
     telepac:parsed.some(s=>s.telepac)?{comparison:telepacComparison(state?.parcelles,normalized.filter(row=>row.nom&&!row.type))}:null,
     rows:normalized,durationMs:Math.round((performance?.now?.()??Date.now())-started),summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface,cultures:[...new Set(validParcels.map(r=>r.culture).filter(Boolean))],communes:[...new Set(validParcels.map(r=>r.commune).filter(Boolean))],geometryValid:normalized.filter(r=>r.geometry&&!validateGeometry(r.geometry).length).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(r=>!r.nom&&!r.type).length,...classification},warnings,invalid
   };
 }
 
-export function previewNeedsMapping(preview){return preview.sources.length>0&&preview.summary.parcels===0&&preview.sources.some(s=>s.headers?.length);}
+export function previewNeedsMapping(preview){if(preview.history)return preview.sources.length>0&&!preview.mapping?.confirmed;return preview.sources.length>0&&preview.summary.parcels===0&&preview.sources.some(s=>s.headers?.length);}
+
+// n° 124 — Reprise d'un historique de travaux (Mes Parcelles, Smag, Geofolia ou autre tableur exporté en CSV/XLSX).
+export const isHistoryMapping=mapping=>Boolean(mapping?.historyOnly);
+export const PARCEL_MAPPING_FIELDS=Object.freeze([['name','Nom de parcelle'],['sourceId','Identifiant source'],['surfaceHa','Surface'],['culture','Culture'],['commune','Commune'],['ilot','Îlot']]);
+export const WORK_MAPPING_FIELDS=Object.freeze([['date','Date'],['type','Type d’intervention'],['product','Produit'],['dose','Dose'],['doseUnit','Unité'],['workSurface','Surface travaillée'],['workId','N° d’intervention']]);
+/** Colonne reconnue pour chaque champ (choix manuel d'abord, sinon alias) : pré-remplit l'écran de correspondance. */
+export function suggestMapping(headers=[],mapping={}){
+  const list=[...new Set(headers)],out={};
+  for(const [key] of [...PARCEL_MAPPING_FIELDS,...WORK_MAPPING_FIELDS]){const found=findField(list,key,mapping);if(found)out[key]=found;}
+  return out;
+}
+/** Champs obligatoires de la correspondance : nom de parcelle, et pour un historique date et type. */
+export function mappingErrors(mapping={},{history=false}={}){
+  const missing=[];if(!mapping.name)missing.push('le nom de parcelle');
+  if(history){if(!mapping.date)missing.push('la date');if(!mapping.type)missing.push('le type d’intervention');}
+  return missing.length?`Associez ${missing.join(', ').replace(/, ([^,]*)$/,' et $1')}.`:'';
+}
+// Empreinte stable d'une ligne de travail importée (FNV-1a) : le ré-import du même fichier ne crée pas de doublon.
+// Avec un n° d'intervention, la clé garde la parcelle, la date et le produit : une intervention exportée en une ligne par parcelle et par produit reste entière, et une numérotation reprise à 1 l'année suivante ne se confond pas.
+function fnv(text){let h=0x811c9dc5;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(16).padStart(8,'0');}
+export function workRowSourceId(row,parcelId,date){
+  const ext=String(row.workId||'').trim();
+  return ext?`hist:id:${normalize(ext).slice(0,80)}:${fnv([parcelId,date,normalize(row.product)].join('|'))}`:`hist:${fnv([parcelId,date,normalize(row.type),normalize(row.product),String(row.dose??'').replace(',','.').trim(),normalize(row.doseUnit)].join('|'))}`;
+}
+// Historique : la parcelle est retrouvée par son nom (et sa commune si la colonne existe), jamais par l'identifiant de la ligne.
+const historyParcel=(row,parcels)=>parcelMatch({nom:row.nom,commune:row.commune,sourceId:null},parcels);
+function historyWarnings(rows,state,ignored){
+  const out=[],parcels=state?.parcelles||[],missing=new Map();let dup=0,undated=0;
+  const existing=new Set((state?.interventions||[]).filter(i=>!i.deletedAt&&String(i.sourceId||'').startsWith('hist:')).map(i=>i.sourceId));
+  for(const row of rows){
+    const parcel=historyParcel(row,parcels),date=parseImportDate(row.date);
+    if(!date){undated++;continue;}
+    if(!parcel){const n=row.nom||'(sans nom)';missing.set(n,(missing.get(n)||0)+1);continue;}
+    if(existing.has(workRowSourceId(row,parcel.id,date)))dup++;
+  }
+  if(ignored)out.push(`${ignored} ligne(s) sans type d’intervention ignorée(s).`);
+  if(undated)out.push(`${undated} ligne(s) sans date lisible : elles seront ignorées.`);
+  if(missing.size)out.push(`${[...missing.values()].reduce((a,b)=>a+b,0)} intervention(s) sans parcelle du même nom dans Parcelles (${[...missing.keys()].slice(0,8).join(', ')}${missing.size>8?'…':''}) : elles seront ignorées. Importez d’abord vos parcelles ou renommez-les.`);
+  if(dup)out.push(`${dup} intervention(s) déjà importée(s) : elles ne seront pas recréées.`);
+  return out;
+}
 export function mappingOptions(preview){return[...new Set(preview.sources.flatMap(s=>s.headers||[]))].sort((a,b)=>a.localeCompare(b,'fr'));}
 
 // Recouvrement réel des surfaces (parcelles concaves comprises) : géométries égales, ou au moins la moitié
@@ -281,7 +326,8 @@ function parcelMatch(row,parcels){
 export async function applyImport(preview,store,strategy='merge'){
   const before=store.snapshot();const next=clone(before);const timestamp=Date.now();const sessionId=uid('import_session');const rollbackBackupId=`preimport_${sessionId}`;let created=0,updated=0,skipped=0,interventions=0;
   await store.storage.backupPut({id:rollbackBackupId,period:'preimport',createdAt:timestamp,state:before});
-  const parcelsRows=preview.rows.filter(row=>row.nom&&!row.type),workRows=preview.rows.filter(row=>row.type&&(row.date||row.product));
+  const history=Boolean(preview.history),parcelsRows=history?[]:preview.rows.filter(row=>row.nom&&!row.type),workRows=preview.rows.filter(row=>row.type&&(row.date||row.product));
+  const knownWorks=new Set(next.interventions.filter(i=>!i.deletedAt&&String(i.sourceId||'').startsWith('hist:')).map(i=>i.sourceId));
   const dynamicParcels=next.parcelles;
   for(const row of parcelsRows){
     const errors=validateParcel(row);if(errors.length){skipped++;continue;}
@@ -301,14 +347,17 @@ export async function applyImport(preview,store,strategy='merge'){
   }
   // Resolve against all staged parcels, using the same unambiguous match as the preview.
   for(const row of workRows){
-    const parcel=row.isoxml?dynamicParcels.find(p=>!p.deletedAt&&(row.parcelId?p.id===row.parcelId:p.sourceId===row.parcelSourceId)):parcelMatch(row,dynamicParcels);if(!parcel){skipped++;continue;}
+    const parcel=row.isoxml?dynamicParcels.find(p=>!p.deletedAt&&(row.parcelId?p.id===row.parcelId:p.sourceId===row.parcelSourceId)):history?historyParcel(row,dynamicParcels):parcelMatch(row,dynamicParcels);if(!parcel){skipped++;continue;}
     if(row.isoxml&&next.interventions.some(i=>!i.deletedAt&&i.source==='isoxml'&&i.sourceId===row.sourceId)){skipped++;continue;}
     const date=parseImportDate(row.date);if(!date){skipped++;continue;}
-    const raw={parcelId:parcel.id,date,type:row.type,product:row.product,dose:row.dose,doseUnit:row.doseUnit,cost:row.cost??0,campaignId:campaignFor(date),source:'import',status:'Terminé',...(row.isoxml?isoxmlInterventionFields(row):{})};
+    // Dédoublonnage source/sourceId des lignes de tableur : même parcelle, date, type, produit et dose.
+    const sourceId=row.isoxml?null:workRowSourceId(row,parcel.id,date);if(sourceId&&knownWorks.has(sourceId)){skipped++;continue;}
+    const surfaceWorked=row.isoxml?undefined:row.workSurfaceHa;
+    const raw={parcelId:parcel.id,date,type:row.type,product:row.product,dose:row.dose,doseUnit:row.doseUnit,cost:row.cost??0,campaignId:campaignFor(date),source:'import',status:'Terminé',...(sourceId?{sourceId,importSessionId:sessionId}:{}),...(surfaceWorked!==undefined&&surfaceWorked!==null?{surfaceWorked}:{}),...(row.isoxml?isoxmlInterventionFields(row):{})};
     if(validateIntervention(raw).length){skipped++;continue;}
-    next.interventions.push(normalizeEntity('interventions',raw));interventions++;
+    next.interventions.push(normalizeEntity('interventions',raw));interventions++;if(sourceId)knownWorks.add(sourceId);
   }
-  const session=normalizeEntity('importSessions',{id:sessionId,fileNames:preview.sources.map(s=>s.file),created,updated,skipped,interventions,surface:preview.summary.surface,engineBuild:preview.engineBuild,strategy,rollbackBackupId,source:'local'});
+  const session=normalizeEntity('importSessions',{id:sessionId,fileNames:preview.sources.map(s=>s.file),created,updated,skipped,interventions,surface:preview.summary.surface,engineBuild:preview.engineBuild,strategy,rollbackBackupId,source:'local',...(history?{kind:'history',preset:String(preview.mapping?.preset||'').slice(0,40)}:{})});
   next.importSessions.push(session);next.metadata.lastImportAt=timestamp;
   await store.replaceState(next,`Import atomique terminé : ${created} ${(created)>1?'créations':'création'}, ${updated} ${(updated)>1?'mises':'mise'} à jour, ${interventions} ${(interventions)>1?'travaux':'travail'}.`,{kind:'import'});
   return{created,updated,skipped,interventions,sessionId:session.id};

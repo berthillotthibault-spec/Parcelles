@@ -9,7 +9,7 @@ export const ROLES={
 };
 
 export const ROLE_CAPABILITIES={
-  owner:new Set(['read','write','delete','purge','restore','manage-members','manage-workspace','export','import','sync','platform-jobs']),
+  owner:new Set(['read','write','delete','purge','restore','manage-members','manage-workspace','export','import','sync','platform-jobs','cloud-snapshot']),
   manager:new Set(['read','write','delete','restore','export','import','sync','platform-jobs']),
   editor:new Set(['read','write','delete','export','sync']),
   operator:new Set(['read','write','sync']),

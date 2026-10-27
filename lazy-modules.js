@@ -46,6 +46,7 @@ export const LAZY_MODULES = Object.freeze({
   activityLog: () => import('./activity-ui.js'),
   trash: () => import('./trash-ui.js'),
   restore: () => import('./restore-ui.js'),
+  backupVault: () => import('./backup-vault-ui.js'), // n° 4 : sauvegardes automatiques (dossier, instantané cloud)
   syncConflict: () => import('./sync-conflict-ui.js'),
   // Outils de carte, agenda et exports
   mapLayers: () => import('./map-layers-ui.js'),
@@ -74,11 +75,14 @@ export const LAZY_MODULES = Object.freeze({
   mapRecords: () => import('./map-records.js'),
   integrations: () => import('./integrations.js'),
   measureLib: () => import('./walk-measure.js'), // périmètre de l’outil Mesurer de la carte
+  treasuryLogic: () => import('./treasury.js'), // n° 88 : point bas de trésorerie de la carte « Ma campagne »
   // Imports, exports et sauvegardes complètes ; assistant
   importExport: () => import('./import-export.js'),
+  historyImport: () => import('./history-import-ui.js'),
   shareTarget: () => import('./share-target-ui.js'),
   demoFarm: () => import('./demo-farm.js'),
   remoteAi: () => import('./remote-ai.js'),
+  assistantRemote: () => import('./assistant-remote-ui.js'), // n° 104 : fiches de confirmation et aperçu « Ce que j’envoie »
   billingDocs: () => import('./billing-docs-ui.js'), // v13 : devis, factures, acomptes, avoirs, pro forma (éditeur et actions)
   intelligence: () => import('./intelligence.js'),
   billingHub: () => import('./billing-hub-ui.js') // v13 : centre Facturation (suivi, relances, catalogue, réglages)
@@ -122,6 +126,8 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('teamRoles', 'open-team-roles'),
   ...actions('messaging', 'open-messages'),
   ...actions('trash', 'restore-trash', 'purge-trash'),
+  ...actions('backupVault', 'open-backup-vault'),
+  ...actions('historyImport', 'open-history-import'),
   ...actions('mapLayers', 'open-map-layers'),
   ...actions('contourEdit', 'edit-contour'),
   ...actions('walkMeasure', 'walk-measure'),

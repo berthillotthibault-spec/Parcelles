@@ -151,3 +151,89 @@ test('trésorerie masquée au rôle viewer (n° 86)', () => {
   assert.equal(canSeeTreasury('editor'), true);
   assert.equal(canSeeTreasury('owner'), true);
 });
+
+// n° 86 et n° 94 : fermages, structure, appro, GNR et sinistres repris, sans double compte.
+test('sources reprises : fermages, structure, appro, GNR et indemnité de sinistre (n° 86, n° 94)', () => {
+  const s = base({
+    parcelles: [{id: 'p1', nom: 'A', surfaceHa: 10, lease: {ownerName: 'M. Martin', leaseType: 'fermage', rentMode: 'eur', rent: 150}}],
+    preferences: {structureByCampaign: {'2026/27': {items: {social: {amount: 1200}, annuities: {amount: 2400}}}}},
+    integrationImports: [
+      {id: 'f1', farmKind: 'fuel', entry: 'tank', date: '2026-12-03', litres: 1000, amount: 1100, supplier: 'Coop'},
+      {id: 'f2', farmKind: 'fuel', entry: 'tank', date: '2026-09-03', litres: 1000, amount: 900},
+      {id: 'k1', farmKind: 'claim', cause: 'grele', status: 'déclaré', date: '2026-08-20', indemnity: 3000},
+      {id: 'k2', farmKind: 'claim', cause: 'gibier', status: 'expertisé', date: '2026-10-01', indemnity: 500, expectedPaymentDate: '2027-03-10'},
+      {id: 'k3', farmKind: 'claim', cause: 'gibier', status: 'indemnisé', date: '2026-06-01', indemnity: 800}
+    ]
+  });
+  s.stockItems = [{id: 's1', name: 'Ammonitrate', category: 'engrais'}, {id: 's2', name: 'GNR', category: 'carburant'}];
+  s.stockMovements = [
+    {id: 'mv1', type: 'Entrée', stockItemId: 's1', date: '2027-02-01', quantity: 10, unitPrice: 400, supplier: 'Négoce'},
+    {id: 'mv2', type: 'Entrée', stockItemId: 's1', date: '2026-10-01', quantity: 5, unitPrice: 400},
+    {id: 'mv3', type: 'Entrée', stockItemId: 's2', date: '2027-01-01', quantity: 500, unitPrice: 1},
+    {id: 'mv4', type: 'Entrée', stockItemId: 's1', date: '2027-03-01', quantity: 5}
+  ];
+  const {lines, missing, duplicates} = treasuryFlows(s, opts);
+  const by = src => lines.filter(l => l.source === src).map(l => [l.month, l.amount]);
+  assert.deepEqual(by('fermage'), [['2026-11', -1500]], 'fermage du Foncier à la Saint-Martin');
+  assert.equal(by('structure').length, 24, 'MSA et annuités sur 12 mois, campagne reconduite');
+  assert.deepEqual(by('structure').slice(0, 2), [['2026-10', -100], ['2026-11', -100]]);
+  assert.deepEqual(by('appro'), [['2027-02', -4000]], 'passé et carburant (pleins GNR présents) exclus');
+  assert.equal(missing.appro, 1, 'entrée sans prix signalée');
+  assert.deepEqual(by('gnr'), [['2026-12', -1100]]);
+  assert.deepEqual(lines.filter(l => l.source === 'sinistre').map(l => [l.month, l.amount, l.late]).sort(), [['2026-11', 3000, false], ['2027-03', 500, false]], 'date estimée (+3 mois) ou saisie ; indemnisé exclu');
+  assert.match(lines.find(l => l.id === 'sinistre:k1').label, /Grêle \(date estimée\)/);
+  assert.deepEqual(duplicates, []);
+  assert.ok(lines.every(l => l.id), 'chaque flux a un identifiant');
+});
+
+test('échéancier saisi prioritaire : fermage, MSA et GNR non recomptés, et signalés', () => {
+  const s = base({
+    parcelles: [{id: 'p1', nom: 'A', surfaceHa: 10, lease: {ownerName: 'M. Martin', leaseType: 'fermage', rentMode: 'eur', rent: 150}}],
+    preferences: {structureByCampaign: {'2026/27': {items: {social: {amount: 1200}, annuities: {amount: 2400}}}},
+      treasury: {items: [{id: 'a', label: 'Fermages', amount: 1500, sign: '-', periodicity: 'annuelle', startMonth: '2026-11'}, {id: 'b', label: 'Cotisations MSA', amount: 300, sign: '-', periodicity: 'trimestrielle', startMonth: '2026-10'}, {id: 'c', label: 'Livraison GNR', amount: 1000, sign: '-', periodicity: 'annuelle', startMonth: '2027-01'}]}},
+    integrationImports: [{id: 'f1', farmKind: 'fuel', entry: 'tank', date: '2026-12-03', litres: 1000, amount: 1100}]
+  });
+  const {lines, duplicates} = treasuryFlows(s, opts);
+  assert.equal(lines.filter(l => l.source === 'fermage' || l.source === 'gnr').length, 0);
+  assert.deepEqual([...new Set(lines.filter(l => l.source === 'structure').map(l => l.label))], ['Annuités d’emprunts (1/12 de la fiche de structure)']);
+  assert.deepEqual(duplicates.map(d => [d.source, d.item]), [['fermage', 'Fermages'], ['structure', 'Cotisations MSA'], ['gnr', 'Livraison GNR']]);
+});
+
+test('point bas : prochain encaissement attendu, et scénario de décalage sans écriture', async () => {
+  const s = base({preferences: {treasury: {openingBalance: 1000, items: [{id: 'a', label: 'Annuité', amount: 3000, sign: '-', periodicity: 'annuelle', startMonth: '2026-11'}]}},
+    integrationImports: [{id: 'c1', farmKind: 'salesContract', culture: 'Blé', buyer: 'Coop', type: 'ferme', tonnes: 10, price: 200, paymentDate: '2027-01-15'}]});
+  const f = treasuryForecast(s, opts);
+  assert.equal(f.low.key, '2026-11');
+  assert.deepEqual([f.low.nextIncome.key, f.low.nextIncome.amount, f.low.nextIncome.source], ['2027-01', 2000, 'contrat']);
+  const {lowPointText, scenarioText} = await import('./treasury-ui.js');
+  assert.match(lowPointText(f.low), /Prochain encaissement attendu : Contrat « Contrat Blé · Coop », 2[\s ]000 € en janv\. 27/);
+  const before = JSON.stringify(s);
+  const moved = treasuryForecast(s, {...opts, shifts: {'contrat:c1': 3}});
+  assert.equal(moved.months.find(m => m.key === '2027-04').income, 2000);
+  assert.equal(moved.months.find(m => m.key === '2027-01').income, 0);
+  assert.equal(moved.low.balance, -2000);
+  assert.equal(treasuryForecast(s, {...opts, shifts: {'contrat:c1': 12}}).totals.income, 0, 'au-delà de l’horizon : sort du calcul');
+  assert.equal(JSON.stringify(s), before, 'simulation sans écriture');
+  assert.match(scenarioText(f, moved, f.lines.find(l => l.id === 'contrat:c1'), 3), /arrive en avr\. 27 au lieu de janv\. 27 : point bas −2[\s ]000 € fin nov\. 26 \(inchangé\)/);
+});
+
+test('appro et GNR à venir : part intrants et carburant des travaux prévus estimés non recomptée (n° 86)', () => {
+  const s = base({
+    parcelles: [{id: 'p1', nom: 'A', surfaceHa: 10}],
+    preferences: {fuelPrice: 1.2},
+    materiels: [{id: 'm1', nom: 'Pulvé', hourlyCost: 50}],
+    interventions: [{id: 'w1', type: 'Traitement fongicide', status: 'À faire', plannedDate: '2027-04-10', parcelId: 'p1', machineId: 'm1', duration: 2, fuel: 20, resourceEffects: {stockItemId: 's1', quantity: 1000}}],
+    integrationImports: [{id: 'f1', farmKind: 'fuel', entry: 'tank', date: '2027-03-03', litres: 1000, amount: 1100}]
+  });
+  s.stockItems = [{id: 's1', name: 'Fongix', category: 'phyto', unitPrice: 20}];
+  s.stockMovements = [{id: 'mv1', type: 'Entrée', stockItemId: 's1', date: '2027-03-01', quantity: 1000, unitPrice: 20}];
+  const {lines, duplicates} = treasuryFlows(s, opts);
+  const by = src => lines.filter(l => l.source === src).map(l => [l.month, l.amount]);
+  assert.deepEqual(by('appro'), [['2027-03', -20000]]);
+  assert.deepEqual(by('gnr'), [['2027-03', -1100]]);
+  assert.deepEqual(by('travail'), [['2027-04', -100]], 'seule la part matériel reste (2 h × 50 €)');
+  assert.deepEqual(duplicates.map(d => d.source), ['travail']);
+  // Sans achat repris, l'estimation complète revient.
+  s.stockMovements = []; s.integrationImports = [];
+  assert.deepEqual(treasuryFlows(s, opts).lines.filter(l => l.source === 'travail').map(l => l.amount), [-20124]);
+});
