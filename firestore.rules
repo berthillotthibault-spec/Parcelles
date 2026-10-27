@@ -21,25 +21,53 @@ service cloud.firestore {
     function messageWritable(role, d) {
       return d.payload.get('finance', false) == true ? role == 'accountant' : d.payload.get('authorUid', '') == request.auth.uid;
     }
+    // Troupeau (n° 79) : l'opérateur terrain écrit un vêlage ou une pesée (animalEvents, payload.kind) et le veau
+    // né sur l'exploitation (animals, payload.origin == 'birth'), jamais une fiche supprimée (pas de corbeille).
+    // Même règle que permissions.js (herdOperatorRecord), appliquée au document écrit et au document existant.
+    function herdOperatorDoc(entityType, d) {
+      return d.payload is map && d.get('deletedAt', null) == null && d.payload.get('deletedAt', null) == null
+        && ((entityType == 'animalEvents' && d.payload.get('kind', '') in ['calving','weighing'])
+          || (entityType == 'animals' && d.payload.get('origin', '') == 'birth'));
+    }
+    // Commentaires de parcelle (n° 129, parcelComments) : hors gestion, chacun n'écrit que les siens
+    // (payload.authorUid), sous son rôle (authorRole) et sa propre adresse (authorEmail), appliqué au document
+    // écrit et au document existant (comme messageWritable) ; le lecteur n'écrit rien. Même règle que
+    // permissions.js (parcelCommentWritable).
+    function parcelCommentWritable(role, entityType, d) {
+      return entityType == 'parcelComments' && role in ['operator','accountant','advisor']
+        && d.payload is map && d.payload.get('authorUid', '') == request.auth.uid
+        && d.payload.get('authorRole', '') == role
+        && d.payload.get('authorEmail', '') == request.auth.token.get('email', '').lower();
+    }
+    // Lecture du conseiller / technicien (n° 129) : agronomie seulement. Mêmes listes que permissions.js
+    // (ADVISOR_READ_ENTITIES, ADVISOR_READ_FARM_KINDS, ADVISOR_READ_DOCUMENT_CATEGORIES). Les règles ne filtrent
+    // pas : sync.js (readFilters) n'envoie pour ce rôle que des requêtes bornées à ces valeurs, que la règle prouve.
+    function advisorReadable(d) {
+      return d.entityType in ['parcelles','interventions','tasks','rotations','observations','photos','points','weatherStations','products','grazingSessions','parcelComments']
+        || (d.entityType == 'integrationImports' && d.payload.farmKind in ['soilAnalysis','zones','prescription','decision','agroInfra'])
+        || (d.entityType == 'documents' && d.payload.category in ['Analyse de sol','Analyse','Plan / carte','Photo / constat','Réglementaire']);
+    }
     // vetTreatments (carnet sanitaire, n° 76) : propriétaire, responsable et collaborateur seulement.
     function canWriteData(workspaceId, entityType, d) {
       let role = memberRole(workspaceId);
       return isMember(workspaceId) && (role in ['owner','manager','editor']
+        || parcelCommentWritable(role, entityType, d)
         || (role == 'operator' && (entityType in ['interventions','tasks','observations','fieldSessions','chantiers','points','photos','documents','routeSessions','gpsTracks']
-          || (entityType == 'integrationImports' && !financeKind(d) && !directoryKind(d) && (!messageLogKind(d) || messageWritable(role, d)))))
+          || (entityType == 'integrationImports' && !financeKind(d) && !directoryKind(d) && (!messageLogKind(d) || messageWritable(role, d)))
+          || herdOperatorDoc(entityType, d)))
         || (role == 'accountant' && (entityType in ['clients','documents','stockItems','stockMovements','products','maintenanceRecords']
           || (entityType == 'integrationImports' && financeKind(d))
           || (entityType == 'integrationImports' && messageLogKind(d) && messageWritable(role, d)))));
     }
     function invitePath(token) { return /databases/$(database)/documents/invites/$(token); }
     // Rôles connus de l'application (permissions.js : ROLES / assignableRoles).
-    function validRole(role) { return role in ['owner','manager','editor','operator','accountant','viewer']; }
-    function invitableRole(role) { return role in ['manager','editor','operator','accountant','viewer']; }
-    // Équipe et autorisations (team-roles.js) : propriétaire > responsable > collaborateur > opérateur / comptabilité > lecteur.
+    function validRole(role) { return role in ['owner','manager','editor','operator','accountant','advisor','viewer']; }
+    function invitableRole(role) { return role in ['manager','editor','operator','accountant','advisor','viewer']; }
+    // Équipe et autorisations (team-roles.js) : propriétaire > responsable > collaborateur > opérateur / comptabilité / conseiller > lecteur.
     // - le propriétaire gère tout membre qui n'est pas propriétaire et attribue tout rôle invitable ;
     // - le responsable gère et attribue uniquement les rôles inférieurs au sien ;
     // - les autres rôles ne gèrent personne. La propriété ne se donne que par transfert (voir members.update).
-    function lowerThanManager(role) { return role in ['editor','operator','accountant','viewer']; }
+    function lowerThanManager(role) { return role in ['editor','operator','accountant','advisor','viewer']; }
     function canManageTarget(workspaceId, targetRole) {
       let me = memberRole(workspaceId);
       return isMember(workspaceId) && ((me == 'owner' && targetRole != 'owner')
@@ -195,10 +223,12 @@ service cloud.firestore {
           && (after.payload.get('currentMeter', null) == null || after.payload.currentMeter is number);
       }
       match /data/{docId} {
-        // Lecture : tout membre lit toutes les fiches, y compris factures, contacts et journal des messages.
-        // Le masquage de la facturation (canSeeBilling) et du journal d'autrui est un confort d'interface,
+        // Lecture : tout membre lit toutes les fiches, y compris factures, contacts et journal des messages,
+        // sauf le conseiller / technicien (n° 129), limité à l'agronomie (advisorReadable). Pour les autres rôles,
+        // le masquage de la facturation (canSeeBilling) et du journal d'autrui est un confort d'interface,
         // pas une confidentialité (ARCHITECTURE.md §4, « Lecture »).
-        allow read: if isMember(workspaceId);
+        // resource == null : lecture d'un document absent (pushPending lit la version distante avant la création).
+        allow read: if isMember(workspaceId) && (memberRole(workspaceId) != 'advisor' || resource == null || advisorReadable(resource.data));
         allow create, update: if canWriteData(workspaceId, request.resource.data.entityType, request.resource.data)
           && (resource == null || canWriteData(workspaceId, resource.data.entityType, resource.data))
           && validEntityDoc(workspaceId, docId);
@@ -213,7 +243,8 @@ service cloud.firestore {
       }
 
       match /audit/{auditId} {
-        allow read: if isMember(workspaceId);
+        // Le journal d'activité nomme des fiches de toute nature : pas pour le conseiller (n° 129).
+        allow read: if isMember(workspaceId) && memberRole(workspaceId) != 'advisor';
         allow create: if isMember(workspaceId) && request.resource.data.userId == request.auth.uid;
         allow update, delete: if false;
       }

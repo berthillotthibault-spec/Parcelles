@@ -12,6 +12,7 @@ export const previousCampaignId=id=>{const m=String(id||'').match(/^(\d{4})/);if
 
 export function campaignCardModel(state,{campaign=campaignFor(),role='owner'}={}){
   if(normalizeRole(role)==='viewer')return{hidden:true,reason:'viewer'};
+  if(normalizeRole(role)==='advisor')return{hidden:true,reason:'role'}; // n° 129 : pas d’économie pour le conseiller
   const m=marginModel(state,{campaign}),t=m.total,prevId=previousCampaignId(campaign),prev=marginModel(state,{campaign:prevId}).total;
   const reliable=t.reliability>=MIN_RELIABILITY&&t.margin!==null;
   const delta=reliable&&prev.margin!==null&&prev.reliability>=MIN_RELIABILITY?t.margin-prev.margin:null;
@@ -30,7 +31,7 @@ export function campaignCardModel(state,{campaign=campaignFor(),role='owner'}={}
 // Facturation (vague 13) : carte compacte « 3 factures en retard · 2 450 € — relancer » de l’accueil.
 // Masquée au lecteur et à l’opérateur terrain, désactivable (préférence billingHomeCard), absente sans retard.
 export function billingHomeModel(state,{role='owner',today=isoDay(),enabled=true}={}){
-  const r=normalizeRole(role);if(!enabled||r==='viewer'||r==='operator')return{hidden:true,reason:enabled?'role':'off'};
+  const r=normalizeRole(role);if(!enabled||r==='viewer'||r==='operator'||r==='advisor')return{hidden:true,reason:enabled?'role':'off'};
   const late=(()=>{try{return overdueInvoices(state,today);}catch{return[];}})();
   const amount=Math.round(late.reduce((s,i)=>s+(invoiceBalance(state,i).due||0),0)*100)/100;
   if(!late.length||!(amount>0))return{hidden:true,reason:'empty'};

@@ -15,7 +15,7 @@ export function viewsForEvent(event = {}) {
   if (['materiels', 'stockItems', 'stockMovements', 'fieldSessions', 'chantiers', 'automationRules', 'automationRuns'].includes(entity)) return ['today', 'parcel'];
   if (entity === 'points') return ['map', 'parcel'];
   if (entity === 'grazingSessions') return ['today', 'parcels', 'map', 'parcel'];
-  if (['photos', 'documents', 'rotations', 'clients', 'maintenanceRecords', 'routeSessions', 'vetTreatments', 'integrationImports'].includes(entity)) return ['today', 'parcel'];
+  if (['photos', 'documents', 'rotations', 'clients', 'maintenanceRecords', 'routeSessions', 'vetTreatments', 'animals', 'animalEvents', 'parcelComments', 'integrationImports'].includes(entity)) return ['today', 'parcel'];
   return ['parcel'];
 }
 

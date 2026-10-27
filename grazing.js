@@ -43,13 +43,26 @@ export function grazingAnimalText(session){
   return grazingAnimalList(session).map(animal=>`${animal.number||animal.name}${animal.gestation?' | gestante':''}`).join('\n');
 }
 
+/** Clé de comparaison d'un numéro d'animal (sans espaces, en capitales) : lots ↔ troupeau (n° 79). @param {any} number */
+export const animalNumberKey=number=>String(number??'').replace(/[\s.-]+/g,'').toLocaleUpperCase('fr');
+/** Clé de comparaison d'un numéro national : 10 chiffres seuls valent le même numéro précédé de FR. */
+export const nationalIdKey=number=>{const key=animalNumberKey(number);return /^\d{10}$/.test(key)?`FR${key}`:key;};
+
+/**
+ * n° 79 : relie les animaux d'un lot aux fiches du troupeau par numéro national (ajoute animalId et le nom).
+ * @param {any[]} items @param {any[]} animals fiches « animals » (présentes) */
+export function linkGrazingAnimals(items,animals){
+  const byKey=new Map((animals||[]).filter(a=>a&&!a.deletedAt&&a.nationalId).map(a=>[animalNumberKey(a.nationalId),a]));
+  return (items||[]).map(item=>{const key=animalNumberKey(item.number),a=byKey.get(key)||byKey.get(`FR${key}`);return a?{...item,animalId:a.id,name:item.name||a.name||''}:item;});
+}
+
 export function parseGrazingAnimals(value){
   const seen=new Set();
   return String(value??'').split(/\r?\n/).flatMap((line,index)=>{
     if(!line.trim())return [];
     const [number,...flags]=line.split('|').map(part=>part.trim());
     if(!number)throw new Error(`Ligne ${index+1} : renseignez le numéro de l’animal.`);
-    const key=number.replace(/\s+/g,'').toLocaleUpperCase('fr');
+    const key=animalNumberKey(number);
     if(seen.has(key))throw new Error(`Ligne ${index+1} : le numéro ${number} est présent plusieurs fois.`);
     seen.add(key);
     return [{number,gestation:flags.some(flag=>['gestante','gestant','oui'].includes(normalize(flag)))}];

@@ -1,0 +1,11 @@
+{
+  "indexes": [
+    {"collectionGroup": "data", "queryScope": "COLLECTION", "fields": [{"fieldPath": "entityType", "order": "ASCENDING"}, {"fieldPath": "updatedAt", "order": "ASCENDING"}]},
+    {"collectionGroup": "data", "queryScope": "COLLECTION", "fields": [{"fieldPath": "entityType", "order": "ASCENDING"}, {"fieldPath": "serverUpdatedAt", "order": "ASCENDING"}]},
+    {"collectionGroup": "data", "queryScope": "COLLECTION", "fields": [{"fieldPath": "entityType", "order": "ASCENDING"}, {"fieldPath": "payload.farmKind", "order": "ASCENDING"}, {"fieldPath": "updatedAt", "order": "ASCENDING"}]},
+    {"collectionGroup": "data", "queryScope": "COLLECTION", "fields": [{"fieldPath": "entityType", "order": "ASCENDING"}, {"fieldPath": "payload.farmKind", "order": "ASCENDING"}, {"fieldPath": "serverUpdatedAt", "order": "ASCENDING"}]},
+    {"collectionGroup": "data", "queryScope": "COLLECTION", "fields": [{"fieldPath": "entityType", "order": "ASCENDING"}, {"fieldPath": "payload.category", "order": "ASCENDING"}, {"fieldPath": "updatedAt", "order": "ASCENDING"}]},
+    {"collectionGroup": "data", "queryScope": "COLLECTION", "fields": [{"fieldPath": "entityType", "order": "ASCENDING"}, {"fieldPath": "payload.category", "order": "ASCENDING"}, {"fieldPath": "serverUpdatedAt", "order": "ASCENDING"}]}
+  ],
+  "fieldOverrides": []
+}

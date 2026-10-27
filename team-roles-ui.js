@@ -10,7 +10,7 @@ import {qrSvg} from './qr.js';
 import {normalizeRole, roleLabel} from './permissions.js';
 import {escapeHtml as e} from './utils.js';
 
-const SHORT = {owner: 'Propriétaire', manager: 'Responsable', editor: 'Collaborateur', operator: 'Opérateur', accountant: 'Compta.', viewer: 'Lecteur'};
+const SHORT = {owner: 'Propriétaire', manager: 'Responsable', editor: 'Collaborateur', operator: 'Opérateur', accountant: 'Compta.', advisor: 'Conseil', viewer: 'Lecteur'};
 const dateFr = ms => new Date(ms).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', year: 'numeric'});
 const timeFr = ms => new Date(ms).toLocaleString('fr-FR', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
 function ago(ms, now) {

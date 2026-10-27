@@ -22,7 +22,13 @@ service firebase.storage {
     // métadonnées entityId/entityType cohérentes avec le chemin, 25 Mo au plus.
     // L'application ne supprime jamais une pièce jointe distante : la suppression est réservée au propriétaire.
     match /workspaces/{workspaceId}/attachments/{entityType}/{fileId} {
-      allow read: if isMember(workspaceId);
+      // Conseiller / technicien (n° 129) : photos, et documents des catégories agronomiques seulement (même liste
+      // que firestore.rules advisorReadable, lue sur la fiche data/documents__{id}).
+      allow read: if isMember(workspaceId) && (firestore.get(memberPath(workspaceId)).data.role != 'advisor'
+        || entityType == 'photos'
+        || (entityType == 'documents'
+          && firestore.get(/databases/(default)/documents/workspaces/$(workspaceId)/data/$('documents__' + fileId)).data.payload.category
+            in ['Analyse de sol','Analyse','Plan / carte','Photo / constat','Réglementaire']));
       allow create, update: if canWriteAttachment(workspaceId, entityType)
         && entityType in ['photos','documents']
         && request.resource.size < 25 * 1024 * 1024

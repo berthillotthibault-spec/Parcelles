@@ -1,4 +1,4 @@
-const BUILD='2026.10.27-v10.21.1';
+const BUILD='2026.10.27-v10.22.0';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
@@ -22,7 +22,7 @@ const CORE=[
  './icon-192.png','./icon-512.png','./icon-maskable-512.png','./apple-touch-icon.png',
  './leaflet.min.css','./leaflet.min.js','./marker-icon.png','./marker-icon-2x.png','./marker-shadow.png','./layers.png','./layers-2x.png','./xlsx.full.min.js','./shp.min.js',
  './instrument-sans-latin.woff2','./instrument-sans-latin-ext.woff2','./instrument-serif-latin.woff2','./instrument-serif-latin-ext.woff2','./safe-html.js','./live-sync.js','./live-sync-ui.js','./activity.js','./activity-ui.js','./app-lock.js','./app-lock-ui.js','./trash.js','./trash-ui.js','./spotlight.js','./storage-care.js','./storage-care-ui.js','./skeletons.js','./privacy.js','./privacy-ui.js','./save-feedback.js','./save-feedback-ui.js'
- ,'./crop-margins.js','./crop-margins-ui.js','./grain-stock.js','./grain-stock-ui.js','./stock-lots.js','./stock-lots-ui.js','./herd-economics.js','./herd-economics-ui.js','./land.js','./land-ui.js','./claims.js','./claims-ui.js','./fuel.js','./fuel-ui.js' // v7b
+ ,'./crop-margins.js','./crop-margins-ui.js','./grain-stock.js','./grain-stock-ui.js','./stock-lots.js','./stock-lots-ui.js','./herd-economics.js','./herd-economics-ui.js','./herd.js','./herd-ui.js','./parcel-comments.js','./parcel-comments-ui.js','./land.js','./land-ui.js','./claims.js','./claims-ui.js','./fuel.js','./fuel-ui.js' // v7b
  ,'./machine-costs.js','./machine-costs-ui.js','./net-margin.js','./net-margin-ui.js','./treasury.js','./treasury-ui.js','./accounting-export.js','./accounting-export-ui.js','./campaign-history.js','./campaign-history-ui.js' // v8c
  ,'./forage.js','./forage-ui.js','./seeds.js','./seeds-ui.js','./soil-analysis.js','./soil-analysis-ui.js','./hedges.js','./hedges-ui.js' // v8b
  ,'./telepac.js','./telepac-ui.js','./parcel-check.js','./parcel-check-ui.js','./regulatory.js','./regulatory-ui.js','./regulated-ops.js','./regulated-ops-ui.js','./green-indicators.js','./green-indicators-ui.js' // v8a, v11 n° 71

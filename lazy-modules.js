@@ -7,6 +7,7 @@ export const LAZY_MODULES = Object.freeze({
   costs: () => import('./costs-ui.js'),
   sales: () => import('./sales-ui.js'),
   herdEconomics: () => import('./herd-economics-ui.js'),
+  herd: () => import('./herd-ui.js'), // n° 79 : troupeau bovin
   netMargin: () => import('./net-margin-ui.js'),
   treasury: () => import('./treasury-ui.js'), // n° 86
   cropMargins: () => import('./crop-margins-ui.js'),
@@ -35,6 +36,7 @@ export const LAZY_MODULES = Object.freeze({
   greenIndicators: () => import('./green-indicators-ui.js'), // n° 71 : chiffres verts et auto-diagnostic HVE
   rpgOnboarding: () => import('./rpg-onboarding-ui.js'),
   seeds: () => import('./seeds-ui.js'),
+  parcelComments: () => import('./parcel-comments-ui.js'), // n° 129 : commentaires et préconisations de parcelle
   // Compte, équipe et données
   settings: () => import('./settings-ui.js'),
   automations: () => import('./automations-ui.js'),
@@ -87,6 +89,7 @@ export const LAZY_MODULES = Object.freeze({
 const actions = (keys, ...names) => names.map(name => [name, [].concat(keys)]);
 export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('herdEconomics', 'open-herd-economics'),
+  ...actions('herd', 'open-herd', 'open-herd-animal'),
   ...actions('netMargin', 'open-net-margin'),
   ...actions('treasury', 'open-treasury'),
   ...actions('cropMargins', 'open-crop-margins'),
@@ -134,8 +137,8 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
 
 // Boutons traités par l'écouteur propre d'un module différé mais affichés par un module chargé au
 // démarrage (carte de campagne de l’accueil, légende de la carte n° 90, boutons Partager n° 19, Imprimer un plan n° 54,
-// boutons Messages v13 : « Envoyer le planning », « Envoyer la consigne ») : même traitement que les actions ci-dessus.
-export const LAZY_TRIGGERS = Object.freeze({'[data-cost]': 'costs', '[data-my]': 'measuredYield', '[data-share]': 'share', '[data-explain]': 'explain', '[data-plan]': 'farmPlan', '[data-msg]': 'messaging', '[data-bdoc]': 'billingDocs'});
+// boutons Messages v13 : « Envoyer le planning », « Envoyer la consigne », commentaires de parcelle n° 129) : même traitement que les actions ci-dessus.
+export const LAZY_TRIGGERS = Object.freeze({'[data-cost]': 'costs', '[data-my]': 'measuredYield', '[data-share]': 'share', '[data-explain]': 'explain', '[data-plan]': 'farmPlan', '[data-msg]': 'messaging', '[data-bdoc]': 'billingDocs', '[data-pc]': 'parcelComments'});
 
 const keyList = keys => [].concat(keys ?? []).filter(Boolean);
 // Chemin littéral d'un module différé, lu dans sa fonction d'import (nouvelle tentative après un échec).

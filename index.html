@@ -10,7 +10,7 @@
        les plugins et le détournement de <base> ; Firebase, tuiles, météo, Worker et assistant restent libres.
        Les violations sont notées dans Plus › Mes données › Diagnostic. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'">
-  <meta name="parcelles-build" content="2026.10.27-v10.21.1">
+  <meta name="parcelles-build" content="2026.10.27-v10.22.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -22,10 +22,10 @@
   <link rel="stylesheet" href="./tokens.css?v=1">
   <link rel="stylesheet" href="./leaflet.min.css?v=1">
   <link rel="stylesheet" href="./base.css?v=1">
-  <link rel="stylesheet" href="./components.css?v=1">
+  <link rel="stylesheet" href="./components.css?v=2">
   <link rel="stylesheet" href="./map.css?v=1">
   <link rel="stylesheet" href="./shell.css?v=1">
-  <link rel="stylesheet" href="./screens.css?v=1">
+  <link rel="stylesheet" href="./screens.css?v=2">
   <link rel="stylesheet" href="./responsive.css?v=1">
   <link rel="stylesheet" href="./accessibility.css?v=1">
   <link rel="stylesheet" href="./assistant-launcher.css?v=1">
@@ -136,6 +136,7 @@
             <article class="panel" data-home-card="today"><div class="panel-heading"><h2>À faire maintenant</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="day-route-entry"></div><div id="today-work-list" class="stack-list"></div></article>
             <article class="panel" data-home-card="tasks"><div class="panel-heading"><h2>Autres tâches</h2><button class="text-button" data-action="open-tasks">Tout voir</button></div><div id="today-task-list" class="stack-list"></div></article>
             <article class="panel" data-home-card="alerts"><div class="panel-heading"><h2>À surveiller</h2><button class="text-button" data-action="open-notifications">Voir</button></div><div id="alerts-list" class="stack-list"></div></article>
+            <article class="panel hidden" data-home-card="calvings"><div class="panel-heading"><h2>Vêlages à venir</h2><button class="text-button" data-action="open-herd">Troupeau</button></div><div id="home-calvings" class="stack-list"></div></article>
             <article class="panel" data-home-card="recent"><div class="panel-heading"><h2>Activité récente</h2><button class="text-button" data-view="work">Historique</button></div><div id="recent-list" class="stack-list"></div></article>
           </div>
           <section id="day-review" class="day-review" aria-label="Bilan de journée"></section>

@@ -139,7 +139,14 @@ test('firestore.rules couvre chaque collection de emptyState() avec les mêmes r
   // integrationImports est traité à part (factures : comptabilité ; le reste : opérateur).
   assert.match(fn,/role == 'operator'[\s\S]*entityType == 'integrationImports' && !financeKind\(d\)/);
   assert.match(fn,/role == 'accountant'[\s\S]*entityType == 'integrationImports' && financeKind\(d\)/);
-  assert.deepEqual(new Set([...operator,'integrationImports']),new Set(roleScope('operator').entities),'opérateur : rules = permissions.js');
-  assert.deepEqual(accountant,new Set(roleScope('accountant').entities),'comptabilité : rules = permissions.js');
+  // Troupeau (n° 79) : vêlages, pesées et veaux nés sur l'exploitation seulement (herdOperatorDoc).
+  assert.match(fn,/role == 'operator'[\s\S]*herdOperatorDoc\(entityType, d\)/);
+  // n° 129 : commentaires de parcelle, hors gestion chacun écrit les siens (parcelCommentWritable).
+  assert.match(fn,/\|\| parcelCommentWritable\(role, entityType, d\)/);
+  const commenters=/function parcelCommentWritable[\s\S]*?role in \[([^\]]+)\]/.exec(rules);assert.ok(commenters);
+  assert.deepEqual(new Set([...commenters[1].matchAll(/'([^']+)'/g)].map(x=>x[1])),new Set(['operator','accountant','advisor']));
+  for(const r of ['operator','accountant','advisor'])assert.ok(roleScope(r).entities.includes('parcelComments'),r);
+  assert.deepEqual(new Set([...operator,'integrationImports','animals','animalEvents','parcelComments']),new Set(roleScope('operator').entities),'opérateur : rules = permissions.js');
+  assert.deepEqual(new Set([...accountant,'parcelComments']),new Set(roleScope('accountant').entities),'comptabilité : rules = permissions.js');
   for(const type of collections)assert.ok(roleScope('owner').all||operator.has(type),`${type} accessible au propriétaire`);
 });

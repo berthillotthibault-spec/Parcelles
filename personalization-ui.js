@@ -1,9 +1,9 @@
-import {HOME_CARDS,HOME_SHORTCUTS,HOME_PRESETS,normalizePersonalization,moveHomeCard} from './personalization.js';
+import {HOME_CARDS,HOME_SHORTCUTS,HOME_PRESETS,normalizePersonalization,homeLayout,moveHomeCard} from './personalization.js';
 import {activityChipsHtml,bindActivityChips} from './activity-modules-ui.js';
 import {GLOVES_MODES,GLOVES_MODE_LABELS} from './personalization.js';
 
 export function openPersonalization({preferences,modal,closeModal,save,toast}){
-  let draft=normalizePersonalization(preferences);
+  let draft=homeLayout(preferences);
   modal('Personnaliser mon espace','Un accueil adapté à votre façon de travailler.',`
     <form id="personalization-form" class="personalization-form">
       <fieldset id="personalization-activities"><legend>Mes activités</legend><p class="form-note">Plus, les raccourcis et la recherche n’affichent que les outils utiles à vos activités. Tout cocher affiche tous les outils.</p>${activityChipsHtml(draft.activeModules)}</fieldset>

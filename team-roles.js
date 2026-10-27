@@ -2,25 +2,26 @@
 // Logique pure, sans DOM ni Firebase. Les mêmes règles sont appliquées côté serveur par firestore.rules
 // (la vraie frontière de sécurité) : ce module ne sert qu’à afficher les bons boutons et à refuser tôt.
 //
-// Hiérarchie : propriétaire > responsable > collaborateur > opérateur terrain / comptabilité > lecteur.
+// Hiérarchie : propriétaire > responsable > collaborateur > opérateur terrain / comptabilité / conseiller > lecteur.
 // - le propriétaire gère tout le monde (sauf lui-même) et peut transférer la propriété ;
 // - le responsable gère les grades inférieurs au sien et n’attribue que ces grades ;
 // - les autres grades ne gèrent personne ;
 // - chacun peut quitter l’exploitation, sauf le propriétaire tant qu’il n’a pas transféré la propriété.
-import {OPERATOR_MATERIEL_FIELDS, ROLES, assignableRoles, canMutate, normalizeRole, roleCan, roleLabel} from './permissions.js';
+import {OPERATOR_MATERIEL_FIELDS, ROLES, assignableRoles, canMutate, canSeeBilling, normalizeRole, roleCan, roleLabel} from './permissions.js';
 
-export const ROLE_ORDER = ['owner', 'manager', 'editor', 'operator', 'accountant', 'viewer'];
+export const ROLE_ORDER = ['owner', 'manager', 'editor', 'operator', 'accountant', 'advisor', 'viewer'];
 
-// Niveau hiérarchique : opérateur terrain et comptabilité sont au même niveau (périmètres différents).
-const TIER = {owner: 5, manager: 4, editor: 3, operator: 2, accountant: 2, viewer: 1};
+// Niveau hiérarchique : opérateur terrain, comptabilité et conseiller sont au même niveau (périmètres différents).
+const TIER = {owner: 5, manager: 4, editor: 3, operator: 2, accountant: 2, advisor: 2, viewer: 1};
 export function roleTier(role) { return TIER[normalizeRole(role)]; }
 
 export const ROLE_SUMMARY = {
   owner: 'Gère toute l’équipe, les invitations et l’exploitation cloud. Seul à pouvoir purger ou transférer la propriété.',
-  manager: 'Saisit tout, invite et gère les collaborateurs, opérateurs, comptables et lecteurs.',
+  manager: 'Saisit tout, invite et gère les collaborateurs, opérateurs, comptables, conseillers et lecteurs.',
   editor: 'Saisit et modifie toutes les données de l’exploitation. Ne gère pas l’équipe.',
   operator: 'Saisit le travail de terrain : travaux, tâches, observations, photos, chantiers.',
   accountant: 'Gère clients, documents, stocks, produits et entretiens.',
+  advisor: 'Consulte parcelles, travaux et tâches (avec les intervenants, les heures pointées et les doses), observations, rotations et analyses, et laisse ses préconisations. Aucun accès à la facturation, aux contacts, au troupeau ni au stock.',
   viewer: 'Consulte et exporte, sans rien modifier.'
 };
 
@@ -31,7 +32,8 @@ export const ROLE_EXAMPLES = {
   editor: 'Un associé ou un conjoint collaborateur qui tient le cahier de cultures.',
   operator: 'Un salarié, un stagiaire ou le chauffeur de l’ETA qui saisit ses chantiers.',
   accountant: 'La secrétaire, le centre de gestion ou le comptable.',
-  viewer: 'Le conseiller technique, un propriétaire bailleur ou un associé non exploitant.'
+  advisor: 'Le conseiller de la chambre d’agriculture, le technicien de la coopérative ou du négoce.',
+  viewer: 'Un propriétaire bailleur ou un associé non exploitant.'
 };
 
 // Texte du partage d'une invitation (n° 122) : message prêt à envoyer avec le lien.
@@ -43,7 +45,7 @@ export function inviteShareText({role, email = '', expiresAt = null} = {}, farmN
 
 // Grades que `actor` peut attribuer (invitation ou changement de grade). Jamais « propriétaire » :
 // la propriété ne se donne que par transfert.
-const MANAGER_ASSIGNABLE = ['editor', 'operator', 'accountant', 'viewer'];
+const MANAGER_ASSIGNABLE = ['editor', 'operator', 'accountant', 'advisor', 'viewer'];
 export function assignableRolesFor(actorRole) {
   const actor = normalizeRole(actorRole);
   if (actor === 'owner') return assignableRoles();
@@ -85,7 +87,8 @@ export function manageBlockReason(actorRole, targetRole, {self = false} = {}) {
 export function teamPowerSentence(role) {
   const r = normalizeRole(role);
   if (r === 'owner') return 'Vous gérez tous les membres, les invitations et pouvez transférer la propriété.';
-  if (r === 'manager') return 'Vous gérez les collaborateurs, opérateurs terrain, comptables et lecteurs.';
+  if (r === 'manager') return 'Vous gérez les collaborateurs, opérateurs terrain, comptables, conseillers et lecteurs.';
+  if (r === 'advisor') return 'Conseiller / technicien : vous consultez l’agronomie et laissez vos préconisations sur les parcelles. Vous ne gérez pas l’équipe.';
   return 'Votre grade ne permet pas de gérer l’équipe. Adressez-vous au propriétaire ou à un responsable.';
 }
 
@@ -142,7 +145,8 @@ const DOMAINS = [
   ['Clients', {entity: 'clients'}],
   ['Factures et ventes', {entity: 'integrationImports', farmKind: 'invoice'}],
   ['Capteurs et imports machine', {entity: 'integrationImports', farmKind: 'sensor'}],
-  ['Documents', {entity: 'documents'}]
+  ['Documents', {entity: 'documents'}],
+  ['Commentaires et préconisations', {entity: 'parcelComments'}]
 ];
 export function permissionMatrix() {
   const cell = (ok, note = '') => ({value: ok ? 'yes' : 'no', note});
@@ -154,12 +158,16 @@ export function permissionMatrix() {
   const machines = rows.find(row => row.label === 'Matériel');
   for (const r of ROLE_ORDER) if (machines.cells[r].value === 'no' && canMutate(r, {entity: 'materiels', action: 'update', fields: OPERATOR_MATERIEL_FIELDS}))
     machines.cells[r] = {value: 'partial', note: 'compteur seulement'};
+  // n° 129 : hors gestion, chacun n'écrit que ses propres commentaires.
+  const comments = rows.find(row => row.label === 'Commentaires et préconisations');
+  for (const r of ROLE_ORDER) if (comments.cells[r].value === 'yes' && !['owner', 'manager', 'editor'].includes(r)) comments.cells[r] = {value: 'partial', note: 'les siens'};
   rows.push({label: 'Mettre à la corbeille', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'delete'))]))});
   rows.push({label: 'Supprimer définitivement', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'purge'))]))});
   rows.push({label: 'Restaurer une sauvegarde', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'restore'))]))});
   rows.push({label: 'Importer des fichiers', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'import'))]))});
   rows.push({label: 'Exporter, imprimer', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'export'))]))});
-  rows.push({label: 'Consulter', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(roleCan(r, 'read'))]))});
+  rows.push({label: 'Consulter', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, r === 'advisor' ? {value: 'partial', note: 'agronomie seulement'} : cell(roleCan(r, 'read'))]))});
+  rows.push({label: 'Voir l’économie et la facturation', cells: Object.fromEntries(ROLE_ORDER.map(r => [r, cell(canSeeBilling(r))]))});
   rows.push({label: 'Inviter et gérer les membres', cells: Object.fromEntries(ROLE_ORDER.map(r => {
     const n = assignableRolesFor(r).length;
     return [r, n === assignableRoles().length ? {value: 'yes', note: 'tout le monde'} : n ? {value: 'partial', note: 'grades inférieurs'} : {value: 'no', note: ''}];

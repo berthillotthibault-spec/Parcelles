@@ -1,8 +1,8 @@
 import {localDate} from './utils.js';
-import {agendaDate,isPending,localDay,grazingWatch,maintenanceRemaining,isLowStock} from './home-priorities.js';
+import {agendaDate,isPending,localDay,grazingWatch,maintenanceRemaining,isLowStock,newParcelComments} from './home-priorities.js';
 import {deadlineNotifications} from './regulated-ops.js'; // v8a n° 72
 
-export function computeNotifications(state){
+export function computeNotifications(state,{uid=''}={}){
   const today=localDay(); const rows=[];
   const active=t=>(state[t]||[]).filter(x=>!x.deletedAt);
   for(const task of active('tasks')){
@@ -10,6 +10,8 @@ export function computeNotifications(state){
     if(!isPending(task,'task')||!date)continue;
     if(date<today)rows.push({id:`task-overdue-${task.id}`,level:'urgent',title:'Tâche en retard',message:task.title,entity:'tasks',entityId:task.id,date});
     else if(date===today)rows.push({id:`task-today-${task.id}`,level:'warning',title:'Tâche prévue aujourd’hui',message:task.title,entity:'tasks',entityId:task.id,date});
+    // n° 79 : rappel avant l’échéance (remindOn, par exemple notification BDNI à J+5 pour une échéance à J+7).
+    else if(task.remindOn&&String(task.remindOn).slice(0,10)<=today)rows.push({id:`task-remind-${task.id}`,level:'warning',title:'Rappel',message:task.title,entity:'tasks',entityId:task.id,date});
   }
   for(const work of active('interventions')){
     const date=agendaDate(work);
@@ -32,6 +34,9 @@ export function computeNotifications(state){
   for(const obs of active('observations')){
     if(obs.severity==='urgent'&&obs.status!=='Résolu')rows.push({id:`observation-${obs.id}`,level:'urgent',title:'Observation terrain urgente',message:obs.title||obs.type||'Observation',entity:'observations',entityId:obs.id,date:obs.date});
   }
+  // n° 129 : « 2 nouvelles préconisations » écrites par d'autres membres (conseiller, collègues) depuis la dernière lecture.
+  const fresh=newParcelComments(state,{uid});
+  if(fresh.count){const precos=fresh.precos===fresh.count,n=fresh.count;rows.push({id:'parcel-comments-new',level:'info',title:'Parcelles',message:`${n} ${precos?`nouvelle${n>1?'s':''} préconisation${n>1?'s':''}`:`nouveau${n>1?'x':''} commentaire${n>1?'s':''}`}`,entity:'parcelComments',entityId:fresh.comments[0].id});}
   rows.push(...deadlineNotifications(state,{today})); // v8a n° 72 : Certiphyto, contrôle, assurance, conseil stratégique
   const grazingThresholds=active('automationRules').filter(r=>r.enabled&&r.kind==='grazing_duration'&&Number(r.threshold)>0).map(r=>Number(r.threshold));
   if(grazingThresholds.length)for(const row of grazingWatch(state,today,Math.min(...grazingThresholds)))rows.push({id:`grazing-${row.id}`,level:'warning',title:'Pâturage à surveiller',message:row.label,entity:'grazingSessions',entityId:row.id});

@@ -107,10 +107,12 @@ export function createLiveSyncController({sync, doc = globalThis.document, win =
     }).catch(error => onError(error));
   }
   function open() {
-    const query = sync.liveQuery?.();
-    if (!query?.onSnapshot) return;
+    // n° 129 : plusieurs requêtes pour un rôle à lecture bornée (conseiller), une seule sinon.
+    const queries = [].concat(sync.liveQuery?.() || []).filter(q => q?.onSnapshot);
+    if (!queries.length) return;
     openedFor = `${sync.user?.uid || ''}:${sync.workspaceId || ''}`;
-    unsubscribe = query.onSnapshot(handle, error => { close(); onError(error); });
+    const stops = queries.map(q => q.onSnapshot(handle, error => { close(); onError(error); }));
+    unsubscribe = () => { for (const stop of stops) stop(); };
   }
   function refresh() {
     if (stopped) return false;

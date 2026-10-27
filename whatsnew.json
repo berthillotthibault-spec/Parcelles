@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.22.0",
+      "date": "2026-10-27",
+      "title": "Troupeau et conseiller",
+      "items": [
+        "Troupeau : une fiche par bovin, inséminations, vêlages prévus et pesées.",
+        "Au vêlage, le veau est prérempli et un rappel de notification BDNI sous 7 jours est créé.",
+        "Nouveau rôle Conseiller / technicien : accès à l’agronomie, sans l’économie ni la facturation.",
+        "Commentaires et préconisations sur chaque parcelle, transformables en tâche."
+      ]
+    },
+    {
       "version": "10.21.1",
       "date": "2026-10-27",
       "title": "Corrections",

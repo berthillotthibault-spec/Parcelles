@@ -1,5 +1,23 @@
 # Changelog
 
+## 10.22.0 · troupeau bovin et accès conseiller — 2026-10-27
+
+Données : schéma en version 18 (nouvelles collections `animals`, `animalEvents` et `parcelComments`, créées vides ; les anciennes sauvegardes restent lisibles). Règles Firestore et Storage à redéployer, avec le nouveau fichier `firestore.indexes.json`.
+
+Troupeau (n° 79) :
+- Plus › Production › Troupeau : fiche par animal (numéro national FR + 10 chiffres contrôlé, nom, sexe, race, naissance, mère, entrée et sortie, lot actuel), liste filtrable ;
+- insémination ou saillie avec vêlage prévu à J+283 dans le calendrier, vêlage qui crée le veau prérempli, pesées ; les traitements du carnet sanitaire s’affichent sur la fiche ;
+- au vêlage, tâche « Notifier la naissance à l’EDE/BDNI avant le JJ/MM » (7 jours, rappel à J+5) et case « notifié » ; l’application ne notifie pas la BDNI elle-même ;
+- carte « Vêlages à venir » sur l’accueil, import CSV de l’inventaire avec aperçu et annulation, reprise des numéros déjà saisis dans les lots, choix des animaux du troupeau dans un lot de pâturage ;
+- l’opérateur terrain peut enregistrer un vêlage et une pesée.
+
+Conseiller / technicien (n° 129) :
+- nouveau rôle « Conseiller / technicien » : il lit l’agronomie (parcelles, travaux, tâches, rotations, observations, photos, analyses) mais ni l’économie, ni la facturation, ni les contacts et messages ; la restriction est appliquée par les règles Firestore et Storage ;
+- fil « Commentaires et préconisations » sur la fiche parcelle ; la gestion peut « Transformer en tâche » en un geste ; « 2 nouvelles préconisations » à l’ouverture ;
+- la recherche ne propose plus « Facturation » au lecteur, à l’opérateur ni au conseiller.
+
+Limites : le conseiller voit encore les heures pointées et les responsables des travaux et tâches ; un veau n’est pas ajouté à la liste du lot de sa mère ; un vêlage gémellaire s’enregistre en deux fois.
+
 ## 10.21.1 · corrections de superpositions et de bugs — 2026-10-27
 
 Données : pas de changement de schéma (version 17).

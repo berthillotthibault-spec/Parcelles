@@ -7,7 +7,7 @@ import {active} from './farm-memory.js';
 
 const e=escapeHtml;
 // Actions globales existantes (gestionnaire délégué d’app.js).
-const GLOBAL_ACTIONS={phytoRegister:'open-phyto-register',register:'open-traceability',documents:'open-documents',rotations:'open-rotations',nitrogen:'open-nitrogen',pac:'open-pac',covers:'open-covers',herdHealth:'open-herd-health',regulated:'open-regulated-ops'};
+const GLOBAL_ACTIONS={phytoRegister:'open-phyto-register',register:'open-traceability',documents:'open-documents',rotations:'open-rotations',nitrogen:'open-nitrogen',pac:'open-pac',covers:'open-covers',herdHealth:'open-herd-health',herd:'open-herd',regulated:'open-regulated-ops'};
 const ITEMS_SHOWN=5;
 
 export function createComplianceUI({store,modal,closeModal,toast,bindChipChoices,openPrintableReport}){

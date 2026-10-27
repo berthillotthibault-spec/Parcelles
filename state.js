@@ -13,11 +13,11 @@ export function emptyState(){
       createdAt:timestamp,updatedAt:timestamp
     },
     campagnes:[],
-    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],fieldSessions:[],chantiers:[],members:[],assistantMessages:[],devices:[],automationRules:[],automationRuns:[],gpsTracks:[],integrationImports:[],weatherStations:[],platformJobs:[],platformEvents:[],vetTreatments:[],
+    parcelles:[],interventions:[],tasks:[],rotations:[],grazingSessions:[],materiels:[],products:[],clients:[],documents:[],photos:[],points:[],templates:[],importSessions:[],syncConflicts:[],notifications:[],observations:[],stockItems:[],stockMovements:[],maintenanceRecords:[],routeSessions:[],fieldSessions:[],chantiers:[],members:[],assistantMessages:[],devices:[],automationRules:[],automationRuns:[],gpsTracks:[],integrationImports:[],weatherStations:[],platformJobs:[],platformEvents:[],vetTreatments:[],animals:[],animalEvents:[],parcelComments:[],
     preferences:{
       ...PERSONALIZATION_DEFAULTS,mapLayer:'osm',mapColorMode:'culture',theme:'system',gpsConsent:false,
       autoBackup:true,syncEnabled:false,workspaceId:'',cloudRole:null,syncAttachments:true,syncWifiOnly:false,syncAttachmentsWifiOnly:false,syncRetryMax:5,syncRetryBaseSeconds:15,syncAutoMerge:true,weatherDays:7,
-      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent','campaign'],notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,assistantLocalFirst:true,assistantVoiceReplies:false,assistantTerrainContext:true,integrationAutoMatch:true,stationWeatherEnabled:false,platformBackendEnabled:false,platformApiEndpoint:'',platformAutoJobs:false,platformIsolation:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeNotificationActions:true,nativeHaptics:true,nativeCameraEnabled:true,nativeStatusBar:true,biometricLock:false,biometricLockMinutes:5,automationEventTriggers:true,automationMaxActionsPerRun:25,securityAuditEnabled:true,encryptedExportIterations:600000
+      routeProvider:'apple',highContrast:false,onboardingComplete:false,defaultOperator:'',fuelPrice:1.7,weatherWindThreshold:35,weatherRainThreshold:5,homeCards:['weather','today','tasks','alerts','recent','campaign','calvings'],parcelCommentsSeen:{},notificationsEnabled:false,compactMode:false,remoteAiEnabled:false,remoteAiEndpoint:'',voiceEnabled:true,assistantHistory:true,assistantLocalFirst:true,assistantVoiceReplies:false,assistantTerrainContext:true,integrationAutoMatch:true,stationWeatherEnabled:false,platformBackendEnabled:false,platformApiEndpoint:'',platformAutoJobs:false,platformIsolation:true,fieldAutoDetect:true,fieldKeepAwake:false,automationEnabled:true,autoSync:true,autoSyncMinutes:5,nativeNotifications:true,nativeNotificationActions:true,nativeHaptics:true,nativeCameraEnabled:true,nativeStatusBar:true,biometricLock:false,biometricLockMinutes:5,automationEventTriggers:true,automationMaxActionsPerRun:25,securityAuditEnabled:true,encryptedExportIterations:600000
     },
     metadata:{
       createdAt:timestamp,updatedAt:timestamp,lastImportAt:null,lastSyncAt:null,lastWeatherAt:null,
@@ -274,6 +274,18 @@ export function migrateData(input){
     if(!Array.isArray(data.vetTreatments))data.vetTreatments=[];
     data.version=17;
   }
+  if(data.version<18){
+    // v18 : troupeau bovin (n° 79), collections animals (identification) et animalEvents (saillies,
+    // vêlages, pesées). Rien n'est créé à partir des lots de pâturage : la reprise des numéros déjà
+    // saisis dans les lots est proposée dans l'écran Troupeau (action explicite).
+    if(!Array.isArray(data.animals))data.animals=[];
+    if(!Array.isArray(data.animalEvents))data.animalEvents=[];
+    // v18 : accès conseiller / technicien (n° 129), fil de commentaires par parcelle (parcelComments) et
+    // commentaires déjà lus (preferences.parcelCommentsSeen : identifiant → heure, propre à l'appareil).
+    if(!Array.isArray(data.parcelComments))data.parcelComments=[];
+    if(data.preferences&&(typeof data.preferences.parcelCommentsSeen!=='object'||Array.isArray(data.preferences.parcelCommentsSeen)||!data.preferences.parcelCommentsSeen))data.preferences.parcelCommentsSeen={};
+    data.version=18;
+  }
 
   data={...base,...data,
     version:APP_VERSION,
@@ -298,6 +310,11 @@ function validate(type,entity){
     if(!String(entity.culture||'').trim())errors.push('Culture obligatoire');
     return errors;
   }
+  // n° 79 : garde-fou du numéro national (le contrôle complet est dans herd.js, normalizeAnimal).
+  if(type==='animals'&&entity.nationalId&&!/^FR\d{10}$/.test(String(entity.nationalId)))return ['Numéro national invalide (FR suivi de 10 chiffres)'];
+  if(type==='animalEvents'&&!entity.animalId)return ['Animal obligatoire'];
+  // n° 129 : commentaire de parcelle (contrôle complet dans parcel-comments.js, buildComment).
+  if(type==='parcelComments'){const errors=[];if(!entity.parcelId)errors.push('Parcelle obligatoire');if(!String(entity.text||'').trim())errors.push('Texte obligatoire');if(String(entity.text||'').length>2000)errors.push('Texte trop long (2 000 caractères au plus)');return errors;}
   return [];
 }
 

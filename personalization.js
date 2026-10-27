@@ -28,8 +28,12 @@ export const HOME_CARDS = [
   {id:'tasks', label:'Tâches', detail:'Vos échéances et rappels'},
   {id:'alerts', label:'À surveiller', detail:'Les alertes utiles à votre journée'},
   {id:'recent', label:'Activité récente', detail:'Les derniers travaux enregistrés'},
-  {id:'campaign', label:'Ma campagne', detail:'Marge estimée, ventes et montants à facturer (masqués au rôle lecture seule)'}
+  {id:'campaign', label:'Ma campagne', detail:'Marge estimée, ventes et montants à facturer (masqués au rôle lecture seule)'},
+  {id:'calvings', label:'Vêlages à venir', detail:'Vêlages prévus et naissances à notifier (affiché s’il y a un troupeau)'}
 ];
+// n° 79 : cartes ajoutées après coup, affichées une première fois tant que l’ordre enregistré ne les connaît pas
+// (comme « Ma campagne » dans normalizePersonalization). Après un enregistrement de Personnaliser, la case décide.
+export const LATER_HOME_CARDS=['calvings'];
 export const HOME_SHORTCUTS = [
   {id:'new-work',label:'Travail',icon:'plus'},
   {id:'open-field-mode',label:'Terrain',icon:'locate'},
@@ -85,6 +89,12 @@ export function normalizePersonalization(preferences={}){
     startupDuration:normalizeStartupDuration(preferences),
     startupDurationVersion:3
   };
+}
+/** Disposition de l’accueil : normalizePersonalization, plus les cartes récentes encore inconnues de l’ordre enregistré. */
+export function homeLayout(preferences={}){
+  const layout=normalizePersonalization(preferences),saved=Array.isArray(preferences.homeCardOrder)?preferences.homeCardOrder:null;
+  if(saved)for(const id of LATER_HOME_CARDS)if(!saved.includes(id)&&!layout.homeCards.includes(id))layout.homeCards.push(id);
+  return layout;
 }
 export function moveHomeCard(order,id,direction){
   const next=[...order],index=next.indexOf(id),target=index+direction;

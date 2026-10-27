@@ -2,7 +2,7 @@ import {validateForm} from './form-chips-ui.js';
 import {escapeHtml,localDate} from './utils.js';
 import {emptyState} from './ui.js';
 const formatNumber=(value,digits=2)=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:digits}).format(Number(value)||0);
-import {fieldGrazingSummary,countGap,grazingCheckObservation,grazingDate,grazingAnimalList,grazingAnimalText,grazingTotal,grazingType,grazingStatus,filterGrazingSessions,summarizeParcelGrazing,parseGrazingAnimals,ugbTable,ugbOf,stockingRate,restLabel,farmGrazingBalance} from './grazing.js';
+import {fieldGrazingSummary,countGap,grazingCheckObservation,grazingDate,grazingAnimalList,grazingAnimalText,grazingTotal,grazingType,grazingStatus,filterGrazingSessions,summarizeParcelGrazing,parseGrazingAnimals,nationalIdKey,linkGrazingAnimals,ugbTable,ugbOf,stockingRate,restLabel,farmGrazingBalance} from './grazing.js';
 import {grazingTimeline} from './charts.js';
 import {saveGrazingSession,endGrazingSession,grazingReentryAlert,moveGrazingLot,updateGrazingCount} from './grazing-records.js';
 
@@ -74,15 +74,31 @@ export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=n
       catch(error){button.disabled=false;toast(error.message,'error');}
     });
   }
+  // n° 79 : choisir des animaux du troupeau dans un lot (une ligne par numéro national), relier les lignes aux fiches.
+  const herdAnimals=()=>active('animals').filter(a=>a.nationalId&&!(a.exitDate&&String(a.exitDate).slice(0,10)<=today())).sort((a,b)=>String(a.name||a.nationalId).localeCompare(String(b.name||b.nationalId),'fr'));
+  function herdPicker(text){
+    const list=herdAnimals();if(!list.length)return '';
+    const keys=new Set(String(text||'').split(/\r?\n/).map(line=>nationalIdKey(line.split('|')[0])));
+    return `<details class="span-2 form-section"><summary>Choisir dans le troupeau (${list.length})</summary><div class="stack-list">${list.map(a=>`<label class="list-row"><span><strong>${escapeHtml(a.name||a.nationalId)}</strong><br><small>${escapeHtml(a.nationalId)}${a.sex==='F'?' · femelle':a.sex==='M'?' · mâle':''}</small></span><input type="checkbox" data-herd-pick="${escapeHtml(a.nationalId)}" ${keys.has(nationalIdKey(a.nationalId))?'checked':''}></label>`).join('')}</div></details>`;
+  }
+  function bindHerdPicker(form){
+    form.querySelectorAll('[data-herd-pick]').forEach(box=>box.addEventListener('change',()=>{
+      const area=form.querySelector('[name="animals"]'),key=nationalIdKey(box.dataset.herdPick);
+      const lines=area.value.split(/\r?\n/).filter(line=>line.trim()&&nationalIdKey(line.split('|')[0])!==key);
+      if(box.checked)lines.push(box.dataset.herdPick);
+      area.value=lines.join('\n');area.dispatchEvent(new Event('input',{bubbles:true}));
+    }));
+  }
   function openForm(session=null,{parcelId=''}={}){
     session=session?structuredClone(session):null;
     const parcels=active('parcelles');if(!parcels.length)return toast('Ajoutez d’abord une parcelle.','error');
     const row=session||{parcelId:parcelId||parcels[0].id,startDate:today(),animals:[],additionalAnimalsCount:0,animalType:'Bovins',note:''};
     const text=grazingAnimalText(row),unknown=Math.max(0,grazingTotal(row)-grazingAnimalList(row).length);
-    modal(session?'Modifier le pâturage':'Mettre au pré','Une ligne par numéro ou nom. Ajoutez « | gestante » si nécessaire.',`<form id="grazing-form" class="form-grid"><label>Parcelle<select name="parcelId" required>${parcels.map(p=>`<option value="${escapeHtml(p.id)}" ${row.parcelId===p.id?'selected':''}>${escapeHtml(p.nom)}</option>`).join('')}</select></label><label>Type d’animaux<input name="animalType" list="grazing-animal-types" value="${escapeHtml(grazingType(row))}" placeholder="Bovins, ovins, chevaux…"><datalist id="grazing-animal-types"><option>Bovins</option><option>Ovins</option><option>Caprins</option><option>Chevaux</option></datalist></label><label>Catégorie (chargement UGB)<select name="animalCategory"><option value="">Non précisée (1 UGB par animal)</option>${ugbTable(state()).categories.map(c=>`<option value="${escapeHtml(c.key)}" ${row.animalCategory===c.key?'selected':''}>${escapeHtml(c.label)} · ${formatNumber(c.ugb,2)} UGB</option>`).join('')}</select></label><label>Date d’entrée<input name="startDate" required type="date" value="${escapeHtml(row.startDate||today())}"></label><label>Date de sortie (facultative)<input name="endDate" type="date" value="${escapeHtml(row.endDate||'')}"></label><label class="span-2">Numéros ou noms des animaux<textarea name="animals" rows="6" placeholder="FR1234567890&#10;FR1234567891 | gestante">${escapeHtml(text)}</textarea></label><label>Animaux sans numéro<input name="additionalAnimalsCount" type="number" required min="0" step="1" value="${unknown}"></label><label>Lot / commentaire<input name="note" value="${escapeHtml(row.note||'')}"></label></form>`,`<button class="button secondary" id="grazing-back">Retour</button>${session?'<button class="button danger" id="delete-grazing">Supprimer</button>':''}<button class="button primary" id="save-grazing">Enregistrer</button>`,'large');
+    modal(session?'Modifier le pâturage':'Mettre au pré','Une ligne par numéro ou nom. Ajoutez « | gestante » si nécessaire.',`<form id="grazing-form" class="form-grid"><label>Parcelle<select name="parcelId" required>${parcels.map(p=>`<option value="${escapeHtml(p.id)}" ${row.parcelId===p.id?'selected':''}>${escapeHtml(p.nom)}</option>`).join('')}</select></label><label>Type d’animaux<input name="animalType" list="grazing-animal-types" value="${escapeHtml(grazingType(row))}" placeholder="Bovins, ovins, chevaux…"><datalist id="grazing-animal-types"><option>Bovins</option><option>Ovins</option><option>Caprins</option><option>Chevaux</option></datalist></label><label>Catégorie (chargement UGB)<select name="animalCategory"><option value="">Non précisée (1 UGB par animal)</option>${ugbTable(state()).categories.map(c=>`<option value="${escapeHtml(c.key)}" ${row.animalCategory===c.key?'selected':''}>${escapeHtml(c.label)} · ${formatNumber(c.ugb,2)} UGB</option>`).join('')}</select></label><label>Date d’entrée<input name="startDate" required type="date" value="${escapeHtml(row.startDate||today())}"></label><label>Date de sortie (facultative)<input name="endDate" type="date" value="${escapeHtml(row.endDate||'')}"></label><label class="span-2">Numéros ou noms des animaux<textarea name="animals" rows="6" placeholder="FR1234567890&#10;FR1234567891 | gestante">${escapeHtml(text)}</textarea></label>${herdPicker(text)}<label>Animaux sans numéro<input name="additionalAnimalsCount" type="number" required min="0" step="1" value="${unknown}"></label><label>Lot / commentaire<input name="note" value="${escapeHtml(row.note||'')}"></label></form>`,`<button class="button secondary" id="grazing-back">Retour</button>${session?'<button class="button danger" id="delete-grazing">Supprimer</button>':''}<button class="button primary" id="save-grazing">Enregistrer</button>`,'large');
     $('#grazing-back').onclick=()=>openList({reset:false});
     $('#delete-grazing')?.addEventListener('click',()=>confirmDelete('grazingSessions',row.id,'cette session de pâturage'));
     const form=$('#grazing-form'),button=$('#save-grazing');
+    bindHerdPicker(form);
     const draft=formDraft?.(form,session?row.id:null);
     if(!parcels.some(parcel=>parcel.id===row.parcelId)){
       const option=document.createElement('option');option.value='';option.textContent='Parcelle indisponible — choisir une parcelle';option.selected=true;
@@ -102,6 +118,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=n
           const previous=grazingAnimalList(row).find(old=>String(old.number||old.name).trim()===animal.number);
           return previous?{...previous,gestation:animal.gestation}:animal;
         });
+        if(Array.isArray(animals))animals.splice(0,animals.length,...linkGrazingAnimals(animals,herdAnimals()));
         const count=Array.isArray(animals)?grazingAnimalList({animals}).length:0;
         if(count+additionalAnimalsCount===0)throw new Error('Ajoutez au moins un animal ou un effectif sans numéro.');
         button.disabled=true;

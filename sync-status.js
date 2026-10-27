@@ -3,7 +3,7 @@
 
 export const SYNC_STALE_MS = 48 * 3600 * 1000;
 
-const TYPE_LABELS = {parcelles:'Parcelle',interventions:'Travail',tasks:'Tâche',rotations:'Rotation',grazingSessions:'Pâturage',vetTreatments:'Soin vétérinaire',materiels:'Matériel',products:'Produit',clients:'Client',documents:'Document',photos:'Photo',points:'Point',templates:'Modèle',observations:'Observation',stockItems:'Stock',stockMovements:'Mouvement de stock',maintenanceRecords:'Entretien',routeSessions:'Tournée',harvests:'Récolte',invoices:'Facture',sales:'Vente',preferences:'Réglages'};
+const TYPE_LABELS = {parcelles:'Parcelle',interventions:'Travail',tasks:'Tâche',rotations:'Rotation',grazingSessions:'Pâturage',vetTreatments:'Soin vétérinaire',animals:'Animal',animalEvents:'Événement d’élevage',parcelComments:'Commentaire de parcelle',materiels:'Matériel',products:'Produit',clients:'Client',documents:'Document',photos:'Photo',points:'Point',templates:'Modèle',observations:'Observation',stockItems:'Stock',stockMovements:'Mouvement de stock',maintenanceRecords:'Entretien',routeSessions:'Tournée',harvests:'Récolte',invoices:'Facture',sales:'Vente',preferences:'Réglages'};
 const ACTION_LABELS = {create:'création',update:'modification',delete:'suppression',restore:'restauration'};
 
 export function entityLabel(type) {return TYPE_LABELS[type] || 'Donnée';}

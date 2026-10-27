@@ -7,6 +7,7 @@ import {phytosanitaryRegister} from './advanced-economics.js';
 import {parcelFollowupScore} from './harvest-traceability.js';
 import {hasInAppPlan,nitrogenComplianceChecks} from './nitrogen.js';
 import {herdHealthComplianceChecks} from './herd-health.js';
+import {pendingBdni,animalLabel} from './home-priorities.js'; // n° 79
 import {pacComplianceChecks} from './pac.js';
 import {coverComplianceChecks} from './covers.js';
 import {phytoComplianceCheck} from './phyto.js';
@@ -148,8 +149,16 @@ function coverCheck(state,settings,today){
   return check('covers','Couverts en zone vulnérable',missing.length?'warn':'ok',missing.length?`${plural(missing.length,'parcelle récoltée','parcelles récoltées')} sans couvert enregistré (date limite selon votre programme d’actions).`:`Couverts enregistrés sur les ${plural(harvested,'parcelle récoltée','parcelles récoltées')}.`,{items:missing});
 }
 
-function bdniCheck(state){
+function bdniCheck(state,today){
   const grazing=active(state,'grazingSessions').length;
+  // n° 79 : naissances saisies au vêlage dans Troupeau, avec la case « notifié ». Jamais « à jour » : les entrées
+  // et sorties ne sont pas suivies par l’application et la notification elle-même se fait sur le portail de l’EDE.
+  const births=active(state,'animalEvents').filter(e=>e.kind==='calving');
+  if(births.length){
+    const pending=pendingBdni(state,today),late=pending.filter(p=>p.status==='late'),fr=d=>`${d.slice(8,10)}/${d.slice(5,7)}`;
+    const items=pending.map(p=>({label:p.calf?animalLabel(p.calf):`Veau de ${animalLabel(p.mother)}`,note:`Né le ${fr(p.event.date)} · à notifier avant le ${fr(p.deadline)}${p.status==='late'?' (délai dépassé)':''}`,status:p.status==='late'?'ko':'warn'}));
+    return check('bdni','Notifications des mouvements d’animaux (BDNI)',pending.length?'warn':'unknown',pending.length?`${plural(pending.length,'naissance non notée comme notifiée','naissances non notées comme notifiées')}${late.length?`, dont ${late.length} hors délai de 7 jours`:''}. Parcelles ne notifie pas la BDNI.`:`${plural(births.length,'naissance notée comme notifiée','naissances notées comme notifiées')}. Entrées et sorties à vérifier dans votre outil de notification.`,{items,action:{type:'herd',label:'Troupeau'}});
+  }
   return check('bdni','Notifications des mouvements d’animaux (BDNI)',grazing?'unknown':'na',grazing?'Les entrées, sorties et naissances (à notifier sous 7 jours) ne sont pas suivies dans Parcelles : vérifiez dans votre outil de notification.':'Aucun animal suivi dans Parcelles.');
 }
 
@@ -203,7 +212,7 @@ export function complianceChecks(state,{today=isoDate(new Date())}={}){
     adminDeadlinesCheck(state,{today}), // v8a n° 72
     coverCheck(state,settings,today),
     ...coverComplianceChecks(state,{today}), // v5b n° 74
-    bdniCheck(state),
+    bdniCheck(state,today),
     ...herdHealthComplianceChecks(state,{today}), // v6b n° 76
     rotationCheck(state,settings,campaign),
     ...pacComplianceChecks(state,{today,campaign}), // v5b n° 58

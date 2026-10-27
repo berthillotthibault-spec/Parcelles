@@ -4,7 +4,7 @@
 export const ENTITY_LABELS = {
   parcelles: 'Parcelle', interventions: 'Travail', tasks: 'Tâche', grazingSessions: 'Pâturage', materiels: 'Matériel',
   stockItems: 'Stock', stockMovements: 'Mouvement de stock', observations: 'Observation', photos: 'Photo', documents: 'Document',
-  harvests: 'Récolte', vetTreatments: 'Soin', clients: 'Client', invoices: 'Facture', sales: 'Vente', rotations: 'Rotation'
+  harvests: 'Récolte', vetTreatments: 'Soin', animals: 'Animal', animalEvents: 'Événement d’élevage', parcelComments: 'Commentaire', clients: 'Client', invoices: 'Facture', sales: 'Vente', rotations: 'Rotation'
 };
 const ACTION_LABELS = {create: 'Création', update: 'Modification', delete: 'Mise à la corbeille', purge: 'Suppression définitive', remote: 'Reçu du cloud', restore: 'Restauration'};
 export const entityLabel = type => ENTITY_LABELS[type] || (type ? String(type) : 'Autre');

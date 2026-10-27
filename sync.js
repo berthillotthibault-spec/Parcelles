@@ -1,5 +1,5 @@
 import {BUILD_ID, ENTITY_TYPES, clone, uid} from './utils.js';
-import {assignableRoles, canMutate, normalizeRole, roleCan, roleLabel} from './permissions.js';
+import {assignableRoles, canMutate, normalizeRole, readFilters, roleCan, roleLabel} from './permissions.js';
 import {assignableRolesFor, canLeave, canManageMember, canRevokeInvite, canTransferOwnership} from './team-roles.js';
 import {canonicalData, queueStats, safeMergeEntity, sanitizeCloudError, syncRetryDelay} from './security.js';
 import {syncBaseKey, threeWayMerge} from './sync-merge.js';
@@ -101,14 +101,18 @@ export class SyncService{
   get workspaceId(){if(this.demoActive)return '';return liveState(this.store).preferences?.workspaceId||'';}
   get role(){const p=liveState(this.store).preferences||{};if(this.status.connected&&this.workspaceId)return this.member?.role||'viewer';if(p.syncEnabled&&p.workspaceId&&p.cloudRole)return p.cloudRole;return 'owner';}
   get roleName(){return roleLabel(this.role);}
-  get syncCursor(){return Number(liveState(this.store).metadata?.syncCursors?.[this.workspaceId]||0);}
+  // n° 129 : périmètre de lecture des curseurs ('advisor' : requêtes bornées, 'all' : collection entière). Un curseur
+  // avancé sous le périmètre conseiller a dépassé des documents jamais lus : s'il s'élargit (promotion), pull complet.
+  get readScope(){return readFilters(this.role)?'advisor':'all';}
+  get cursorScopeWidened(){return liveState(this.store).metadata?.syncCursorScopes?.[this.workspaceId]==='advisor'&&this.readScope==='all';}
+  get syncCursor(){if(this.cursorScopeWidened)return 0;return Number(liveState(this.store).metadata?.syncCursors?.[this.workspaceId]||0);}
   // Curseur fondé sur l’heure du serveur (serverUpdatedAt) : 0 tant que la transition n’a pas eu lieu sur cet appareil.
-  get serverCursor(){return Number(liveState(this.store).metadata?.syncServerCursors?.[this.workspaceId]||0);}
+  get serverCursor(){if(this.cursorScopeWidened)return 0;return Number(liveState(this.store).metadata?.syncServerCursors?.[this.workspaceId]||0);}
   firebaseSdk(){return this.firebase||(typeof window!=='undefined'?window.firebase:null)||null;}
   serverTimestamp(){return this.firebaseSdk()?.firestore?.FieldValue?.serverTimestamp?.()??null;}
   serverTimeAt(ms){return this.firebaseSdk()?.firestore?.Timestamp?.fromMillis?.(ms)??null;}
   can(capability){return roleCan(this.role,capability);}
-  canWriteEntity(entity,action,farmKind,fields,{record=null,previous=null}={}){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action,farmKind,fields,record,previous,uid:this.user?.uid||''});}
+  canWriteEntity(entity,action,farmKind,fields,{record=null,previous=null}={}){if(['preferences','assistantMessages','syncConflicts'].includes(entity))return true;return canMutate(this.role,{entity,action,farmKind,fields,record,previous,uid:this.user?.uid||'',email:this.user?.email||''});}
   queueSummary(){return queueStats(this.store.snapshot().queue);}
   networkAllows({attachments=false,live=false}={}){const p=this.store.snapshot().preferences,kind=connectionKind();if(!navigator.onLine)return false;if((p.syncWifiOnly||attachments&&p.syncAttachmentsWifiOnly||live&&p.syncLiveWifiOnly)&&['cellular','2g','3g','4g','5g'].includes(kind))return false;return true;}
 
@@ -184,7 +188,7 @@ export class SyncService{
     return Number(remoteData?.updatedAt||0)>Number(lastSyncAt||0);
   }
 
-  async bootstrapWorkspace(){if(!this.db||!this.workspaceId||this.syncCursor>0)return{seeded:0,remoteEmpty:false};const ref=this.db.collection('workspaces').doc(this.workspaceId).collection('data'),probe=await ref.limit(1).get();if(!probe.empty)return{seeded:0,remoteEmpty:false};if(!this.can('write'))return{seeded:0,remoteEmpty:true};let seeded=0;const snapshot=this.store.snapshot();for(const type of CLOUD_ENTITY_TYPES){if(!this.canWriteEntity(type,'create'))continue;for(const entity of(snapshot[type]||[])){if(!entity?.id)continue;await this.writeRemoteEntity(type,entity.id,entity,'bootstrap');await this.saveBase(type,entity);seeded++;}}if(seeded)await this.audit('bootstrap','workspace',this.workspaceId,{seeded});return{seeded,remoteEmpty:true};}
+  async bootstrapWorkspace(){if(!this.db||!this.workspaceId||this.syncCursor>0)return{seeded:0,remoteEmpty:false};if(readFilters(this.role))return{seeded:0,remoteEmpty:false};const ref=this.db.collection('workspaces').doc(this.workspaceId).collection('data'),probe=await ref.limit(1).get();if(!probe.empty)return{seeded:0,remoteEmpty:false};if(!this.can('write'))return{seeded:0,remoteEmpty:true};let seeded=0;const snapshot=this.store.snapshot();for(const type of CLOUD_ENTITY_TYPES){if(!this.canWriteEntity(type,'create'))continue;for(const entity of(snapshot[type]||[])){if(!entity?.id)continue;await this.writeRemoteEntity(type,entity.id,entity,'bootstrap');await this.saveBase(type,entity);seeded++;}}if(seeded)await this.audit('bootstrap','workspace',this.workspaceId,{seeded});return{seeded,remoteEmpty:true};}
 
   // n° 137 : pendant pushPending, les statuts sont gardés en mémoire (queueStatusBuffer) puis appliqués
   // en une seule mutation par lot ; hors envoi, chaque statut est appliqué tout de suite comme avant.
@@ -243,6 +247,10 @@ export class SyncService{
     return{sent,conflicts,merged,errors,waiting};
   }
 
+  // n° 129 : requêtes de lecture bornées au périmètre du rôle (readFilters) ; sans restriction, la collection entière.
+  // Le conseiller / technicien n'a le droit de lire que ces périmètres : une requête plus large serait refusée en bloc.
+  scopedQueries(ref){const filters=readFilters(this.role);return filters?filters.map(conds=>conds.reduce((q,[field,op,value])=>q.where(field,op,value),ref)):[ref];}
+  async collectScoped(ref,build){const docs=[];for(const q of this.scopedQueries(ref))docs.push(...await this.collectDocs(build(q)));return docs;}
   async collectDocs(query){const docs=[];let lastDocument=null;while(true){const snap=await (lastDocument?query.startAfter(lastDocument):query).get();docs.push(...snap.docs);if(snap.docs.length<PAGE_SIZE)break;lastDocument=snap.docs[snap.docs.length-1];}return docs;}
 
   // Deux lectures complémentaires :
@@ -252,10 +260,10 @@ export class SyncService{
   // ce qui rattrape aussi les documents manqués autrefois à cause d’une horloge en retard.
   async pullRemote(){
     this.requireNotDemo();
-    const last=this.syncCursor,serverLast=this.serverCursor,data=this.db.collection('workspaces').doc(this.workspaceId).collection('data');
+    const last=this.syncCursor,serverLast=this.serverCursor,scope=this.readScope,data=this.db.collection('workspaces').doc(this.workspaceId).collection('data');
     const serverReady=Boolean(this.serverTimeAt(0)),transition=serverReady&&serverLast<=0;
-    const legacyDocs=await this.collectDocs(data.where('updatedAt','>',transition?0:Math.max(0,last-CURSOR_MARGIN_MS)).orderBy('updatedAt','asc').limit(PAGE_SIZE));
-    const serverDocs=serverReady?await this.collectDocs(data.where('serverUpdatedAt','>',this.serverTimeAt(Math.max(0,serverLast-CURSOR_MARGIN_MS))).orderBy('serverUpdatedAt','asc').limit(PAGE_SIZE)):[];
+    const legacyDocs=await this.collectScoped(data,q=>q.where('updatedAt','>',transition?0:Math.max(0,last-CURSOR_MARGIN_MS)).orderBy('updatedAt','asc').limit(PAGE_SIZE));
+    const serverDocs=serverReady?await this.collectScoped(data,q=>q.where('serverUpdatedAt','>',this.serverTimeAt(Math.max(0,serverLast-CURSOR_MARGIN_MS))).orderBy('serverUpdatedAt','asc').limit(PAGE_SIZE)):[];
     let pulled=0,conflicts=0,merged=0,cursor=last,serverCursor=serverLast;
     for(const doc of legacyDocs)cursor=Math.max(cursor,Number(doc.data()?.updatedAt)||0);
     // Le curseur serveur ne s’appuie que sur la lecture ordonnée par serverUpdatedAt (aucun trou possible).
@@ -264,7 +272,7 @@ export class SyncService{
     // Un même document lu deux fois n’est traité qu’une fois (version la plus récente, lue en dernier).
     const docs=new Map();for(const doc of [...legacyDocs,...serverDocs])docs.set(doc.id,doc);
     const applied=await this.applyPulledDocs([...docs.values()],{last,serverLast});
-    return{...applied,cursor,serverCursor};
+    return{...applied,cursor,serverCursor,scope};
   }
 
   // Chemin d’application commun au pull et au temps réel (n° 136) : fusion à trois voies, conflits, applyRemote.
@@ -327,7 +335,7 @@ export class SyncService{
 
   // Temps réel (n° 136) : documents dont serverUpdatedAt dépasse le curseur serveur. Ne fait rien si une
   // synchronisation complète est en cours (elle relira ces documents) ; avance le curseur serveur ensuite.
-  liveQuery(){if(!this.db||!this.workspaceId)return null;const from=this.serverTimeAt(Math.max(0,this.serverCursor-CURSOR_MARGIN_MS));if(!from)return null;return this.db.collection('workspaces').doc(this.workspaceId).collection('data').where('serverUpdatedAt','>',from).orderBy('serverUpdatedAt','asc');}
+  liveQuery(){if(!this.db||!this.workspaceId)return null;const from=this.serverTimeAt(Math.max(0,this.serverCursor-CURSOR_MARGIN_MS));if(!from)return null;const build=q=>q.where('serverUpdatedAt','>',from).orderBy('serverUpdatedAt','asc'),ref=this.db.collection('workspaces').doc(this.workspaceId).collection('data');return readFilters(this.role)?this.scopedQueries(ref).map(build):build(ref);}
   async applyLiveDocs(docs){
     if(this.syncPromise||!docs?.length||this.serverCursor<=0)return{pulled:0,conflicts:0,merged:0,changes:[],skipped:true};
     const own=doc=>{const d=doc.data?.()||{};return d.modifiedBy===this.user?.uid&&d.deviceId===(this.deviceId||'');};
@@ -361,7 +369,7 @@ export class SyncService{
     await this.refreshMembership();if(!this.member)throw new Error('Vous n’êtes plus membre de cette exploitation.');await this.measureClockOffset();
     try{
       const bootstrap=await this.bootstrapWorkspace(),pushed=await this.pushPending(),pulled=await this.pullRemote(),attachments=await this.syncAttachmentBlobs(),completedAt=Date.now();
-      await this.store.mutate('Synchronisation terminée.',state=>{for(const conflict of state.syncConflicts||[]){if(conflict.status==='open'&&canonicalData(conflict.local)===canonicalData(conflict.remote)){conflict.status='resolved';conflict.resolution='identical';conflict.resolvedAt=completedAt;for(const item of state.queue){if(item.status==='conflict'&&item.entity===conflict.entity&&item.entityId===conflict.entityId){item.status='pending';item.nextRetryAt=0;}}}}state.metadata.lastSyncAt=completedAt;state.metadata.lastSyncError=null;state.metadata.syncFailureCount=0;state.metadata.syncBackoffUntil=null;state.metadata.syncCursors=state.metadata.syncCursors||{};state.metadata.syncCursors[this.workspaceId]=pulled.cursor;state.metadata.syncServerCursors={...(state.metadata.syncServerCursors||{}),[this.workspaceId]:pulled.serverCursor};if(this.clockSkew)state.metadata.clockSkew=clone(this.clockSkew);state.queue=state.queue.filter(item=>item.status!=='done');},{queue:false,log:false,bypassPermissions:true});
+      await this.store.mutate('Synchronisation terminée.',state=>{for(const conflict of state.syncConflicts||[]){if(conflict.status==='open'&&canonicalData(conflict.local)===canonicalData(conflict.remote)){conflict.status='resolved';conflict.resolution='identical';conflict.resolvedAt=completedAt;for(const item of state.queue){if(item.status==='conflict'&&item.entity===conflict.entity&&item.entityId===conflict.entityId){item.status='pending';item.nextRetryAt=0;}}}}state.metadata.lastSyncAt=completedAt;state.metadata.lastSyncError=null;state.metadata.syncFailureCount=0;state.metadata.syncBackoffUntil=null;state.metadata.syncCursors=state.metadata.syncCursors||{};state.metadata.syncCursors[this.workspaceId]=pulled.cursor;state.metadata.syncServerCursors={...(state.metadata.syncServerCursors||{}),[this.workspaceId]:pulled.serverCursor};state.metadata.syncCursorScopes={...(state.metadata.syncCursorScopes||{}),[this.workspaceId]:pulled.scope};if(this.clockSkew)state.metadata.clockSkew=clone(this.clockSkew);state.queue=state.queue.filter(item=>item.status!=='done');},{queue:false,log:false,bypassPermissions:true});
       const {changes:_changes,...pulledSummary}=pulled;this.lastResult={...bootstrap,...pushed,...pulledSummary,...attachments,at:completedAt,queue:this.queueSummary()};return this.lastResult;
     }catch(error){const message=sanitizeCloudError(error);await this.store.mutate('Synchronisation interrompue.',state=>{state.metadata.lastSyncError=message;state.metadata.syncFailureCount=Number(state.metadata.syncFailureCount||0)+1;state.metadata.syncBackoffUntil=Date.now()+syncRetryDelay(Math.min(8,state.metadata.syncFailureCount),15);},{queue:false,log:false,bypassPermissions:true});await this.audit('sync-error','sync',this.workspaceId,{message});throw new Error(message);}
   }

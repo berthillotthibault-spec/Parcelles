@@ -101,12 +101,42 @@
  *   parcelId?:string|null,
  *   priority?:string,
  *   note?:string,
+ *   remindOn?:IsoDay|null,
  * }} Task
  */
 
 /**
  * Animal d'un lot au pâturage (forme normalisée par grazingAnimalList()).
- * @typedef {OpenFields & {number:string, name:string, gestation:boolean}} GrazingAnimal
+ * animalId (n° 79) : fiche du troupeau choisie pour cette ligne.
+ * @typedef {OpenFields & {number:string, name:string, gestation:boolean, animalId?:string}} GrazingAnimal
+ */
+
+/**
+ * Bovin du troupeau (état « animals », n° 79). nationalId : 'FR' + 10 chiffres, ou vide (veau non bouclé).
+ * origin : 'birth' (vêlage), 'purchase', 'import' (inventaire CSV), 'grazing' (repris d'un lot), 'manual'.
+ * @typedef {BaseEntity & OpenFields & {
+ *   nationalId:string, name:string, sex:'F'|'M'|'', breed:string, birthDate:IsoDay|null,
+ *   motherId:string|null, motherNationalId:string, entryDate:IsoDay|null, entryReason:string,
+ *   exitDate:IsoDay|null, exitReason:string, sessionId:string|null, origin:string, note:string,
+ * }} Animal
+ */
+
+/**
+ * Événement d'élevage (état « animalEvents », n° 79). Vêlage : calfId, bdniDeadline (J+7), bdniTaskId, bdniNotifiedAt.
+ * @typedef {BaseEntity & OpenFields & {
+ *   animalId:string, kind:'insemination'|'mating'|'calving'|'weighing', date:IsoDay,
+ *   sire?:string, expectedCalvingDate?:IsoDay, calfId?:string, bdniDeadline?:IsoDay, bdniTaskId?:string,
+ *   bdniNotifiedAt?:Timestamp|null, weightKg?:number, note?:string,
+ * }} AnimalEvent
+ */
+
+/**
+ * Commentaire ou préconisation sur une parcelle (état « parcelComments », n° 129). Auteur figé à la création
+ * (authorUid contrôlé par firestore.rules) ; taskId : tâche créée par « Transformer en tâche ».
+ * @typedef {BaseEntity & OpenFields & {
+ *   parcelId:string, text:string, kind:'preco'|'comment', workId?:string|null, taskId?:string|null,
+ *   authorUid:string, authorName:string, authorEmail:string, authorRole:string, editedAt?:Timestamp|null,
+ * }} ParcelComment
  */
 
 /**
@@ -212,6 +242,9 @@
  *   stockItems:Entity[],
  *   stockMovements:Entity[],
  *   chantiers:Chantier[],
+ *   animals:Animal[],
+ *   animalEvents:AnimalEvent[],
+ *   parcelComments:ParcelComment[],
  *   preferences:OpenFields,
  *   metadata:OpenFields & {revision:number, syncCursors:OpenFields},
  *   queue:QueueItem[],

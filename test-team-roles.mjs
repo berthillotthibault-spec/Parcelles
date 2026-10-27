@@ -9,22 +9,23 @@ import {
   pendingInvites, teamJournal, permissionMatrix, teamPowerSentence, ROLE_EXAMPLES, inviteShareText
 } from './team-roles.js';
 
-const LOWER = ['editor', 'operator', 'accountant', 'viewer'];
+const LOWER = ['editor', 'operator', 'accountant', 'advisor', 'viewer'];
 
 test('hiérarchie : propriétaire > responsable > collaborateur > opérateur / comptabilité > lecteur', () => {
-  assert.deepEqual(ROLE_ORDER, ['owner', 'manager', 'editor', 'operator', 'accountant', 'viewer']);
+  assert.deepEqual(ROLE_ORDER, ['owner', 'manager', 'editor', 'operator', 'accountant', 'advisor', 'viewer']);
   assert.ok(roleTier('owner') > roleTier('manager'));
   assert.ok(roleTier('manager') > roleTier('editor'));
   assert.ok(roleTier('editor') > roleTier('operator'));
   assert.equal(roleTier('operator'), roleTier('accountant'));
   assert.ok(roleTier('accountant') > roleTier('viewer'));
+  assert.equal(roleTier('advisor'), roleTier('accountant'));
   assert.equal(roleTier('inconnu'), roleTier('viewer'));
 });
 
 test('grades attribuables : jamais propriétaire ; le responsable seulement en dessous de lui', () => {
   assert.deepEqual(assignableRolesFor('owner'), ['manager', ...LOWER]);
   assert.deepEqual(assignableRolesFor('manager'), LOWER);
-  for (const r of ['editor', 'operator', 'accountant', 'viewer', 'inconnu']) assert.deepEqual(assignableRolesFor(r), []);
+  for (const r of ['editor', 'operator', 'accountant', 'advisor', 'viewer', 'inconnu']) assert.deepEqual(assignableRolesFor(r), []);
   for (const r of ROLE_ORDER) assert.ok(!assignableRolesFor(r).includes('owner'));
   assert.ok(canManageTeam('owner') && canManageTeam('manager') && !canManageTeam('editor'));
 });
@@ -121,6 +122,13 @@ test('« Qui peut faire quoi » reflète permissions.js', () => {
   assert.equal(row('Travaux et coûts').operator.value, 'yes');
   assert.equal(row('Stocks et produits').accountant.value, 'yes');
   assert.equal(row('Stocks et produits').operator.value, 'no');
+  // n° 129 : le conseiller lit l'agronomie seulement, commente (les siens), ne voit pas l'économie.
+  assert.deepEqual(row('Consulter').advisor, {value: 'partial', note: 'agronomie seulement'});
+  assert.deepEqual(row('Commentaires et préconisations').advisor, {value: 'partial', note: 'les siens'});
+  assert.equal(row('Commentaires et préconisations').editor.value, 'yes');
+  assert.equal(row('Voir l’économie et la facturation').advisor.value, 'no');
+  assert.equal(row('Voir l’économie et la facturation').accountant.value, 'yes');
+  for (const label of ['Parcelles', 'Travaux et coûts', 'Tâches et consignes', 'Mettre à la corbeille', 'Exporter, imprimer']) assert.equal(row(label).advisor.value, 'no', label);
   for (const label of rows.map(r => r.label).filter(l => l !== 'Consulter' && l !== 'Exporter, imprimer' && l !== 'Quitter l’exploitation'))
     assert.equal(row(label).viewer.value, 'no', label);
   assert.equal(row('Supprimer définitivement').manager.value, 'no');
@@ -134,7 +142,9 @@ test('« Qui peut faire quoi » reflète permissions.js', () => {
 
 test('firestore.rules applique la même hiérarchie (responsable limité aux rangs inférieurs)', () => {
   const rules = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
-  assert.match(rules, /function lowerThanManager\(role\) \{ return role in \['editor','operator','accountant','viewer'\]; \}/);
+  assert.match(rules, /function lowerThanManager\(role\) \{ return role in \['editor','operator','accountant','advisor','viewer'\]; \}/);
+  assert.match(rules, /function invitableRole\(role\) \{ return role in \['manager','editor','operator','accountant','advisor','viewer'\]; \}/);
+  assert.match(rules, /function validRole\(role\) \{ return role in \['owner','manager','editor','operator','accountant','advisor','viewer'\]; \}/);
   assert.match(rules, /me == 'manager' && !\(targetRole in \['owner','manager'\]\)/);
   assert.match(rules, /request\.auth\.uid == uid && isMember\(workspaceId\) && resource\.data\.role != 'owner'/);
   assert.ok(!/isOwner\(workspaceId\) && validRole\(request\.resource\.data\.role\)/.test(rules), 'plus de création directe de propriétaire');

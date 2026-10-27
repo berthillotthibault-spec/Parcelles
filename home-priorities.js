@@ -127,3 +127,78 @@ export function isLowStock(item){
   const threshold=number(item.alertBelow),quantity=number(item.quantity);
   return threshold!==null&&quantity!==null&&quantity<=threshold;
 }
+
+// n° 79 — Troupeau : projections lues par l'accueil, le calendrier et la conformité (aucune écriture).
+// La logique complète (validation, vêlage, import) est dans herd.js, chargé à l'ouverture du Troupeau.
+export const GESTATION_DAYS=283,BDNI_DAYS=7,BDNI_REMINDER_DAYS=5;
+const SERVICE_KINDS=new Set(['insemination','mating']);
+/** @param {string} day AAAA-MM-JJ @param {number} count @returns {string} */
+export function addIsoDays(day,count){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(day||'').slice(0,10)))return '';
+  const d=new Date(`${String(day).slice(0,10)}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+count);return d.toISOString().slice(0,10);
+}
+/** Vêlage prévu : date de l'insémination ou de la saillie + 283 jours. @param {string} day */
+export const expectedCalvingDate=day=>addIsoDays(day,GESTATION_DAYS);
+/** Date limite de notification d'une naissance à l'EDE / BDNI (7 jours). @param {string} birth */
+export const bdniDeadline=birth=>addIsoDays(birth,BDNI_DAYS);
+/** @param {any} animal */
+export const animalLabel=animal=>[animal?.name,animal?.nationalId?`n° ${String(animal.nationalId).slice(-4)}`:''].filter(Boolean).join(' · ')||'Animal sans numéro';
+/** @param {any} animal @param {string} today */
+const present=(animal,today)=>!animal.deletedAt&&!(animal.exitDate&&String(animal.exitDate).slice(0,10)<=today);
+/**
+ * Vêlages attendus : dernière insémination ou saillie d'une femelle présente, sans vêlage enregistré depuis.
+ * @param {Partial<import('parcelles/types').AppState>} data
+ * @param {{today?:string, horizon?:number, past?:number}} [options] horizon / past en jours autour d'aujourd'hui.
+ */
+export function expectedCalvings(data,{today=localDay(),horizon=45,past=30}={}){
+  const animals=new Map((data.animals||[]).filter(a=>present(a,today)&&a.sex!=='M').map(a=>[a.id,a]));
+  /** @type {Map<string,any[]>} */
+  const byAnimal=new Map();
+  for(const e of data.animalEvents||[]){if(e.deletedAt||!animals.has(e.animalId))continue;const list=byAnimal.get(e.animalId)||[];list.push(e);byAnimal.set(e.animalId,list);}
+  const from=addIsoDays(today,-past),to=addIsoDays(today,horizon),rows=[];
+  for(const [id,events] of byAnimal){
+    const service=events.filter(e=>SERVICE_KINDS.has(e.kind)&&e.date).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
+    if(!service||events.some(e=>e.kind==='calving'&&String(e.date)>=String(service.date)))continue;
+    const date=service.expectedCalvingDate||expectedCalvingDate(service.date);
+    if(!date||date<from||date>to)continue;
+    const animal=animals.get(id),days=Math.round((Date.parse(`${date}T12:00:00Z`)-Date.parse(`${today}T12:00:00Z`))/864e5);
+    rows.push({animal,event:service,date,days,label:animalLabel(animal)});
+  }
+  return rows.sort((a,b)=>a.date.localeCompare(b.date)||String(a.animal.id).localeCompare(String(b.animal.id)));
+}
+/**
+ * Naissances à notifier à l'EDE / BDNI : vêlage sans case « notifié » ni tâche close.
+ * status : 'pending' (avant J+5), 'remind' (de J+5 à J+7), 'late' (après J+7).
+ * @param {Partial<import('parcelles/types').AppState>} data @param {string} [today]
+ */
+export function pendingBdni(data,today=localDay()){
+  const tasks=new Map((data.tasks||[]).map(t=>[t.id,t])),animals=new Map((data.animals||[]).map(a=>[a.id,a]));
+  return (data.animalEvents||[]).filter(e=>!e.deletedAt&&e.kind==='calving'&&e.date&&!e.bdniNotifiedAt).flatMap(e=>{
+    const task=e.bdniTaskId?tasks.get(e.bdniTaskId):null;
+    if(task&&!task.deletedAt&&!isPending(task,'task'))return [];
+    const mother=animals.get(e.animalId);if(!mother||mother.deletedAt)return [];
+    const calf=e.calfId?animals.get(e.calfId)||null:null,deadline=e.bdniDeadline||bdniDeadline(e.date),remindOn=addIsoDays(e.date,BDNI_REMINDER_DAYS);
+    const status=today>deadline?'late':today>=remindOn?'remind':'pending';
+    return [{event:e,mother,calf,task:task||null,deadline,remindOn,status}];
+  }).sort((a,b)=>a.deadline.localeCompare(b.deadline));
+}
+/**
+ * n° 129 : préconisations et commentaires de parcelle écrits par d'autres et pas encore lus sur cet appareil
+ * (preferences.parcelCommentsSeen : identifiants des commentaires déjà affichés ici, avec l'heure de lecture).
+ * La lecture se note par commentaire et non par date : un commentaire écrit hors ligne avant la dernière ouverture
+ * de la parcelle, mais reçu après, reste nouveau (son createdAt vient de l'appareil de l'auteur).
+ * Sans compte cloud (uid vide), tout est écrit ici : rien de nouveau. Les commentaires de plus de maxDays jours
+ * ne sont pas signalés.
+ * @param {Partial<import('parcelles/types').AppState>} data
+ * @param {{uid?:string, now?:number, maxDays?:number}} [options]
+ */
+export function newParcelComments(data,{uid='',now=Date.now(),maxDays=30}={}){
+  if(!uid)return {count:0,precos:0,comments:[],parcelIds:[]};
+  /** @type {Record<string,number>} */
+  const seen=/** @type {any} */(data.preferences||{}).parcelCommentsSeen||{};
+  const parcels=new Set((data.parcelles||[]).filter(p=>!p.deletedAt).map(p=>p.id)),since=now-maxDays*864e5;
+  const comments=(data.parcelComments||[]).filter(c=>!c.deletedAt&&parcels.has(c.parcelId)&&c.authorUid&&c.authorUid!==uid
+    &&Number(c.createdAt||0)>since&&!seen[c.id])
+    .sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0));
+  return {count:comments.length,precos:comments.filter(c=>c.kind==='preco').length,comments,parcelIds:[...new Set(comments.map(c=>c.parcelId))]};
+}

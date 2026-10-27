@@ -140,4 +140,10 @@ html.compact-mode .list-row{min-height:48px;padding:8px 0}
 .theme-dark .badge.info,.theme-dark .notice.info{color:#9bc2e7;background:color-mix(in srgb,var(--info) 18%,var(--surface))}
 .theme-dark .badge.danger,.theme-dark .notice.danger{color:#f0a19b;background:color-mix(in srgb,var(--danger) 18%,var(--surface))}
 .theme-dark .notice{background:var(--surface-secondary)}
+/* n° 129 : fil de commentaires et préconisations de la fiche parcelle */
+.pc-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.pc-item{border:1px solid var(--border-subtle);border-radius:12px;padding:10px 12px;display:grid;gap:6px}
+.pc-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.pc-text{margin:0;white-space:normal;overflow-wrap:anywhere}
+.pc-actions{display:flex;flex-wrap:wrap;gap:4px 12px}
 }
