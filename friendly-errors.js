@@ -16,6 +16,7 @@ const AUTH = {
 
 const KINDS = {
   auth: ['Problème de connexion au compte', 'Le service de compte a refusé la demande.', 'Réessayez, puis consultez Diagnostic si cela persiste.'],
+  'device-permission': ['Autorisation refusée', 'Le navigateur a refusé l’accès (presse-papiers, micro, caméra…).', 'Autorisez l’accès dans les réglages du site puis réessayez.'],
   permission: ['Accès refusé', 'Votre rôle dans l’exploitation ne permet pas cette action.', 'Demandez au propriétaire de changer votre rôle.'],
   quota: ['Mémoire pleine', 'L’espace de stockage de l’appareil ou du navigateur est saturé.', 'Libérez de la place (photos, cartes hors ligne, corbeille) puis réessayez.'],
   offline: ['Pas de réseau', 'Cette action a besoin d’Internet.', 'Réessayez plus tard : ce qui est saisi reste sur l’appareil.'],
@@ -28,6 +29,7 @@ const KINDS = {
 export function errorKind(error, {online = true} = {}) {
   const code = String(error?.code || ''), name = String(error?.name || ''), message = String(error?.message ?? error ?? '');
   if (code.startsWith('auth/')) return code === 'auth/network-request-failed' ? 'offline' : 'auth';
+  if (name === 'NotAllowedError') return 'device-permission';
   if (code === 'permission-denied' || /permission[- ]denied|insufficient permissions/i.test(message)) return 'permission';
   if (name === 'QuotaExceededError' || code === 'resource-exhausted' || Number(error?.code) === 22 || /quota/i.test(message)) return 'quota';
   if (/\.prj|projection/i.test(message)) return 'projection';

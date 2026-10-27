@@ -19,7 +19,7 @@ export function createVoiceNotesUI(host){
   const $=selector=>document.querySelector(selector);
   const prefs=()=>state().preferences||{};
   const SR=()=>window.SpeechRecognition||window.webkitSpeechRecognition||null;
-  const canRecord=()=>Boolean(navigator.mediaDevices?.getUserMedia&&window.MediaRecorder);
+  const canRecord=()=>Boolean(prefs().voiceEnabled!==false&&navigator.mediaDevices?.getUserMedia&&window.MediaRecorder);
   const canRecognize=()=>Boolean(SR()&&prefs().voiceEnabled!==false&&navigator.onLine!==false);
   const haptic=()=>{try{navigator.vibrate?.(18);}catch{}};
   let rec=null,draft=null,player=null,closeWatch=null;
@@ -67,9 +67,9 @@ export function createVoiceNotesUI(host){
     ptt.addEventListener('click',event=>{if(event.detail!==0)return;if(rec&&!rec.stopped)stopRecording();else startRecording();});
     ptt.addEventListener('contextmenu',event=>event.preventDefault());
     $('#vn-prepare').onclick=()=>{
+      if(rec&&!rec.stopped)return stopRecording();
       const value=$('#vn-text').value.trim();
       if(!value)return showError('Champ obligatoire : compte rendu (dictez ou écrivez quelques mots).');
-      if(rec&&!rec.stopped)return stopRecording();
       analyze(value,{});
     };
     $('#vn-vocab')?.addEventListener('click',()=>{if(rec&&!rec.stopped)stopRecording({closed:true});withIntents(ui=>ui.openVocabulary());});
@@ -447,6 +447,7 @@ export function createVoiceNotesUI(host){
     stopPlayback();const memos=pendingMemos(state());
     modal(memoSummaryLabel(memos.length),'Réécoutez, transcrivez puis transformez chaque mémo en travail.',`<div class="vn-memo-list" id="vn-all">${memos.map(memoRow).join('')||'<div class="empty-state">Aucun mémo à traiter.</div>'}</div>`,'');
     $('#vn-all')?.addEventListener('click',onMemoClick);
+    watchClose('vn-all',stopPlayback);
   }
   async function togglePlay(id,button){
     if(player?.id===id){stopPlayback();return;}
@@ -471,22 +472,24 @@ export function createVoiceNotesUI(host){
       ${canRecognize()?'<button type="button" class="button secondary" id="vn-memo-dictate">'+icon('mic',{size:18})+' Dicter la transcription</button>':'<p class="form-note">Sans réseau, écrivez la transcription ou utilisez la touche micro du clavier.</p>'}
       <p class="form-error hidden" id="vn-memo-error" role="alert"></p></div>`,
     `<button type="button" class="button secondary" id="vn-memo-delete">Supprimer</button><button type="button" class="button secondary" id="vn-memo-done">Marquer comme traité</button><button type="button" class="button primary vn-wide" id="vn-memo-prepare">Préparer le brouillon</button>`);
-    if(url)watchClose('vn-memo-text',()=>URL.revokeObjectURL(url));
+    let dictation=null;
+    watchClose('vn-memo-text',()=>{try{dictation?.abort();}catch{}dictation=null;if(url)URL.revokeObjectURL(url);});
     const text=()=>$('#vn-memo-text').value.trim(),error=message=>{const el=$('#vn-memo-error');el.textContent=message;el.classList.remove('hidden');};
-    $('#vn-memo-dictate')?.addEventListener('click',()=>dictateInto($('#vn-memo-text'),$('#vn-memo-dictate')));
+    $('#vn-memo-dictate')?.addEventListener('click',()=>{if(dictation){try{dictation.stop();}catch{}return;}dictation=dictateInto($('#vn-memo-text'),$('#vn-memo-dictate'),()=>{dictation=null;});});
     $('#vn-memo-prepare').onclick=async()=>{const value=text();if(!value)return error('Champ obligatoire : transcription.');await markMemo(id,'pending',{transcript:value}).catch(()=>{});analyze(value,{memoId:id});};
     $('#vn-memo-done').onclick=async()=>{const value=text();await markMemo(id,'done',value?{transcript:value}:{});closeModal();toast('Mémo marqué comme traité.','success',{label:'Annuler',run:()=>markMemo(id,'pending')});};
     $('#vn-memo-delete').onclick=async()=>{try{await store.remove('documents',id);}catch(failure){return error(failure.message);}renderHome();closeModal();toast('Mémo placé dans la corbeille.','success',{label:'Annuler',run:async()=>{await store.restore('documents',id);renderHome();}});};
   }
-  function dictateInto(textarea,button){
+  function dictateInto(textarea,button,onDone){
     const Recognition=SR();if(!Recognition||!textarea)return;
     try{
       const r=new Recognition();r.lang='fr-FR';r.interimResults=true;r.continuous=true;const base=textarea.value.trim();
       r.onresult=event=>{let out='';for(let i=0;i<event.results.length;i++)out+=event.results[i][0].transcript;textarea.value=`${base?`${base} `:''}${out}`.trim();};
       r.onerror=event=>{if(event?.error==='network')toast('Reconnaissance indisponible sans réseau : écrivez la transcription.','error');};
-      r.onend=()=>{if(button?.isConnected){button.disabled=false;button.setAttribute('aria-pressed','false');}};
-      button.disabled=true;button.setAttribute('aria-pressed','true');r.start();setTimeout(()=>{try{r.stop();}catch{}},60000);
-    }catch{toast('Dictée indisponible : écrivez la transcription.','error');}
+      const timer=setTimeout(()=>{try{r.stop();}catch{}},60000);
+      r.onend=()=>{clearTimeout(timer);if(button?.isConnected)button.setAttribute('aria-pressed','false');onDone?.();};
+      button.setAttribute('aria-pressed','true');r.start();return r;
+    }catch{toast('Dictée indisponible : écrivez la transcription.','error');onDone?.();return null;}
   }
 
   return {mountFab,open,renderHome,openMemo,openAll,isRecording:()=>Boolean(rec&&!rec.stopped)};

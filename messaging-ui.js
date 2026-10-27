@@ -21,6 +21,8 @@ const REMINDER_KEY = 'parcelles:plan-reminder-day';
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 const when = ms => { const d = new Date(Number(ms) || 0); return Number(ms) ? d.toLocaleString('fr-FR', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'}) : ''; };
 const STATUS_TONE = {envoye: 'ok', prepare: 'info', attente: 'warn', programme: 'info', echec: 'bad', annule: 'muted'};
+// Actions data-msg qui écrivent (journal, contacts, envoi) : un second appui pendant l'écriture est ignoré.
+const MSG_WRITES = new Set(['prepare', 'contact-save', 'template-save', 'settings-save', 'plan-all', 'plan-gateway', 'log-retry', 'log-sent', 'log-resend', 'contact-delete']);
 
 export function createMessagingUI({store, state, modal, closeModal, toast, sync = null, role = () => 'owner', bindChipChoices = () => {}, doc = globalThis.document, nav = globalThis.navigator, win = globalThis, now = () => Date.now(), fetchImpl = (...a) => fetch(...a), storage = null} = {}) {
   const local = storage || (() => { try { return win.localStorage; } catch { return null; } })();
@@ -852,7 +854,9 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
       const run = handlers[control.dataset.msg];
       if (!run) return;
       event.preventDefault();
-      Promise.resolve().then(() => run(control)).catch(error => toast(error?.message || 'Action impossible.', 'error'));
+      // Verrou anti double appui sur les écritures (un second « Préparer » enverrait deux SMS par la passerelle).
+      if (MSG_WRITES.has(control.dataset.msg)) { if (control.dataset.msgBusy) return; control.dataset.msgBusy = '1'; }
+      Promise.resolve().then(() => run(control)).catch(error => toast(error?.message || 'Action impossible.', 'error')).finally(() => { delete control.dataset.msgBusy; });
       return;
     }
     // Lien d'envoi du composeur ouvert : la ligne attend la confirmation « Envoyé ? ».

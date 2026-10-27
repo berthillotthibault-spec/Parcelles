@@ -11,7 +11,7 @@ import {LAZY_MODULES} from './lazy-modules.js';
 import {canSeeBilling} from './permissions.js';
 import {html, raw} from './safe-html.js';
 import {DOC_LABELS, STATUS_LABELS, DOC_TYPES, docTypeOf, isoDay, invoiceSettings, numberingIssues, settingsReady, dateFr} from './invoices.js';
-import {LIST_TYPES, STATUS_FILTERS, SORTS, docRows, filterRows, filterClients, listSummary, rowActions, actionLabel, newLabel, money, plural, docAdvice, listTypeLabel} from './billing-docs-view.js';
+import {LIST_TYPES, STATUS_FILTERS, SORTS, docRows, filterRows, filterClients, listSummary, rowActions, actionLabel, newLabel, money, plural, docAdvice, listTypeLabel, exclusive} from './billing-docs-view.js';
 import {createDocsEditor} from './billing-docs-editor.js';
 import {createDocsActions} from './billing-docs-actions.js';
 import {loadSheet} from './lazy-styles.js';
@@ -114,13 +114,15 @@ export function createBillingDocsUI(host = {}) {
     },
     // Tableau de bord de la facturation (chantier B) : chargé à la demande, sinon message clair.
     async hub(tab = 'dashboard') {
+      // Clés des boutons du module traduites en onglets du centre (hubTab ramène toute clé inconnue sur « suivi »).
+      const name = {dashboard: 'suivi', settings: 'reglages', catalog: 'catalogue'}[tab] || tab;
       try {
         const lazy = ui.lazy();
         if (!lazy || !LAZY_MODULES.billingHub) throw Error('Module billingHub absent');
         const m = await lazy.load('billingHub');
-        if (typeof m.open === 'function') return await m.open(tab);
+        if (typeof m.open === 'function') return await m.open(name);
         hubUI ??= m.createBillingHubUI(host);
-        return await hubUI.open(tab);
+        return await hubUI.open(name);
       } catch (error) {
         console.warn('[Parcelles] tableau de bord de la facturation indisponible', error);
         ui.toast(tab === 'settings' ? 'Écran indisponible : les paramètres de facturation n’ont pas pu s’ouvrir. Vérifiez la connexion puis réessayez.' : 'Écran indisponible : le tableau de bord de la facturation n’a pas pu s’ouvrir.', 'error');
@@ -265,7 +267,8 @@ export function createBillingDocsUI(host = {}) {
       if (!value) { input?.focus(); ui.toast('Écrivez par exemple « devis Dupont 3 h de pelle à 65 € ».', 'info'); return; }
       editor.openNew({quick: value});
     },
-    act: c => actions.run(c.dataset.act, c.dataset.id)
+    // Verrou anti double appui : « Facturer » deux fois créerait deux factures depuis le même devis.
+    act: exclusive(c => actions.run(c.dataset.act, c.dataset.id))
   });
   const api = {
     openDocument, openList,

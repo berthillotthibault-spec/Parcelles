@@ -6,10 +6,16 @@ import {armCelebration} from './celebration-ui.js';
 
 // Statut d’avant « fait », connu pendant la session, pour qu’une réouverture le rétablisse.
 const statusBeforeDone = new Map();
+// Fin en cours (double appui : le second clic arrive avant que la fiche soit marquée terminée).
+const finishing = new Set();
 
 const work = id => ctx.store.get('interventions', id);
 const task = id => ctx.store.get('tasks', id);
-const restore = (type, entity) => () => ctx.store.upsert(type, entity, {label: 'Statut restauré'});
+// Ne restaure pas une fiche placée entre-temps dans la corbeille (le snapshot n'a pas de deletedAt).
+const restore = (type, entity) => () => {
+  if (!ctx.store.get(type, entity.id)) { ctx.toast('Élément supprimé entre-temps : rien à annuler.', 'error'); return; }
+  return ctx.store.upsert(type, entity, {label: 'Statut restauré'});
+};
 // Fête la fin (n° 22) et prépare le glissement vers la prochaine action (n° 104).
 function armDone(control, id, kind) {
   armCelebration(control, {id, kind, preferences: ctx.state().preferences, native: ctx.nativeBridge});
@@ -39,10 +45,15 @@ export const workActions = {
   // Terminer et rouvrir : la date d'échéance reste dans plannedDate (finish-work).
   async 'finish-work'({id, control}) {
     const w = work(id);
-    armDone(control, id, 'work');
-    statusBeforeDone.set(`work:${id}`, w.status);
-    const doneWork = await ctx.store.upsert('interventions', {...w, status: 'Terminé', plannedDate: w.plannedDate || w.date || '', date: ctx.todayIso()},
-      {label: `Travail terminé : ${w.type}`});
+    if (!w || !isPending(w) || finishing.has(`work:${id}`)) return; // double appui : déjà terminé ou en cours
+    finishing.add(`work:${id}`);
+    let doneWork;
+    try {
+      armDone(control, id, 'work');
+      statusBeforeDone.set(`work:${id}`, w.status);
+      doneWork = await ctx.store.upsert('interventions', {...w, status: 'Terminé', plannedDate: w.plannedDate || w.date || '', date: ctx.todayIso()},
+        {label: `Travail terminé : ${w.type}`});
+    } finally { finishing.delete(`work:${id}`); }
     ctx.toast('Travail marqué terminé.', 'success', {label: 'Annuler', run: restore('interventions', w)});
     ctx.lazy.need('habits', {silent: true}).then(ok => ok && ctx.habitsUI.afterFinish(doneWork));
   },
@@ -64,9 +75,13 @@ export const workActions = {
   'map-multiple-task'() { const ids = [...ctx.parcelMap.selectedIds]; if (ids.length) ctx.openTaskForm(null, {parcelIds: ids}); },
   async 'finish-task'({id, control}) {
     const t = task(id);
-    armDone(control, id, 'task');
-    statusBeforeDone.set(`task:${id}`, t.status);
-    await ctx.store.upsert('tasks', {...t, status: 'Terminé'}, {label: `Tâche terminée : ${t.title}`});
+    if (!t || !isPending(t, 'task') || finishing.has(`task:${id}`)) return; // double appui : déjà terminée ou en cours
+    finishing.add(`task:${id}`);
+    try {
+      armDone(control, id, 'task');
+      statusBeforeDone.set(`task:${id}`, t.status);
+      await ctx.store.upsert('tasks', {...t, status: 'Terminé'}, {label: `Tâche terminée : ${t.title}`});
+    } finally { finishing.delete(`task:${id}`); }
     if (ctx.$('#modal-root').classList.contains('has-modal')) ctx.openTasks(); else ctx.renderToday(ctx.state());
     ctx.toast('Tâche terminée.', 'success', {label: 'Annuler', run: restore('tasks', t)});
   },

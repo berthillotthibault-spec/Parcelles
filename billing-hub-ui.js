@@ -315,7 +315,11 @@ export function createBillingHubUI(host = {}) {
   async function onClick(event) {
     const el = event.target.closest('[data-bh]');
     if (!el || el.disabled) return;
+    // Verrou anti double appui pendant une action asynchrone (relance, suivi de devis, récurrence, catalogue…).
+    if (el.dataset.bhBusy) return;
+    el.dataset.bhBusy = '1';
     const a = el.dataset.bh, id = el.dataset.id || '';
+    try {
     try {
       // Quitter un formulaire par un onglet, une section ou le lien de retour (pas son bouton Annuler).
       if ((a === 'tab' || a === 'set-section' || a === 'back') && !el.closest('form[data-bh-guard]') && !leaveOk()) return;
@@ -339,6 +343,7 @@ export function createBillingHubUI(host = {}) {
       console.error('[Parcelles] facturation', error);
       toast(error?.message || 'Action impossible.', 'error');
     }
+    } finally { delete el.dataset.bhBusy; }
   }
   function onKey(event) {
     const t = event.target.closest?.('.bh-tab');

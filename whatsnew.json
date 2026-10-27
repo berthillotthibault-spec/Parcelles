@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.21.1",
+      "date": "2026-10-27",
+      "title": "Corrections",
+      "items": [
+        "Carte : un clic sur une parcelle n’ouvre plus qu’une seule fiche.",
+        "La bulle IA et le micro s’effacent correctement et ne recouvrent plus les boutons ni les fiches.",
+        "Le micro et la lecture vocale s’arrêtent à la fermeture ; le retour ferme d’abord la fenêtre ouverte.",
+        "Double appui sans doublon à l’enregistrement, et plusieurs corrections de facturation."
+      ]
+    },
+    {
       "version": "10.21.0",
       "date": "2026-10-26",
       "title": "Facturation et messages",

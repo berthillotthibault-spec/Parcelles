@@ -1,5 +1,29 @@
 # Changelog
 
+## 10.21.1 · corrections de superpositions et de bugs — 2026-10-27
+
+Données : pas de changement de schéma (version 17).
+
+Superpositions et éléments flottants :
+- « Masquer l’assistant » masque bien la bulle IA et le micro (ils recouvraient « J’ai fait ») ; ils ne s’impriment plus ;
+- carte : un clic sur une parcelle n’ouvre plus que la fiche du bas (le popup en double est supprimé) ; les popups se ferment avec la fiche, au changement d’onglet et quand un popup cadastre, RPG ou repère s’ouvre ;
+- la pastille « Suivi GPS », le badge « GPS actif » et la barre du pouce du mode gants ne recouvrent plus la fiche de la carte, le mode terrain ni les surcouches ;
+- le toast ne recouvre plus le formulaire ouvert ; la page derrière une modale ne défile plus ; mises en page corrigées (Marge nette, Sauvegardes automatiques à 360 px).
+
+Assistant et micro :
+- la commande « Parler », la lecture vocale, la dictée d’un mémo et la lecture d’un mémo s’arrêtent à la fermeture ;
+- le micro flottant disparaît quand les commandes vocales sont désactivées ; « Préparer le brouillon » arrête d’abord l’enregistrement ;
+- l’assistant ne propose plus une ancienne parcelle comme « Cette parcelle ».
+
+Navigation et formulaires :
+- le bouton retour ferme d’abord la modale ou la tournée du jour, sans quitter l’écran ;
+- la recherche de la carte se ferme au tap sur la carte et au changement d’onglet ; l’onglet Carte ne rouvre plus la fiche d’une parcelle consultée ailleurs ;
+- double appui sur « Enregistrer », « Terminer », « Facturer », les actions du Centre Facturation et de la messagerie : une seule création ou un seul envoi ;
+- « Annuler » ne ressuscite plus un travail supprimé entre-temps ; les messages d’erreur s’effacent à la correction et défilent jusqu’à l’écran ; stock sans nom et pièce jointe sans fichier refusés avec un message ;
+- un toast persistant sans action peut être fermé ; météo sans commune calculée au centre des parcelles ; refus du navigateur (micro, caméra, presse-papiers) expliqué correctement.
+
+Facturation : les boutons « Paramètres » et « Ouvrir le catalogue » ouvrent le bon onglet ; Échap après un envoi revient à la fiche du document ; un acompte en montant TTC tombe juste au centime.
+
 ## 10.21.0 · service de facturation complet et envoi de messages — 2026-10-26
 
 Données : pas de changement de schéma (version 17). Les nouveaux documents (devis, catalogue, récurrences, contacts, modèles et journal des messages) sont des enregistrements de l’exploitation, synchronisés comme les autres. Les factures et avoirs déjà émis restent valables et leur numérotation continue.

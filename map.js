@@ -339,7 +339,6 @@ export class ParcelMap{
         const layer=L.geoJSON(parcel.geometry,{pane:'parcelPane',renderer:this.vectorRenderer,style:()=>current.style,pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{pane:'parcelPane',renderer:this.vectorRenderer,radius:8})});
         current.layer=layer;
         layer.on('click',()=>{if(this.mapToolActive())return;if(this.multiple){if(this.selectedIds.has(id))this.selectedIds.delete(id);else this.selectedIds.add(id);this.render(this.lastState);this.notifySelection();}else this.select(id,{zoom:false});});
-        this.bindMapPopup(layer,()=>this.parcelPopupHtml(id));
         this.bindHover(layer,()=>current.parcel);layer.addTo(this.layers.parcels);this.parcelLayers.set(id,current);
       }else{
         entry.parcel=parcel;if(entry.styleKey!==signature){entry.style=style;entry.styleKey=signature;entry.layer.setStyle(style);}

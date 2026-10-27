@@ -65,8 +65,8 @@ test('les modules de célébration sont servis hors connexion et branchés sur l
   // n° 147 : terminer un travail ou une tâche est géré par work-actions.js (registre d’actions).
   const actions=fs.readFileSync(new URL('./work-actions.js',import.meta.url),'utf8');
   assert.match(actions,/function armDone\(control, id, kind\) \{\n\s+armCelebration\(control,/);
-  assert.match(actions,/'finish-work'\(\{id, control\}\) \{\n\s+const w = work\(id\);\n\s+armDone\(control, id, 'work'\);/);
-  assert.match(actions,/'finish-task'\(\{id, control\}\) \{\n\s+const t = task\(id\);\n\s+armDone\(control, id, 'task'\);/);
+  assert.match(actions,/'finish-work'\(\{id, control\}\) \{\n\s+const w = work\(id\);\n[\s\S]{0,200}?armDone\(control, id, 'work'\);/);
+  assert.match(actions,/'finish-task'\(\{id, control\}\) \{\n\s+const t = task\(id\);\n[\s\S]{0,200}?armDone\(control, id, 'task'\);/);
   assert.match(app,/decorateDayReview\(\$\('#day-review'\)/);
   const css=fs.readFileSync(new URL('./design-v3.css',import.meta.url),'utf8');
   assert.match(css,/prefers-reduced-motion:reduce\)\{\.day-review\{transition:none\}\.review-bloom\{display:none\}/);

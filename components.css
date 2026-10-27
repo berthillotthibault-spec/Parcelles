@@ -94,6 +94,7 @@ html[data-native-locked="true"] body{overflow:hidden}
 dialog.modal-root{width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:transparent;color:inherit;overflow:visible}
 dialog.modal-root::backdrop{background:transparent}
 .modal-root[data-suspended]{display:none!important}
+html:has(#modal-root.has-modal),html:has(.why-dialog[open]){overflow:hidden}
 }
 /* n° 153 : dérogations (couche screens) : plus spécifiques que les règles de la couche screens qu'elles
    contredisent, elles l'emportaient avant les couches ; rangées ici, elles gardent le dessus. */

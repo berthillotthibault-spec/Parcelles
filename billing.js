@@ -68,7 +68,14 @@ export function depositLines(quote,{percent=null,amount=null}={}){
   const what=p!==null?`Acompte de ${String(round2(p)).replace('.',',')} %`:'Acompte';
   const lines=groups.map(g=>({label:`${what} sur le devis ${quote.number||''}${many?` (TVA ${String(g.rate).replace('.',',')} %)`:''}`.trim(),quantity:1,unit:'forfait',unitPrice:round2(g.base*share),vatRate:g.rate,...(g.exemption?{vatExemption:g.exemption}:{})}));
   // Montant TTC demandé : l’écart d’arrondi (un centime) est repris sur la plus grosse base.
-  if(a!==null&&lines.length){const diff=round2(a-documentTotals({lines}).ttc);if(diff){const big=lines.reduce((m,l)=>Math.abs(l.unitPrice)>Math.abs(m.unitPrice)?l:m);big.unitPrice=round2(big.unitPrice+diff/(1+big.vatRate/100));}}
+  if(a!==null&&lines.length){const diff=round2(a-documentTotals({lines}).ttc);if(diff){const big=lines.reduce((m,l)=>Math.abs(l.unitPrice)>Math.abs(m.unitPrice)?l:m);big.unitPrice=round2(big.unitPrice+diff/(1+big.vatRate/100));}
+    // Écart restant (un centime HT ne vaut pas un centime TTC) : ±0,01 € HT sur une ou deux lignes, taux le plus bas
+    // d’abord ; si le montant exact est inatteignable (un seul taux), la variante la plus proche est gardée.
+    const want=round2(a),gap=()=>Math.abs(round2(documentTotals({lines}).ttc-want));
+    if(gap()){const order=[...lines].sort((x,y)=>(Number(x.vatRate)||0)-(Number(y.vatRate)||0)),base=lines.map(l=>l.unitPrice);let best={gap:gap(),prices:base};
+      const tryIt=moves=>{moves.forEach(([l,d])=>{l.unitPrice=round2(l.unitPrice+d);});const g=gap();if(g<best.gap)best={gap:g,prices:lines.map(l=>l.unitPrice)};lines.forEach((l,i)=>{l.unitPrice=base[i];});return!g;};
+      search:for(const[i,l]of order.entries()){for(const d of[0.01,-0.01]){if(tryIt([[l,d]]))break search;for(const m of order.slice(i+1))for(const e of[0.01,-0.01])if(tryIt([[l,d],[m,e]]))break search;}}
+      lines.forEach((l,i)=>{l.unitPrice=best.prices[i];});}}
   return lines;
 }
 const QUOTE_CARRY=['operationNature','deliveryAddress','deliveryDate','vatExemption','reference','subject','clientKind','clientEmail','clientPhone'];

@@ -80,7 +80,7 @@ button.list-row{width:100%;border-left:0;border-right:0;border-top:0;background:
 /* Pilotage: existing modal and mobile controls. */
 #farm-panel details{margin:16px 0}#farm-panel summary{min-height:44px;cursor:pointer;font-weight:650}#farm-panel select,#farm-panel input{max-width:100%;min-height:44px}#farm-panel .check-row{min-height:48px}#farm-panel article{overflow-wrap:anywhere}#farm-panel .table-wrap{overflow-x:auto}.farm-json{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.satellite-map-label{max-height:35dvh;overflow-y:auto;max-width:min(290px,70vw)}#farm-panel .satellite-actions{flex-wrap:wrap}
 
-#farm-gps-active{position:fixed;top:calc(env(safe-area-inset-top) + 65px);right:12px;z-index:900;box-shadow:0 3px 12px #0003;max-width:230px}body:has(.has-modal) #farm-gps-active{display:none}
+#farm-gps-active{position:fixed;top:calc(env(safe-area-inset-top) + 65px);right:12px;z-index:900;box-shadow:0 3px 12px #0003;max-width:230px}body:has(.has-modal,.field-mode-overlay,.dz-viewer) #farm-gps-active{display:none}
 
 /* v9 n° 43 : carte « État des cultures » (NDVI), frise des dates et rideau de comparaison. */
 .map-legend .legend-dot.is-hatched,.legend-dot.is-hatched{background:repeating-linear-gradient(45deg,#7d827a 0 3px,#cfd1ca 3px 7px)!important}

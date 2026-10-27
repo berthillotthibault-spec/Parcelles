@@ -155,6 +155,9 @@ export function createDocsActions(ui) {
     warmLogo(ui.settings().logo);
     const result = await messaging.openComposer({recipients: msg.recipients, channel: msg.recipients[0]?.email ? 'email' : 'auto', subject: msg.subject, body: msg.body, files: attachments(d),
       context: {...msg.context, label: `${docName(d)} · ${d.clientName || ''}`.trim()}, templateKey: msg.templateKey});
+    // Composeur fermé par Échap : la promesse se résout pendant la touche, avant l'événement « cancel » du dialogue
+    // qui refermerait aussitôt la fiche rouverte (même report que afterClose de billing-hub-ui.js).
+    await new Promise(resolve => setTimeout(resolve, 0));
     const entry = {date: isoDay(), channel: result?.channel || 'email', recipients: msg.recipients, purpose, recordId: result?.recordId || null};
     const record = () => level ? recordReminder(store(), id, {...entry, level, fee: feeOf(level)}) : logSent(store(), id, entry);
     if (result?.sent) {
@@ -319,7 +322,7 @@ export function createDocsActions(ui) {
     const refresh = () => {
       const amountMode = f.mode.value === 'amount'; f.querySelectorAll('[data-mode]').forEach(el => { el.hidden = (el.dataset.mode === 'amount') !== amountMode; });
       const note = $('#bd-deposit-note'); if (!note) return;
-      try { const lines = depositLines(d, amountMode ? {amount: f.amount.value} : {percent: f.percent.value}), t = documentTotals({lines}); note.textContent = `Acompte de ${money(t.ttc)} TTC (${money(t.ht)} HT) ; reste à facturer ensuite ${money(prog.remaining - t.ttc)}.`; }
+      try { const lines = depositLines(d, amountMode ? {amount: f.amount.value} : {percent: f.percent.value}), t = documentTotals({lines}); const asked = amountMode ? Number(String(f.amount.value).replace(',', '.').replace(/\s/g, '')) : NaN, off = Number.isFinite(asked) && Math.abs(t.ttc - asked) >= 0.005; note.textContent = `Acompte de ${money(t.ttc)} TTC (${money(t.ht)} HT) ; reste à facturer ensuite ${money(prog.remaining - t.ttc)}.${off ? ` Montant exact de ${money(asked)} non atteignable avec ce taux de TVA : ${money(t.ttc)} sera facturé.` : ''}`; }
       catch (error) { note.textContent = error?.message || ''; }
     };
     f?.addEventListener('input', refresh); f?.addEventListener('click', event => { if (event.target.closest('.choice-chip')) queueMicrotask(refresh); });
