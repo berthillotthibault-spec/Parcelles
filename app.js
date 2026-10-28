@@ -6,18 +6,17 @@ import {createAppLoader} from './lazy-modules.js'; // n° 144, 147
 import {createSatelliteUI} from './satellite-ui.js';
 import {createWideLayoutUI} from './wide-layout-ui.js';
 import {HOME_SHORTCUTS,normalizePersonalization,homeLayout,filterMapParcels} from './personalization.js';
-import {openPersonalization} from './personalization-ui.js';import {createActivityModulesUI,activityChipsHtml,bindActivityChips} from './activity-modules-ui.js';import {hiddenToolCount,isModuleActive} from './activity-modules.js'; // v6c n° 116
+import {createActivityModulesUI,activityChipsHtml,bindActivityChips} from './activity-modules-ui.js';import {hiddenToolCount,isModuleActive} from './activity-modules.js'; // v6c n° 116
 import {createGettingStartedUI} from './getting-started-ui.js';let gettingStartedUI=null; // v6c n° 119
 import {createWhatsNewUI} from './whats-new-ui.js';let whatsNewUI=null; // v6c n° 128
 import {createFriendlyErrorsUI} from './friendly-errors-ui.js';import {friendlyError} from './friendly-errors.js';let friendlyErrorsUI=null;function friendlyErrors(){return friendlyErrorsUI||(friendlyErrorsUI=createFriendlyErrorsUI({toast,openDiagnostic,copyText,buildId:BUILD_ID}));} // v6c n° 126
 import {createHelpUI} from './help-ui.js';let helpUI=null;function help(){return helpUI||(helpUI=createHelpUI({store,modal}));} // v6c n° 125
-import {createThemeUI} from './theme-ui.js';import {toggledTheme} from './theme.js';let themeUI=null; // v6c n° 32
+import {createThemeUI} from './theme-ui.js';let themeUI=null; // v6c n° 32
 import {createCountUpUI} from './count-up-ui.js';let countUpUI=null; // v6c n° 33
 import {getHomeAgenda,getParcelWorkContext,matchesWorkTab,isPending,agendaDate,dailySituation,parcelSituation,weatherOpportunity,localDay,expectedCalvings,pendingBdni,animalLabel} from './home-priorities.js';
 import {Store,externalBackupStatus,migrateData,isNewerSchema} from './state.js';import {createTabCoordinator} from './tab-coordinator.js';
 import {summarizeParcelGrazing,grazingDate,stockingRate,isForageParcel} from './grazing.js';
 import {createGrazingUI,parcelGrazingHtml} from './grazing-ui.js';
-import {endGrazingSession} from './grazing-records.js';
 import {icon,emptyState} from './ui.js';
 import {updateBoot, finishBoot, revealView, dismissToast, startProgress, withProgress} from './motion.js';
 import {decorateDayReview} from './celebration-ui.js';import {createQuickEntryUI} from './quick-entry-ui.js';let quickEntryUI=null;import {createSoilWaterUI} from './soil-water-ui.js';let soilWaterUI=null;import {createTeamWorkUI} from './team-work-ui.js';let teamWorkUI=null;let teamRolesUI=null,pendingInviteToken='';
@@ -65,7 +64,7 @@ import {farmInsights, searchEverything} from './insights.js';
 import {installErrorRecorder} from './diagnostics.js';
 import {PerformanceMonitor, idleTask} from './performance.js';
 import {computeNotifications, requestNotificationPermission, showBrowserNotification} from './notifications.js';
-import {farmReportHtml, parcelReportHtml, clientReportHtml, equipmentReportHtml, pilotageReportHtml, stockReportHtml, traceabilityReportHtml, documentsReportHtml, openPrintableReport} from './reports.js';
+import {openPrintableReport} from './reports.js';
 import {createPhytoUI} from './phyto-ui.js';import {createPhytoCatalogUI} from './phyto-catalog-ui.js';import {createIftUI} from './ift-ui.js';
 import {buildPilotage, stockSummary} from './pilotage.js';
 import {buildInterventionFromSession, chantierProgress, formatElapsed, locateParcels, nextChantierParcelId, sessionElapsedMs} from './field-ops.js';
@@ -75,13 +74,13 @@ import {createParcelHeroUI} from './parcel-hero-ui.js';import {createNextActionU
 import {createWorkSwipeUI} from './work-swipe-ui.js';
 import {createVoiceNotesUI} from './voice-notes-ui.js';
 import {createOfflineMapUI} from './offline-map-ui.js';
-import {DOCUMENT_CATEGORIES, documentContextText, documentInventoryCsv, documentSummary, filterDocuments, normalizeDocumentTags, traceabilityCsv, traceabilitySummary} from './traceability.js';
+import {DOCUMENT_CATEGORIES, documentContextText, documentSummary, filterDocuments, normalizeDocumentTags, traceabilitySummary} from './traceability.js';
 import {NativeBridge, isNativeApp, nativeCapabilities} from './native.js';
 import {createDayRouteUI} from './day-route-ui.js';
 import {parseLaunchRoute,shouldResumeField} from './shortcuts.js';
 import {parseQrRoute} from './qr-labels.js';
 import {workWeatherSlot,SLOT_DISCLAIMER} from './work-weather.js';
-import {automationActions, automationRuleLabel, automationTemplates, evaluateAutomationRules, interpolateAutomationText, newAutomationFromTemplate} from './automations.js';
+import {automationActions, automationRuleLabel, evaluateAutomationRules, interpolateAutomationText} from './automations.js';
 import {DEFAULT_PBKDF2_ITERATIONS, decryptJsonPayload, encryptJsonPayload, encryptedHint, passwordStrength} from './security.js';
 let remoteAiMod=null; // n° 144 : remote-ai.js chargé à la première question distante (lazy-modules.js)
 import {html} from './safe-html.js';
@@ -116,7 +115,7 @@ import {lineageLabel} from './parcel-split.js';
 import {createApproachUI} from './approach-ui.js';
 // n° 147 : contexte partagé, registre d’actions et actions par domaine (travaux, parcelles) sortis du délégué de clics.
 import {ctx as appContext,initContext} from './app-context.js';import {hasAction,runAction,registerActions} from './actions.js';
-import {workActions} from './work-actions.js';import {parcelActions} from './parcel-actions.js';
+import {workActions} from './work-actions.js';import {parcelActions} from './parcel-actions.js';import {todayActions} from './today-actions.js';import {mapActions} from './map-actions.js';import {fieldActions} from './field-actions.js';import {farmActions} from './farm-actions.js';import {modulesActions} from './modules-actions.js';import {dataActions} from './data-actions.js';
 import {
   APP_VERSION, BUILD_ID, ENTITY_TYPES, campaignFor, download, downloadBlob, escapeHtml, formatEuro,
   formatNumber, geometryAreaHa, geometryCentroid, haversineMeters, isoDate, localDate, localDateTime,
@@ -184,15 +183,47 @@ async function init(){
     approachUI,entityTypeLabel,openWorkForm,openBatchWorkForm,openWorkActions,openWorkFilters,openTaskForm,openTasks,openCalendar,openAttachmentForm,
     openParcel,openParcelDetail,openParcelForm,openParcelActions,openParcelFilters,openParcelWeather,openNote,routeParcel,shareParcel,
     startParcelDrawing,startNewParcelDrawing,closeFieldMode,activeFieldSession,copyText,scheduler,perf,
+    // n° 147 : dépendances des modules d’actions par domaine (today, map, field, farm, modules, data).
+    activities,applyTheme,chooseBackupFolder,contourEditUI,currentFieldParcelId,discardMapMode,emptyTrash,enterDemo,exitDemo,exportAutoBackup,
+    exportCompleteBackup,exportJsonBackup,fieldCoverage,forgetBackupFolder,getEquipmentQrUI,getGrazingUI,getIcsUI,getParcelFormatsUI,getPublicWorksUI,
+    greenIndicators,help,impex,keepMapMode,mapModes,mapRenderState,offlineMap,openAccountTeam,openAdvancedTools,openAssistant,openAutoBackups,
+    openCadastreParcelForm,openCampaignPlanner,openChantierDetail,openChantierForm,openChantiers,openClientDetail,openClientForm,openClients,
+    openDataCenter,openDayRoute,openDiagnostic,openDocumentCenter,openDocumentMetadataForm,openEncryptedBackup,openEquipment,openEquipmentDetail,
+    openEquipmentForm,openFieldMode,openFieldSessionStart,openGlobalSearch,openGrazing,openGrazingForm,openHelp,openImportHistory,openLog,
+    openMachineMissionForm,openMaintenanceForm,openMapPointEditor,openMapTools,openNotifications,openObservationForm,openObservations,
+    openPointCreator,openPrivacy,openQuality,openQualityIssue,openReports,openRotationForm,openRotations,openRpgParcelForm,openStatistics,openStock,
+    openStockForm,openStockMovementForm,openSync,openSyncConflict,openTraceability,openTrash,openVoiceJournal,openWeather,parcelCheck,parcelSplitUI,
+    prepareNextCampaign,refreshWeather,regulatedOps,regulatory,rememberRecent,renderGlobalSearch,renderMapSheet,renderMoreCategory,renderMoreModules,
+    requestGps,resolveSyncConflict,restoreAutoBackup,rollbackImport,runAssistantRemoteAction,runAutomationCycle,showIntegrationTrack,snapUI,
+    speakLastAssistant,startChantier,startMapMeasurement,startMapPointPlacement,startMultipleSelection,startVoiceAssistant,storageCare,
+    suggestWorkFromTrack,telepac,trash,viewAttachment,walkMeasureUI,
+    get accountingExportUI(){return accountingExportUI;},get agroRiskUI(){return agroRiskUI;},get appLockUI(){return appLockUI;},
+    get automationsUI(){return automationsUI;},get backupVaultUI(){return backupVaultUI;},get billingHubUI(){return billingHubUI;},
+    get campaignHistoryUI(){return campaignHistoryUI;},get claimsUI(){return claimsUI;},get complianceUI(){return complianceUI;},
+    get coversUI(){return coversUI;},get cropMarginsUI(){return cropMarginsUI;},get dossierUI(){return dossierUI;},
+    get drawingParcelId(){return drawingParcelId;},set drawingParcelId(value){drawingParcelId=value;},get farmUI(){return farmUI;},
+    get forageUI(){return forageUI;},get fuelUI(){return fuelUI;},get gettingStartedUI(){return gettingStartedUI;},
+    get grainStockUI(){return grainStockUI;},get herdEconomicsUI(){return herdEconomicsUI;},get herdHealthUI(){return herdHealthUI;},
+    get herdUI(){return herdUI;},get historyImportUI(){return historyImportUI;},get iftUI(){return iftUI;},get installUI(){return installUI;},
+    get landUI(){return landUI;},get legendParcelFilter(){return legendParcelFilter;},set legendParcelFilter(value){legendParcelFilter=value;},
+    get machineCostsUI(){return machineCostsUI;},get mapLayersUI(){return mapLayersUI;},get netMarginUI(){return netMarginUI;},
+    get nitrogenUI(){return nitrogenUI;},get pacUI(){return pacUI;},get parcelCommentsUI(){return parcelCommentsUI;},
+    get parcelFilter(){return parcelFilter;},set parcelFilter(value){parcelFilter=value;},get phenologyUI(){return phenologyUI;},
+    get phytoCatalogUI(){return phytoCatalogUI;},get platform(){return platform;},get rotationAdviceUI(){return rotationAdviceUI;},
+    get rpgOnboardingUI(){return rpgOnboardingUI;},get settingsUI(){return settingsUI;},get simulatorUI(){return simulatorUI;},
+    get soilAnalysisUI(){return soilAnalysisUI;},get sowingUI(){return sowingUI;},get stockCaptureUI(){return stockCaptureUI;},
+    get syncStatusUI(){return syncStatusUI;},get teamRolesUI(){return teamRolesUI;},get techCentersUI(){return techCentersUI;},
+    get themeUI(){return themeUI;},get treasuryUI(){return treasuryUI;},get whatsNewUI(){return whatsNewUI;},
+    get workTab(){return workTab;},set workTab(value){workTab=value;},
     get store(){return store;},get sync(){return sync;},get parcelMap(){return parcelMap;},get nativeBridge(){return nativeBridge;},
     get weatherCache(){return weatherCache;},get lastGps(){return lastGps;},get fieldModeOpen(){return fieldModeOpen;},get currentView(){return currentView;},
-    get currentParcelTab(){return currentParcelTab;},get selectedParcelId(){return selectedParcelId;},
+    get currentParcelTab(){return currentParcelTab;},get selectedParcelId(){return selectedParcelId;},set selectedParcelId(value){selectedParcelId=value;},
     get workFilters(){return workFilters;},set workFilters(value){workFilters=value;},
     get pendingInviteToken(){return pendingInviteToken;},set pendingInviteToken(value){pendingInviteToken=value;},
     get quickEntryUI(){return quickEntryUI;},get teamWorkUI(){return teamWorkUI;},get phytoUI(){return phytoUI;},get stockLotsUI(){return stockLotsUI;},get hedgesUI(){return hedgesUI;},
     get historyUI(){return historyUI;},get habitsUI(){return habitsUI;},get seedsUI(){return seedsUI;},
     get messagingUI(){return messagingUI;},messaging:()=>lazy.need('messaging').then(ok=>ok?messagingUI:null)}); // v13 : composeur partagé (facturation…)
-  registerActions(workActions);registerActions(parcelActions);
+  registerActions(workActions);registerActions(parcelActions);registerActions(todayActions);registerActions(mapActions);registerActions(fieldActions);registerActions(farmActions);registerActions(modulesActions);registerActions(dataActions);
   lazy.onLoad('workForm',m=>workFormUI=m.createWorkFormUI(appContext));lazy.onLoad('account',m=>accountUI=m.createAccountUI(appContext));lazy.onLoad('diagnostic',m=>diagnosticUI=m.createDiagnosticUI(appContext));lazy.onLoad('historyImport',m=>historyImportUI=m.createHistoryImportUI({store,modal,closeModal,impex,inspect:inspectAndShowImport,chooseParcelsFile:()=>$('#import-file-input').click()}));lazy.onLoad('backupVault',m=>backupVaultUI=m.createBackupVaultUI({restoreFile:f=>handleRestoreFile({target:{files:[f],value:''}}),recordExternalBackup}));
   installErrorRecorder({buildId:BUILD_ID});
   window.addEventListener('unhandledrejection',reportUnhandledActionError);
@@ -1558,237 +1589,14 @@ function bindEvents(){
     if(control.dataset.workTab){workTab=control.dataset.workTab;renderWork(state());revealView($('#view-work'));return;}
     if(control.dataset.parcelFilter){parcelFilter=control.dataset.parcelFilter;legendParcelFilter=null;$$('[data-parcel-filter]').forEach(b=>b.classList.toggle('is-active',b===control));renderParcels(state());revealView($('#view-parcels'));return;}
     if(control.dataset.mapOpen){closeModal();openParcel(control.dataset.mapOpen);return;}
-    const action=control.dataset.action,id=control.dataset.id;
+    const action=control.dataset.action;
     if(control.closest('#global-search-results')&&action!=='search-hint'){const q=$('#global-search-input')?.value;if(q?.trim())rememberRecentSearch(q);}
     try{
-      if(hasAction(action))await runAction(action,control,event); // n° 147 : actions par domaine (work-actions.js, parcel-actions.js)
-      else if(action==='close-modal')closeModal();
-      else if(action==='field-track-map'||action==='field-track-gpx'){if(action==='field-track-map')closeFieldMode();fieldCoverage().action(action,control);}
-      else if(action==='personalize')openPersonalization({preferences:state().preferences,modal,closeModal,toast,save:async preferences=>{await store.setPreferences(preferences);renderAll();}});
-      else if(action==='hide-assistant'){await store.setPreferences({assistantDock:false});toast('Assistant masqué. Réactivez-le dans Personnaliser.','success',{label:'Annuler',run:()=>store.setPreferences({assistantDock:true})});}
-      else if(action==='today-summary-open'){const target=control.dataset.target;if(target==='grazing'){parcelFilter='grazing';switchView('parcels');$$('[data-parcel-filter]').forEach(b=>b.classList.toggle('is-active',b.dataset.parcelFilter==='grazing'));renderParcels(state());}else{workTab=target==='overdue'?'overdue':'today';switchView('work');renderWork(state());}}
-      else if(action==='map-mode-keep')keepMapMode();
-      else if(action==='map-mode-discard')discardMapMode();
-      else if(action==='map-multiple'){if(parcelMap.multiple){mapModes.exit({name:'multiple'});if(parcelMap.multiple)parcelMap.toggleMultiple(false);}else startMultipleSelection();}
-      else if(action==='map-multiple-cancel'){mapModes.exit({name:'multiple'});if(parcelMap.multiple)parcelMap.toggleMultiple(false);}
-      else if(action==='map-multiple-info'){modal('Parcelles sélectionnées','', [...parcelMap.selectedIds].map(id=>{const p=parcelById(id);return p?`<button class="list-row" data-action="open-parcel" data-id="${escapeHtml(id)}">${escapeHtml(p.nom)} · ${formatNumber(p.surfaceHa)} ha</button>`:'';}).join(''),'<button class="button secondary" data-action="close-modal">Fermer</button>');}
-      else if(action==='voice-journal'){closeFieldMode();openVoiceJournal();}
-      else if(action==='palette-map'){closeModal();switchView('map');}
-      else if(action==='global-search')openGlobalSearch();
-      else if(action==='getting-started-hide')await gettingStartedUI?.hide();
-      else if(action==='toggle-theme'){closeModal();const previous=state().preferences.theme||'system',next=toggledTheme(previous,themeUI?.systemDark());await store.setPreferences({theme:next});applyTheme();toast(next==='dark'?'Thème sombre.':'Thème clair.','success',{label:'Annuler',run:async()=>{await store.setPreferences({theme:previous});applyTheme();}});}
-      else if(action==='help-topic')help().openTopic(control.dataset.helpKey||'');
-      else if(action==='open-whats-new')await whatsNewUI?.open();
-      else if(action==='open-demo')await enterDemo();
-      else if(action==='exit-demo')await exitDemo();
-      else if(action==='open-install')await installUI?.open();
-      else if(action==='more-show-all-tools'||action==='more-modules-filter'){activities().setShowAll(action==='more-show-all-tools');renderMoreModules();}
-      else if(action==='open-more-category'){renderMoreCategory(control.dataset.category||'production');switchView('more-category');}
-      else if(action==='open-advanced-tools')openAdvancedTools();
-      else if(action==='network-details'&&syncStatusUI)syncStatusUI.openSheet({autoRetry:true});
-      else if(action==='sync-sheet'&&syncStatusUI)syncStatusUI.openSheet();
-      else if(action==='network-details')modal('État de l’application',navigator.onLine?'Connexion disponible':'Hors connexion',`<div class="notice ${navigator.onLine?'info':'warning'}">${navigator.onLine?'Les fonctions réseau sont disponibles.':'Les données locales restent accessibles et modifiables.'}</div>`,`<button class="button primary" data-action="close-modal">Fermer</button>`,'small');
-      else if(action==='open-compliance'){closeModal();complianceUI?.open();}
-      else if(action==='open-nitrogen'){closeModal();nitrogenUI?.open();}
-      else if(action==='open-pac'){closeModal();pacUI?.open();}
-      else if(action==='open-telepac-import'){closeModal();telepac().open();}
-      else if(action==='open-parcel-check'){closeModal();parcelCheck().open();}
-      else if(action==='open-regulatory-rules'){closeModal();regulatory().openRules();}
-      else if(action==='open-regulated-ops'){closeModal();regulatedOps().open();}
-      else if(action==='open-green-indicators'){closeModal();greenIndicators().open();} // v11 n° 71
-      else if(action==='open-covers'){closeModal();coversUI?.open();}
-      else if(action==='open-herd-health'){closeModal();herdHealthUI?.open();}
-      else if(action==='open-lot-sheet'){closeModal();grainStockUI?.sheetModal(id);}
-      else if(action==='open-land'){closeModal();landUI?.open();}
-      else if(action==='open-claims'){claimsUI?.open();}
-      else if(action==='open-fuel'){fuelUI?.open();}
-      else if(action==='open-campaign-history'){campaignHistoryUI?.open({campaign:control.dataset.campaign||campaignFor()});}
-      else if(action==='open-accounting-export'){accountingExportUI?.open();}
-      else if(action==='open-treasury'){treasuryUI?.open();}
-      else if(action==='open-net-margin'){netMarginUI?.open({campaign:control.dataset.campaign||campaignFor()});}
-      else if(action==='open-machine-costs'){machineCostsUI?.open({campaign:control.dataset.campaign||campaignFor()});}
-      else if(action==='open-forage'){forageUI?.open();} // v8b
-      else if(action==='open-seeds'){seedsUI?.open();} // v8b
-      else if(action==='open-soil-analyses'){soilAnalysisUI?.open();} // v8b
-      else if(action==='open-hedges'){hedgesUI?.open();} // v8b
-      else if(action==='open-herd'){herdUI?.open();}else if(action==='open-herd-animal'){herdUI?.openAnimal(id);}
-      else if(action==='open-herd-economics'){herdEconomicsUI?.open({campaign:control.dataset.campaign||campaignFor()});}
-      else if(action==='open-crop-margins'){cropMarginsUI?.open({campaign:control.dataset.campaign||campaignFor()});}
-      else if(action==='open-simulator'){simulatorUI?.open({campaign:control.dataset.campaign||campaignFor(),culture:control.dataset.culture||''});}
-      else if(action==='open-phyto-register'){closeModal();phytoUI?.openRegister();}
-      else if(action==='open-phyto-catalog'){closeModal();phytoCatalogUI?.open();}
-      else if(action==='ift-open')iftUI?.open(id);
-      else if(action==='rpg-onboarding')rpgOnboardingUI?.open({commune:state().exploitation.commune||''});
-      else if(action==='open-team-roles')await teamRolesUI?.open();
-      else if(action==='view-attachment'){await viewAttachment(control.dataset.type,id);}
-      else if(action==='show-point'){const point=store.get('points',id);if(point){closeModal();switchView('map');parcelMap.focusPoint(id);}}
-      else if(action==='add-rpg-parcel')openRpgParcelForm(id);
-      else if(action==='add-cadastre-parcel')openCadastreParcelForm(id);
-      else if(action==='edit-map-point')openMapPointEditor(id);
-      else if(action==='move-map-point')startMapPointPlacement({id});
-      else if(action==='delete-map-point'){const point=store.get('points',id);if(point){parcelMap.cancelPointPlacement();parcelMap.map?.closePopup();confirmDelete('points',id,point.nom||point.name||point.type||'ce point');}}
-      else if(action==='cancel-map-point'){mapModes.exit({name:'point'});parcelMap.cancelPointPlacement();$('#map-point-panel').classList.add('hidden');}
-      else if(action==='edit-contour'){closeModal();contourEditUI().start(id);}
+      if(hasAction(action))await runAction(action,control,event); // n° 147 : toutes les actions nommées sont dans les modules *-actions.js
+      // Restent ici les listes d’actions fournies par un module différé (contour, mesure à pied, découpe), connues seulement une fois chargé.
       else if(lazy.get('contourEdit')?.CONTOUR_EDIT_ACTIONS.includes(action))contourEditUI().handleAction(action);
-      else if(action==='map-snap-toggle')await snapUI().toggle();
-      else if(action==='draw-follow-boundary')snapUI().follow();
-      else if(action==='walk-measure'){closeModal();walkMeasureUI().start();}
       else if(lazy.get('walkMeasure')?.WALK_ACTIONS.includes(action))walkMeasureUI().handleAction(action);
-      else if(action==='split-parcel'){closeModal();parcelSplitUI().startSplit(id);}
       else if(lazy.get('parcelSplit')?.SPLIT_ACTIONS.includes(action))parcelSplitUI().handleAction(action);
-      else if(action==='map-multiple-merge')parcelSplitUI().openMerge([...parcelMap.selectedIds]);
-      else if(action==='map-search-open'){selectedParcelId=id;rememberRecent(id);if(parcelMap.map)parcelMap.select(id);else renderMapSheet(state());const results=$('#map-search-results');if(results){results.classList.add('hidden');results.innerHTML='';}const input=$('#map-search-input');if(input)input.value='';}
-      else if(action==='close-map-parcel-sheet'){selectedParcelId=null;parcelMap.selectedId=null;parcelMap.map?.closePopup();renderMapSheet();parcelMap.render(mapRenderState(state()));}
-      else if(action==='locate')await requestGps();
-      else if(action==='fit-parcels'){closeModal();parcelMap.fitParcels();}
-      else if(action==='open-map-layers')mapLayersUI.open();
-      else if(action==='map-tools')openMapTools();
-      else if(action==='measure-distance')startMapMeasurement('distance');
-      else if(action==='measure-area')startMapMeasurement('area');
-      else if(action==='undo-measure-point')parcelMap.undoMeasurementPoint();
-      else if(action==='cancel-measure'){mapModes.exit({name:'measure'});parcelMap.cancelMeasurement();$('#map-measure-panel')?.classList.add('hidden');}
-      else if(action==='finish-measure'){try{parcelMap.finishMeasurement();}catch(error){toast(error.message,'error');}}
-      else if(action==='track-position'){closeModal();await requestGps();parcelMap.toggleTracking({follow:true});}
-      else if(action==='add-point')openPointCreator();
-      else if(action==='toggle-legend')$('#map-legend')?.classList.toggle('is-open');
-      else if(action==='finish-parcel-draw'){try{parcelMap.finishPolygonDrawing();}catch(error){toast(error.message,'error');}}
-      else if(action==='cancel-parcel-draw'){mapModes.leave(()=>{parcelMap.cancelPolygonDrawing();$('#map-draw-panel').classList.add('hidden');drawingParcelId=null;},{reason:'close'});}
-      else if(action==='undo-draw-point'){parcelMap.undoPolygonPoint();}
-      else if(action==='open-field-mode')openFieldMode();
-      else if(action==='open-day-route')openDayRoute();
-      else if(action==='equipment-qr')(await getEquipmentQrUI()).openLabel('equipment',id);
-      else if(action==='point-qr')(await getEquipmentQrUI()).openLabel('point',id);
-      else if(action==='print-qr-labels')(await getEquipmentQrUI()).openPicker();else if(action==='clear-legend-filter'){legendParcelFilter=null;renderParcels(state());}else if(action==='export-parcels-format')await getParcelFormatsUI().run(id);else if(action==='ics-work')getIcsUI().addToAgenda('work',id);else if(action==='ics-task')getIcsUI().addToAgenda('task',id);else if(action==='open-ics-agenda')getIcsUI().openAgenda();else if(action==='ics-export-30')getIcsUI().exportUpcoming();else if(action==='ics-enable-reminders')getIcsUI().enableReminders();
-      else if(action==='open-public-works')getPublicWorksUI().openList();
-      else if(action==='open-chantiers')openChantiers();
-      else if(action==='new-chantier'){closeModal();openChantierForm();}
-      else if(action==='open-chantier')openChantierDetail(id);
-      else if(action==='edit-chantier'){closeModal();openChantierForm(store.get('chantiers',id));}
-      else if(action==='start-chantier')await startChantier(id);
-      else if(action==='start-chantier-parcel'){closeModal();openFieldSessionStart(id,{chantierId:control.dataset.chantierId});}
-      else if(action==='open-rotations')openRotations();else if(action==='stock-capture')stockCaptureUI?.open();else if(action==='rotation-delays')rotationAdviceUI?.openSettings();else if(action==='sowing-settings')sowingUI?.openSettings();else if(action==='open-agro-risks')agroRiskUI?.openList();else if(action==='pheno-observed')phenologyUI?.openObserved(id);else if(action==='pheno-settings')phenologyUI?.openSettings(id);
-      else if(action==='prepare-next-campaign')await prepareNextCampaign();
-      else if(action==='open-campaign-planner')openCampaignPlanner();
-      else if(action==='add-rotation'){closeModal();openRotationForm(id);}
-      else if(action==='edit-rotation'){const r=store.get('rotations',id);if(r){closeModal();openRotationForm(r.parcelId,r);}}
-      else if(action==='open-equipment')openEquipment();
-      else if(action==='open-equipment-detail')openEquipmentDetail(id);
-      else if(action==='new-equipment'){closeModal();openEquipmentForm();}
-      else if(action==='edit-equipment'){closeModal();openEquipmentForm(store.get('materiels',id));}
-      else if(action==='new-maintenance'){closeModal();openMaintenanceForm(id,null,{returnTo:control.dataset.return==='list'?'list':'detail'});}
-      else if(action==='edit-maintenance'){const r=store.get('maintenanceRecords',id);if(r){closeModal();openMaintenanceForm(r.equipmentId,r);}}
-      else if(action==='print-equipment-report')openPrintableReport(equipmentReportHtml(state(),id));
-      else if(action==='open-grazing')openGrazing();
-      else if(action==='open-grazing-parcel')openGrazing({parcelId:id});
-      else if(action==='new-grazing'){closeModal();openGrazingForm();}
-      else if(action==='edit-grazing'){const g=store.get('grazingSessions',id);if(g){closeModal();openGrazingForm(g);}}
-      else if(action==='move-grazing'){const g=store.get('grazingSessions',id);if(g){closeModal();getGrazingUI().openMove(g);}}
-      else if(action==='end-grazing'){const g=store.get('grazingSessions',id);await endGrazingSession(store,id,{date:grazingDate()});toast('Sortie du pré enregistrée.');if(currentView!=='parcel')openGrazing({parcelId:g?.parcelId||''});}
-      else if(action==='open-clients')openClients();
-      else if(action==='open-invoices')billingHubUI?.open(control.dataset.tab||id||'');
-      else if(action==='open-messages')messagingUI?.openMessagesCenter();
-      else if(action==='new-invoice')billingHubUI?.newInvoice(id||'');
-      else if(action==='open-client-detail')openClientDetail(id);
-      else if(action==='new-client'){closeModal();openClientForm();}
-      else if(action==='edit-client'){closeModal();openClientForm(store.get('clients',id));}
-      else if(action==='print-client-report')openPrintableReport(clientReportHtml(state(),id));
-      else if(action==='open-weather')openWeather();
-      else if(action==='open-integrations')techCentersUI.openIntegrations();
-      else if(action==='open-integration-track')techCentersUI.openIntegrationTrack(id);
-      else if(action==='suggest-work-from-track')await suggestWorkFromTrack(id);
-      else if(action==='show-integration-track')showIntegrationTrack(id);
-      else if(action==='refresh-weather'){closeModal();await refreshWeather();}
-      else if(action==='open-assistant')openAssistant();
-      else if(action==='assistant-speak')speakLastAssistant();
-      else if(action==='assistant-remote-action')await runAssistantRemoteAction(id);
-      else if(action==='open-account')await openAccountTeam();
-      else if(action==='open-notifications')openNotifications();
-      else if(action==='open-automations')automationsUI.open();
-      else if(action==='new-automation')automationsUI.openRuleForm();
-      else if(action==='edit-automation'){const r=store.get('automationRules',id);if(r)automationsUI.openRuleForm(r);}
-      else if(action==='test-automation'){const r=store.get('automationRules',id);if(r){const check=await runAutomationCycle({manual:true,force:true,ruleId:id,dryRun:true});const matches=check.results[0]?.matches||[];modal('Test de l’automatisation',`${matches.length} ${(matches.length)>1?'correspondances':'correspondance'}, aucune action exécutée.`,matches.length?`<div class="stack-list">${matches.slice(0,30).map(m=>`<div class="list-row"><div><strong>${escapeHtml(m.label||m.message)}</strong><small>${escapeHtml(m.entity)} · ${escapeHtml(m.entityId||'')}</small></div></div>`).join('')}</div>`:'<div class="empty-state">Aucune correspondance actuellement.</div>',`<button class="button primary" data-action="open-automations">Retour</button>`,'large');}}
-      else if(action==='run-automations')await runAutomationCycle({manual:true,force:true});
-      else if(action==='add-automation-template'){const t=automationTemplates()[Number(control.dataset.template)];if(t){await store.upsert('automationRules',newAutomationFromTemplate(t),{label:`Automatisation ajoutée : ${t.name}`});automationsUI.open();}}
-      else if(action==='toggle-automation'){const r=store.get('automationRules',id);if(r){await store.upsert('automationRules',{...r,enabled:!r.enabled},{label:`Automatisation ${r.enabled?'mise en pause':'activée'} : ${automationRuleLabel(r)}`});automationsUI.open();}}
-      else if(action==='delete-automation'){await store.remove('automationRules',id);automationsUI.open();}
-      else if(action==='toggle-automation-engine'){await store.setPreferences({automationEnabled:state().preferences.automationEnabled===false});automationsUI.open();}
-      else if(action==='open-native')await techCentersUI.openNative();
-      else if(action==='native-test-haptic'){const ok=await nativeBridge?.haptic('medium');toast(ok?'Retour haptique envoyé.':'Retour haptique natif indisponible.',ok?'success':'error');}
-      else if(action==='native-test-biometric'){const r=await nativeBridge?.authenticate('Tester la biométrie');toast(r?.success?'Authentification réussie.':r?.available===false?'Biométrie native non configurée.':`Authentification refusée : ${r?.reason||'inconnue'}`,r?.success?'success':'error');}
-      else if(action==='native-test-notification'){const perm=await nativeBridge?.requestNotificationPermission();await nativeBridge?.scheduleNotification({id:'test-native',title:'Parcelles 8.0',body:'Notifications iPhone opérationnelles.',extra:{route:'today'}});toast(`Notification test demandée · ${perm?.display||'état inconnu'}.`);}
-      else if(action==='native-test-camera'){const r=await nativeBridge?.capturePhoto();toast(r?.photo?'Caméra native opérationnelle.':r?.cancelled?'Capture annulée.':'Caméra native indisponible.',r?.photo?'success':'error');}
-      else if(action==='native-test-share'){try{const ok=await nativeBridge?.share({title:'Parcelles 8.0',text:`Parcelles 8.0 · build ${BUILD_ID}`});toast(ok?'Partage ou copie effectué.':'Partage indisponible.',ok?'success':'error');}catch(error){if(error?.name!=='AbortError')toast('Partage refusé par le navigateur.','error');}}
-      else if(action==='notification-open'){const entity=control.dataset.entity;closeModal();if(entity==='tasks')openTaskForm(store.get('tasks',id));else if(entity==='interventions')openWorkForm(store.get('interventions',id));else if(entity==='materiels')openEquipmentDetail(id);else if(entity==='regulated')lazy.run('regulatedOps',()=>regulatedOps().open());else if(entity==='stockItems')openStock();else if(entity==='grazingSessions')openGrazingForm(store.get('grazingSessions',id));else if(entity==='observations')openObservations();else if(entity==='weather')openWeather();else if(entity==='sync')openSync();else if(entity==='parcelComments')lazy.run('parcelComments',()=>parcelCommentsUI?.openInbox());}
-      else if(action==='open-observations')openObservations();
-      else if(action==='open-farm'){farmUI.home(selectedParcelId);}
-      else if(action==='new-machine-mission'){closeModal();openMachineMissionForm();}
-      else if(action==='new-observation'){closeModal();const contextualParcel=id||control.dataset.parcelId||(['parcel','map'].includes(currentView)?selectedParcelId:null)||(fieldModeOpen?currentFieldParcelId():null);openObservationForm(null,{parcelId:contextualParcel||null});}
-      else if(action==='edit-observation'){closeModal();openObservationForm(store.get('observations',id));}
-      else if(action==='open-stock')openStock();
-      else if(action==='new-stock'){closeModal();openStockForm();}
-      else if(action==='edit-stock'){closeModal();openStockForm(store.get('stockItems',id));}
-      else if(action==='stock-movement'){closeModal();openStockMovementForm(id);}
-      else if(action==='open-privacy')openPrivacy();
-      else if(action==='voice-assistant'){startVoiceAssistant();}
-      else if(action==='open-dossier'){dossierUI.open(control.dataset.campaign||null);}
-      else if(action==='print-farm-report'){openPrintableReport(farmReportHtml(state()));}
-      else if(action==='print-pilotage-report'){openPrintableReport(pilotageReportHtml(state(),control.dataset.campaign||campaignFor()));}
-      else if(action==='print-stock-report'){openPrintableReport(stockReportHtml(state()));}
-      else if(action==='print-traceability-report'){openPrintableReport(traceabilityReportHtml(state(),control.dataset.campaign||campaignFor()));}
-      else if(action==='print-document-report'){openPrintableReport(documentsReportHtml(state()));}
-      else if(action==='print-parcel-report'){openPrintableReport(parcelReportHtml(state(),id));}
-      else if(action==='open-documents')openDocumentCenter();
-      else if(action==='new-document'){closeModal();openAttachmentForm(null);}
-      else if(action==='edit-document-meta'){closeModal();openDocumentMetadataForm(id);}
-      else if(action==='open-traceability')openTraceability();
-      else if(action==='export-traceability-csv'){download(`parcelles-tracabilite-${campaignFor().replace('/','-')}.csv`,traceabilityCsv(state()),'text/csv;charset=utf-8');toast('Registre de traçabilité exporté.');}
-      else if(action==='export-document-csv'){download(`parcelles-documents-${todayIso()}.csv`,documentInventoryCsv(state()),'text/csv;charset=utf-8');toast('Inventaire documentaire exporté.');}
-      else if(action==='open-reports')openReports();
-      else if(action==='open-statistics')openStatistics();
-      else if(action==='pilotage-campaign')openStatistics(control.dataset.campaign||campaignFor());
-      else if(action==='open-data-center')await openDataCenter();
-      else if(action==='open-offline-map')offlineMap().open();
-      else if(action==='repair-text')techCentersUI.openTextRepair();
-      else if(action==='open-quality')openQuality();
-      else if(action==='quality-open')openQualityIssue(control.dataset.code);
-      else if(action==='open-trash')openTrash();
-      else if(action==='open-storage-care')await storageCare().open();
-      else if(action==='restore-trash')await trash().restore(control.dataset.type,id);
-      else if(action==='purge-trash')await trash().purge(control.dataset.type,id);
-      else if(action==='empty-trash')await emptyTrash();
-      else if(action==='open-auto-backups')await openAutoBackups();
-      else if(action==='open-import-history')openImportHistory();
-      else if(action==='rollback-import')await rollbackImport(id);
-      else if(action==='restore-auto-backup')await restoreAutoBackup(id);
-      else if(action==='verify-auto-backup'){const result=await store.storage.backupVerify(id);toast(result.ok?'Sauvegarde vérifiée.':'Sauvegarde invalide. ',result.ok?'success':'error');await openAutoBackups();}
-      else if(action==='export-auto-backup')await exportAutoBackup(id);
-      else if(action==='delete-auto-backup'){await store.storage.backupDelete(id);await openAutoBackups();}
-      else if(action==='open-log')openLog();
-      else if(action==='open-app-lock')appLockUI.openSettings().catch(error=>toast(error?.message||'Verrouillage indisponible.','error'));
-      else if(action==='open-sync')await openSync();
-      else if(action==='open-platform')await techCentersUI.openPlatform();
-      else if(action==='platform-run-job'){try{await platform.submitJob(id);toast('Tâche envoyée au backend.');techCentersUI.openPlatform();}catch(error){toast(error.message,'error');}}
-      else if(action==='open-security')await techCentersUI.openSecurity();
-      else if(action==='open-sync-conflict')openSyncConflict(id);
-      else if(action==='resolve-sync-conflict')await resolveSyncConflict(id,control.dataset.choice);
-      else if(action==='open-diagnostic')await openDiagnostic();
-      else if(action==='open-settings')settingsUI.open();
-      else if(action==='open-help')openHelp();
-      else if(action==='choose-import'){$('#import-file-input').click();}
-      else if(action==='choose-restore'){$('#restore-file-input').click();}
-      else if(action==='export-complete-backup')await exportCompleteBackup();
-      else if(action==='export-json-backup')await exportJsonBackup();
-      else if(action==='export-encrypted-backup')openEncryptedBackup();
-      else if(action==='backup-now')await exportCompleteBackup();
-      else if(action==='backup-reminder-later'){await store.snoozeExternalBackupReminder();toast('Rappel masqué pendant 7 jours.');}
-      else if(action==='choose-backup-folder')await chooseBackupFolder();
-      else if(action==='forget-backup-folder')await forgetBackupFolder();
-      else if(action==='open-backup-vault')await backupVaultUI?.open();else if(action==='open-history-import')historyImportUI?.openGuide();
-      else if(action==='export-work-csv'){download(`parcelles-travaux-${todayIso()}.csv`,impex().exportCsv(state()),'text/csv;charset=utf-8');toast('CSV des travaux téléchargé.');}
-      else if(action==='export-parcels-csv'){download(`parcelles-liste-${todayIso()}.csv`,impex().exportParcelsCsv(state()),'text/csv;charset=utf-8');toast('CSV des parcelles téléchargé.');}
-      else if(action==='export-geojson'){download(`parcelles-${todayIso()}.geojson`,impex().exportGeoJson(state()),'application/geo+json;charset=utf-8');toast('GeoJSON téléchargé.');}
-      else if(action==='search-hint'){const input=$('#global-search-input');if(input){input.value=control.dataset.query||'';renderGlobalSearch(input.value);input.focus();}}
-      else if(action==='global-open'){const type=control.dataset.resultType;closeModal();if(type==='template'){const t=store.get('templates',id);if(t)openWorkForm({type:t.type,culture:t.culture,product:t.product,dose:t.dose,doseUnit:t.doseUnit,equipmentId:t.equipmentId,operator:t.operator,status:'À faire',date:todayIso()});}else if(type==='parcel')openParcel(id);else if(type==='work')openWorkForm(store.get('interventions',id));else if(type==='task')openTaskForm(store.get('tasks',id));else if(type==='equipment'){openEquipmentDetail(id);}else if(type==='client'){openClientDetail(id);}else if(type==='point'){const pt=store.get('points',id);if(pt){switchView('map');parcelMap.map?.setView([Number(pt.latitude),Number(pt.longitude)],18);}}else if(type==='observation'){openObservationForm(store.get('observations',id));}else if(type==='stock'){openStockForm(store.get('stockItems',id));}else if(type==='document'){await viewAttachment('documents',id);}else if(type==='chantier'){openChantierDetail(id);}}
     }catch(error){
       // Lecture seule attendue (autre fenêtre ou données plus récentes) : message clair avec l’action utile, sans erreur console.
       if(error?.name==='SchemaVersionError'){toast(error.message,'error',{label:'Mettre à jour',run:updateAppNow});return;}

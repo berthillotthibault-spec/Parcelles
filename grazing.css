@@ -15,8 +15,8 @@
 .parcel-grazing .panel-heading{flex-wrap:wrap}
 .parcel-grazing h2{font-size:20px}
 .grazing-count{color:var(--color-primary);font-weight:700}
-.leaflet-popup .grazing-map-summary strong{color:#18251e}
-.leaflet-popup .grazing-map-summary small{color:#526158}
+.leaflet-popup .grazing-map-summary strong{color:var(--c-pine)}
+.leaflet-popup .grazing-map-summary small{color:var(--c-sage-dark)}
 }
 /* n° 153 : dérogations (couche theme) : plus spécifiques que les règles de design-v3.css qu'elles
    contredisent, elles l'emportaient avant les couches ; rangées ici, elles gardent le dessus. */

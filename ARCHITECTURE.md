@@ -184,7 +184,7 @@ Exception : les feuilles d'écrans différés (`billing-docs.css`, `billing-hub.
 
 - Une règle d'une couche basse plus spécifique que celle de `design-v3.css` qu'elle contredit ne gagne plus : de telles dérogations sont regroupées en fin de feuille dans un bloc `@layer theme{…}` (ou `screens`) commenté « n° 153 : dérogations ». Pas de `@layer x{}` imbriqué dans une autre couche (il créerait une sous-couche).
 - Couleurs : une nouvelle couleur passe par un jeton de `tokens.css` (sémantique avec sa valeur sombre, ou palette fixe `--c-*`). `test-css-layers.mjs` vérifie l'ordre des couches, qu'aucune règle n'est hors couche, les `?v=`, l'absence de variables globales hors de `tokens.css`, et un cliquet sur le nombre de couleurs hexadécimales hors `tokens.css` (`MAX_HEX`, à abaisser quand il baisse).
-- Reste à faire : `design-v3.css` empile encore ses correctifs datés (v3.1 à v3.8, puis les lots numérotés) ; les regrouper par écran demande de déplacer des règles de même couche, donc de vérifier l'ordre à spécificité égale règle par règle.
+- `design-v3.css` : les correctifs v3.1 à v3.8 sont rangés sous l'écran qu'ils corrigent (Aujourd'hui, Parcelles, Fiche parcelle, Travaux, Plus, Feuilles, Carte), après la section de base de cet écran et dans leur ordre d'origine ; les lots numérotés (n° …) restent à la suite, un par fonction. Déplacer une règle de la même couche peut changer le gagnant à spécificité égale : vérifier l'ordre (conflits potentiels) et comparer les styles calculés avant et après, à zéro écart.
 
 ## 8. Garde-fous à connaître
 

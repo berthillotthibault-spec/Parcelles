@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.24.0 · rangement interne du code et des styles — 2026-10-28
+
+Rien ne change à l’écran ni dans les données (pas de changement de schéma, version 18). Si cette version pose problème, la 10.23.0 reste disponible (commit `e7ea9f1`, repère `avant-refonte-147-153`).
+
+Technique (sans effet visible) :
+- app.js allégé (n° 147, fin) : les 240 actions encore traitées dans le délégué de clics passent par le registre, rangées en six modules par domaine (today-actions.js, map-actions.js, field-actions.js, farm-actions.js, modules-actions.js, data-actions.js) ; app.js passe de 397 à 376 Ko ; un test vérifie que chaque bouton a un gestionnaire et qu’aucune action n’est enregistrée deux fois ;
+- styles rangés (n° 153, fin) : les correctifs datés de design-v3.css (v3.2 à v3.8) sont regroupés sous l’écran qu’ils concernent, et 82 couleurs codées en dur passent par des jetons de tokens.css (plafond MAX_HEX 189 → 107) ; vérifié par comparaison des styles calculés de tous les éléments sur 167 états (téléphone, ordinateur, clair, sombre), sans écart.
+
 ## 10.23.0 · sauvegardes automatiques, trésorerie complète, assistant et reprise d’historique — 2026-10-27
 
 Données : pas de changement de schéma (version 18). **Déployer `firestore.rules` et `storage.rules` avant de téléverser le site** (sinon l’écriture cloud se poursuit sans la version de schéma, en mode dégradé).

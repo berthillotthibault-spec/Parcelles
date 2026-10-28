@@ -1,0 +1,45 @@
+// Actions du délégué de clics pour l'exploitation : rotations et campagnes, matériel et entretien, stocks, clients,
+// facturation et messages, troupeau (n° 147, sorties d'app.js sans changement de comportement).
+// Enregistrées par app.js dans actions.js.
+import {ctx} from './app-context.js';
+import {clientReportHtml, equipmentReportHtml, openPrintableReport} from './reports.js';
+import {campaignFor} from './utils.js';
+
+export const farmActions = {
+  'open-herd-health'() { ctx.closeModal(); ctx.herdHealthUI?.open(); },
+  'open-lot-sheet'({id}) { ctx.closeModal(); ctx.grainStockUI?.sheetModal(id); },
+  'open-herd'() { ctx.herdUI?.open(); },
+  'open-herd-animal'({id}) { ctx.herdUI?.openAnimal(id); },
+  'open-herd-economics'({control}) { ctx.herdEconomicsUI?.open({campaign:control.dataset.campaign||campaignFor()}); },
+  'open-rotations'() { ctx.openRotations(); },
+  'stock-capture'() { ctx.stockCaptureUI?.open(); },
+  'rotation-delays'() { ctx.rotationAdviceUI?.openSettings(); },
+  'sowing-settings'() { ctx.sowingUI?.openSettings(); },
+  'open-agro-risks'() { ctx.agroRiskUI?.openList(); },
+  'pheno-observed'({id}) { ctx.phenologyUI?.openObserved(id); },
+  'pheno-settings'({id}) { ctx.phenologyUI?.openSettings(id); },
+  async 'prepare-next-campaign'() { await ctx.prepareNextCampaign(); },
+  'open-campaign-planner'() { ctx.openCampaignPlanner(); },
+  'add-rotation'({id}) { ctx.closeModal(); ctx.openRotationForm(id); },
+  'edit-rotation'({id}) { const r=ctx.store.get('rotations',id); if(r){ctx.closeModal();ctx.openRotationForm(r.parcelId,r);} },
+  'open-equipment'() { ctx.openEquipment(); },
+  'open-equipment-detail'({id}) { ctx.openEquipmentDetail(id); },
+  'new-equipment'() { ctx.closeModal(); ctx.openEquipmentForm(); },
+  'edit-equipment'({id}) { ctx.closeModal(); ctx.openEquipmentForm(ctx.store.get('materiels',id)); },
+  'new-maintenance'({id, control}) { ctx.closeModal(); ctx.openMaintenanceForm(id,null,{returnTo:control.dataset.return==='list'?'list':'detail'}); },
+  'edit-maintenance'({id}) { const r=ctx.store.get('maintenanceRecords',id); if(r){ctx.closeModal();ctx.openMaintenanceForm(r.equipmentId,r);} },
+  'print-equipment-report'({id}) { openPrintableReport(equipmentReportHtml(ctx.state(),id)); },
+  'open-clients'() { ctx.openClients(); },
+  'open-invoices'({id, control}) { ctx.billingHubUI?.open(control.dataset.tab||id||''); },
+  'open-messages'() { ctx.messagingUI?.openMessagesCenter(); },
+  'new-invoice'({id}) { ctx.billingHubUI?.newInvoice(id||''); },
+  'open-client-detail'({id}) { ctx.openClientDetail(id); },
+  'new-client'() { ctx.closeModal(); ctx.openClientForm(); },
+  'edit-client'({id}) { ctx.closeModal(); ctx.openClientForm(ctx.store.get('clients',id)); },
+  'print-client-report'({id}) { openPrintableReport(clientReportHtml(ctx.state(),id)); },
+  'open-farm'() { ctx.farmUI.home(ctx.selectedParcelId); },
+  'open-stock'() { ctx.openStock(); },
+  'new-stock'() { ctx.closeModal(); ctx.openStockForm(); },
+  'edit-stock'({id}) { ctx.closeModal(); ctx.openStockForm(ctx.store.get('stockItems',id)); },
+  'stock-movement'({id}) { ctx.closeModal(); ctx.openStockMovementForm(id); },
+};
