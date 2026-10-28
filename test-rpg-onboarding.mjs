@@ -102,7 +102,7 @@ test('accroches : accueil, liste vide, cache hors connexion', ()=>{
   assert.match(fs.readFileSync(new URL('./lazy-modules.js',import.meta.url),'utf8'),/rpgOnboarding: \(\) => import\('\.\/rpg-onboarding-ui\.js'\)/);
   assert.match(app,/lazy\.onLoad\('rpgOnboarding',m=>rpgOnboardingUI=m\.createRpgOnboardingUI\(/);
   assert.match(app,/id="onboarding-rpg"/);
-  assert.match(app,/action==='rpg-onboarding'/);
+  assert.match(fs.readFileSync(new URL('./modules-actions.js',import.meta.url),'utf8'),/'rpg-onboarding'\(\) \{ ctx\.rpgOnboardingUI\?\.open\(/); // n° 147
   assert.doesNotMatch(app,/export Geofolia/);
   const sw=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
   for(const file of ['./rpg-onboarding.js','./rpg-onboarding-ui.js'])assert.ok(sw.includes(`'${file}'`),file);

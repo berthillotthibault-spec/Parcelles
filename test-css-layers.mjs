@@ -67,7 +67,7 @@ test('variables de :root et variante sombre uniquement dans tokens.css', () => {
 
 // Cliquet : nombre de couleurs hexadécimales hors tokens.css (et hors feuille vendor). Il peut baisser, jamais monter :
 // une nouvelle couleur passe par un jeton de tokens.css (sémantique, ou palette fixe --c-*). Après une baisse, abaisser MAX_HEX.
-const MAX_HEX = 189;
+const MAX_HEX = 107;
 test(`couleurs codées en dur hors tokens.css : au plus ${MAX_HEX} (cliquet)`, () => {
   let count = 0; const detail = [];
   for (const {file} of sheets) {

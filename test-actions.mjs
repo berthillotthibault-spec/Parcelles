@@ -16,13 +16,22 @@ const sw = read('sw.js');
 const runtime = read('runtime.js');
 
 // Modules d'actions par domaine : nom du fichier -> export de la table des gestionnaires.
-const ACTION_MODULES = {'work-actions.js': 'workActions', 'parcel-actions.js': 'parcelActions'};
+const ACTION_MODULES = {'work-actions.js': 'workActions', 'parcel-actions.js': 'parcelActions', 'today-actions.js': 'todayActions',
+  'map-actions.js': 'mapActions', 'field-actions.js': 'fieldActions', 'farm-actions.js': 'farmActions', 'modules-actions.js': 'modulesActions',
+  'data-actions.js': 'dataActions'};
 // Modules créés ou déplacés par le n° 147 : taille et largeur contrôlées.
 const NEW_MODULES = ['app-context.js', 'actions.js', ...Object.keys(ACTION_MODULES), 'work-form-ui.js', 'account-ui.js', 'diagnostic-ui.js'];
 
 // Exceptions légitimes : data-action affiché sans gestionnaire détectable (action: raison). Aucune aujourd'hui ;
 // toute entrée ajoutée ici doit rester exacte (le test vérifie qu'elle est toujours affichée et toujours non gérée).
 const EXCEPTIONS = {};
+// Gestionnaires enregistrés qu'aucun écran n'affiche plus (action: raison). Repris tels quels d'app.js par le n° 147,
+// qui ne change aucun comportement ; à supprimer avec leur gestionnaire lors d'un nettoyage dédié.
+const UNRENDERED = {
+  'open-regulatory-rules': 'branche d’app.js reprise par le n° 147 ; aucun bouton ne la porte',
+  'show-point': 'branche d’app.js reprise par le n° 147 ; aucun bouton ne la porte',
+  'resolve-sync-conflict': 'branche d’app.js reprise par le n° 147 ; sync-conflict-ui.js résout par ses propres boutons'
+};
 
 async function actionTables() {
   const tables = {};
@@ -163,7 +172,8 @@ test('chaque data-action affiché est géré (registre, branche d’app.js ou mo
   }
   // Inverse : une action enregistrée doit être affichée quelque part (sinon gestionnaire mort).
   const named = sources.filter(([file]) => !ACTION_MODULES[file]).map(([, source]) => source).join('\n');
-  for (const action of registry) assert.ok(rendered.has(action) || named.includes(`'${action}'`), `${action} : enregistrée mais jamais affichée`);
+  const unused = [...registry].filter(action => !rendered.has(action) && !named.includes(`'${action}'`));
+  assert.deepEqual(unused.sort(), Object.keys(UNRENDERED).sort(),'gestionnaires enregistrés mais jamais affichés (liste UNRENDERED à tenir à jour)');
 });
 
 test('délégué : le registre d’abord, sans doublon ni action différée, enregistré au démarrage', async () => {
@@ -183,7 +193,9 @@ test('délégué : le registre d’abord, sans doublon ni action différée, enr
       seen.add(action);
       assert.equal(typeof table[action], 'function', `${file} : ${action}`);
       assert.ok(!new RegExp(`action===?'${action}'`).test(delegate), `${action} : branche morte restée dans app.js`);
-      assert.ok(!LAZY_ACTIONS[action], `${action} : action différée, à laisser au délégué (gateClicks)`);
+      // Action différée : gateClicks (phase de capture) retient le clic jusqu'au chargement, puis le rejoue ;
+      // le registre n'est consulté qu'ensuite. test-lazy-modules.mjs vérifie que le module est bien retenu ou attendu.
+      if (LAZY_ACTIONS[action]) assert.ok(LAZY_ACTIONS[action].length, `${action} : action différée sans module`);
     }
     assert.match(app, new RegExp(`registerActions\\(${ACTION_MODULES[file]}\\)`), `${file} non enregistré dans init`);
   }

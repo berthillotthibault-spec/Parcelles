@@ -243,7 +243,8 @@ test('branchements : module différé, relais historique, CORE, REQUIRED_ASSETS,
   assert.deepEqual(LAZY_ACTIONS['open-invoices'], ['billingHub']);
   assert.deepEqual(LAZY_ACTIONS['new-invoice'], ['billingHub']);
   const app = read('app.js');
-  assert.match(app, /action==='open-invoices'\)billingHubUI\?\.open\(/);
+  assert.match(read('farm-actions.js'), /'open-invoices'\(\{id, control\}\) \{ ctx\.billingHubUI\?\.open\(/); // n° 147 : registre d'actions
+  assert.match(app, /get billingHubUI\(\)\{return billingHubUI;\}/);
   assert.match(app, /lazy\.onLoad\('billingHub',m=>billingHubUI=m\.createBillingHubUI\(/);
   assert.match(app, /'Facturation','Devis, factures, relances, catalogue et suivi','open-invoices'/);
   assert.match(app, /id="client-billing"/);

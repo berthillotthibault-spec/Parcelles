@@ -113,5 +113,6 @@ test('le module est précaché et branché sur le panneau Couches', ()=>{
   assert.ok(core.has('./basemaps.js'));
   const app=read('app.js');
   assert.match(read('map-layers-ui.js'),/data-ly="cadastre"|sw\('cadastre'/); // panneau Couches différé
-  assert.match(app,/action==='add-cadastre-parcel'/);
+  assert.match(read('map-actions.js'),/'add-cadastre-parcel'\(\{id\}\) \{ ctx\.openCadastreParcelForm\(id\);/); // n° 147 : registre d'actions
+  assert.match(app,/openCadastreParcelForm,/);
 });

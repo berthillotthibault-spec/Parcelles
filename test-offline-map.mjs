@@ -79,5 +79,6 @@ test('service worker : cache « tiles-v1 » indépendant de BUILD, hors de CORE,
   assert.match(sw,/data\.geopf\.fr'&&url\.pathname==='\/wmts'/);
   assert.equal(tileCacheName('/Parcelles/'),'parcelles-%2FParcelles%2F-tiles-v1');
   for(const file of ['./offline-map.js','./offline-map-ui.js']){assert.ok(core.includes(`'${file}'`));assert.ok(runtime.includes(`'${file}'`));}
-  assert.match(app,/data-action="open-offline-map"/);assert.match(app,/action==='open-offline-map'/);
+  assert.match(app,/data-action="open-offline-map"/);
+  assert.match(fs.readFileSync(new URL('./map-actions.js',import.meta.url),'utf8'),/'open-offline-map'\(\) \{ ctx\.offlineMap\(\)\.open\(\);/); // n° 147
 });

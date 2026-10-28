@@ -204,11 +204,17 @@ function lazyIdentifiers() {
   return ids;
 }
 
-test('chaque module différé est rattaché à app.js', () => {
+// Modules d'actions enregistrés par app.js (n° 147) : import {table} from './x-actions.js' puis registerActions(table).
+const actionModules = () => [...app.matchAll(/import \{(\w+)\} from '\.\/([\w-]+-actions\.js)';/g)]
+  .filter(m => app.includes(`registerActions(${m[1]})`)).map(([, table, file]) => ({table, file, source: read(file)}));
+
+test('chaque module différé est rattaché à app.js', async () => {
   const ids = lazyIdentifiers();
   for (const [key, set] of Object.entries(ids)) assert.ok(set.size, `${key} : aucune instance ni accesseur dans app.js`);
+  const registered = new Set();
+  for (const {table, file} of actionModules()) for (const name of Object.keys((await import(`./${file}`))[table])) registered.add(name);
   for (const [action, keys] of Object.entries(LAZY_ACTIONS)) {
-    assert.ok(new RegExp(`action===?'${action}'`).test(app), `${action} : aucun gestionnaire dans app.js`);
+    assert.ok(registered.has(action) || new RegExp(`action===?'${action}'`).test(app), `${action} : aucun gestionnaire (registre ou app.js)`);
     for (const key of keys) assert.ok(LAZY_MODULES[key], `${action} : module ${key} inconnu`);
   }
   for (const key of Object.values(LAZY_TRIGGERS)) assert.ok(LAZY_MODULES[key]);
@@ -257,6 +263,51 @@ test('aucune utilisation d’un module différé sans attente de son chargement'
   assert.deepEqual(problems, []);
 });
 
+// Même garde-fou pour les gestionnaires sortis dans les modules d'actions (n° 147) : un ctx.x désignant un module
+// différé n'est permis que si l'action est retenue par LAZY_ACTIONS ou si le code attend le module (lazy.need…).
+test('modules d’actions : aucun module différé utilisé sans action retenue ni attente', () => {
+  const ids = lazyIdentifiers();
+  const namesKey = (text, key) => [...text.matchAll(/lazy\.(?:onLoad|get|run|wait|soon|need)\(([^()]*)/g)].some(m => m[1].includes(`'${key}'`));
+  const escape = text => text.replace(/[$()]/g, '\\$&');
+  const problems = [];
+  for (const {file, source} of actionModules()) {
+    const lines = source.split('\n');
+    const tableStart = lines.findIndex(line => /^export const \w+ = \{$/.test(line));
+    // Début de chaque gestionnaire de la table, et de chaque fonction d'aide déclarée hors de la table.
+    const handlers = [], helpers = [];
+    lines.forEach((line, n) => {
+      const h = n > tableStart && line.match(/^ {2}(?:async\s+)?'([a-z0-9-]+)'(?:\(|:\s*(\w+))/);
+      if (h) handlers.push({n, action: h[1], helper: h[2]});
+      const f = n < tableStart && line.match(/^(?:async\s+)?(?:function\s+(\w+)|const\s+(\w+)\s*=)/);
+      if (f) helpers.push({n, name: f[1] || f[2]});
+    });
+    const segment = (list, i, end) => lines.slice(list[i].n, list[i + 1]?.n ?? end).join('\n');
+    for (const [key, set] of Object.entries(ids)) for (const id of set) {
+      if (/:/.test(id)) continue; // modules de logique ou autonomes : jamais lus par ctx
+      const pattern = new RegExp(`ctx\\.${escape(id.endsWith('()') ? id.slice(0, -1) : id)}(?![\\w$])`);
+      lines.forEach((line, n) => {
+        if (!pattern.test(line)) return;
+        let users;
+        if (n > tableStart) {
+          const i = handlers.findLastIndex(h => h.n <= n);
+          users = [{action: handlers[i].action, text: segment(handlers, i, lines.length)}];
+        } else {
+          const i = helpers.findLastIndex(h => h.n <= n), helper = helpers[i];
+          if (namesKey(segment(helpers, i, tableStart), key)) return;
+          users = handlers.map((h, j) => ({action: h.action, text: segment(handlers, j, lines.length), helper: h.helper}))
+            .filter(h => h.helper === helper.name || new RegExp(`\\b${helper.name}\\(`).test(h.text));
+          if (!users.length) problems.push(`${file} : ${id} (${key}) dans ${helper.name}, utilisée par aucun gestionnaire`);
+        }
+        for (const {action, text} of users) {
+          if (LAZY_ACTIONS[action]?.includes(key) || namesKey(text, key)) continue;
+          problems.push(`${file} : ${id} (${key}) dans ${action} : action absente de LAZY_ACTIONS`);
+        }
+      });
+    }
+  }
+  assert.deepEqual(problems, []);
+});
+
 
 test('chaque data-action littéral garde un gestionnaire', () => {
   const files = fs.readdirSync(root).filter(f => /\.(js|html)$/.test(f) && !/\.min\.js$/.test(f) && f !== 'support.js' && !f.startsWith('Parcelles v3'));
@@ -265,7 +316,8 @@ test('chaque data-action littéral garde un gestionnaire', () => {
   files.forEach((file, n) => { for (const m of sources[n].matchAll(/data-action=\\?["']([a-z0-9-]+)\\?["']/g)) rendered.set(m[1], file); });
   const handled = new Set();
   for (const s of sources) {
-    for (const re of [/action\s*===?\s*'([a-z0-9-]+)'/g, /'([a-z0-9-]+)'\s*===?\s*(?:action|[\w.]*dataset\.action)/g, /dataset\.action\s*===?\s*'([a-z0-9-]+)'/g, /\[data-action=\\?["']([a-z0-9-]+)\\?["']\]/g, /case\s+'([a-z0-9-]+)'/g, /'([a-z0-9-]+)'\s*:\s*(?:\(|async|\w+\s*=>|function)/g, /^\s*(?:async\s+)?'([a-z0-9-]+)'\s*\(/gm])
+    for (const re of [/action\s*===?\s*'([a-z0-9-]+)'/g, /'([a-z0-9-]+)'\s*===?\s*(?:action|[\w.]*dataset\.action)/g, /dataset\.action\s*===?\s*'([a-z0-9-]+)'/g, /\[data-action=\\?["']([a-z0-9-]+)\\?["']\]/g, /case\s+'([a-z0-9-]+)'/g, /'([a-z0-9-]+)'\s*:\s*(?:\(|async|\w+\s*=>|function)/g, /^\s*(?:async\s+)?'([a-z0-9-]+)'\s*\(/gm,
+      /^\s*'([a-z0-9-]+)'\s*:\s*[\w$]+,\s*$/gm]) // n° 147 : gestionnaire partagé par plusieurs actions ('a': fonction,)
       for (const m of s.matchAll(re)) handled.add(m[1]);
     for (const m of s.matchAll(/(?:ACTIONS|actions)\s*=\s*(?:Object\.freeze\()?(?:new Set\()?\[([^\]]*)\]/g)) for (const x of m[1].matchAll(/'([a-z0-9-]+)'/g)) handled.add(x[1]);
   }

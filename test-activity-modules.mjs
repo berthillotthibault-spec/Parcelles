@@ -52,7 +52,9 @@ test('filterTools et hiddenToolCount ne modifient pas la liste source', () => {
 });
 
 test('chaque outil de la table existe dans l’application et chaque module a un libellé', () => {
-  const app = fs.readFileSync(new URL('./app.js', import.meta.url), 'utf8');
+  // n° 147 : les actions sont gérées par app.js ou par les modules d'actions du registre (actions.js).
+  const app = ['./app.js', './work-actions.js', './parcel-actions.js', './today-actions.js', './map-actions.js', './field-actions.js', './farm-actions.js',
+    './modules-actions.js', './data-actions.js'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n');
   for (const action of Object.keys(TOOL_MODULES)) assert.ok(app.includes(`'${action}'`), action);
   for (const modules of Object.values(TOOL_MODULES)) for (const id of modules) assert.ok(MODULE_IDS.includes(id), id);
   assert.equal(ACTIVITY_MODULES.length, 5);

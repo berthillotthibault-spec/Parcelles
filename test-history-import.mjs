@@ -113,7 +113,7 @@ test('branchement : module différé, CORE, accueil, Mes données et écran de c
   assert.match(lazy, /historyImport: \(\) => import\('\.\/history-import-ui\.js'\)/);
   assert.match(lazy, /actions\('historyImport', 'open-history-import'\)/);
   for (const f of ['./history-import.js', './history-import-ui.js']) {assert.ok(sw.includes(`'${f}'`), f); assert.ok(runtime.includes(`'${f}'`), f);}
-  assert.ok(app.includes("action==='open-history-import')historyImportUI?.openGuide()"));
+  assert.ok(read('./data-actions.js').includes("'open-history-import'() { ctx.historyImportUI?.openGuide(); }")); // n° 147 : registre d'actions
   assert.equal((app.match(/data-action="open-history-import"/g) || []).length, 2); // accueil + Mes données
   assert.ok(app.includes("lazy.run('historyImport',()=>historyImportUI.openMapping(preview,files))"));
   assert.ok(app.includes("{label:'Annuler',run:()=>rollbackImport(result.sessionId)}"));

@@ -110,6 +110,6 @@ test('rapports existants : même gabarit A4, sans bouton dupliqué',()=>{
 
 test('fichiers servis : dossier.js et dossier-ui.js en cache, accroches dans app.js',()=>{
   const sw=read('sw.js');for(const f of ['./dossier.js','./dossier-ui.js'])assert.ok(sw.includes(`'${f}'`),`${f} dans CORE`);
-  const app=read('app.js');assert.match(app,/data-action="open-dossier"/);assert.match(app,/action==='open-dossier'/);
+  const app=read('app.js');assert.match(app,/data-action="open-dossier"/);assert.match(read('data-actions.js'),/'open-dossier'\(\{control\}\) \{ ctx\.dossierUI\.open\(/); // n° 147 : registre d'actions
   assert.match(read('design-v3.css'),/n° 83/);
 });

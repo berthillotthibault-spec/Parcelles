@@ -146,7 +146,7 @@ test('accroches : menu Gestion, action et cache hors connexion', ()=>{
   assert.match(fs.readFileSync(new URL('./lazy-modules.js',import.meta.url),'utf8'),/compliance: \(\) => import\('\.\/compliance-ui\.js'\)/);
   assert.match(app,/lazy\.onLoad\('compliance',m=>complianceUI=m\.createComplianceUI\(/);
   assert.match(app,/\['Conformité','Prêt pour un contrôle \?','open-compliance'/);
-  assert.match(app,/action==='open-compliance'/);
+  assert.match(fs.readFileSync(new URL('./modules-actions.js',import.meta.url),'utf8'),/'open-compliance'\(\) \{ ctx\.closeModal\(\); ctx\.complianceUI\?\.open\(\);/); // n° 147
   const sw=fs.readFileSync(new URL('./sw.js',import.meta.url),'utf8');
   for(const file of ['./compliance.js','./compliance-ui.js'])assert.ok(sw.includes(`'${file}'`),file);
 });

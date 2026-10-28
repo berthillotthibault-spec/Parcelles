@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.24.0",
+      "date": "2026-10-28",
+      "title": "Rangement interne",
+      "items": [
+        "Code et styles réorganisés en coulisses : rien ne change à l’écran.",
+        "Base plus simple à faire évoluer sans risque de régression.",
+        "Chaque bouton de l’application est désormais vérifié automatiquement à chaque modification."
+      ]
+    },
+    {
       "version": "10.23.0",
       "date": "2026-10-27",
       "title": "Sauvegardes, trésorerie et assistant",

@@ -148,7 +148,7 @@ test('numérotation : doublons hors ligne et trous détectés ; droits d’écri
 
 test('fichiers servis et accroches',()=>{
   const sw=read('sw.js');for(const f of ['./invoices.js','./invoices-ui.js'])assert.ok(sw.includes(`'${f}'`),`${f} dans CORE`);
-  const app=read('app.js');assert.match(app,/action==='open-invoices'/);assert.match(app,/data-action="new-invoice"/);assert.match(app,/name="m3Rate"/);
+  const app=read('app.js');assert.match(read('farm-actions.js'),/'open-invoices'\(\{id, control\}\) \{ ctx\.billingHubUI\?\.open\(/);assert.match(app,/data-action="new-invoice"/);assert.match(app,/name="m3Rate"/); // n° 147 : open-invoices dans farm-actions.js
   assert.match(read('design-v3.css'),/n° 56/);
 });
 

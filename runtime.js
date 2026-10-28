@@ -1,7 +1,7 @@
 import {BUILD_ID} from './utils.js';
 
 const REQUIRED_ASSETS = [
- /* n° 147 */'./app-context.js','./actions.js','./work-actions.js','./parcel-actions.js','./work-form-ui.js','./account-ui.js','./diagnostic-ui.js',
+ /* n° 147 */'./app-context.js','./actions.js','./work-actions.js','./parcel-actions.js','./today-actions.js','./map-actions.js','./field-actions.js','./farm-actions.js','./modules-actions.js','./data-actions.js','./work-form-ui.js','./account-ui.js','./diagnostic-ui.js',
  /* n° 20 */'./public-works-day.js','./public-works-day-ui.js',
  /* v7c */'./habits.js','./habits-ui.js','./agro-weather.js','./phenology.js','./phenology-ui.js','./agro-assistant.js','./agro-risk.js','./agro-risk-ui.js','./sowing.js','./sowing-ui.js','./rotation-advice.js','./rotation-advice-ui.js','./stock-capture.js','./stock-capture-ui.js','./share-target.js','./share-target-ui.js',
  /* v6c */'./activity-modules.js','./activity-modules-ui.js','./getting-started.js','./getting-started-ui.js','./whats-new.js','./whats-new-ui.js','./whatsnew.json','./friendly-errors.js','./friendly-errors-ui.js','./help.js','./help-ui.js','./theme.js','./theme-ui.js','./count-up.js','./count-up-ui.js',

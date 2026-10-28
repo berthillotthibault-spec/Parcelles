@@ -40,7 +40,15 @@
 :root{
   --c-white:#fff;--c-black:#000;--c-brand:#286a4a;--c-brand-deep:#17663f;--c-mint:#8fd1a8;--c-forest:#10261a;
   --c-ink:#1d2420;--c-sand:#c9c4b9;--c-sand-light:#e4dfd3;--c-chip:#e3dfd7;--c-mist:#edf1ee;--c-amber:#8a5a12;
-  --c-umber:#5f4a22;--c-salmon:#f2b8a8;--c-lilac:#b79be0;--c-violet:#8056b3;--c-blue:#2f82b0;--c-green:#2f8054
+  --c-umber:#5f4a22;--c-salmon:#f2b8a8;--c-lilac:#b79be0;--c-violet:#8056b3;--c-blue:#2f82b0;--c-green:#2f8054;
+  /* n° 153 (jetons de couleur, suite) : couleurs codées en dur en double hors de tokens.css, mêmes valeurs dans tous les thèmes
+     (les règles réservées au sombre gardent leur teinte fixe : --c-night-*). */
+  --c-blush:#efc9bf;--c-butter:#fff3d7;--c-mint-pale:#e2f2e8;--c-brick:#8f2c27;--c-frost:#f7f9f7;--c-pine:#18251e;
+  --c-sage-dark:#526158;--c-shade:#0005;--c-sand-mid:#cfcabf;--c-stone:#d9d5cc;--c-stone-light:#ebe8e1;--c-pebble:#a7aca8;
+  --c-slate:#3d4540;--c-paper:#faf9f6;--c-graphite:#313631;--c-rose:#ffd9d3;--c-red:#bf4944;--c-signal-green:#3fbf6f;
+  --c-sky:#8fbbe6;--c-night-surface:#252e28;--c-night-line:#323c35;--c-night-text:#f2f5f3;
+  --c-thumb-sat-1:#5d6f3f;--c-thumb-sat-2:#6f8550;--c-thumb-sat-3:#4f5f37;--c-thumb-plan-1:#efede7;--c-thumb-plan-2:#f7f6f2;
+  --c-thumb-plan-3:#e6e2d9
 }
 /* Variante sombre unique (classe posée par theme-ui.js). */
 :root.theme-dark,.theme-dark{

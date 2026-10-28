@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import {HELP, FAQ, helpKeyFor, tipToShow, markTipSeen} from './help.js';
 
 // n° 147 : une partie des actions est gérée par les modules d'actions (registre actions.js).
-const app = ['./app.js', './work-actions.js', './parcel-actions.js'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n');
+const app = ['./app.js', './work-actions.js', './parcel-actions.js', './today-actions.js', './map-actions.js', './field-actions.js', './farm-actions.js',
+  './modules-actions.js', './data-actions.js'].map(file => fs.readFileSync(new URL(file, import.meta.url), 'utf8')).join('\n');
 
 test('chaque fiche a un titre, 3 puces et un lien vers une action existante', () => {
   for (const [key, entry] of Object.entries(HELP)) {
