@@ -76,6 +76,8 @@ export function normalizePersonalization(preferences={}){
     homeShortcuts:knownUnique(preferences.homeShortcuts,shortcuts,PERSONALIZATION_DEFAULTS.homeShortcuts),
     homeSummary:preferences.homeSummary!==false,
     homeNextAction:preferences.homeNextAction!==false,
+    // n° 160 : sur téléphone, repères et raccourcis masqués par défaut (le « + » et la ligne d’état les remplacent).
+    homePhoneCompact:preferences.homePhoneCompact!==false,
     assistantDock:preferences.assistantDock!==false,
     nativeHaptics:preferences.nativeHaptics!==false,
     // Plein champ : grands boutons, texte agrandi et contraste renforcé (champ facultatif, désactivé par défaut).
