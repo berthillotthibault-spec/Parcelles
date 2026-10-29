@@ -175,7 +175,7 @@
 
       <section id="view-parcels" class="view" aria-labelledby="parcels-title">
         <div class="page-container">
-          <div class="view-heading"><div><h1 id="parcels-title">Parcelles</h1><p id="parcels-counter" class="lead"></p></div><button class="button primary icon-only" data-action="new-parcel" aria-label="Nouvelle parcelle"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          <div class="view-heading"><div><h1 id="parcels-title">Parcelles</h1><p id="parcels-counter" class="lead"></p></div><button class="button secondary icon-only parcels-tools-button" data-action="parcels-tools" aria-label="Outils des parcelles"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 12h.01M12 12h.01M18 12h.01"/></svg></button><button class="button primary icon-only" data-action="new-parcel" aria-label="Nouvelle parcelle"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
           <div class="toolbar-panel">
             <label class="search-field"><svg class="ui-icon" width="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="parcel-search" type="search" autocomplete="off" placeholder="Nom, culture, commune, > 5 ha…"></label>
             <button class="button secondary icon-only" data-action="parcel-filters" aria-label="Filtrer et trier"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5h16M7 12h10M10 19h4"/></svg></button>
@@ -246,7 +246,7 @@
 
       <section id="view-more-category" class="view" aria-labelledby="more-category-title">
         <div class="page-container narrow">
-          <div class="detail-topbar"><button class="back-button" data-view="more"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M15 18l-6-6 6-6"/></svg>Menu</button></div>
+          <div class="detail-topbar"><button class="back-button" data-action="more-category-back"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M15 18l-6-6 6-6"/></svg>Menu</button></div>
           <div class="category-hero"><h1 id="more-category-title" class="page-title">Catégorie</h1><p id="more-category-description"></p></div>
           <div id="more-category-content" class="menu-list"></div>
         </div>

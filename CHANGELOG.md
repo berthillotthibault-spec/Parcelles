@@ -11,12 +11,15 @@ Navigation :
 Saisir un travail en 3 étapes (le « + ») :
 - quel travail (types les plus utilisés en tête), sur quelles parcelles (celles prévues aujourd’hui en tête, plusieurs à la fois), les détails (date, produit, dose −/+ qui reprend la dernière dose, matériel) ;
 - contrôles phyto identiques au formulaire (dose, nombre d’applications, délai avant récolte, motif de dérogation) ; un travail déjà prévu sur la parcelle est terminé au lieu d’être dupliqué, les tâches du jour du même genre sont cochées ; Annuler ; brouillon repris ; « Formulaire complet » garde la saisie ;
-- le bouton flottant « J’ai fait » disparaît au profit du « + » (le raccourci d’écran d’accueil « J’ai fait » reste).
+- avant d’enregistrer, « Sera aussi marqué fait » liste les travaux prévus et tâches proches (7 jours avant, 3 jours après la date) qui seront clôturés, chacun décochable ; un travail prévu avec un autre produit n’est jamais écrasé ;
+- la parcelle sous vos pieds est présélectionnée quand le GPS est précis ; le bouton flottant « J’ai fait » et l’ancienne feuille disparaissent au profit du « + » (le raccourci d’icône « Saisir un travail » y mène aussi).
 
 Écrans :
 - Accueil : météo sur fond vert sombre avec créneau de traitement, bandeau « En retard », liste « Aujourd’hui » qui se coche d’un tap, carte « animaux au pré », activité récente avec pastilles de type ; résumé et raccourcis masqués sur téléphone ;
 - Troupeau (nouvel onglet) : actions rapides, lots au pré (« Jour N »), animaux au bâtiment, vêlages et rappels des 14 prochains jours, « Déplacer le lot » vers une prairie ou au bâtiment en deux taps, avec Annuler ;
-- Parcelles : barre de culture, surface en grand, filtres avec compteurs et par culture ; fiche parcelle avec barre « Voir sur la carte / + Nouveau travail » collée en bas ; « + Travail ici » sur la carte ; « Travaux » s’appelle « Planning ».
+- Parcelles : barre de culture, surface en grand, filtres avec compteurs et par culture, outils (Importer, Assolement…) derrière « ··· » sur téléphone ; fiche parcelle avec barre « Voir sur la carte / + Nouveau travail » collée en bas ; « + Travail ici » sur la carte ;
+- « Travaux » s’appelle « Planning », regroupé par jour (En retard, Aujourd’hui, Demain…) ;
+- les feuilles du bas se ferment aussi en glissant leur poignée vers le bas.
 
 Technique : nouveaux modules nav-model.js, profile-menu(-ui).js, quick-work(-ui).js, home-view.js, herd-home(-ui).js (les écrans en différé) ; jetons --hero, --warning-line, --map-hatch-*, --c-work-* ; test Playwright des cibles de 48 px.
 

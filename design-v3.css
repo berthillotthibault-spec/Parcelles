@@ -3200,7 +3200,7 @@ html body #view-today .weather-card.panel{background:var(--hero);color:var(--her
 .weather-window-dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--c-mint)}
 @media(max-width:1023px){
   /* le « + » et la ligne d’état les remplacent (gardés sur ordinateur) */
-  html body #today-summary.today-summary,html body #today-quick-actions.quick-action-strip.quick-action-strip.quick-action-strip{display:none}
+  html.home-phone-compact body #today-summary.today-summary,html.home-phone-compact body #today-quick-actions.quick-action-strip.quick-action-strip.quick-action-strip{display:none}
   .today-primary-action .personalize-button{display:none}
   /* ordre de la maquette : en-tête, météo, retards, « Aujourd’hui », animaux, activité ; le reste ensuite */
   .today-page>.today-grid{order:1}
@@ -3272,4 +3272,30 @@ body.gloves :is(.herd-action,.herd-lot-button,.herd-dest,.herd-event){min-height
   #work-title{font:400 40px/1.05 var(--font-serif)}
 }
 body.gloves #parcel-detail-actions .button,body.gloves .map-bottom-sheet .map-sheet-actions .button{min-height:64px}
+}
+/* n° 160 : Planning regroupé par jour */
+@layer theme{
+.work-day-head{margin:14px 0 2px;font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-secondary)}
+.work-day-head:first-child{margin-top:0}
+.work-day-head.is-late{color:var(--warning)}
+#work-list>.work-row.is-late{border-color:var(--warning-line)}
+}
+/* n° 160 : outils des parcelles derrière « ··· » sur téléphone */
+@layer theme{
+.parcels-tools-button{display:none}
+#view-parcels .view-heading{gap:8px}
+@media(max-width:1023px){
+  .parcels-tools-button{display:inline-grid;margin-left:auto;width:48px;height:48px}
+  #view-parcels>.page-container>.context-tools{display:none}
+}
+}
+/* n° 160 : glisser pour fermer au doigt (la zone de prise ne fait pas défiler la page ; le contenu, si) */
+@layer theme{
+@media(max-width:720px){.modal>.modal-header,.modal.quick-work-sheet .qw-head{touch-action:none}}
+.herd-move-alert{display:grid;gap:10px}.herd-move-alert p{margin:0}
+.qw-closing{display:grid;gap:6px;margin:0;padding:12px 14px;border:1px solid var(--border-subtle);border-radius:14px;background:var(--surface)}
+.qw-closing legend{padding:0 4px;font-size:14.5px;font-weight:700}
+.qw-close-item{display:flex;align-items:center;gap:12px;min-height:48px;font-weight:400}
+.qw-close-item input{width:22px;height:22px;accent-color:var(--brand)}
+.qw-close-item span{display:grid;gap:1px}.qw-close-item small{font-size:13px;color:var(--text-secondary)}
 }

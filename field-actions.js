@@ -12,8 +12,9 @@ export const fieldActions = {
   'field-track-map': fieldTrack,
   'field-track-gpx': fieldTrack,
   'voice-journal'() { ctx.closeFieldMode(); ctx.openVoiceJournal(); },
-  'open-field-mode'() { ctx.openFieldMode(); },
-  'open-day-route'() { ctx.openDayRoute(); },
+  // n° 160 : ouvertes aussi depuis le menu profil (une modale) : la fermer, sinon la vue reste sous le dialogue.
+  'open-field-mode'() { ctx.closeModal(); ctx.openFieldMode(); },
+  'open-day-route'() { ctx.closeModal(); ctx.openDayRoute(); },
   async 'equipment-qr'({id}) { (await ctx.getEquipmentQrUI()).openLabel('equipment',id); },
   async 'point-qr'({id}) { (await ctx.getEquipmentQrUI()).openLabel('point',id); },
   async 'print-qr-labels'() { (await ctx.getEquipmentQrUI()).openPicker(); },

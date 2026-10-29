@@ -15,6 +15,7 @@ const dayBlock = iso => {
 
 export function createHerdHomeUI({store, state, modal, closeModal, toast, todayIso, cultureColor = () => 'var(--brand)', doc = document}) {
   let pendingAlert = null;
+  let moving = false;
 
   function render(root = doc.getElementById('herd-home')) {
     if (!root) return;
@@ -65,6 +66,8 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
       <div class="herd-move-alert" role="alert" hidden></div></div>`;
     modal(`Déplacer · ${lot.name}`, `${plural(lot.n, 'tête', 'têtes')} · ${lot.parcelName} · jour ${lot.days}`, String(body), '', 'herd-move-sheet');
     doc.querySelector('#modal-root .herd-move')?.addEventListener('click', event => {
+      const confirm = event.target.closest('[data-move-confirm]');
+      if (confirm) { pendingAlert = confirm.dataset.moveConfirm; move(lot, pendingAlert); return; }
       const button = event.target.closest('[data-move-to]');
       if (button) move(lot, button.dataset.moveTo);
     });
@@ -72,15 +75,22 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
 
   async function move(lot, parcelId) {
     const today = todayIso();
+    if (moving) return; // double appui (gants, rebond) : un seul déplacement
     if (parcelId && pendingAlert !== parcelId) {
       const alert = grazingReentryAlert(state(), parcelId, today);
       if (alert) {
-        pendingAlert = parcelId;
+        // Confirmation par un bouton distinct, jamais par un second appui sur la même ligne.
         const box = doc.querySelector('#modal-root .herd-move-alert');
-        if (box) { box.hidden = false; box.textContent = `${alert.message || 'Parcelle encore sous délai de rentrée après un traitement.'} Touchez de nouveau pour confirmer.`; }
+        if (box) {
+          box.hidden = false;
+          box.innerHTML = String(html`<p>${alert.message || 'Parcelle encore sous délai de rentrée après un traitement.'}</p><button type="button" class="button secondary" data-move-confirm="${parcelId}">Déplacer quand même</button>`);
+          box.querySelector('button')?.focus();
+        }
         return;
       }
     }
+    moving = true;
+    doc.querySelectorAll('#modal-root .herd-dest').forEach(b => { b.disabled = true; });
     const before = {...lot.session};
     let created = null;
     try {
@@ -88,8 +98,9 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
       else await endGrazingSession(store, lot.id, {date: today});
     } catch (error) {
       toast(error?.message || 'Déplacement impossible.', 'error');
+      doc.querySelectorAll('#modal-root .herd-dest').forEach(b => { b.disabled = false; });
       return;
-    }
+    } finally { moving = false; }
     closeModal();
     const name = (state().parcelles || []).find(p => p.id === parcelId)?.nom;
     // Annuler : le passage d'origine est rouvert tel qu'il était, le nouveau passage retiré.

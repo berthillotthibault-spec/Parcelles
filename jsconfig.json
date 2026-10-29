@@ -27,6 +27,7 @@
     "profile-menu.js",
     "quick-work.js",
     "home-view.js",
-    "herd-home.js"
+    "herd-home.js",
+    "sheet-swipe.js"
   ]
 }

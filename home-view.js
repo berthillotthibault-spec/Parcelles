@@ -89,3 +89,21 @@ export function recentListHtml(works, parcelNames, {today, dateOf, label}) {
       <span class="home-recent-when">${d === today ? 'Aujourd’hui' : d ? label(d) : '—'}</span></button>`;
   })}</div>`;
 }
+
+/**
+ * Intertitre de jour du Planning : « En retard », « Aujourd’hui », « Demain · jeu. 29 », « Ven. 31 oct. », « Sans date ».
+ * @param {string} day date ISO, ou 'late' @param {string} today
+ */
+export function workDayLabel(day, today) {
+  if (day === 'late') return 'En retard';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) return 'Sans date';
+  if (day === today) return 'Aujourd’hui';
+  const date = new Date(`${day}T12:00:00`);
+  const short = date.toLocaleDateString('fr-FR', {weekday: 'short', day: 'numeric'});
+  const tomorrow = new Date(Date.parse(`${today}T12:00:00`) + 864e5).toISOString().slice(0, 10);
+  const yesterday = new Date(Date.parse(`${today}T12:00:00`) - 864e5).toISOString().slice(0, 10);
+  if (day === tomorrow) return `Demain · ${short}`;
+  if (day === yesterday) return `Hier · ${short}`;
+  const label = date.toLocaleDateString('fr-FR', {weekday: 'short', day: 'numeric', month: 'short', ...(day.slice(0, 4) !== today.slice(0, 4) ? {year: 'numeric'} : {})});
+  return label.charAt(0).toLocaleUpperCase('fr') + label.slice(1);
+}
