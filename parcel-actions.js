@@ -1,8 +1,21 @@
 // Actions du délégué de clics pour les parcelles : fiche, édition, archivage, favoris, tri et outils
 // d'une parcelle (n° 147, sorties d'app.js sans changement de comportement). Enregistrées par app.js.
 import {ctx} from './app-context.js';
+import {icon} from './ui.js';
 
 export const parcelActions = {
+  // n° 160 : outils des parcelles regroupés derrière « ··· » (la rangée de tuiles reste sur ordinateur).
+  'parcels-tools'() {
+    const tools = [
+      ['choose-import', 'Importer', 'Fichier PAC, SHP, Excel, GeoJSON', 'entry'],
+      ['open-rotations', 'Assolement', 'Cultures, surfaces et rotations', 'production'],
+      ['open-grazing', 'Pâturage', 'Animaux actuellement au pré', 'sun'],
+      ['open-documents', 'Documents', 'Classement et recherche', 'files']
+    ].filter(([action]) => ctx.activities().visible(action));
+    const rows = tools.map(([action, title, desc, ico]) => `<button class="menu-row" data-action="${action}"><span>${icon(ico, {size: 19})}</span>`
+      + `<span><strong>${title}</strong><small>${desc}</small></span><b aria-hidden="true">›</b></button>`);
+    ctx.modal('Outils des parcelles', '', `<div class="menu-list">${rows.join('')}</div>`, '', 'small');
+  },
   'new-parcel'() { ctx.openParcelForm(); },
   'parcel-filters'() { ctx.openParcelFilters(); },
   'open-parcel'({id, control}) {

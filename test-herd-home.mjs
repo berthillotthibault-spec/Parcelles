@@ -50,3 +50,11 @@ test('déplacer : prairies seulement, sans la parcelle actuelle, libres d’abor
   assert.match(rows[0].status, /^libre/);
   assert.equal(rows[1].status, 'occupé par génisses');
 });
+
+test('lot déplacé : l’animal rattaché au passage d’origine reste dans le lot (pas de double compte)', () => {
+  const s = state();
+  s.grazingSessions[0] = {...s.grazingSessions[0], endDate: '2026-10-27'};
+  s.grazingSessions.push({id: 'g1b', parcelId: 'p8', startDate: '2026-10-27', animalsCount: 32, note: 'Vaches laitières'});
+  assert.deepEqual(animalsInside(s, {today: TODAY}).map(a => a.id), ['a2']);
+  assert.equal(herdHeadline(s, {today: TODAY}), '47 animaux · 46 au pré');
+});

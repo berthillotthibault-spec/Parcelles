@@ -5,11 +5,11 @@
 import {html, raw} from './safe-html.js';
 import {icon} from './ui.js';
 import {uid} from './utils.js';
-import {isPhytoType} from './quick-entry.js';
+import {isPhytoType, rankParcels} from './quick-entry.js';
 import {checkTreatment, limitsSnapshot} from './phyto.js';
 import {draftKey, readDraft, writeDraft, removeDraft, draftTimeLabel} from './form-drafts.js';
 import {orderedWorkTypes, typeBadge, doseConfig, parseDose, formatDose, learnedDose, parcelChoices, parcelFilters,
-  draftSummary, draftDate, buildQuickWorks, draftFields, defaultsFor} from './quick-work.js';
+  draftSummary, draftDate, buildQuickWorks, closingCandidates, draftFields, defaultsFor} from './quick-work.js';
 
 const KEY = draftKey('quick-work', 'nouveau');
 const FROM_MAP = 'parcelles:quick-work:map';
@@ -18,8 +18,9 @@ const DATES = [['today', 'Aujourd’hui'], ['yesterday', 'Hier'], ['custom', 'Au
 const live = list => (Array.isArray(list) ? list : []).filter(item => item && !item.deletedAt);
 
 export function createQuickWorkUI({store, state, modal, closeModal, toast, savedToast, todayIso, openWorkForm, openBatchWorkForm,
-  catalog = () => null, cultureColor = () => 'var(--brand)', switchView, startMultipleSelection, win = window, doc = document}) {
+  catalog = () => null, cultureColor = () => 'var(--brand)', gps = () => null, switchView, startMultipleSelection, win = window, doc = document}) {
   let s = null;
+  let saving = false;
   const reduced = () => Boolean(win.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const storage = () => { try { return win.localStorage; } catch { return null; } };
   const root = () => doc.querySelector('#modal-root .qw');
@@ -27,7 +28,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
 
   function fresh({parcelIds = []} = {}) {
     return {step: 1, type: null, parcelIds: [...parcelIds], dateChoice: 'today', customDate: '', product: '', dose: null, doseUnit: '',
-      doseTouched: false, equipmentId: '', note: '', startTime: '', showTime: false, filter: 'all', query: '', showMore: false, reason: '', needReason: false, error: ''};
+      doseTouched: false, equipmentId: '', note: '', startTime: '', showTime: false, filter: 'all', query: '', showMore: false, reason: '', needReason: false, error: '', skip: []};
   }
   function persist() {
     if (s.step < 2 || !s.type) return;
@@ -112,6 +113,18 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
       ${blocking.size && s.needReason ? html`<label class="qw-field"><span>Motif de la dérogation (inscrit au registre) *</span><textarea id="qw-reason" rows="2" placeholder="Ex. préconisation écrite du conseiller">${s.reason}</textarea></label>` : ''}</div>`;
   }
 
+  // Travaux et tâches prévus que l'enregistrement va clôturer : visibles et décochables (rien n'est fermé en silence).
+  function closingHtml() {
+    const date = draftDate(s.dateChoice, todayIso(), s.customDate);
+    const {works, tasks} = closingCandidates(state(), {type: s.type, parcelIds: s.parcelIds, date, today: todayIso(), product: cfg().none ? '' : s.product});
+    const items = [...works.map(w => ({id: w.id, label: w.type || 'Travail', kind: 'travail prévu', parcelId: w.parcelId})),
+      ...tasks.map(t => ({id: t.id, label: t.title || 'Tâche', kind: 'tâche', parcelId: t.parcelId}))];
+    if (!items.length) return '';
+    const names = new Map(live(state().parcelles).map(p => [p.id, p.nom]));
+    return html`<fieldset class="qw-closing"><legend>Sera aussi marqué fait</legend>${items.map(i => html`<label class="qw-close-item">
+      <input type="checkbox" data-qw-skip="${i.id}"${s.skip.includes(i.id) ? '' : raw(' checked')}><span><b>${i.label}</b><small>${i.kind} · ${names.get(i.parcelId) || 'Parcelle'}</small></span></label>`)}</fieldset>`;
+  }
+
   function step3Html() {
     const c = cfg(), data = state();
     const products = [...new Set([...live(data.stockItems).map(x => x.name), ...live(data.interventions).map(w => w.product)].filter(Boolean))].slice(0, 30);
@@ -125,6 +138,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
       <label class="qw-field"><span>${c.label}</span><input id="qw-product" value="${s.product}" placeholder="${c.placeholder}" autocomplete="off"${c.none ? '' : raw(' list="qw-products"')}>
         ${c.none ? '' : html`<datalist id="qw-products">${products.map(p => html`<option value="${p}"></option>`)}</datalist>`}</label>
       <div id="qw-phyto">${phytoHtml()}</div>
+      <div id="qw-closing">${closingHtml()}</div>
       ${c.none ? '' : html`<div class="qw-field"><span id="qw-dose-label">Dose</span><div class="qw-dose" role="group" aria-labelledby="qw-dose-label">
         <button type="button" class="qw-step" data-qw="dose" data-dir="-1" aria-label="Moins">−</button>
         <label class="qw-dose-value"><input id="qw-dose" inputmode="decimal" value="${s.dose === null ? '' : formatDose(s.dose, c.digits)}" aria-label="Dose en ${s.doseUnit || c.unit}"><span>${s.doseUnit || c.unit}</span></label>
@@ -150,7 +164,11 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     el.innerHTML = String(html`${headHtml()}<div class="qw-body">${body}</div>${footHtml()}`);
     el.dataset.step = String(s.step);
     const target = focus && el.querySelector(focus);
-    (target || el.querySelector('.qw-tile.is-on, .qw-tile, #qw-query, .qw-pill.is-on, .qw-next'))?.focus({preventScroll: true});
+    // Pas de focus par défaut dans un champ texte : le clavier virtuel cacherait la liste.
+    const fallback = s.step === 1 ? el.querySelector('.qw-tile.is-on') || el.querySelector('.qw-tile')
+      : s.step === 2 ? el.querySelector('.qw-parcel.is-on') || el.querySelector('.qw-parcel') || el.querySelector('.qw-next')
+        : el.querySelector('.qw-dates .qw-pill.is-on');
+    (target || fallback)?.focus({preventScroll: true});
   }
 
   // ---------- Écritures ----------
@@ -158,10 +176,22 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     const c = cfg();
     const dose = c.none ? null : parseDose(s.dose);
     return buildQuickWorks({type: s.type, parcelIds: s.parcelIds, date: draftDate(s.dateChoice, todayIso(), s.customDate),
-      product: s.product, dose, doseUnit: s.doseUnit, equipmentId: s.equipmentId, note: s.note, startTime: s.startTime}, state(), {today: todayIso(), batchId: uid('batch')});
+      product: s.product, dose, doseUnit: s.doseUnit, equipmentId: s.equipmentId, note: s.note, startTime: s.startTime}, state(), {today: todayIso(), batchId: uid('batch'), skip: s.skip});
   }
 
   async function save() {
+    if (saving) return; // double appui : une seule écriture
+    saving = true;
+    const button = root()?.querySelector('.qw-next');
+    if (button) button.disabled = true;
+    try { await saveNow(); } finally {
+      saving = false;
+      const again = root()?.querySelector('.qw-next');
+      if (again) again.disabled = false;
+    }
+  }
+
+  async function saveNow() {
     let result;
     try { result = buildDraftWorks(); } catch (error) { s.error = error.message; render({focus: '.qw-next'}); return; }
     if (isPhytoType(s.type)) {
@@ -182,9 +212,15 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     }
     const n = result.creates.length + result.updates.length;
     const label = `${s.type} · ${n} parcelle${n > 1 ? 's' : ''}`;
-    if (result.creates.length) await store.upsertMany('interventions', result.creates, {label: `Travail enregistré : ${label}`});
-    if (result.updates.length) await store.upsertMany('interventions', result.updates, {label: `Travail prévu terminé : ${label}`});
-    if (result.tasks.length) await store.upsertMany('tasks', result.tasks, {label: `Tâche terminée : ${label}`});
+    try {
+      if (result.creates.length) await store.upsertMany('interventions', result.creates, {label: `Travail enregistré : ${label}`});
+      if (result.updates.length) await store.upsertMany('interventions', result.updates, {label: `Travail prévu terminé : ${label}`});
+      if (result.tasks.length) await store.upsertMany('tasks', result.tasks, {label: `Tâche terminée : ${label}`});
+    } catch (error) {
+      s.error = `Enregistrement incomplet : ${error?.message || 'erreur inconnue'}. Vérifiez le Planning avant de réessayer.`;
+      render({focus: '.qw-next'});
+      return;
+    }
     removeDraft(KEY, {storage: storage()});
     closeModal();
     savedToast(`${s.type} enregistré · ${n} parcelle${n > 1 ? 's' : ''}`);
@@ -194,7 +230,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     const c = cfg(), dose = c.none ? null : parseDose(s.dose);
     const prefill = {type: s.type || '', date: draftDate(s.dateChoice, todayIso(), s.customDate), status: 'Terminé', product: c.none ? '' : s.product,
       dose: dose ?? '', doseUnit: dose === null ? '' : s.doseUnit, equipmentId: s.equipmentId, note: c.none ? s.product : s.note, startTime: s.startTime};
-    persist();
+    removeDraft(KEY, {storage: storage()}); // la saisie passe au formulaire complet
     closeModal();
     if (s.parcelIds.length > 1) openBatchWorkForm(s.parcelIds, prefill);
     else openWorkForm(prefill, s.parcelIds[0] || null);
@@ -214,7 +250,10 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     if (input) input.value = formatDose(value, c.digits);
     refreshPhyto();
   }
-  function refreshPhyto() { const box = root()?.querySelector('#qw-phyto'); if (box) box.innerHTML = String(html`${phytoHtml()}`); }
+  function refreshPhyto() {
+    const box = root()?.querySelector('#qw-phyto'); if (box) box.innerHTML = String(html`${phytoHtml()}`);
+    const closing = root()?.querySelector('#qw-closing'); if (closing) closing.innerHTML = String(html`${closingHtml()}`);
+  }
 
   let repeat = null;
   const stopRepeat = () => { clearTimeout(repeat); clearInterval(repeat); repeat = null; };
@@ -281,7 +320,11 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     else if (id === 'qw-custom-date') { s.customDate = event.target.value; refreshPhyto(); }
     else if (id === 'qw-time') s.startTime = event.target.value;
     else if (id === 'qw-reason') s.reason = event.target.value;
-    else return;
+    else if (event.target.dataset?.qwSkip) {
+      const sid = event.target.dataset.qwSkip;
+      s.skip = event.target.checked ? s.skip.filter(x => x !== sid) : [...s.skip, sid];
+      return;
+    } else return;
     persist();
   }
 
@@ -305,11 +348,19 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     let fromMapFlag = false;
     try { fromMapFlag = win.localStorage.getItem(FROM_MAP) === '1'; win.localStorage.removeItem(FROM_MAP); } catch { /* sans stockage, pas de reprise */ }
     s = fresh({parcelIds});
-    const saved = (fromMap || fromMapFlag) ? readDraft(KEY, {storage: storage()})?.fields : null;
+    // Reprise après « Choisir sur la carte » : seulement au retour de la sélection multiple (map-multiple-work).
+    const saved = fromMap && fromMapFlag ? readDraft(KEY, {storage: storage()})?.fields : null;
     if (saved?.type) s = {...fresh(), ...saved, parcelIds: parcelIds.length ? [...parcelIds] : saved.parcelIds, step: 2};
+    else if (!parcelIds.length) {
+      // Parcelle sous les pieds (GPS précis et récent), comme l'ancienne saisie « J'ai fait ».
+      const located = rankParcels(state(), {gps: gps()});
+      if (located.reason === 'gps' && located.selectedId) s.parcelIds = [located.selectedId];
+    }
     modal('Saisir un travail', '', '<div class="qw" data-step="1"></div>', '', 'quick-work-sheet');
     const el = root();
     if (!el) return;
+    // En-tête de modal() masqué (titre gardé pour le nom du dialogue) : ses boutons sortent de l'ordre du focus.
+    el.closest('.modal')?.querySelectorAll(':scope > .modal-header button').forEach(b => { b.hidden = true; });
     el.addEventListener('click', onClick);
     el.addEventListener('pointerdown', onPointerDown);
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(type => el.addEventListener(type, stopRepeat));

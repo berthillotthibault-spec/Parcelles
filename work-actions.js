@@ -37,7 +37,7 @@ export const workActions = {
     ctx.openQuickWork({parcelIds: pid ? [pid] : []});
   },
   'batch-work'() { ctx.closeModal(); ctx.openBatchWorkForm(); },
-  'map-multiple-work'() { const ids = [...ctx.parcelMap.selectedIds]; if (ids.length) ctx.openQuickWork({parcelIds: ids}); },
+  'map-multiple-work'() { const ids = [...ctx.parcelMap.selectedIds]; if (ids.length) ctx.openQuickWork({parcelIds: ids, fromMap: true}); },
   'edit-work'({id}) { ctx.closeModal(); ctx.openWorkForm(work(id)); },
   'duplicate-work'({id}) { ctx.closeModal(); ctx.openWorkForm(work(id), null, {duplicate: true}); },
   'review-finished-work'({id}) { const w = work(id); if (w) ctx.openWorkForm({...w, status: 'Terminé', date: ctx.todayIso()}); },

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {lateBannerHtml, todayListHtml, animalsOut, animalsCardHtml, recentListHtml} from './home-view.js';
+import {lateBannerHtml, todayListHtml, animalsOut, animalsCardHtml, recentListHtml, workDayLabel} from './home-view.js';
 
 const names = new Map([['p1', 'Bois Brûlé'], ['p2', 'Pré du Moulin'], ['p3', 'Les Noues']]);
 const parcels = new Map([['p1', {id: 'p1', nom: 'Bois Brûlé', surfaceHa: 10.2}], ['p3', {id: 'p3', nom: 'Les Noues', surfaceHa: 8.1}]]);
@@ -56,4 +56,14 @@ test('activité récente : trois lignes, date du jour en clair', () => {
   assert.equal((out.match(/home-recent-row/g) || []).length, 3);
   assert.match(out, /Aujourd’hui/);
   assert.match(out, /10-22/);
+});
+
+test('intertitres du Planning', () => {
+  assert.equal(workDayLabel('late', '2026-10-28'), 'En retard');
+  assert.equal(workDayLabel('2026-10-28', '2026-10-28'), 'Aujourd’hui');
+  assert.equal(workDayLabel('2026-10-29', '2026-10-28'), 'Demain · jeu. 29');
+  assert.equal(workDayLabel('2026-10-27', '2026-10-28'), 'Hier · mar. 27');
+  assert.equal(workDayLabel('2026-10-31', '2026-10-28'), 'Sam. 31 oct.');
+  assert.equal(workDayLabel('2027-01-04', '2026-10-28'), 'Lun. 4 janv. 2027');
+  assert.equal(workDayLabel('', '2026-10-28'), 'Sans date');
 });

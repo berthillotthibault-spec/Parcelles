@@ -99,3 +99,24 @@ test('brouillon : seulement des champs simples', () => {
   assert.deepEqual(Object.keys(fields).sort(), ['customDate', 'dateChoice', 'dose', 'doseUnit', 'equipmentId', 'note', 'parcelIds', 'product', 'step', 'type']);
   assert.equal(JSON.parse(JSON.stringify(fields)).step, 3);
 });
+
+test('clôture bornée : fenêtre de dates, autre produit, éléments écartés, campagne recalculée', async () => {
+  const {closingCandidates} = await import('./quick-work.js');
+  const d = data();
+  d.interventions.push({id: 'w6', parcelId: 'p3', type: 'Traitement', status: 'À faire', plannedDate: '2026-10-30', date: '2026-10-30', product: 'Herbi Z', note: 'côté bois', campaignId: '2025/26'});
+  // date passée loin : rien n'est clôturé
+  const far = buildQuickWorks({type: 'Traitement', parcelIds: ['p1', 'p2'], date: '2026-10-10'}, d, {today: TODAY});
+  assert.equal(far.updates.length, 0);
+  assert.equal(far.tasks.length, 0);
+  // prévu dans 2 jours avec un autre produit : pas écrasé
+  const other = buildQuickWorks({type: 'Traitement', parcelIds: ['p3'], date: TODAY, product: 'Fongi Y'}, d, {today: TODAY});
+  assert.deepEqual([other.updates.length, other.creates.length], [0, 1]);
+  // même produit : clôturé, note gardée, campagne et culture recalculées, heure reprise
+  const same = buildQuickWorks({type: 'Traitement', parcelIds: ['p3'], date: TODAY, product: 'herbi z', note: 'vent nul', startTime: '07:30'}, d, {today: TODAY});
+  assert.deepEqual([same.updates[0].id, same.updates[0].note, same.updates[0].campaignId, same.updates[0].culture, same.updates[0].startTime],
+    ['w6', 'côté bois · vent nul', '2026/27', 'Prairie permanente', '07:30']);
+  // écartés par l'utilisateur
+  const skipped = buildQuickWorks({type: 'Traitement', parcelIds: ['p1', 'p2'], date: TODAY}, d, {today: TODAY, skip: ['w4', 't1']});
+  assert.deepEqual([skipped.updates.length, skipped.tasks.length, skipped.creates.length], [0, 0, 2]);
+  assert.deepEqual(closingCandidates(d, {type: 'Traitement', parcelIds: ['p1'], date: '2026-11-02', today: TODAY}), {works: [], tasks: []});
+});

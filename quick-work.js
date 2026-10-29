@@ -8,6 +8,7 @@
 import {rankTypes, typeFamily, normalizeType, defaultsFor, buildQuickWork, isPhytoType} from './quick-entry.js';
 import {agendaDate, isPending} from './home-priorities.js';
 import {isForageParcel} from './grazing.js';
+import {campaignFor} from './utils.js';
 
 export const QUICK_STEP_TYPES = 8;
 export const BASE_TYPES = ['Semis', 'Traitement', 'Fertilisation', 'Travail du sol', 'Récolte', 'Fauche', 'Pâturage', 'Observation'];
@@ -144,14 +145,41 @@ export function draftDate(choice, today, custom = '') {
   return today;
 }
 
+/** Fenêtre de rapprochement d'un travail ou d'une tâche prévus avec la date saisie : 7 jours avant, 3 jours après. */
+export const CLOSE_WINDOW = {before: 7, after: 3};
+
+/**
+ * Travaux et tâches prévus que l'enregistrement clôturerait : même genre, sur les parcelles choisies, échéance
+ * proche de la date saisie (CLOSE_WINDOW) ; pour un travail, le plus proche de la date par parcelle, et jamais un
+ * travail prévu avec un autre produit. Rien pour une date future (le travail saisi est alors « À faire »).
+ * @param {any} data @param {{type: string, parcelIds: string[], date: string, today: string, product?: string}} options
+ */
+export function closingCandidates(data, {type, parcelIds, date, today, product = ''}) {
+  if (!type || !parcelIds?.length || date > today) return {works: [], tasks: []};
+  const from = shiftIso(date, -CLOSE_WINDOW.before), to = shiftIso(date, CLOSE_WINDOW.after);
+  const near = iso => Boolean(iso) && iso >= from && iso <= to;
+  const distance = iso => Math.abs(Date.parse(`${iso}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`));
+  const p = normalizeType(product);
+  const sameProduct = w => typeFamily(type) === 'other' || !p || !String(w.product || '').trim() || normalizeType(w.product) === p;
+  const ids = new Set(parcelIds);
+  const works = [];
+  for (const id of ids) {
+    const hit = live(data?.interventions).filter(w => w.parcelId === id && isPending(w) && sameKind(w.type, type) && near(agendaDate(w)) && sameProduct(w))
+      .sort((a, b) => distance(agendaDate(a)) - distance(agendaDate(b)))[0];
+    if (hit) works.push(hit);
+  }
+  const tasks = live(data?.tasks).filter(t => ids.has(t.parcelId) && isPending(t, 'task') && sameKind(t.title, type) && near(agendaDate(t, 'task')));
+  return {works, tasks};
+}
+
 /**
  * Fiches à écrire. Une intervention par parcelle (batchId commun s'il y en a plusieurs) ; un travail du même
- * genre déjà prévu sur la parcelle est terminé à la place ; les tâches du jour du même genre sont cochées.
- * Une date future donne un travail « À faire ».
+ * genre prévu près de la date (closingCandidates) est terminé à la place, et les tâches correspondantes cochées ;
+ * l'utilisateur peut en écarter (skip). Une date future donne un travail « À faire ».
  * @param {{type: string, parcelIds: string[], date: string, product?: string, dose?: number|null, doseUnit?: string, equipmentId?: string, note?: string, startTime?: string}} draft
- * @param {any} data @param {{today: string, batchId?: string}} options
+ * @param {any} data @param {{today: string, batchId?: string, skip?: Set<string>|string[]}} options
  */
-export function buildQuickWorks(draft, data, {today, batchId = ''}) {
+export function buildQuickWorks(draft, data, {today, batchId = '', skip = []}) {
   const type = String(draft.type || '').trim();
   if (!type) throw new Error('Choisissez un type de travail.');
   const parcels = live(data?.parcelles).filter(p => (draft.parcelIds || []).includes(p.id));
@@ -166,7 +194,8 @@ export function buildQuickWorks(draft, data, {today, batchId = ''}) {
     note: cfg.none ? String(draft.product || draft.note || '').trim() : String(draft.note || '').trim(),
     ...(draft.startTime ? {startTime: draft.startTime} : {})
   };
-  const planned = plannedToday(data, {type, today});
+  const skipped = new Set(skip);
+  const planned = closingCandidates(data, {type, parcelIds: parcels.map(p => p.id), date, today, product: fields.product});
   /** @type {Record<string, any>[]} */
   const creates = [];
   /** @type {Record<string, any>[]} */
@@ -174,11 +203,14 @@ export function buildQuickWorks(draft, data, {today, batchId = ''}) {
   for (const parcel of parcels) {
     const base = buildQuickWork({type, parcel, data, today: date});
     const equipmentId = draft.equipmentId ?? base.equipmentId;
-    const existing = !future && planned.works.find(w => w.parcelId === parcel.id);
+    const existing = planned.works.find(w => w.parcelId === parcel.id && !skipped.has(w.id));
     if (existing) {
+      const note = [String(existing.note || '').trim(), fields.note].filter(Boolean).join(' · ');
       updates.push({...existing, status: 'Terminé', plannedDate: existing.plannedDate || existing.date || '', date,
+        campaignId: campaignFor(date), culture: parcel.culture || existing.culture || '',
         ...(fields.product ? {product: fields.product} : {}), ...(dose !== null ? {dose, doseUnit: fields.doseUnit} : {}),
-        ...(fields.note ? {note: fields.note} : {}), ...(equipmentId ? {equipmentId} : {}), ...(isPhytoType(type) ? {isPhytosanitary: true} : {})});
+        ...(note ? {note} : {}), ...(fields.startTime ? {startTime: fields.startTime} : {}),
+        ...(equipmentId ? {equipmentId} : {}), ...(isPhytoType(type) ? {isPhytosanitary: true} : {})});
       continue;
     }
     creates.push({...base, ...fields, equipmentId,
@@ -186,8 +218,7 @@ export function buildQuickWorks(draft, data, {today, batchId = ''}) {
       actualMetrics: {...base.actualMetrics, dose: dose ?? null}});
   }
   if (creates.length > 1 && batchId) creates.forEach(work => { work.batchId = batchId; });
-  const ids = new Set(parcels.map(p => p.id));
-  const tasks = future ? [] : planned.tasks.filter(t => ids.has(t.parcelId)).map(t => ({...t, status: 'Terminé'}));
+  const tasks = planned.tasks.filter(t => !skipped.has(t.id)).map(t => ({...t, status: 'Terminé'}));
   return {creates, updates, tasks};
 }
 
