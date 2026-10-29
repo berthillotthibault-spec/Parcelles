@@ -24,14 +24,20 @@ function armDone(control, id, kind) {
 
 export const workActions = {
   // Travaux : saisie, reprise, duplication
-  'new-work'({id, control}) { ctx.closeModal(); ctx.closeFieldMode(); ctx.openWorkForm(null, control.dataset.parcelId || id || null); },
+  // n° 160 : création par la saisie en 3 étapes (le formulaire complet reste joignable depuis elle et pour l'édition).
+  'new-work'({id, control}) {
+    ctx.closeModal(); ctx.closeFieldMode();
+    const pid = control.dataset.parcelId || id;
+    ctx.openQuickWork({parcelIds: pid ? [pid] : []});
+  },
   'quick-work'({control}) {
     const fieldParcel = ctx.fieldModeOpen ? (ctx.activeFieldSession()?.parcelId || ctx.$('#field-parcel-choice')?.value || null) : null;
     ctx.closeModal(); ctx.closeFieldMode();
-    ctx.quickEntryUI?.open({parcelId: fieldParcel || control.dataset.parcelId || null});
+    const pid = fieldParcel || control.dataset.parcelId;
+    ctx.openQuickWork({parcelIds: pid ? [pid] : []});
   },
   'batch-work'() { ctx.closeModal(); ctx.openBatchWorkForm(); },
-  'map-multiple-work'() { const ids = [...ctx.parcelMap.selectedIds]; if (ids.length) ctx.openBatchWorkForm(ids); },
+  'map-multiple-work'() { const ids = [...ctx.parcelMap.selectedIds]; if (ids.length) ctx.openQuickWork({parcelIds: ids}); },
   'edit-work'({id}) { ctx.closeModal(); ctx.openWorkForm(work(id)); },
   'duplicate-work'({id}) { ctx.closeModal(); ctx.openWorkForm(work(id), null, {duplicate: true}); },
   'review-finished-work'({id}) { const w = work(id); if (w) ctx.openWorkForm({...w, status: 'Terminé', date: ctx.todayIso()}); },

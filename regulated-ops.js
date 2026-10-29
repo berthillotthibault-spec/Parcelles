@@ -37,7 +37,7 @@ export const categoryLabel=key=>CERTIPHYTO_CATEGORIES.find(([k])=>k===key)?.[1]|
 export function operatorCertificateWarning(state,work){
   const name=String(work?.operator||'').trim();if(!name)return null;
   const date=String(work.date||work.plannedDate||isoDate(new Date())).slice(0,10),card=certiphytoFor(state,name);
-  if(!card)return{code:'certiphyto',message:`Opérateur « ${name} » : aucun Certiphyto enregistré. Renseignez-le dans Plus › Gestion › Opérateurs et échéances.`};
+  if(!card)return{code:'certiphyto',message:`Opérateur « ${name} » : aucun Certiphyto enregistré. Renseignez-le dans Menu › Gestion › Opérateurs et échéances.`};
   if(!card.expiresAt)return{code:'certiphyto',message:`Opérateur « ${name} » : date de validité du Certiphyto non renseignée.`};
   if(card.expiresAt<date)return{code:'certiphyto',message:`Opérateur « ${name} » : Certiphyto expiré le ${localDate(card.expiresAt)}. Le traitement doit être fait par une personne certifiée.`};
   return null;

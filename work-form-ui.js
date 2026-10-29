@@ -194,7 +194,7 @@ export function createWorkFormUI(ctx) {
   }
 
   // Travail groupé : une saisie, un travail relié (batchId) par parcelle ; selected précoche des parcelles (sélection de la carte).
-  function openBatch(selected = []) {
+  function openBatch(selected = [], prefill = {}) {
     const data = ctx.state(), parcels = ctx.active('parcelles', data), machines = ctx.active('materiels', data);
     if (!parcels.length) return ctx.toast('Aucune parcelle disponible.', 'error');
     const rows = parcels.map(p => [
@@ -217,6 +217,11 @@ export function createWorkFormUI(ctx) {
     ctx.modal('Travail groupé', 'Une seule saisie crée un travail relié pour chaque parcelle sélectionnée.', body,
       '<button class="button secondary" data-action="close-modal">Annuler</button>'
       + '<button class="button primary" id="save-batch-work">Enregistrer le lot</button>', 'large');
+    // n° 160 : « Formulaire complet » de la saisie en 3 étapes : ce qui est déjà saisi est repris.
+    const batchForm = $('#batch-work-form');
+    for (const [name, value] of Object.entries(prefill || {})) {
+      if (batchForm?.elements[name] && value !== undefined && value !== null && value !== '') batchForm.elements[name].value = value;
+    }
     const boxes = () => $$('#batch-work-form input[name="parcelIds"]');
     $('#batch-select-all').onclick = () => boxes().forEach(x => x.checked = true);
     $('#batch-clear').onclick = () => boxes().forEach(x => x.checked = false);

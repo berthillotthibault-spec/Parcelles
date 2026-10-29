@@ -33,7 +33,9 @@
   --font-sans:'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   --font-serif:'Instrument Serif',Georgia,'Times New Roman',serif;--a11y-hit:44px;--field-border:#858b86;--sync-info:#2d5f93;
   --sync-info-soft:#e4edf7;--sync-violet:#6b3fa0;--sync-violet-soft:#efe7f8;--assistant-clearance:64px;
-  --motion-ease:cubic-bezier(.2,.7,.2,1)
+  --motion-ease:cubic-bezier(.2,.7,.2,1);
+  /* n° 160 : carte météo de l’accueil, bandeau des retards, hachures de remplacement des vignettes */
+  --hero:#1c3a28;--hero-2:#2a573b;--hero-ink:#f6f4ef;--warning-line:#e9cc8c;--map-hatch-1:#c9d3bf;--map-hatch-2:#c0cbb5
 }
 /* Palette fixe (n° 153) : couleurs naguère codées en dur dans plusieurs feuilles, mêmes valeurs en clair et en sombre.
    Pour une couleur qui doit changer en mode sombre, utiliser un jeton sémantique (--surface, --brand…). */
@@ -48,7 +50,10 @@
   --c-slate:#3d4540;--c-paper:#faf9f6;--c-graphite:#313631;--c-rose:#ffd9d3;--c-red:#bf4944;--c-signal-green:#3fbf6f;
   --c-sky:#8fbbe6;--c-night-surface:#252e28;--c-night-line:#323c35;--c-night-text:#f2f5f3;
   --c-thumb-sat-1:#5d6f3f;--c-thumb-sat-2:#6f8550;--c-thumb-sat-3:#4f5f37;--c-thumb-plan-1:#efede7;--c-thumb-plan-2:#f7f6f2;
-  --c-thumb-plan-3:#e6e2d9
+  --c-thumb-plan-3:#e6e2d9;
+  /* n° 160 : pastilles des types de travaux (familles de typeFamily, quick-entry.js), lettres blanches dessus */
+  --c-work-seed:#4a8550;--c-work-spray:#3a6ea3;--c-work-fertilize:#8f6a38;--c-work-soil:#735640;--c-work-harvest:#a87c14;
+  --c-work-mow:#5f8c32;--c-work-graze:#33735f;--c-work-other:#5f646a
 }
 /* Variante sombre unique (classe posée par theme-ui.js). */
 :root.theme-dark,.theme-dark{
@@ -61,7 +66,8 @@
   --shadow-float:0 12px 34px rgba(0,0,0,.28);--shadow-pop:0 18px 50px rgba(0,0,0,.38);--line:#222b25;--line-2:#222b25;
   --chip-border:#323c35;--tile:#1d2520;--tile-hover:#252e28;--ink:#e8ede9;--on-ink:#10261a;--accent-ink:#286a4a;
   --accent-ink-text:#fff;--on-brand:#10261a;--warning-soft:#33280f;--danger-soft:#3a1d18;--muted-text:#a2ada5;
-  --field-border:#6b786f;--sync-info:#8bb8e8;--sync-info-soft:#16283b;--sync-violet:#c6a6ec;--sync-violet-soft:#2a1d3b
+  --field-border:#6b786f;--sync-info:#8bb8e8;--sync-info-soft:#16283b;--sync-violet:#c6a6ec;--sync-violet-soft:#2a1d3b;
+  --hero:#173022;--hero-2:#21422f;--hero-ink:#eef3ee;--warning-line:#5e4719;--map-hatch-1:#28332a;--map-hatch-2:#232d25
 }
 /* Contraste élevé (Personnaliser) : bordure renforcée. */
 :root.high-contrast{--border:#8b958e}
@@ -80,6 +86,7 @@ html[data-assistant-dock="hidden"]{--assistant-clearance:0px}
   --bg:#080a09;--surface:#0e1210;--surface-secondary:#131815;--surface-tertiary:#19201b;--text-primary:#c4ccc6;
   --text-secondary:#8a958d;--text-tertiary:#6b756e;--brand:#4f9471;--brand-hover:#5ea380;--brand-soft:#11281d;--success:#56996f;
   --warning:#a8823f;--danger:#a8615b;--border-subtle:#1c241f;--border-strong:#2a342e;--chip-border:#252e28;--ink:#c4ccc6;
-  --warning-soft:#211a0b;--danger-soft:#251311;--muted-text:#8a958d
+  --warning-soft:#211a0b;--danger-soft:#251311;--muted-text:#8a958d;
+  --hero:#0f1f16;--hero-2:#16301f;--hero-ink:#c4ccc6;--warning-line:#3d2f12;--map-hatch-1:#161d18;--map-hatch-2:#131915
 }
 }

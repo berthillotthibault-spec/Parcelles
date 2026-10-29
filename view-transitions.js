@@ -2,7 +2,7 @@
 // Glissement latéral selon l'ordre des onglets ; la carte (Leaflet) n'est jamais animée ;
 // rien si reduced-motion ou si l'API View Transitions est absente (repli sur revealView).
 
-export const TAB_ORDER = ['today', 'map', 'parcels', 'work', 'more'];
+export const TAB_ORDER = ['today', 'map', 'parcels', 'herd', 'work', 'more'];
 // Rang d'une vue : les vues de détail se placent juste après leur onglet.
 export function viewRank(view) {
   if (view === 'parcel') return TAB_ORDER.indexOf('parcels') + 0.5;

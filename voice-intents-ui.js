@@ -33,7 +33,7 @@ export function createVoiceIntentsUI(kit){
   function renderMaintenance(entry){
     const machines=active('materiels');
     if(!machines.length){
-      kit.draftModal(`<div class="notice warning">Aucun matériel n’est enregistré. Ajoutez vos engins depuis Plus › Matériel, puis dictez à nouveau.</div>${kit.quote(entry)}`,kit.footer('Fermer',{complete:false}));
+      kit.draftModal(`<div class="notice warning">Aucun matériel n’est enregistré. Ajoutez vos engins depuis Menu › Matériel, puis dictez à nouveau.</div>${kit.quote(entry)}`,kit.footer('Fermer',{complete:false}));
       $('#vn-save').onclick=()=>{kit.markHandled();closeModal();};return;
     }
     const body=`${readOnly('maintenanceRecords')}${machineField(entry)}

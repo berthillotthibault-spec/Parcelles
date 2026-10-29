@@ -8,6 +8,8 @@ import {parsePeriod} from './query-engine.js';
 export const SPOTLIGHT_ACTIONS = [
   ['nouveau travail ajouter travail saisir', 'Nouveau travail', 'new-work', 'Saisir un travail'],
   ['nouvelle tache rappel', 'Nouvelle tâche', 'new-task', 'Ajouter une tâche'],
+  ['troupeau lots vaches animaux pre velage', 'Troupeau', 'open-herd-view', 'Lots au pré, déplacer un lot, vêlages'],
+  ['planning travaux agenda semaine calendrier', 'Planning', 'open-planning', 'Travaux à faire, en retard et réalisés'],
   ['nouvelle parcelle creer parcelle', 'Nouvelle parcelle', 'new-parcel', 'Dessiner ou saisir une parcelle'],
   ['nouveau lot sortir les vaches mise a l herbe animaux pre paturage', 'Sortir un lot au pré', 'new-grazing', 'Nouveau pâturage'],
   ['nouvelle observation constat anomalie', 'Nouvelle observation', 'new-observation', 'Noter un constat terrain'],

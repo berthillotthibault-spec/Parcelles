@@ -1,21 +1,22 @@
 // n° 145 : ne rendre que la vue visible après une modification (logique pure, horloge et rAF injectés).
 // Les autres vues sont marquées « à refaire » et rendues au changement d'onglet.
 
-export const RENDER_VIEWS = ['today', 'parcels', 'work', 'map', 'parcel'];
+export const RENDER_VIEWS = ['today', 'parcels', 'work', 'map', 'parcel', 'herd'];
 
 // Vues touchées par une modification, d'après l'entité de l'événement du Store.
 // null → tout est à refaire (restauration, import, espace changé, préférences…).
 export function viewsForEvent(event = {}) {
   const {entity, kind} = event || {};
   if (!entity || entity === 'state' || entity === 'preferences' || ['restore', 'import', 'import-rollback', 'workspace-switch', 'external-reload', 'schema-lock'].includes(kind)) return null;
-  if (entity === 'parcelles') return ['today', 'parcels', 'work', 'map', 'parcel'];
-  if (entity === 'interventions') return ['today', 'work', 'parcels', 'map', 'parcel'];
-  if (entity === 'tasks') return ['today', 'work', 'map', 'parcel'];
+  if (entity === 'parcelles') return ['today', 'parcels', 'work', 'map', 'parcel', 'herd'];
+  if (entity === 'interventions') return ['today', 'work', 'parcels', 'map', 'parcel', 'herd'];
+  if (entity === 'tasks') return ['today', 'work', 'map', 'parcel', 'herd'];
   if (entity === 'observations') return ['today', 'map', 'parcel'];
   if (['materiels', 'stockItems', 'stockMovements', 'fieldSessions', 'chantiers', 'automationRules', 'automationRuns'].includes(entity)) return ['today', 'parcel'];
   if (entity === 'points') return ['map', 'parcel'];
-  if (entity === 'grazingSessions') return ['today', 'parcels', 'map', 'parcel'];
-  if (['photos', 'documents', 'rotations', 'clients', 'maintenanceRecords', 'routeSessions', 'vetTreatments', 'animals', 'animalEvents', 'parcelComments', 'integrationImports'].includes(entity)) return ['today', 'parcel'];
+  if (entity === 'grazingSessions') return ['today', 'parcels', 'map', 'parcel', 'herd'];
+  if (['vetTreatments', 'animals', 'animalEvents'].includes(entity)) return ['today', 'parcel', 'herd'];
+  if (['photos', 'documents', 'rotations', 'clients', 'maintenanceRecords', 'routeSessions', 'parcelComments', 'integrationImports'].includes(entity)) return ['today', 'parcel'];
   return ['parcel'];
 }
 

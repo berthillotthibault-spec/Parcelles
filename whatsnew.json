@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.25.0",
+      "date": "2026-10-28",
+      "title": "Nouvelle navigation",
+      "items": [
+        "Le « + » au centre de la barre enregistre un travail en 3 gestes : quoi, où, détails.",
+        "Nouvel onglet Troupeau : lots au pré, « Déplacer le lot » en deux taps, vêlages à venir.",
+        "« Plus » devient le menu de la pastille ronde, avec vos outils rangés en quatre groupes."
+      ]
+    },
+    {
       "version": "10.24.0",
       "date": "2026-10-28",
       "title": "Rangement interne",

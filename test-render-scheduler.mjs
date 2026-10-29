@@ -18,7 +18,7 @@ test('après une modification, seule la vue visible est rendue, à la prochaine 
   assert.deepEqual(calls, []);
   tick();
   assert.deepEqual(calls, ['today']);
-  assert.deepEqual(s.dirtyViews().sort(), ['map', 'parcel', 'parcels', 'work']);
+  assert.deepEqual(s.dirtyViews().sort(), ['herd', 'map', 'parcel', 'parcels', 'work']);
 });
 
 test('changement d’onglet : la vue marquée est rendue avant d’être montrée, pas deux fois', () => {
@@ -33,7 +33,7 @@ test('rendu complet : la vue visible tout de suite, les autres au premier affich
   const {s, calls} = setup('map');
   s.renderNow();
   assert.deepEqual(calls, ['map']);
-  assert.deepEqual(s.dirtyViews().sort(), ['parcel', 'parcels', 'today', 'work']);
+  assert.deepEqual(s.dirtyViews().sort(), ['herd', 'parcel', 'parcels', 'today', 'work']);
   assert.deepEqual(s.stats().map, {count: 1, lastMs: 2, maxMs: 2, totalMs: 2});
 });
 
@@ -43,6 +43,8 @@ test('vues touchées par entité', () => {
   assert.ok(viewsForEvent({entity: 'interventions'}).includes('work'));
   assert.ok(!viewsForEvent({entity: 'stockItems'}).includes('map'));
   assert.deepEqual(viewsForEvent({entity: 'points'}), ['map', 'parcel']);
+  assert.ok(viewsForEvent({entity: 'animals'}).includes('herd'), 'n° 160 : vue Troupeau');
+  assert.ok(viewsForEvent({entity: 'grazingSessions'}).includes('herd'));
 });
 
 test('la carte n’est redessinée que si contour, culture ou statut changent', () => {
