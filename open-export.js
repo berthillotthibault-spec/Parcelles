@@ -87,7 +87,7 @@ export function readmeText(state = {}, {createdAt = Date.now(), xlsx = false} = 
     '- les fiches supprimées (corbeille) ne figurent pas dans ces tables.',
     '',
     'Pour restaurer vos données dans Parcelles, utilisez le fichier ZIP complet :',
-    'Plus › Mes données › Restaurer une sauvegarde. Seuls manifest.json, state.json et attachments/ servent à la restauration ;',
+    'Menu › Mes données › Restaurer une sauvegarde. Seuls manifest.json, state.json et attachments/ servent à la restauration ;',
     'ce dossier lisible/ est ignoré et peut être modifié sans risque.',
     ''
   ].join('\r\n');

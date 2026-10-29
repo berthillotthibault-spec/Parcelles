@@ -22,6 +22,8 @@ async function testAutomation(id) {
 export const modulesActions = {
   'more-show-all-tools': moreModules,
   'more-modules-filter': moreModules,
+  // n° 160 : la pastille de profil ouvre le menu profil, qui remplace l'onglet « Plus ».
+  'open-profile-menu'() { ctx.openProfileMenu(); },
   'open-more-category'({control}) { ctx.renderMoreCategory(control.dataset.category||'production'); ctx.switchView('more-category'); },
   'open-advanced-tools'() { ctx.openAdvancedTools(); },
   'open-compliance'() { ctx.closeModal(); ctx.complianceUI?.open(); },

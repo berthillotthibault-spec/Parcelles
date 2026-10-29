@@ -167,7 +167,7 @@ async function kmlContent(file,ext){
   if(ext==='.kmz'){const entries=await readZipEntries(file);const entry=entries.find(e=>/(^|\/)doc\.kml$/i.test(e.name))||entries.find(e=>/\.kml$/i.test(e.name));if(!entry)throw new Error('Aucun fichier KML dans ce KMZ.');text=await readImportText(entry);}
   else text=await readImportText(file);
   const value=kmlToGeoJson(text);
-  if(!value.features.length)throw new Error('Aucun polygone dans ce KML. Pour une trace GPS ou des points, utilisez Plus › Intégrations agricoles.');
+  if(!value.features.length)throw new Error('Aucun polygone dans ce KML. Pour une trace GPS ou des points, utilisez Menu › Intégrations agricoles.');
   return value;
 }
 async function looseShapefileContent(group){

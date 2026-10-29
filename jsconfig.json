@@ -22,6 +22,11 @@
     "yield.js",
     "public-works.js",
     "home-priorities.js",
-    "text-encoding.js"
+    "text-encoding.js",
+    "nav-model.js",
+    "profile-menu.js",
+    "quick-work.js",
+    "home-view.js",
+    "herd-home.js"
   ]
 }

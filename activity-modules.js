@@ -24,6 +24,9 @@ export const TOOL_MODULES = Object.freeze({
   'open-parcel-check': ['crops', 'livestock'], // v8a n° 47
   'open-regulated-ops': ['crops', 'livestock', 'contracting'], // v8a n° 72
   'open-grazing': ['livestock'],
+  'herd-move': ['livestock'],
+  'open-herd-view': ['livestock'],
+  'herd-pick': ['livestock'],
   'open-herd-health': ['livestock'],
   'open-herd-economics': ['livestock'], // v7b n° 80
   'open-herd': ['livestock'], // n° 79 : troupeau bovin

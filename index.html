@@ -10,7 +10,7 @@
        les plugins et le détournement de <base> ; Firebase, tuiles, météo, Worker et assistant restent libres.
        Les violations sont notées dans Plus › Mes données › Diagnostic. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'">
-  <meta name="parcelles-build" content="2026.10.28-v10.24.0">
+  <meta name="parcelles-build" content="2026.10.28-v10.25.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -33,7 +33,7 @@
   <link rel="stylesheet" href="./public-works.css?v=2">
   <link rel="stylesheet" href="./motion.css?v=1">
   <link rel="stylesheet" href="./personalization.css?v=2">
-  <link rel="stylesheet" href="./design-v3.css?v=4.12">
+  <link rel="stylesheet" href="./design-v3.css?v=4.13">
   <title>Parcelles</title>
 </head>
 <body>
@@ -78,6 +78,7 @@
         <button class="icon-button header-status" id="notification-button" data-action="open-notifications" data-count="0" aria-label="Notifications" title="Notifications">
           <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
         </button>
+        <button class="profile-chip" data-action="open-profile-menu" aria-label="Menu et modules" title="Menu et modules"><span class="profile-initials" aria-hidden="true">P</span></button>
         <button id="network-button" class="connection-button" data-action="network-details" title="Synchronisation"><span class="sr-only">Connexion : </span><span id="network-dot"></span><span id="network-label">Initialisation</span></button>
       </div>
     </header>
@@ -104,11 +105,13 @@
         <span class="desktop-brand-copy"><strong>Parcelles</strong><small id="desktop-farm-name">Mon exploitation</small></span>
       </button>
       <nav class="desktop-nav">
-        <button class="nav-item is-active" data-view="today" aria-current="page"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8M9 21v-7h6v7"/></svg><small>Aujourd’hui</small></button>
+        <button class="button primary sidebar-new-work" data-action="new-work"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Saisir un travail</span></button>
+        <button class="nav-item is-active" data-view="today" aria-current="page"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8M9 21v-7h6v7"/></svg><small>Accueil</small></button>
         <button class="nav-item" data-view="map"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20"/></svg><small>Carte</small></button>
         <button class="nav-item" data-view="parcels"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 4h12l2 5-2 11H6L4 9zM4 9h16M9 4v16M15 4v16"/></svg><small>Parcelles</small></button>
-        <button class="nav-item" data-view="work"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 4h14v16H5zM8 7h6M9 12l2 2 4-5"/></svg><small>Travaux</small></button>
-        <button class="nav-item" data-view="more"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 12h.01M12 12h.01M18 12h.01"/></svg><small>Plus</small></button>
+        <button class="nav-item" data-view="herd" data-nav-livestock><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 3h6l4 5v6a7 7 0 0 1-14 0V8z"/><circle cx="12" cy="8" r="1.6"/><path d="M9 14h6"/></svg><small>Troupeau</small></button>
+        <button class="nav-item" data-view="work"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 4h14v16H5zM8 7h6M9 12l2 2 4-5"/></svg><small>Planning</small></button>
+        <button class="nav-item" data-view="more"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><small>Modules</small></button>
       </nav>
       <div class="sidebar-spacer"></div>
       <div class="sidebar-foot">
@@ -124,6 +127,7 @@
           <div class="today-welcome">
             <div><p class="eyebrow" id="today-label">Aujourd’hui</p><h1 id="today-title">Bonjour</h1><p id="today-subtitle">Votre journée, sans le bruit.</p></div>
             <div class="today-primary-action"><button class="button primary" data-action="new-work"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span class="action-label">Travail</span></button><button class="button secondary personalize-button" data-action="personalize">Personnaliser</button></div>
+            <button class="profile-chip today-profile-chip" data-action="open-profile-menu" aria-label="Menu et modules" title="Menu et modules"><span class="profile-initials" aria-hidden="true">P</span></button>
           </div>
           <div id="next-action" class="next-action"></div>
           <div id="today-summary" class="today-summary" aria-label="Résumé du jour"></div>
@@ -133,13 +137,16 @@
           <div id="home-custom-empty" class="home-custom-empty hidden">Votre accueil est épuré. Retrouvez vos outils dans les onglets ou ajoutez des blocs avec <button class="text-button" data-action="personalize">Personnaliser</button>.</div>
           <div class="today-grid">
             <article class="panel weather-card" data-home-card="weather"><div class="panel-heading"><h2>Météo</h2><button class="text-button" data-action="open-weather">Voir</button></div><div id="weather-content" class="weather-content"><div class="skeleton-line"></div><div class="skeleton-line short"></div></div></article>
-            <article class="panel" data-home-card="today"><div class="panel-heading"><h2>À faire maintenant</h2><button class="text-button" data-view="work">Tout voir</button></div><div id="day-route-entry"></div><div id="today-work-list" class="stack-list"></div></article>
+            <div id="home-late" class="home-late-slot"></div>
+            <article class="panel" data-home-card="today"><div class="panel-heading"><h2>Aujourd’hui</h2><button class="text-button" data-view="work">Planning ›</button></div><div id="day-route-entry"></div><div id="today-work-list" class="stack-list"></div></article>
+            <div id="home-animals" class="home-animals-slot" hidden></div>
             <article class="panel" data-home-card="tasks"><div class="panel-heading"><h2>Autres tâches</h2><button class="text-button" data-action="open-tasks">Tout voir</button></div><div id="today-task-list" class="stack-list"></div></article>
             <article class="panel" data-home-card="alerts"><div class="panel-heading"><h2>À surveiller</h2><button class="text-button" data-action="open-notifications">Voir</button></div><div id="alerts-list" class="stack-list"></div></article>
             <article class="panel hidden" data-home-card="calvings"><div class="panel-heading"><h2>Vêlages à venir</h2><button class="text-button" data-action="open-herd">Troupeau</button></div><div id="home-calvings" class="stack-list"></div></article>
             <article class="panel" data-home-card="recent"><div class="panel-heading"><h2>Activité récente</h2><button class="text-button" data-view="work">Historique</button></div><div id="recent-list" class="stack-list"></div></article>
           </div>
           <section id="day-review" class="day-review" aria-label="Bilan de journée"></section>
+          <p class="home-personalize"><button class="text-button" data-action="personalize">Personnaliser l’accueil</button></p>
         </div>
       </section>
 
@@ -193,7 +200,7 @@
 
       <section id="view-work" class="view" aria-labelledby="work-title">
         <div class="page-container">
-          <div class="view-heading"><div><h1 id="work-title">Travaux</h1><p class="lead">Planifier, réaliser, retrouver.</p></div><button class="button primary icon-only" data-action="new-work" aria-label="Nouveau travail"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          <div class="view-heading"><div><button class="back-button work-home-back" data-view="today"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M15 18l-6-6 6-6"/></svg>Accueil</button><h1 id="work-title">Planning</h1><p class="lead">Planifier, réaliser, retrouver.</p></div><button class="button primary icon-only" data-action="new-work" aria-label="Nouveau travail"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button></div>
           <div class="segmented work-subviews" id="work-subviews" role="tablist" aria-label="Affichage des travaux"><button id="work-subview-tab-list" data-tab="list" role="tab" aria-selected="true" aria-controls="work-panel-list" class="is-active">Liste</button><button id="work-subview-tab-week" data-tab="week" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Semaine</button><button id="work-subview-tab-calendar" data-tab="calendar" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Calendrier</button><button id="work-subview-tab-tasks" data-tab="tasks" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Tâches</button><button id="work-subview-tab-chantiers" data-tab="chantiers" role="tab" aria-selected="false" aria-controls="work-panel-sub" tabindex="-1">Chantiers</button></div>
           <nav class="context-tools" aria-label="Organisation des travaux"><button class="small-button" data-action="open-equipment">Matériel</button><button class="small-button" data-action="batch-work">Travail groupé</button></nav>
           <div id="work-panel-list" role="tabpanel" aria-labelledby="work-subview-tab-list">
@@ -203,6 +210,13 @@
           <div id="work-filter-summary" class="active-filters"></div>
           <div id="work-list" class="work-list"></div></div>
           <div id="work-panel-sub" class="work-subview" role="tabpanel" tabindex="-1" hidden></div>
+        </div>
+      </section>
+
+      <section id="view-herd" class="view" aria-labelledby="herd-title">
+        <div class="page-container herd-page">
+          <div class="view-heading"><div><h1 id="herd-title">Troupeau</h1><p class="lead" id="herd-summary">Lots au pré, soins et vêlages.</p></div></div>
+          <div id="herd-home" class="herd-home"></div>
         </div>
       </section>
 
@@ -232,7 +246,7 @@
 
       <section id="view-more-category" class="view" aria-labelledby="more-category-title">
         <div class="page-container narrow">
-          <div class="detail-topbar"><button class="back-button" data-view="more"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M15 18l-6-6 6-6"/></svg>Plus</button></div>
+          <div class="detail-topbar"><button class="back-button" data-view="more"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M15 18l-6-6 6-6"/></svg>Menu</button></div>
           <div class="category-hero"><h1 id="more-category-title" class="page-title">Catégorie</h1><p id="more-category-description"></p></div>
           <div id="more-category-content" class="menu-list"></div>
         </div>
@@ -240,11 +254,12 @@
     </main>
 
     <nav class="primary-nav" aria-label="Navigation principale">
-      <button class="nav-item is-active" data-view="today" aria-current="page"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8M9 21v-7h6v7"/></svg><small>Aujourd’hui</small></button>
-      <button class="nav-item" data-view="map"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20"/></svg><small>Carte</small></button>
-      <button class="nav-item" data-view="parcels"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 4h12l2 5-2 11H6L4 9zM4 9h16M9 4v16M15 4v16"/></svg><small>Parcelles</small></button>
-      <button class="nav-item" data-view="work"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 4h14v16H5zM8 7h6M9 12l2 2 4-5"/></svg><small>Travaux</small></button>
-      <button class="nav-item" data-view="more"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 12h.01M12 12h.01M18 12h.01"/></svg><small>Plus</small></button>
+      <button class="nav-item is-active" data-view="today" aria-current="page"><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8M9 21v-7h6v7"/></svg><small>Accueil</small></button>
+      <button class="nav-item" data-view="map"><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20"/></svg><small>Carte</small></button>
+      <button class="nav-plus" data-action="new-work" aria-label="Saisir un travail"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="nav-item" data-view="parcels"><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 4h12l2 5-2 11H6L4 9zM4 9h16M9 4v16M15 4v16"/></svg><small>Parcelles</small></button>
+      <button class="nav-item" data-view="herd" data-nav-livestock><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 3h6l4 5v6a7 7 0 0 1-14 0V8z"/><circle cx="12" cy="8" r="1.6"/><path d="M9 14h6"/></svg><small>Troupeau</small></button>
+      <button class="nav-item" data-view="work" data-nav-no-livestock hidden><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 4h14v16H5zM8 7h6M9 12l2 2 4-5"/></svg><small>Travaux</small></button>
     </nav>
   </div>
 

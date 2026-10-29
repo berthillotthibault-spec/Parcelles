@@ -154,7 +154,7 @@ export function biodiversityTheme(d,iae){
   const sauOk=d.sau>0;
   return theme('biodiversite','Biodiversité',[
     item('iae','Infrastructures agroécologiques (% SAU pondérée)',pointsAtLeast([[2,1],[4,2],[7,3],[10,4]],iae.iaePct),4,iae.items.length?`${fr(iae.iaePct)} % · ${fr(iae.hedgeKm)} km de haies`:'aucune IAE inventoriée',
-      'Inventoriez vos haies, bosquets et mares (Plus › Haies et IAE) : 4 % de SAU = 2 points, 10 % = 4 points.',{missing:!iae.items.length||!sauOk}),
+      'Inventoriez vos haies, bosquets et mares (Menu › Haies et IAE) : 4 % de SAU = 2 points, 10 % = 4 points.',{missing:!iae.items.length||!sauOk}),
     item('diversite','Nombre de cultures sur terres arables',pointsAtLeast([[3,1],[5,2],[7,3]],d.count),3,d.taArea>0?`${d.count} culture${d.count>1?'s':''}`:'aucune terre arable renseignée',
       '3 cultures = 1 point, 5 = 2 points, 7 = 3 points (assolement de la campagne).',{missing:!(d.taArea>0)}),
     item('principale','Culture principale ≤ 50 % des terres arables',d.mainShare!==null&&d.mainShare<=0.5+1e-9?1:0,1,d.main?`${d.main.culture} : ${pct(d.mainShare)}`:'—',
@@ -189,7 +189,7 @@ export function fertilizationTheme(n,d){
     item('solde','Solde azoté (apports efficaces − dose prévue)',n.gap===null?0:pointsAtMost([[0,4],[10,3],[20,2],[40,1]],n.gap),4,n.gap===null?'aucun plan de fumure complet':`${n.gap>0?'+':''}${fr(n.gap)} kg N/ha sur ${fr(n.gapArea)} ha`,
       'Calculez le plan de fumure (reliquat sortie hiver) et restez au plus près de la dose prévue : écart ≤ 0 = 4 points.',{missing:n.gap===null}),
     item('ppf','Parcelles avec plan de fumure calculé',n.plansTotal?(n.plansComplete>=n.plansTotal?2:n.plansComplete/n.plansTotal>=0.5?1:0):0,2,n.plansTotal?`${n.plansComplete}/${n.plansTotal}`:'—',
-      'Saisissez le reliquat sortie hiver sur chaque parcelle cultivée (Plus › Azote).',{missing:!n.plansTotal}),
+      'Saisissez le reliquat sortie hiver sur chaque parcelle cultivée (Menu › Azote).',{missing:!n.plansTotal}),
     item('n-total','Azote total apporté (kg N/ha SAU)',n.totalPerHa===null||!n.applications?0:pointsAtMost([[100,2],[150,1]],n.totalPerHa),2,n.totalPerHa===null?'—':!n.applications?'aucun apport enregistré (à confirmer)':`${fr(n.totalPerHa)} kg N/ha`,
       '≤ 100 kg N/ha SAU = 2 points, ≤ 150 = 1 point.',{missing:n.totalPerHa===null||n.unknown>0||!n.applications}),
     item('legumineuses','Légumineuses (% terres arables)',pointsAtLeast([[0.05,1],[0.1,2]],d.legumeShare),2,pct(d.legumeShare),

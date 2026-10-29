@@ -66,7 +66,7 @@ export function createHelpUI({store, modal, doc = globalThis.document}) {
 
   function openHelp() {
     const sections = [
-      ['Bien commencer', ['Ajoutez vos parcelles : Plus › Mes données › Importer (fichier PAC, SHP ou Excel), ou retrouvez-les sur la carte PAC.', 'Saisissez un travail avec le bouton « + Travail » : parcelle, type et date suffisent.', 'Choisissez vos activités dans Personnaliser : seuls les outils utiles s’affichent.']],
+      ['Bien commencer', ['Ajoutez vos parcelles : Menu › Mes données › Importer (fichier PAC, SHP ou Excel), ou retrouvez-les sur la carte PAC.', 'Saisissez un travail avec le bouton « + Travail » : parcelle, type et date suffisent.', 'Choisissez vos activités dans Personnaliser : seuls les outils utiles s’affichent.']],
       ['Au champ', ['Le mode terrain trouve la parcelle où vous êtes, si vous autorisez la position.', '« J’ai fait » note en deux gestes un travail terminé.', 'La dictée vocale remplit un travail ou une observation.']],
       ['Vos données', ['Tout est gardé dans le téléphone, même sans réseau.', 'Faites une sauvegarde hors du téléphone de temps en temps.', 'Avec un compte, l’équipe partage la même exploitation.']],
       ['Réglementation', ['Registre phyto, azote, PAC et couverts vous aident à préparer un contrôle.', 'Ces aides sont indicatives : la source et la date des tables sont affichées.', 'La déclaration officielle se fait toujours sur les services de l’État (Telepac…).']]

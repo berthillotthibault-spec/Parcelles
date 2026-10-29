@@ -1,5 +1,25 @@
 # Changelog
 
+## 10.25.0 · nouvelle navigation : Accueil, Carte, +, Parcelles, Troupeau — 2026-10-28
+
+Refonte n° 160 « Parcelles, sans le fourre-tout » : l’application s’organise autour des quatre gestes du quotidien (saisir un travail, regarder la carte, ouvrir une parcelle, suivre le troupeau). Aucune fonction supprimée, pas de changement de schéma (version 18).
+
+Navigation :
+- barre du bas Accueil · Carte · **+** · Parcelles · Troupeau ; sans activité Élevage, le 5e onglet redevient Travaux ; sur ordinateur, la barre latérale garde Planning et Modules et commence par « Saisir un travail » ;
+- l’onglet « Plus » devient le **menu profil** (pastille ronde en haut à droite) : les 59 outils rangés en Exploitation, Gestion, Réglementaire et Réglages, avec recherche, interrupteur « Mode sombre » et les mêmes règles de rôle et d’activité ; les anciens liens « Plus » y mènent.
+
+Saisir un travail en 3 étapes (le « + ») :
+- quel travail (types les plus utilisés en tête), sur quelles parcelles (celles prévues aujourd’hui en tête, plusieurs à la fois), les détails (date, produit, dose −/+ qui reprend la dernière dose, matériel) ;
+- contrôles phyto identiques au formulaire (dose, nombre d’applications, délai avant récolte, motif de dérogation) ; un travail déjà prévu sur la parcelle est terminé au lieu d’être dupliqué, les tâches du jour du même genre sont cochées ; Annuler ; brouillon repris ; « Formulaire complet » garde la saisie ;
+- le bouton flottant « J’ai fait » disparaît au profit du « + » (le raccourci d’écran d’accueil « J’ai fait » reste).
+
+Écrans :
+- Accueil : météo sur fond vert sombre avec créneau de traitement, bandeau « En retard », liste « Aujourd’hui » qui se coche d’un tap, carte « animaux au pré », activité récente avec pastilles de type ; résumé et raccourcis masqués sur téléphone ;
+- Troupeau (nouvel onglet) : actions rapides, lots au pré (« Jour N »), animaux au bâtiment, vêlages et rappels des 14 prochains jours, « Déplacer le lot » vers une prairie ou au bâtiment en deux taps, avec Annuler ;
+- Parcelles : barre de culture, surface en grand, filtres avec compteurs et par culture ; fiche parcelle avec barre « Voir sur la carte / + Nouveau travail » collée en bas ; « + Travail ici » sur la carte ; « Travaux » s’appelle « Planning ».
+
+Technique : nouveaux modules nav-model.js, profile-menu(-ui).js, quick-work(-ui).js, home-view.js, herd-home(-ui).js (les écrans en différé) ; jetons --hero, --warning-line, --map-hatch-*, --c-work-* ; test Playwright des cibles de 48 px.
+
 ## 10.24.0 · rangement interne du code et des styles — 2026-10-28
 
 Rien ne change à l’écran ni dans les données (pas de changement de schéma, version 18). Si cette version pose problème, la 10.23.0 reste disponible (commit `e7ea9f1`, repère `avant-refonte-147-153`).

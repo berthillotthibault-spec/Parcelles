@@ -103,7 +103,7 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
 
   function locate() {
     const geo = globalThis.navigator?.geolocation;
-    if (!geo) return toast('La localisation n’est pas disponible sur cet appareil. Renseignez la commune dans Plus › Paramètres.', 'error');
+    if (!geo) return toast('La localisation n’est pas disponible sur cet appareil. Renseignez la commune dans Menu › Paramètres.', 'error');
     const button = document.querySelector('[data-story="locate"]');
     if (button) button.disabled = true;
     geo.getCurrentPosition(async position => {
@@ -116,7 +116,7 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
       finally {if (button?.isConnected) button.disabled = false;}
     }, error => {
       if (button?.isConnected) button.disabled = false;
-      toast(error?.code === 1 ? 'Position refusée. Vous pouvez saisir la commune de l’exploitation dans Plus › Paramètres.' : 'Position introuvable pour le moment. Réessayez à l’extérieur ou saisissez la commune.', 'error');
+      toast(error?.code === 1 ? 'Position refusée. Vous pouvez saisir la commune de l’exploitation dans Menu › Paramètres.' : 'Position introuvable pour le moment. Réessayez à l’extérieur ou saisissez la commune.', 'error');
     }, {enableHighAccuracy: false, timeout: 15000, maximumAge: 600000});
   }
 

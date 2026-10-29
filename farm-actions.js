@@ -10,6 +10,11 @@ export const farmActions = {
   'open-lot-sheet'({id}) { ctx.closeModal(); ctx.grainStockUI?.sheetModal(id); },
   'open-herd'() { ctx.herdUI?.open(); },
   'open-herd-animal'({id}) { ctx.herdUI?.openAnimal(id); },
+  // n° 160 : vue Troupeau, « Déplacer le lot » et choix de l'animal pour un vêlage ou une pesée.
+  'open-herd-view'() { ctx.closeModal(); ctx.switchView('herd'); },
+  'open-planning'() { ctx.closeModal(); ctx.switchView('work'); },
+  'herd-move'({id}) { ctx.closeModal(); ctx.openHerdMove(id); },
+  'herd-pick'({control}) { ctx.closeModal(); ctx.openHerdPick(control.dataset.kind || 'weighing'); },
   'open-herd-economics'({control}) { ctx.herdEconomicsUI?.open({campaign:control.dataset.campaign||campaignFor()}); },
   'open-rotations'() { ctx.openRotations(); },
   'stock-capture'() { ctx.stockCaptureUI?.open(); },

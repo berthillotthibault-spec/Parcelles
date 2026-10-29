@@ -285,7 +285,7 @@ export function markTipSeen(seenTips, key) {
 }
 
 export const FAQ = [
-  {q: 'Je change de téléphone', a: 'Sur l’ancien téléphone : Plus › Mes données › Sauvegarde complète, puis envoyez le fichier sur le nouveau (messagerie, câble, clé). Sur le nouveau : installez Parcelles, puis Mes données › Restaurer. Avec un compte, il suffit de vous connecter : tout revient.'},
+  {q: 'Je change de téléphone', a: 'Sur l’ancien téléphone : Menu › Mes données › Sauvegarde complète, puis envoyez le fichier sur le nouveau (messagerie, câble, clé). Sur le nouveau : installez Parcelles, puis Mes données › Restaurer. Avec un compte, il suffit de vous connecter : tout revient.'},
   {q: 'Pas de réseau au champ', a: 'Saisissez normalement : tout est gardé dans le téléphone. Sans réseau, seules la météo, la carte PAC, les images satellite et l’envoi vers les autres appareils attendent. Ils reprennent seuls quand le réseau revient.'},
   {q: 'Qui voit mes données ?', a: 'Sans compte, personne : elles restent dans ce téléphone. Avec un compte, seules les personnes que vous invitez voient l’exploitation, avec le rôle que vous leur donnez. Le GPS ne sert que quand vous le demandez.'}
 ];
