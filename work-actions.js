@@ -2,6 +2,7 @@
 // (n° 147, sorties d'app.js sans changement de comportement). Enregistrées par app.js dans actions.js.
 import {ctx} from './app-context.js';
 import {isPending} from './home-priorities.js';
+import {isGrazingType} from './quick-work.js';
 import {armCelebration} from './celebration-ui.js';
 
 // Statut d’avant « fait », connu pendant la session, pour qu’une réouverture le rétablisse.
@@ -22,12 +23,23 @@ function armDone(control, id, kind) {
   ctx.nextAction().armFlip(control, id);
 }
 
+// Pâturage prévu : la clôture met d'abord les animaux au pré (saisie préremplie), avec possibilité de terminer sans animaux.
+function finishToGrazing(w, control) {
+  if (!isGrazingType(w.type) || control?.dataset?.noAnimals) return false;
+  const due = String(w.plannedDate || w.date || '').slice(0, 10);
+  ctx.closeModal();
+  ctx.openGrazingEntry({parcelIds: [w.parcelId].filter(Boolean), type: w.type, workId: w.id, note: w.note || '', date: due <= ctx.todayIso() ? due : '',
+    finishPlain: () => workActions['finish-work']({id: w.id, control: {dataset: {noAnimals: '1'}, classList: {add() {}}}})});
+  return true;
+}
+
 export const workActions = {
   // Travaux : saisie, reprise, duplication
   // n° 160 : création par la saisie en 3 étapes (le formulaire complet reste joignable depuis elle et pour l'édition).
   'new-work'({id, control}) {
+    // Fiche ou carte ouverte sur une parcelle : elle est reprise, comme pour une observation (PF-17).
+    const pid = control.dataset.parcelId || id || (['parcel', 'map'].includes(ctx.currentView) ? ctx.selectedParcelId : null);
     ctx.closeModal(); ctx.closeFieldMode();
-    const pid = control.dataset.parcelId || id;
     ctx.openQuickWork({parcelIds: pid ? [pid] : []});
   },
   'quick-work'({control}) {
@@ -39,7 +51,12 @@ export const workActions = {
   'batch-work'() { ctx.closeModal(); ctx.openBatchWorkForm(); },
   'map-multiple-work'() { const ids = [...ctx.parcelMap.selectedIds]; if (ids.length) ctx.openQuickWork({parcelIds: ids, fromMap: true}); },
   'edit-work'({id}) { ctx.closeModal(); ctx.openWorkForm(work(id)); },
-  'duplicate-work'({id}) { ctx.closeModal(); ctx.openWorkForm(work(id), null, {duplicate: true}); },
+  'duplicate-work'({id}) {
+    const w = work(id);
+    ctx.closeModal();
+    if (w && isGrazingType(w.type)) ctx.openGrazingEntry({parcelIds: [w.parcelId].filter(Boolean), type: w.type});
+    else ctx.openWorkForm(w, null, {duplicate: true});
+  },
   'review-finished-work'({id}) { const w = work(id); if (w) ctx.openWorkForm({...w, status: 'Terminé', date: ctx.todayIso()}); },
   'start-planned-work'({id}) {
     const w = work(id);
@@ -52,6 +69,7 @@ export const workActions = {
   async 'finish-work'({id, control}) {
     const w = work(id);
     if (!w || !isPending(w) || finishing.has(`work:${id}`)) return; // double appui : déjà terminé ou en cours
+    if (finishToGrazing(w, control)) return;
     finishing.add(`work:${id}`);
     let doneWork;
     try {

@@ -88,6 +88,7 @@
  *   operatorCost?:number|null,
  *   otherCost?:number|null,
  *   isPhytosanitary?:boolean,
+ *   kind?:'none'|'spray'|'seed'|'fertilize',
  *   note?:string,
  * }} Intervention
  */
@@ -146,6 +147,7 @@
  *   startDate:IsoDay,
  *   endDate?:IsoDay|'',
  *   animalType?:string,
+ *   animalCategory?:string|null,
  *   animals?:Array<GrazingAnimal|string|number>|string,
  *   animalsCount?:number|null,
  *   additionalAnimalsCount?:number|null,

@@ -84,11 +84,11 @@ export function herdUpcoming(state, {today, horizon = 14}) {
 
 /**
  * Destinations de « Déplacer » : prairies hors de la parcelle actuelle, occupation et repos.
- * @param {any} state @param {{fromParcelId?: string|null, today: string}} options
+ * Avec all, toutes les parcelles (chaumes, couverts). @param {any} state @param {{fromParcelId?: string|null, today: string, all?: boolean}} options
  */
-export function moveDestinations(state, {fromParcelId = null, today}) {
+export function moveDestinations(state, {fromParcelId = null, today, all = false}) {
   const lots = herdLots(state, {today});
-  return live(state?.parcelles).filter(p => !p.archived && p.id !== fromParcelId && isForageParcel(p, state?.grazingSessions || []))
+  return live(state?.parcelles).filter(p => !p.archived && p.id !== fromParcelId && (all || isForageParcel(p, state?.grazingSessions || [])))
     .map(p => {
       const occupant = lots.find(l => l.parcelId === p.id);
       const rate = stockingRate(state, p.id, {date: new Date(`${today}T12:00:00`)});

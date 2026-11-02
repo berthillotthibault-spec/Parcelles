@@ -221,6 +221,24 @@ export function restLabel(rate){
   return `Repos depuis ${rate.restDays} j, ${rate.advisedRest} j conseillés`;
 }
 
+// Seuil de rappel d'un lot resté ouvert (à valider par l'agriculteur) : préférence grazingLongOpenDays.
+export const LONG_OPEN_DAYS=60;
+const STILL_THERE_DAYS=30;
+/** Lots ouverts depuis longtemps ou depuis une année précédente : oubli de sortie probable, azote et chargement gonflés. */
+export function longOpenLots(state,{date=new Date(),threshold=null}={}){
+  const day=grazingDate(date),limit=finite(threshold)??finite(state?.preferences?.grazingLongOpenDays)??LONG_OPEN_DAYS;
+  const stillThere=isRecord(state?.preferences?.grazingStillThere)?state.preferences.grazingStillThere:{};
+  const names=new Map((state?.parcelles||[]).map(p=>[p.id,text(p.nom)]));
+  return liveSessions(state?.grazingSessions).filter(s=>grazingStatus(s,{date:day})==='current'&&s.startDate).flatMap(s=>{
+    const start=grazingDate(s.startDate),days=daysBetween(start,day);
+    if(days<limit&&start.slice(0,4)===day.slice(0,4))return [];
+    // « Toujours là » : plus de rappel pendant 30 jours.
+    const ack=typeof stillThere[s.id]==='string'?stillThere[s.id]:'';
+    if(ack&&daysBetween(ack,day)<STILL_THERE_DAYS)return [];
+    return [{id:s.id,parcelId:s.parcelId,days,total:grazingTotal(s),label:`${names.get(s.parcelId)||'Parcelle'} · ${lotLabel(s)||'Lot'} encore ouvert depuis ${days} jours : encore au pré ?`}];
+  });
+}
+
 const FORAGE=/prairie|herbe|pature|paturage|luzerne|trefle|ray.?grass|fetuque|dactyle|fourrag|ensil|sainfoin|meteil/;
 /** Surface fourragère principale : prairies, fourrages et parcelles déjà pâturées. */
 export function isForageParcel(parcel,sessions=[]){

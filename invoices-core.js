@@ -4,7 +4,7 @@
 // moteur (paramètres complets, numérotation, émission, paiements, avoirs, impression) est dans
 // invoices.js, chargé à la demande, qui réexporte ce noyau : les appelants différés et les tests
 // importent toujours invoices.js. Ce module n’importe ni invoices.js ni aucun module billing-*.js.
-import {active,completed} from './farm-memory.js';
+import {active,completed,isObservationWork} from './farm-memory.js';
 import {farmRecords} from './farm-records.js';
 
 export const INVOICE_KIND='invoice';
@@ -157,7 +157,7 @@ export function billableItems(state,clientId,{from='',to='',exceptId=null,includ
   const client=active(state,'clients').find(c=>c.id===clientId)||null,billed=billedKeys(state,{exceptId}),vat=settingsVatRate(state),fuelPrice=positive(state.preferences?.fuelPrice);
   const parcels=new Map(active(state,'parcelles').map(p=>[p.id,p])),items=[];
   for(const w of active(state,'interventions')){
-    const parcel=parcels.get(w.parcelId);if(!completed(w)||!(parcel?.clientId===clientId||w.clientId===clientId)||!inPeriod(String(w.date||'').slice(0,10),from,to))continue;
+    const parcel=parcels.get(w.parcelId);if(!completed(w)||isObservationWork(w)||w.billable===false||!(parcel?.clientId===clientId||w.clientId===clientId)||!inPeriod(String(w.date||'').slice(0,10),from,to))continue;
     if(!billed.has(`work:${w.id}`))items.push({key:`work:${w.id}`,kind:'work',date:w.date,line:workLine(w,parcel,client,vat)});
     if(includeFuel&&!billed.has(`fuel:${w.id}`)){const f=fuelLine(w,parcel,vat,fuelPrice);if(f)items.push({key:`fuel:${w.id}`,kind:'fuel',date:w.date,line:f});}
   }

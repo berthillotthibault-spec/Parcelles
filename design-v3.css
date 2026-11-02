@@ -1147,23 +1147,14 @@ button.sales-contract:focus-visible{outline:2px solid var(--brand);outline-offse
 .compliance-form-modal .choice-chip{height:44px;min-height:44px}
 .compliance-form-modal input{min-height:44px}
 /* n° 8 — Saisie express « J’ai fait… » : bouton flottant au-dessus de l’assistant, feuille du bas à grosses pastilles. */
-.quick-work-fab{position:fixed;z-index:34;right:max(16px,var(--safe-right));bottom:calc(var(--nav-h) + max(0px,var(--safe-bottom) - 16px) + 64px);display:none;align-items:center;gap:8px;height:56px;min-height:56px;padding:0 20px 0 16px;border:0;border-radius:28px;background:var(--brand);color:var(--on-brand);font:inherit;font-size:15px;font-weight:700;box-shadow:0 10px 24px rgba(20,28,24,.28);cursor:pointer;touch-action:manipulation}
-.quick-work-fab:hover{background:var(--brand-hover)}
-.quick-work-fab:focus-visible{outline:3px solid var(--text-primary);outline-offset:3px}
-html:is([data-view="today"],[data-view="parcels"],[data-view="work"]) .quick-work-fab{display:inline-flex}
-html[data-assistant-dock="hidden"] .quick-work-fab{bottom:calc(var(--nav-h) + max(0px,var(--safe-bottom) - 16px))}
-html[data-role="viewer"] .quick-work-fab,html[data-native-locked="true"] .quick-work-fab{display:none!important}
-.modal-root.has-modal~.quick-work-fab,body:has(.field-mode-overlay) .quick-work-fab{visibility:hidden}
 @media(max-width:1023px){
-  html:is([data-view="today"],[data-view="parcels"],[data-view="work"]):not([data-role="viewer"]) main{padding-bottom:calc(var(--nav-h) + 24px + var(--safe-bottom) + var(--assistant-clearance,64px) + 68px)}
+  html:is([data-view="today"],[data-view="parcels"],[data-view="work"]):not([data-role="viewer"]) main{padding-bottom:calc(var(--nav-h) + 24px + var(--safe-bottom) + var(--assistant-clearance,64px))}
   html:is([data-view="today"],[data-view="parcels"],[data-view="work"]):not([data-role="viewer"]) .toast-region{bottom:calc(var(--nav-h) + 136px + var(--safe-bottom))}
   /* Modale ouverte : la nav et le bouton flottant sont masqués, le toast se pose juste au-dessus du pied de la modale. */
   #modal-root.has-modal .toast-region{bottom:calc(84px + var(--safe-bottom))}
 }
 @media(min-width:1024px){
-  .quick-work-fab{right:20px;bottom:84px}
-  html[data-assistant-dock="hidden"] .quick-work-fab{bottom:20px}
-  html:is([data-view="today"],[data-view="parcels"],[data-view="work"]):not([data-role="viewer"]) main{padding-bottom:150px}
+  html:is([data-view="today"],[data-view="parcels"],[data-view="work"]):not([data-role="viewer"]) main{padding-bottom:calc(var(--assistant-clearance,64px) + 32px)}
 }
 .quick-parcel-card{margin:0 0 12px;padding:4px 16px 12px;border-radius:20px;background:var(--brand-soft)}
 .quick-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px}
@@ -1194,7 +1185,7 @@ html[data-role="viewer"] .quick-work-fab,html[data-native-locked="true"] .quick-
 .quick-type:hover{background:var(--tile)}
 .quick-type:disabled{opacity:.6;cursor:progress}
 .quick-type:focus-visible,.quick-parcel-chip:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
-@media(prefers-reduced-motion:no-preference){.quick-type:active,.quick-work-fab:active{transform:scale(.97)}}
+@media(prefers-reduced-motion:no-preference){.quick-type:active{transform:scale(.97)}}
 .field-quick-actions .field-quick-done{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
 .field-quick-actions .field-quick-done small{color:inherit}
 /* Les boutons d’un toast suivent sa couleur de texte : lisibles aussi en mode sombre (toast clair). */
@@ -1391,7 +1382,7 @@ html[data-role="viewer"] .quick-work-fab,html[data-native-locked="true"] .quick-
 .assistant-dock:has(.vn-fab){display:flex;align-items:center;gap:10px}
 /* « Masquer l’assistant » : la règle ci-dessus (couche theme) l’emporterait sur celle de assistant-launcher.css (couche features). */
 html[data-assistant-dock="hidden"] .assistant-dock{display:none}
-@media print{.assistant-dock,.quick-work-fab,.ft-pill,#farm-gps-active,.gloves-thumb-bar{display:none!important}}
+@media print{.assistant-dock,.ft-pill,#farm-gps-active,.gloves-thumb-bar{display:none!important}}
 .vn-fab{flex:none;width:52px;height:52px;padding:0;border:0;border-radius:50%;background:var(--brand);color:var(--on-brand);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(20,28,24,.3);cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .vn-fab:hover{background:var(--brand-hover)}
 .vn-fab:focus-visible,.vn-ptt:focus-visible,.vn-play:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
@@ -2921,8 +2912,6 @@ body.gloves .is-holding::before{content:"";position:absolute;inset:0;z-index:-1;
   html[data-view="map"] body.gloves.has-thumb-bar :is(.map-bottom-sheet,.map-selection,.map-legend,.map-controls){margin-bottom:calc(var(--gloves-bar-h) + 8px)}
   /* Carte : les toasts (Annuler après un maintien) passent au-dessus de la barre du pouce. */
   html[data-view="map"] body.gloves.has-thumb-bar .toast-region{bottom:calc(var(--nav-h) + max(0px,var(--safe-bottom) - 16px) + var(--gloves-bar-h) + 20px)}
-  /* « J’ai fait » (n° 8) rejoint la barre : le bouton flottant laisse la place. */
-  body.gloves.has-thumb-bar #quick-work-fab{display:none!important}
 }
 :root.theme-dark body.gloves .gloves-thumb-bar{box-shadow:0 8px 28px rgba(0,0,0,.5)}
 }
@@ -3033,8 +3022,6 @@ html[data-view="today"] .app-header .profile-chip{display:none}
   .today-primary-action [data-action="new-work"]{display:none}
   /* le bouton IA et « J’ai fait » restent à 16 px au-dessus de la barre, loin du « + » qui la dépasse */
   .assistant-dock{bottom:calc(var(--nav-h) + max(0px,var(--safe-bottom) - 16px) + 16px)}
-  .quick-work-fab{bottom:calc(var(--nav-h) + max(0px,var(--safe-bottom) - 16px) + 80px)}
-  html[data-assistant-dock="hidden"] .quick-work-fab{bottom:calc(var(--nav-h) + max(0px,var(--safe-bottom) - 16px) + 16px)}
   .plein-champ .primary-nav .nav-item small{font-size:13.5px}
   body.gloves .primary-nav .nav-item small{font-size:14.5px}
   body.gloves .nav-plus{width:72px;height:72px;margin-top:-26px}
@@ -3103,6 +3090,24 @@ body.gloves .pm-dark,body.gloves .pm-group .menu-row{min-height:70px}
 .wk-badge[data-family="harvest"]{background:var(--c-work-harvest)}.wk-badge[data-family="mow"]{background:var(--c-work-mow)}
 .wk-badge[data-family="graze"]{background:var(--c-work-graze)}
 .qw-more{display:grid;gap:12px}
+.qw-routes{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:8px;margin-top:12px}
+.qw-route{min-height:48px;padding:0 8px;border:1px solid var(--chip-border);border-radius:14px;background:var(--surface);color:var(--text-primary);font:600 14px var(--font-sans)}
+.qw-keep{margin:6px 0 0;font-size:13.5px;color:var(--text-secondary)}
+.qw-habit{margin-top:6px}
+/* Lot 3 : étape 3 par famille, détails repliés */
+.qw-info{display:grid;gap:6px}.qw-info:empty{display:none}
+.qw-keep.is-warn{color:var(--text-primary);font-weight:600}.qw-keep.is-error{color:var(--danger);font-weight:700}
+.qw-group{gap:10px}
+.qw-units{margin-top:8px}
+.qw-times{flex-wrap:wrap;gap:12px}
+.qw-field select{min-height:54px;padding:0 12px;border:1px solid var(--chip-border);border-radius:14px;background:var(--surface);color:var(--text-primary);font:inherit;font-size:16px;font-weight:400}
+.qw-more-details{border-top:1px solid var(--line);padding-top:4px}
+.qw-more-details>summary{display:flex;align-items:center;min-height:48px;color:var(--brand);font-weight:700;cursor:pointer}
+.qw-grid{display:grid;gap:14px;padding-top:8px}
+@media(min-width:600px){.qw-grid{grid-template-columns:1fr 1fr}.qw-grid>.qw-field:has(textarea){grid-column:1/-1}}
+/* Lecteur : aucune saisie de travail. Le + garde sa place dans la barre (grille à 5 cases). */
+html[data-role="viewer"] [data-action="new-work"]{display:none!important}
+@media(max-width:1023px){html[data-role="viewer"] .nav-plus{display:block!important;visibility:hidden}}
 .qw-field{display:grid;gap:8px;font-size:14.5px;font-weight:700;color:var(--text-primary)}
 .qw-field>span:first-child{font-weight:700}
 .qw-field input,.qw-field textarea,.qw-search input{font:inherit;font-size:16px;font-weight:400}
@@ -3149,7 +3154,21 @@ body.gloves .pm-dark,body.gloves .pm-group .menu-row{min-height:70px}
 body.gloves .qw-tile,body.gloves .qw-parcel{min-height:76px}
 body.gloves .qw-step{width:68px;height:68px}
 body.gloves .qw-next{min-height:68px}
-#quick-work-fab{display:none!important}
+/* Lot 4 : compte des cochées, GPS, aucune parcelle, date, heure, ordinateur et sombre (PF-16, PF-17, PF-20, PF-22) */
+.qw-count{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;font-size:14px;font-weight:600;color:var(--muted-text)}
+.qw-count .text-button,.qw-change{min-height:48px;color:var(--brand);font-weight:700}
+.qw-summary .qw-change{min-height:32px;padding:0 4px;font-size:14px}
+.qw-gps{margin:0}
+.qw-clear{justify-self:center}
+.qw-noparcel{margin-bottom:12px}
+#qw-date-note:empty{display:none}
+.qw-time input{min-height:48px;padding:0 12px;border:1px solid var(--chip-border);border-radius:14px;background:var(--surface);color:var(--text-primary);font:inherit;font-size:16px}
+@media(min-width:721px){
+  .modal.quick-work-sheet{width:min(640px,calc(100% - 28px))}
+  .qw-tiles{grid-template-columns:repeat(3,1fr)}
+  .qw-filters{flex-wrap:wrap;overflow-x:visible;margin:0;padding:0}
+}
+:root.theme-dark .qw-next:disabled{background:var(--surface-secondary);border-color:var(--border-subtle);color:var(--text-secondary)}
 }
 /* n° 160 : accueil (météo, retards, « Aujourd’hui », animaux au pré, activité récente) */
 @layer theme{
@@ -3298,4 +3317,29 @@ body.gloves #parcel-detail-actions .button,body.gloves .map-bottom-sheet .map-sh
 .qw-close-item{display:flex;align-items:center;gap:12px;min-height:48px;font-weight:400}
 .qw-close-item input{width:22px;height:22px;accent-color:var(--brand)}
 .qw-close-item span{display:grid;gap:1px}.qw-close-item small{font-size:13px;color:var(--text-secondary)}
+}
+
+@layer theme{
+/* Pâturage dans le « + » */
+.qg-row{display:flex;flex-wrap:wrap;gap:8px}
+.qg-long{display:grid;gap:8px}
+.qg-long p{margin:0}
+.qg-note{display:block;margin:0;font-size:13.5px;font-weight:400;color:var(--text-secondary)}
+.qg-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.qg-line input{flex:0 0 96px;width:96px;min-width:0}
+.qg-line select,.qg-split select,#qg-entry-parcel{flex:1 1 180px;min-width:0;min-height:48px;padding:0 12px;border:1px solid var(--chip-border);border-radius:14px;background:var(--surface);color:var(--text-primary);font:inherit;font-size:16px}
+.qg-herd,.qg-numbers{display:grid;gap:8px}
+.qg-herd>summary,.qg-numbers>summary{min-height:48px;display:flex;align-items:center;font-size:14.5px;font-weight:700;cursor:pointer}
+.qg-group{display:grid;gap:4px;margin-top:8px}
+.qg-group-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
+.qg-group-head .text-button{min-height:48px;color:var(--brand);font-weight:700}
+.qg-animal{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 4px}
+.qg-animal input{flex:none;width:24px;height:24px}
+.qg-animal span{display:grid;min-width:0}
+.qg-animal small{font-size:13px;font-weight:400;color:var(--text-secondary)}
+.qg-split{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:14px}
+.qg-split small{font-weight:400;color:var(--text-secondary)}
+.qg-split-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:400}
+.qg-split-row input{flex:0 0 96px;width:96px;min-width:0}
+#qg-alerts,#qg-closing,#qg-move-alerts{display:grid;gap:8px}
 }

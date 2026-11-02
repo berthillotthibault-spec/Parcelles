@@ -41,7 +41,8 @@ service cloud.firestore {
     // Même règle que permissions.js (herdOperatorRecord), appliquée au document écrit et au document existant.
     function herdOperatorDoc(entityType, d) {
       return d.payload is map && d.get('deletedAt', null) == null && d.payload.get('deletedAt', null) == null
-        && ((entityType == 'animalEvents' && d.payload.get('kind', '') in ['calving','weighing'])
+        && (entityType == 'grazingSessions'
+          || (entityType == 'animalEvents' && d.payload.get('kind', '') in ['calving','weighing'])
           || (entityType == 'animals' && d.payload.get('origin', '') == 'birth'));
     }
     // Commentaires de parcelle (n° 129, parcelComments) : hors gestion, chacun n'écrit que les siens

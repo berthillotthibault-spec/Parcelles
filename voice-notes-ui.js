@@ -5,8 +5,9 @@ import {escapeHtml, formatNumber, toNullableNumber, uid} from './utils.js';
 import {icon} from './ui.js';
 import {attachmentBlob} from './storage-care.js';
 import {locateParcels} from './field-ops.js';
-import {grazingAnimalList} from './grazing.js';
-import {endGrazingSession, saveGrazingSession} from './grazing-records.js';
+import {ugbTable} from './grazing.js';
+import {endGrazingSession, grazingReentryAlert, moveGrazingLot, saveGrazingSession} from './grazing-records.js';
+import {isGrazingType} from './quick-work.js';
 import {MEMO_MAX_MS, confirmationSentence, formatClock, grazingTotal, grazingType, loadVoiceGrammar, memoDocument, memoSummaryLabel, parseVoiceEntry, pendingMemos, pickAudioMime, voiceGrammarReady, workDraftsFromEntry} from './voice-notes.js';
 
 const HOLD_MS=450,MIN_AUDIO_MS=700;
@@ -299,6 +300,8 @@ export function createVoiceNotesUI(host){
     if(!type)return draftError('Champ obligatoire : travail.');
     if(!ids.length)return draftError('Champ obligatoire : parcelle.');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return draftError('Champ obligatoire : date.');
+    // Un pâturage fait dicté comme travail passe par la mise au pré ; prévu, il reste un travail à faire.
+    if(isGrazingType(type)&&status!=='À faire'&&host.openGrazingEntry){draft.handled=true;closeModal();host.openGrazingEntry({parcelIds:ids,date,type});return;}
     const works=workDraftsFromEntry(entry,{parcelIds:ids,type,status,date}).map(work=>{
       const parcel=parcelById(work.parcelId);
       return {...work,id:uid('work'),culture:work.culture||parcel?.culture||'',dose:toNullableNumber(work.dose),surfaceWorked:work.surfaceWorked??toNullableNumber(parcel?.surfaceHa)};
@@ -363,10 +366,20 @@ export function createVoiceNotesUI(host){
     const moving=entry.intent==='grazing-move'&&entry.sessions?.length;
     const lots=moving?`<div class="field-label"><span>Lot à déplacer *</span><div class="vn-chips vn-multi" data-single="1" role="group" aria-label="Lots au pré">${entry.sessions.map((s,i)=>`<button type="button" class="choice-chip${i===0&&entry.sessions.length===1?' is-on':''}" data-session="${escapeHtml(s.id)}" aria-pressed="${i===0&&entry.sessions.length===1}">${escapeHtml(lotLabel(s))}</button>`).join('')}</div></div>`:'';
     const lot=entry.lot?entry.lot.charAt(0).toLocaleUpperCase('fr')+entry.lot.slice(1):'';
-    const fields=moving?'':`<label class="${entry.animalType?'vn-hit':''}">Type d’animaux<input name="animalType" value="${escapeHtml(entry.animalType||'')}" placeholder="Bovins, ovins…"></label><label class="${entry.count?'vn-hit':''}">Nombre d’animaux *<input name="count" type="number" min="1" step="1" inputmode="numeric" value="${entry.count??''}"></label><label>Lot / commentaire<input name="note" value="${escapeHtml(lot)}"></label>`;
+    const fields=moving?'':`<label class="${entry.animalType?'vn-hit':''}">Type d’animaux<input name="animalType" value="${escapeHtml(entry.animalType||'')}" placeholder="Bovins, ovins…"></label><label class="${entry.count?'vn-hit':''}">Nombre d’animaux *<input name="count" type="number" min="1" step="1" inputmode="numeric" value="${entry.count??''}"></label><label>Catégorie (chargement UGB)<select name="animalCategory"><option value="">Non précisée (1 UGB par animal)</option>${ugbTable(store.state).categories.map(c=>`<option value="${escapeHtml(c.key)}">${escapeHtml(c.label)}</option>`).join('')}</select></label><label>Nom du lot<input name="note" value="${escapeHtml(lot)}"></label>`;
     const form=draftModal(`${lots}${parcelPicker({...entry,parcelChoices:entry.parcelChoices||[]})}${fields}${dateField(entry,{max:todayIso()})}${quote(entry)}`,footer(moving?'Déplacer le lot':'Mettre au pré'));
     form.querySelectorAll('.vn-multi:not([data-single])').forEach(g=>{g.dataset.single='1';});
-    $('#vn-complete').onclick=()=>{draft.handled=true;const ids=chosenParcels(form);host.openGrazingForm?.(null,{parcelId:ids[0]||''});};
+    $('#vn-complete').onclick=()=>{draft.handled=true;const ids=chosenParcels(form);closeModal();host.openGrazingEntry?.({parcelIds:ids.slice(0,1),date:form.elements.date.value});};
+    // Délai de rentrée phyto : alerte et confirmation par un bouton distinct, jamais par un second appui sur Enregistrer.
+    let reentryAck='';
+    const reentryOk=(parcelId,date)=>{
+      const alert=grazingReentryAlert(store.state,parcelId,date),key=`${parcelId}|${date}`;$('#vn-reentry-ack')?.remove();
+      if(!alert||reentryAck===key)return true;
+      draftError(alert.message);
+      const ack=document.createElement('button');ack.type='button';ack.id='vn-reentry-ack';ack.className='button secondary';ack.textContent=moving?'Déplacer quand même':'Mettre au pré quand même';
+      ack.onclick=()=>{reentryAck=key;ack.remove();draftError('Confirmé malgré le délai : il reste à enregistrer.');};
+      $('#vn-draft-error')?.after(ack);return false;
+    };
     $('#vn-save').onclick=async()=>{
       const ids=chosenParcels(form),date=form.elements.date.value,button=$('#vn-save');
       if(ids.length!==1)return draftError('Champ obligatoire : parcelle (une seule).');if(!date)return draftError('Champ obligatoire : date.');
@@ -374,19 +387,18 @@ export function createVoiceNotesUI(host){
         const id=form.querySelector('[data-session][aria-pressed="true"]')?.dataset.session,session=store.get('grazingSessions',id);
         if(!session)return draftError('Champ obligatoire : lot à déplacer.');
         if(session.parcelId===ids[0])return draftError('Le lot est déjà sur cette parcelle.');
-        const animals=grazingAnimalList(session),total=grazingTotal(session);button.disabled=true;
-        try{
-          await endGrazingSession(store,session.id,{date});
-          try{await saveGrazingSession(store,{parcelId:ids[0],animalType:grazingType(session),startDate:date,endDate:null,animals,additionalAnimalsCount:Math.max(0,total-animals.length),note:session.note||''});}
-          catch(failure){await saveGrazingSession(store,{parcelId:session.parcelId,animalType:session.animalType??grazingType(session),startDate:String(session.startDate).slice(0,10),endDate:null,animals:session.animals??[],additionalAnimalsCount:Number(session.additionalAnimalsCount)||0,note:session.note||''},{id:session.id}).catch(()=>{});throw failure;}
-        }catch(error){button.disabled=false;return draftError(error.message);}
+        if(!reentryOk(ids[0],date))return;
+        button.disabled=true;
+        try{await moveGrazingLot(store,session,ids[0],{date});} // garde la catégorie du lot
+        catch(error){button.disabled=false;return draftError(error.message);}
         draft.handled=true;if(draft.memoId)await markMemo(draft.memoId,'done',{transcript:entry.text}).catch(()=>{});
         closeModal();haptic();toast(`Lot déplacé vers ${parcelById(ids[0])?.nom||'la parcelle'}.`);return;
       }
       const count=Number(form.elements.count.value);
       if(!Number.isSafeInteger(count)||count<1)return draftError('Champ obligatoire : nombre d’animaux.');
+      if(!reentryOk(ids[0],date))return;
       button.disabled=true;
-      try{await saveGrazingSession(store,{parcelId:ids[0],animalType:form.elements.animalType.value.trim()||'Non précisé',startDate:date,endDate:null,animals:[],additionalAnimalsCount:count,note:form.elements.note.value.trim()});}
+      try{await saveGrazingSession(store,{parcelId:ids[0],animalType:form.elements.animalType.value.trim()||'Non précisé',animalCategory:form.elements.animalCategory.value||null,startDate:date,endDate:null,animals:[],additionalAnimalsCount:count,note:form.elements.note.value.trim()});}
       catch(error){button.disabled=false;return draftError(error.message);}
       draft.handled=true;if(draft.memoId)await markMemo(draft.memoId,'done',{transcript:entry.text}).catch(()=>{});
       closeModal();haptic();toast(`Mise au pré enregistrée : ${plural(count,'animal','animaux')} sur ${parcelById(ids[0])?.nom||'la parcelle'}.`);

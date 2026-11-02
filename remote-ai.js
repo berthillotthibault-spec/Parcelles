@@ -84,7 +84,7 @@ export function buildAssistantContext(state,context={}){
       materiels:/materiel|machine|tracteur|entretien|maintenance/.test(q)?state.materiels:[],
       observations:/observation|anomalie|alerte/.test(q)?byParcel(state.observations):[],
       stockItems:/stock|produit|intrant|seuil|rupture/.test(q)?state.stockItems:[],chantiers:/chantier|\btp\b|travaux publics|terrassement/.test(q)?state.chantiers:[],assistantMessages:[],
-      grazingSessions:/pature|paturage|\bpre\b|\blots?\b|animal|betail|troupeau|vache|brebis/.test(q)?byParcel(state.grazingSessions):[],
+      grazingSessions:/pature|paturage|\bpre\b|\blots?\b|animal|betail|troupeau|vache|brebis|genisse|veau|taureau|mouton/.test(q)?byParcel(state.grazingSessions):[],
       integrationImports:/recolte|rendement|moisson|\blots?\b/.test(q)?byParcel(state.integrationImports):[]};
     if(!/meteo|pluie|vent|temps|traite|pulveris|semer|semis|gel|orage|chaleur/.test(q))context={...context,weather:null};
   }
@@ -99,7 +99,7 @@ export function buildAssistantContext(state,context={}){
   const chantiers=limit(active('chantiers'),80).map(c=>({id:c.id,type:c.type||'',status:c.status||'',plannedDate:c.plannedDate||'',parcelIds:Array.isArray(c.parcelIds)?c.parcelIds.slice(0,80):[]}));
   // n° 104 : contexte élargi (lots au pré, récoltes de la campagne, chantiers TP, stocks sous le seuil, météo en cache).
   const now=context.now??Date.now(),campaign=campaignFor(now),today=grazingDate(new Date(now));
-  const grazing=active('grazingSessions').filter(s=>grazingStatus(s,{date:new Date(context.now??Date.now())})==='current').slice(0,60).map(s=>({id:s.id,parcelId:s.parcelId||'',parcel:parcelNames.get(s.parcelId)||'',type:grazingType(s)||'',animals:grazingTotal(s)??null,startDate:s.startDate||''}));
+  const grazing=active('grazingSessions').filter(s=>grazingStatus(s,{date:new Date(context.now??Date.now())})==='current').slice(0,60).map(s=>({id:s.id,parcelId:s.parcelId||'',parcel:parcelNames.get(s.parcelId)||'',type:grazingType(s)||'',animals:grazingTotal(s)??null,startDate:s.startDate||'',lot:s.note||'',category:s.animalCategory||''}));
   const harvests=farmRecords(state,'harvest').filter(l=>campaignFor(l.date)===campaign).slice(-120).map(l=>({id:l.id,code:l.code||'',parcelId:l.parcelId||'',parcel:parcelNames.get(l.parcelId)||'',culture:String(l.crop||l.culture||'').trim(),date:l.date||'',quantity:toNumber(l.quantity),unit:l.unit||'',humidity:l.humidity??null}));
   const publicWorks=active('chantiers').filter(c=>c.kind==='tp'&&!['Terminé','Annulé'].includes(c.status)).slice(-40).map(c=>({id:c.id,name:c.type||'',status:c.status||'',plannedDate:c.plannedDate||'',address:String(c.address||'').slice(0,200),logs:Array.isArray(c.tpLogs)?c.tpLogs.filter(x=>!x?.deletedAt).length:0}));
   const lowStocks=stocks.filter(x=>x.alertBelow!==null&&x.alertBelow!==''&&Number.isFinite(Number(x.alertBelow))&&x.quantity<=Number(x.alertBelow)).slice(0,60);

@@ -5,7 +5,7 @@
 import {campaignFor,formatNumber,isoDate,localDate,normalize,toNumber} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {farmRecords} from './farm-records.js';
-import {grazingNitrogen} from './grazing.js';
+import {grazingNitrogen,longOpenLots} from './grazing.js';
 
 export const NITROGEN_DISCLAIMER='Calcul indicatif établi à partir des données saisies et d’une table de références à vérifier : il ne remplace ni l’arrêté GREN ni le programme d’actions applicables à votre exploitation, ni le conseil de votre technicien.';
 
@@ -79,7 +79,7 @@ export const FERTILIZER_LIBRARY=Object.freeze([
 ]);
 
 const FERTILIZATION=/ferti|azote|azot|engrais|ammonitrate|uree|solution n|solution azotee|lisier|fumier|digestat|epandage|compost|fiente|purin/;
-export const isFertilization=w=>FERTILIZATION.test(normalize(`${w?.type||''} ${w?.product||''}`));
+export const isFertilization=w=>w?.kind==='fertilize'||(!w?.kind||w.kind==='spray')&&FERTILIZATION.test(normalize(`${w?.type||''} ${w?.product||''}`));
 const workCampaign=w=>w.campaignId||campaignFor(w.date||w.plannedDate);
 const ownParcels=state=>active(state,'parcelles').filter(p=>(p.ownershipType||'own')==='own'&&!p.archived);
 // Nombre strict : vide ou texte non numérique -> null.
@@ -264,8 +264,9 @@ export function nitrogenAlerts(state,{today=isoDate(new Date()),campaign=campaig
   // n° 78 — azote déposé par les animaux au pâturage pendant la campagne (jusqu’à aujourd’hui).
   const y=Number(String(campaign).slice(0,4)),end=`${y+1}-07-31`,grazing=Number.isFinite(y)?grazingNitrogen(state,{from:`${y}-08-01`,to:end<today?end:today}):{total:0,unknown:0};
   organic+=grazing.total;
+  const longOpen=longOpenLots(state,{date:today});
   const perHa=sau>0?round(organic/sau,1):0;
-  if(sau>0&&perHa>refs.organicCap)alerts.push({kind:'cap',status:'ko',label:`${formatNumber(perHa)} kg N organique/ha SAU en ${campaign}`,note:`Plafond de ${formatNumber(refs.organicCap)} kg N/ha SAU dépassé (apports prévus et réalisés, et ${formatNumber(grazing.total)} kg N déposés au pâturage).`});
+  if(sau>0&&perHa>refs.organicCap)alerts.push({kind:'cap',status:'ko',label:`${formatNumber(perHa)} kg N organique/ha SAU en ${campaign}`,note:`Plafond de ${formatNumber(refs.organicCap)} kg N/ha SAU dépassé (apports prévus et réalisés, et ${formatNumber(grazing.total)} kg N déposés au pâturage).${longOpen.length?` ${longOpen.length} lot${longOpen.length>1?'s':''} encore ouvert${longOpen.length>1?'s':''} depuis longtemps pris en compte : vérifiez les sorties.`:''}`});
   return{alerts,organic:{total:round(organic),perHa,sau:round(sau,2),cap:refs.organicCap,grazing:grazing.total,grazingUnknown:grazing.unknown}};
 }
 

@@ -20,21 +20,17 @@ export function glovesActive(mode, {fieldModeOpen = false} = {}) {
 
 // Actions primaires regroupées dans la barre basse, par écran (trois au plus, la plus utile à droite,
 // sous le pouce d'un droitier). Le rôle lecture seule n'en a aucune : il ne crée rien.
-// Quand la saisie express « J’ai fait » (n° 8) est disponible, elle prend la place du milieu et son
-// bouton flottant est masqué (il serait recouvert par la barre).
-const QUICK_WORK = ['quick-work', 'J’ai fait', 'work'];
+// n° 160 : le bouton flottant « J’ai fait » n'existe plus, le « + » de la barre le remplace.
 const THUMB_ACTIONS = Object.freeze({
   today: [['open-field-mode', 'Terrain', 'locate'], ['new-observation', 'Observation', 'alert'], ['new-work', 'Travail', 'plus']],
   map: [['new-observation', 'Observation', 'alert'], ['open-field-mode', 'Terrain', 'locate']],
   parcels: [['new-observation', 'Observation', 'alert'], ['new-parcel', 'Parcelle', 'plus']],
   work: [['new-task', 'Tâche', 'calendar'], ['new-work', 'Travail', 'plus']]
 });
-const QUICK_WORK_VIEWS = ['today', 'parcels', 'work'];
 
-export function thumbActions(view, {readOnly = false, modalOpen = false, fieldModeOpen = false, quickWork = false} = {}) {
+export function thumbActions(view, {readOnly = false, modalOpen = false, fieldModeOpen = false} = {}) {
   if (readOnly || modalOpen || fieldModeOpen) return [];
-  let list = THUMB_ACTIONS[view] || [];
-  if (quickWork && QUICK_WORK_VIEWS.includes(view)) list = list.length > 2 ? [list[0], QUICK_WORK, list.at(-1)] : [list[0], QUICK_WORK, ...list.slice(1)];
+  const list = THUMB_ACTIONS[view] || [];
   return list.map(([action, label, icon]) => ({action, label, icon}));
 }
 

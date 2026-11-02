@@ -18,7 +18,7 @@ export function primaryTabs({livestock = true} = {}) {
   return [
     {kind: 'tab', view: 'today', label: 'Accueil'},
     {kind: 'tab', view: 'map', label: 'Carte'},
-    {kind: 'action', action: 'new-work', label: 'Saisir un travail'},
+    {kind: 'action', action: 'new-work', label: 'Ajouter'},
     {kind: 'tab', view: 'parcels', label: 'Parcelles'},
     livestock ? {kind: 'tab', view: 'herd', label: 'Troupeau'} : {kind: 'tab', view: 'work', label: 'Travaux'}
   ];

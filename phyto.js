@@ -17,6 +17,8 @@ export const PHYTO_MENTIONS=Object.freeze([['cmr','CMR'],['abeille','Mention abe
 export const PHYTO_CATEGORIES=Object.freeze([['herbicide','Herbicide'],['fongicide','Fongicide'],['insecticide','Insecticide'],['autre','Autre'],['biocontrole','Biocontrôle']]);
 
 const TREATMENT=/phyto|pulve|herbicide|fongicide|insecticide|desherb|traitement/;
+// Travail mécanique ou d'entretien : pas de registre, même si le libellé cite le pulvérisateur ou le désherbage.
+const NOT_TREATMENT=/desherbage (mecanique|manuel|thermique)|nettoy|transport|retrait|entretien (de la |du |des |de )?pulve|reparation|reparer/;
 const HARVEST=/recolte|moisson|battage|ensilage|arrachage|fauche/;
 const HOUR=3600000,DAY=864e5;
 const num=value=>toNullableNumber(value);
@@ -27,7 +29,10 @@ const posNum=value=>{const n=num(value);return n!==null&&n>=0?n:null;};
 export function isTreatment(work){
   if(!work)return false;
   if(work.isPhytosanitary===true)return true;
-  return TREATMENT.test(normalize(work.type));
+  if(work.kind==='spray')return true;
+  if(work.kind)return false; // genre choisi sous « Autre… » : il prime sur le libellé
+  const type=normalize(work.type);
+  return TREATMENT.test(type)&&!NOT_TREATMENT.test(type);
 }
 
 /** Fiche phyto normalisée (champ optionnel `phyto` d'un stockItem/product ou entrée de catalogue). */
@@ -117,6 +122,22 @@ export function harvestsFor(state,parcelId,{exceptId=null}={}){
   const works=active(state,'interventions').filter(w=>w.id!==exceptId&&w.parcelId===parcelId&&!isCancelled(w)&&HARVEST.test(normalize(w.type))).map(w=>({date:String(w.plannedDate&&!completed(w)?w.plannedDate:w.date||w.plannedDate||'').slice(0,10),label:w.type||'Récolte',kind:'travail',id:w.id}));
   const lots=(state?.integrationImports||[]).filter(r=>!r.deletedAt&&r.farmKind==='harvest'&&r.parcelId===parcelId).map(r=>({date:String(r.date||'').slice(0,10),label:`Lot ${r.code||''}`.trim(),kind:'lot',id:r.id}));
   return[...works,...lots].filter(h=>/^\d{4}-\d{2}-\d{2}$/.test(h.date));
+}
+
+/**
+ * Récolte ou fauche saisie dans le délai avant récolte d'un traitement terminé de la parcelle (même calcul que
+ * checkTreatment, vu depuis la récolte). Avertissement seul : [{work, dar, until, message}].
+ */
+export function darConflicts(state,parcelId,date,{catalog=null}={}){
+  const t=at(date);if(!Number.isFinite(t))return[];
+  const parcel=active(state,'parcelles').find(p=>p.id===parcelId)||null,out=[];
+  for(const w of active(state,'interventions').filter(x=>x.parcelId===parcelId&&completed(x)&&isTreatment(x))){
+    const start=at(w.date),dar=limitsFor(productFor(state,w,{catalog})?.sheet||null,w,parcel).dar;
+    if(dar===null||dar===undefined||!Number.isFinite(start)||t<start||t>=start+dar*DAY)continue;
+    const until=dayIso(start+dar*DAY);
+    out.push({work:w,dar,until,message:`${parcel?.nom||'Parcelle'} : ${w.product||w.type||'traitement'} du ${localDate(w.date)}, délai avant récolte de ${fmt(dar)} jours jusqu’au ${localDate(until)}.`});
+  }
+  return out;
 }
 
 const unitsCompatible=(a,b)=>!a||!b||normalize(a)===normalize(b);

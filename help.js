@@ -134,7 +134,7 @@ export const HELP = {
     'Les dates sont indicatives : la règle de votre département fait foi.'
   ], link: {label: 'Assolement', action: 'open-rotations'}, tip: 'Astuce : un couvert se saisit aussi depuis l’assolement.'},
   grazing: {match: /^(Animaux au pré|Déplacer le lot)/i, title: 'Pâturage', points: [
-    'Mettez un lot au pré en indiquant la parcelle, les animaux et la date d’entrée.',
+    'Le bouton « Ajouter » (+) puis Pâturage met un lot au pré, le rentre ou le change de pré : parcelle, animaux et date d’entrée.',
     'Le nombre de jours au pré et la charge s’affichent sur la carte et l’accueil.',
     '« Déplacer le lot » ferme la parcelle quittée et ouvre la suivante en un geste.'
   ], link: {label: 'Mettre un lot au pré', action: 'new-grazing'}, tip: 'Astuce : la frise de pâturage de chaque parcelle montre les rotations passées.'},
@@ -242,7 +242,7 @@ export const HELP = {
     'Tous les travaux, à faire et faits, avec filtres par parcelle et par type.',
     'Cochez un travail pour le marquer fait ; « Annuler » reste possible.',
     '« Refaire ce travail » crée une copie préremplie.'
-  ], link: {label: 'Nouveau travail', action: 'new-work'}},
+  ], link: {label: 'Ajouter un travail', action: 'new-work'}},
   'work-week': {title: 'Semaine', points: [
     '« Organise ma semaine » propose un planning selon la météo, la proximité et le matériel.',
     'Appliquez la proposition en un geste, ou ajustez-la jour par jour.',

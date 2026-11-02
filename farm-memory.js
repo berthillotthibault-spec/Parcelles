@@ -1,6 +1,8 @@
-import {campaignFor,pointInGeometry} from './utils.js';
+import {campaignFor,normalize,pointInGeometry} from './utils.js';
 export const active=(s,key)=>(s[key]||[]).filter(x=>!x.deletedAt);
 export const completed=w=>['Terminé','Terminée'].includes(w.status||'Terminé');
+// Ancienne fiche « Observation » écrite comme un travail par le « + » : ni prestation, ni coût.
+export const isObservationWork=w=>normalize(w?.type)==='observation';
 const day=v=>String(v||'').slice(0,10);
 export function parcelMemory(state,parcelId,campaign){
   const works=active(state,'interventions').filter(w=>w.parcelId===parcelId&&completed(w)&&(w.campaignId||campaignFor(w.date))===campaign&&w.date);

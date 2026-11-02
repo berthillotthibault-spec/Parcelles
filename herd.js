@@ -176,6 +176,18 @@ export function lotAssignment(state,animal,sessionId,{today=grazingDate()}={}){
 }
 export const lotLabel=session=>session?(text(session.note)||grazingType(session)):'';
 
+/** Lots en cours qui listent cet animal à la date donnée (sortie du troupeau : à proposer au retrait). */
+export function lotsListing(state,animal,{today=grazingDate()}={}){
+  if(!animal)return [];
+  const key=normalizeNationalId(animal.nationalId);
+  return live(state,'grazingSessions').filter(s=>grazingStatus(s,{date:today})==='current'&&grazingAnimalList(s).some(item=>item.animalId===animal.id||Boolean(key)&&normalizeNationalId(item.number)===key));
+}
+/** Animaux listés dans ce lot mais sortis du troupeau à la date donnée : écart affiché sur la fiche du lot. */
+export function exitedInLot(state,session,{today=grazingDate()}={}){
+  const list=grazingAnimalList(session);
+  return live(state,'animals').filter(a=>a.exitDate&&!isPresent(a,today)&&list.some(item=>item.animalId===a.id||Boolean(a.nationalId)&&normalizeNationalId(item.number)===normalizeNationalId(a.nationalId)));
+}
+
 /** Âge lisible (mois jusqu'à 2 ans, puis années). */
 export function ageLabel(birthDate,today=grazingDate()){
   if(!birthDate)return '';

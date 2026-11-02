@@ -23,17 +23,26 @@ const stamp = work => Math.max(Number(work?.updatedAt) || 0, Date.parse(work?.da
 
 // Famille visuelle d’un type, pour l’icône de la pastille.
 const FAMILIES = [
-  ['spray', /(trait|desherb|fongi|insecti|herbici|pulver|phyto|regulat)/],
+  // « trait » seul ou « traitement », « traiter » : ni « retrait », ni « traite ».
+  ['spray', /((^|[^a-z])trait(ement|er|$|[^a-z])|desherb|fongi|insecti|herbici|pulve|phyto|regulat)/],
   ['harvest', /(recolt|moisson|battage|ensil|arrach|vendang)/],
   ['mow', /(fauch|fane|andain|foin|enrubann|pressage|botte|broy|gyrobroy)/],
   ['seed', /(semi|semer|implant|plantat|resemi|sursemi)/],
   ['fertilize', /(fertili|engrais|epand|fumier|lisier|azote|amendement|chaul|ammonitr|compost)/],
-  ['soil', /(labour|dechaum|hers|sol|rouleau|rotative|cultivat|scarif|decompact|bin)/],
+  ['soil', /(labour|dechaum|hers|\bsol\b|solage|rouleau|rotative|cultivat|scarif|decompact|\bbin|binage|desherbage (mecanique|manuel|thermique))/],
   ['graze', /(patur|clotur|abreuv|troupeau|betail|vache)/]
 ];
+// Travaux sans intrant ni récolte malgré leur libellé : « Nettoyage pulvé », « Transport bottes ».
+const NEUTRAL = /(nettoy|transport|retrait|entretien (de la |du |des |de )?(clotur|pulve|materiel|machine|tracteur|chemin|fosse)|reparation|reparer)/;
+// Haie : « Plantation haie », « Taille haie » restent neutres, mais « Désherbage haie » reste un traitement.
+const HEDGE = /\bhaies?\b/;
+const NOT_PHYTO = /desherbage (mecanique|manuel|thermique)/;
 export function typeFamily(type) {
   const key = normalizeType(type);
-  return FAMILIES.find(([, re]) => re.test(key))?.[0] || 'other';
+  if (NEUTRAL.test(key)) return 'other';
+  if (NOT_PHYTO.test(key)) return 'soil';
+  const family = FAMILIES.find(([, re]) => re.test(key))?.[0] || 'other';
+  return HEDGE.test(key) && family !== 'spray' ? 'other' : family;
 }
 // Un traitement phytosanitaire doit être complété (produit, dose, AMM) pour le registre.
 export const isPhytoType = type => typeFamily(type) === 'spray';

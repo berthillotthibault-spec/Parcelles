@@ -52,7 +52,7 @@ export function readableTables(state = {}) {
       ['Matériel', w => equipmentName(w.equipmentId)], ['Note', w => w.note]]},
     {file: 'paturage.csv', sheet: 'Pâturage', rows: live(state.grazingSessions), columns: [
       ['Parcelle', g => parcelName(g.parcelId)], ['Animaux', g => g.animalType], ['Nombre', g => frNumber(g.animalsCount)], ['Entrée', g => frDate(g.startDate)],
-      ['Sortie', g => frDate(g.endDate)], ['Note', g => g.note || g.notes]]},
+      ['Sortie', g => frDate(g.endDate)], ['Note', g => g.note || g.notes], ['Catégorie', g => g.animalCategory || '']]},
     {file: 'stocks.csv', sheet: 'Stocks', rows: live(state.stockItems), columns: [
       ['Produit', s => s.name], ['Catégorie', s => s.category], ['Quantité', s => frNumber(s.quantity)], ['Unité', s => s.unit], ['Seuil d’alerte', s => frNumber(s.alertBelow)],
       ['Prix unitaire (€)', s => frNumber(s.unitPrice)]]},

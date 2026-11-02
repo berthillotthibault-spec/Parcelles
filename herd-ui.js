@@ -5,8 +5,9 @@ import {escapeHtml as e,localDate,uid,clone} from './utils.js';
 import {normalizeEntity} from './state.js';
 import {validateForm} from './form-chips-ui.js';
 import {grazingStatus,grazingTotal} from './grazing.js';
+import {removeAnimalFromLot} from './grazing-records.js';
 import {SEXES,ENTRY_REASONS,EXIT_REASONS,EVENT_KINDS,BREEDS,BDNI_NOTICE,BDNI_REMINDER_DAYS,IMPORT_SOURCE,HERD_CSV_FIELDS,
-  normalizeAnimal,normalizeAnimalEvent,calvingPlan,animalLot,lotLabel,lotAssignment,ageLabel,filterAnimals,animalTimeline,lastWeight,dailyGain,offspring,herdSummary,
+  normalizeAnimal,normalizeAnimalEvent,calvingPlan,animalLot,lotLabel,lotAssignment,ageLabel,lotsListing,filterAnimals,animalTimeline,lastWeight,dailyGain,offspring,herdSummary,
   expectedCalvings,pendingBdni,animalLabel,formatNationalId,isPresent,grazingCandidates,candidatesToAnimals,readHerdCsv,guessColumns,herdImportPreview,herdImportEntities,bdniDeadline,addIsoDays} from './herd.js';
 
 const fr=d=>d?localDate(`${d}T12:00:00`):'—';
@@ -130,6 +131,18 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
     const t=r.treatment||{};return [t.dose?`${t.dose} ${t.doseUnit||''}`.trim():'',t.meatUntil?`attente viande jusqu’au ${fr(t.meatUntil)}`:'',t.milkUntil?`lait jusqu’au ${fr(t.milkUntil)}`:'',t.veterinarian].filter(Boolean).join(' · ')||'Carnet sanitaire';
   }
 
+  // Animal sorti (vente, mort, pension) encore listé dans un lot : proposer le retrait, sinon l'effectif reste faux.
+  function offerLotRemoval(a,listed,date){
+    modal('Retirer du lot ?',`${e(animalLabel(a))} est sorti le ${e(fr(date))} mais figure encore dans ${listed.length>1?'des lots':'un lot'} au pré.`,`<ul>${listed.map(s=>`<li>${e(lotLabel(s))}</li>`).join('')}</ul><p class="form-note">Le passage est clos à cette date et rouvert sans cet animal, pour garder l’historique.</p><p class="form-error" id="herd-error" role="alert" hidden></p>`,
+      `<button type="button" class="button secondary" id="herd-keep">Laisser dans le lot</button><button type="button" class="button primary" id="herd-remove">Retirer du lot</button>`);
+    $('#herd-keep').onclick=()=>openAnimal(a.id);
+    $('#herd-remove').onclick=async()=>{
+      const button=$('#herd-remove');if(button.disabled)return;button.disabled=true;
+      try{for(const s of listed)await removeAnimalFromLot(store,s.id,a,{date});toast('Animal retiré du lot.','success');openAnimal(a.id);}
+      catch(err){button.disabled=false;fail('#herd-error',err);}
+    };
+  }
+
   function openForm(a=null){
     const x=a||{sex:'F',entryReason:'Achat',origin:'manual'};
     const mothers=live('animals').filter(m=>m.id!==x.id&&m.sex!=='M').sort((p,q)=>animalLabel(p).localeCompare(animalLabel(q),'fr'));
@@ -158,7 +171,10 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
         const value=normalizeAnimal({...v,origin:x.origin,motherNationalId:v.motherId?'':x.motherNationalId},{state:data(),id:a?.id||null,today:today()});
         button.disabled=true;
         const saved=await store.upsert('animals',{...(a||{}),...value},{label:a?`Animal modifié : ${animalLabel(value)}`:`Animal ajouté : ${animalLabel(value)}`});
-        toast('Animal enregistré.','success');openAnimal(saved.id);
+        toast('Animal enregistré.','success');
+        const listed=value.exitDate&&value.exitDate<=today()?lotsListing(data(),saved,{today:today()}):[];
+        if(listed.length)return offerLotRemoval(saved,listed,value.exitDate);
+        openAnimal(saved.id);
       }catch(err){button.disabled=false;fail('#herd-error',err);}
     };
   }

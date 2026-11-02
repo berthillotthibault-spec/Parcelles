@@ -6,6 +6,7 @@ import {html} from './safe-html.js';
 import {herdLots, animalsInside, herdHeadline, herdUpcoming, moveDestinations} from './herd-home.js';
 import {moveGrazingLot, endGrazingSession, grazingReentryAlert} from './grazing-records.js';
 import {filterAnimals} from './herd.js';
+import {longOpenLots} from './grazing.js';
 
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 const dayBlock = iso => {
@@ -21,6 +22,14 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
     if (!root) return;
     const data = state(), today = todayIso();
     const lots = herdLots(data, {today}), inside = animalsInside(data, {today}), upcoming = herdUpcoming(data, {today});
+    const long = new Set(longOpenLots(data, {date: today}).map(l => l.id));
+    if (!root.dataset.stillBound) {
+      root.dataset.stillBound = '1';
+      root.addEventListener('click', event => {
+        const id = event.target.closest('[data-herd-still]')?.dataset.herdStill;
+        if (id) store.setPreferences({grazingStillThere: {...(state().preferences?.grazingStillThere || {}), [id]: todayIso()}}).then(() => render(root)).catch(error => toast(error.message, 'error'));
+      });
+    }
     const summary = doc.getElementById('herd-summary');
     if (summary) summary.textContent = herdHeadline(data, {today});
     root.innerHTML = String(html`
@@ -34,6 +43,7 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
           <div class="herd-lot-head"><span class="herd-badge is-out"><b>${l.n}</b><small>têtes</small></span>
             <span class="herd-lot-text"><b>${l.name}</b><small>${l.parcelName} · depuis le ${new Date(`${l.startDate}T12:00:00`).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</small></span></div>
           <p class="herd-lot-days">Jour ${l.days} au pré</p>
+          ${long.has(l.id) ? html`<p class="herd-lot-days">Ouvert depuis longtemps : encore au pré ? <button type="button" class="text-button" data-herd-still="${l.id}">Toujours là</button></p>` : ''}
           <button type="button" class="herd-lot-button" data-action="herd-move" data-id="${l.id}">Déplacer le lot</button></article>`)
         : html`<p class="herd-empty">Aucun lot au pré.</p>`}
         ${inside.length ? html`<article class="herd-lot">
@@ -56,7 +66,8 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
     pendingAlert = null;
     const rows = moveDestinations(data, {fromParcelId: lot.parcelId, today});
     const body = html`<div class="herd-move">
-      <p class="herd-move-lead">Choisissez la destination. L’entrée est datée d’aujourd’hui.</p>
+      <label class="qw-field"><span>Date du déplacement</span><input id="herd-move-date" type="date" value="${today}" min="${lot.startDate}" max="${today}"></label>
+      <p class="herd-move-lead">Choisissez la destination.</p>
       ${rows.length ? rows.map(r => html`<button type="button" class="herd-dest" data-move-to="${r.parcel.id}">
         <span class="qw-dot" style="background:${cultureColor(r.parcel.culture || '')}" aria-hidden="true"></span>
         <span class="herd-event-text"><b>${r.parcel.nom}</b><small>${(Number(r.parcel.surfaceHa) || 0).toLocaleString('fr-FR', {maximumFractionDigits: 1})} ha · ${r.status}</small></span><span aria-hidden="true">›</span></button>`)
@@ -74,10 +85,10 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
   }
 
   async function move(lot, parcelId) {
-    const today = todayIso();
+    const today = todayIso(), chosen = doc.querySelector('#herd-move-date')?.value, date = chosen && chosen <= today ? chosen : today;
     if (moving) return; // double appui (gants, rebond) : un seul déplacement
     if (parcelId && pendingAlert !== parcelId) {
-      const alert = grazingReentryAlert(state(), parcelId, today);
+      const alert = grazingReentryAlert(state(), parcelId, date);
       if (alert) {
         // Confirmation par un bouton distinct, jamais par un second appui sur la même ligne.
         const box = doc.querySelector('#modal-root .herd-move-alert');
@@ -94,8 +105,8 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
     const before = {...lot.session};
     let created = null;
     try {
-      if (parcelId) created = await moveGrazingLot(store, lot.session, parcelId, {date: today});
-      else await endGrazingSession(store, lot.id, {date: today});
+      if (parcelId) created = await moveGrazingLot(store, lot.session, parcelId, {date});
+      else await endGrazingSession(store, lot.id, {date});
     } catch (error) {
       toast(error?.message || 'Déplacement impossible.', 'error');
       doc.querySelectorAll('#modal-root .herd-dest').forEach(b => { b.disabled = false; });
@@ -108,7 +119,9 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
       if (created?.id) await store.remove('grazingSessions', created.id);
       await store.upsert('grazingSessions', {...before, endDate: before.endDate || null}, {label: `Déplacement annulé : ${lot.name}`});
     };
-    toast(parcelId ? `${lot.name} → ${name}` : `${lot.name} rentrés au bâtiment`, 'success', {label: 'Annuler', run: undo});
+    // Sans droit de suppression (opérateur), un déplacement ne s'annule pas : le passage créé ne peut être retiré.
+    const canUndo = !created || !store.writeGuard || store.writeGuard({entity: 'grazingSessions', action: 'delete', entityId: created.id});
+    toast(parcelId ? `${lot.name} → ${name}` : `${lot.name} rentrés au bâtiment`, 'success', canUndo ? {label: 'Annuler', run: undo} : undefined);
   }
 
   // Vêlage et pesée se font depuis la fiche de l'animal (formulaires existants de herd-ui.js) : on choisit l'animal.

@@ -13,7 +13,7 @@ export function createGlovesUI({toast=()=>{},haptic=()=>{},doc=document}={}){
   const active=()=>body.classList.contains('gloves');
 
   function renderBar(){
-    const items=active()?thumbActions(root.dataset.view||'',{readOnly:root.dataset.role==='viewer',modalOpen:modalOpen(),fieldModeOpen:fieldOpen(),quickWork:Boolean(doc.getElementById('quick-work-fab'))}):[];
+    const items=active()?thumbActions(root.dataset.view||'',{readOnly:root.dataset.role==='viewer',modalOpen:modalOpen(),fieldModeOpen:fieldOpen()}):[];
     body.classList.toggle('has-thumb-bar',items.length>0);
     if(!items.length){if(bar)bar.hidden=true;return;}
     if(!bar){bar=doc.createElement('nav');bar.id='gloves-thumb-bar';bar.className='gloves-thumb-bar';bar.setAttribute('aria-label','Actions principales');body.append(bar);}

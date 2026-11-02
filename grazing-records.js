@@ -1,6 +1,6 @@
 import {clone} from './utils.js';
 import {normalizeEntity} from './state.js';
-import {grazingAnimalList,grazingDate,grazingStatus,grazingTotal} from './grazing.js';
+import {grazingAnimalList,grazingDate,grazingStatus,grazingTotal,nationalIdKey} from './grazing.js';
 import {grazingReentryConflict} from './phyto.js';
 
 const fields=['parcelId','animalType','animalCategory','startDate','endDate','animals','additionalAnimalsCount','animalsCount','note'];
@@ -66,6 +66,39 @@ export async function moveGrazingLot(store,session,parcelId,{date=grazingDate()}
   await endGrazingSession(store,session.id,{date:day});
   try{return await saveGrazingSession(store,moved);}
   catch(failure){await saveGrazingSession(store,{parcelId:session.parcelId,animalType:session.animalType||'Non précisé',animalCategory:session.animalCategory||null,startDate:String(session.startDate).slice(0,10),endDate:null,animals:session.animals??[],additionalAnimalsCount:Number(session.additionalAnimalsCount)||0,note:session.note||''},{id:session.id}).catch(()=>{});throw failure;}
+}
+
+// Mise au pré sur plusieurs prés ou catégories : un passage par ligne, écrits l'un après l'autre (aucun lot atomique).
+// Échec en route : avec le droit de suppression, les passages déjà écrits sont retirés ; sans ce droit (opérateur),
+// ils restent et l'erreur porte saved et remaining, pour que le nouvel essai n'écrive que le reste (jamais de doublon).
+export async function saveGrazingEntries(store,entries){
+  const saved=[];
+  for(const [index,entry] of entries.entries()){
+    try{saved.push(await saveGrazingSession(store,entry));}
+    catch(failure){
+      const canDelete=!store.writeGuard||saved.every(row=>store.writeGuard({entity:'grazingSessions',action:'delete',entityId:row.id}));
+      if(canDelete){for(const row of saved)await store.remove('grazingSessions',row.id).catch(()=>{});throw failure;}
+      const error=new Error(`${saved.length} passage${saved.length>1?'s':''} déjà enregistré${saved.length>1?'s':''}, ${entries.length-index} restant${entries.length-index>1?'s':''} : ${failure?.message||'erreur inconnue'}`);
+      Object.assign(error,{saved,remaining:entries.slice(index)});throw error;
+    }
+  }
+  return saved;
+}
+
+// Animal sorti (vente, mort, pension) encore listé dans un lot : le passage est clos à la date de sortie et rouvert
+// sans lui pour garder l'historique. Sorti le jour de l'entrée ou avant, ou lot devenu vide : voir ci-dessous.
+export async function removeAnimalFromLot(store,sessionId,animal,{date=grazingDate()}={}){
+  const current=currentSession(store,sessionId),day=grazingDate(date),all=grazingAnimalList(current);
+  const mine=item=>item.animalId===animal.id||(animal.nationalId&&nationalIdKey(item.number)===nationalIdKey(animal.nationalId));
+  const left=all.filter(item=>!mine(item)),additional=Math.max(0,grazingTotal(current)-all.length),start=grazingDate(current.startDate);
+  if(left.length===all.length)throw new Error('Cet animal n’est plus dans ce lot.');
+  const base={parcelId:current.parcelId,animalType:current.animalType||'Non précisé',animalCategory:current.animalCategory||null,note:current.note||''};
+  if(!left.length&&!additional)return endGrazingSession(store,sessionId,{date:day>start?day:start});
+  // Sortie avant ou le jour de l'entrée : il n'a jamais compté dans ce passage, on corrige la liste sans nouveau passage.
+  if(day<=start)return saveGrazingSession(store,{...base,startDate:start,endDate:current.endDate?grazingDate(current.endDate):null,animals:left,additionalAnimalsCount:additional},{id:sessionId,expected:current});
+  await endGrazingSession(store,sessionId,{date:day});
+  try{return await saveGrazingSession(store,{...base,startDate:day,endDate:null,animals:left,additionalAnimalsCount:additional});}
+  catch(failure){await saveGrazingSession(store,{...base,startDate:start,endDate:null,animals:current.animals??[],additionalAnimalsCount:Number(current.additionalAnimalsCount)||0},{id:sessionId}).catch(()=>{});throw failure;}
 }
 
 // n° 77 — mise à jour de l’effectif après comptage (sur confirmation) : seuls les animaux sans numéro changent.

@@ -47,6 +47,13 @@ export function workWindow(weather,work){
   return windowWeather(weather,start,end);
 }
 
+/** Météo du moment conservée sur un traitement (formulaire complet et saisie du « + »). */
+export function weatherSnapshotOf(weather){
+  const c=weather.current;
+  return{capturedAt:Date.now(),place:weather.place,temperature:c?.temperature_2m,precipitation:c?.precipitation,wind:c?.wind_speed_10m,
+    gust:c?.wind_gusts_10m,humidity:c?.relative_humidity_2m,windDirection:c?.wind_direction_10m,forecastAt:weather.loadedAt};
+}
+
 /** Avertissements d'une fenêtre (vent légal, inversion, delta T). */
 export function windowWarnings(win){
   if(!win)return[];

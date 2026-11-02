@@ -770,7 +770,7 @@ export class Store{
   async restore(type,id){
     const found=this.get(type,id,{includeDeleted:true});if(!found?.deletedAt)throw new Error('Élément introuvable dans la corbeille.');
     const label=`${type.slice(0,-1)} restauré.`;let before=null,after=null;
-    await this.mutate(label,state=>{const item=state[type].find(v=>v.id===id);before=clone(item);item.deletedAt=null;item.updatedAt=now();item.version=(item.version||0)+1;after=clone(item);},{entity:type,entityId:id,action:'update',payload:{id,deletedAt:null}});
+    await this.mutate(label,state=>{const item=state[type].find(v=>v.id===id);before=clone(item);item.deletedAt=null;item.updatedAt=now();item.version=(item.version||0)+1;after=clone(item);},{entity:type,entityId:id,action:'update',payload:{id,deletedAt:null},previous:found});
     await this._recordHistory([{type,before,after,action:'restore'}],{label});
   }
 

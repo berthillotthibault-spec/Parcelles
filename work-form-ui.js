@@ -3,18 +3,49 @@
 // openBatchWorkForm, qui attendent ce module (lazy.run) puis l'appellent. ctx : app-context.js.
 import {campaignFor, escapeHtml, formatNumber, isoDate, toNullableNumber, toNumber, uid} from './utils.js';
 import {recentWorkSuggestions} from './insights.js';
+import {isGrazingType, workFamily} from './quick-work.js';
+import {normalizeType} from './quick-entry.js';
+import {isTreatment} from './phyto.js';
 import {enhanceWorkForm, validateForm} from './form-chips-ui.js';
 import {draftKey, persistFormDraft} from './form-drafts.js';
+import {weatherSnapshotOf} from './spray-window.js';
+import {workCosts} from './costs.js';
 
 const STATUSES = ['À faire', 'À préparer', 'Prêt', 'En cours', 'Bloqué', 'Terminé', 'En retard', 'Annulé', 'Brouillon'];
-const DOSE_UNITS = ['kg/ha', 'L/ha', 't/ha', 'm³/ha', 'unité/ha', 'graines/ha', 'q/ha', 'mm', 'autre'];
-const BATCH_UNITS = ['kg/ha', 'L/ha', 't/ha', 'm³/ha', 'unité/ha'];
+const DOSE_UNITS = ['kg/ha', 'L/ha', 't/ha', 'm³/ha', 'unité/ha', 'graines/ha', 'grains/m²', 'q/ha', 'mm', 'autre'];
 const TEMPLATE_KEYS = ['type', 'product', 'dose', 'doseUnit', 'operator', 'equipmentId', 'culture'];
 
 const options = (values, selected) => values.map(v => `<option ${selected === v ? 'selected' : ''}>${v}</option>`).join('');
 const datalist = (id, values) => `<datalist id="${id}">${values.map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
 const machineOptions = (machines, selected) =>
   machines.map(m => `<option value="${m.id}" ${selected === m.id ? 'selected' : ''}>${escapeHtml(m.nom)}</option>`).join('');
+
+/**
+ * Travail groupé : mêmes contrôles que le formulaire simple, fiche par fiche, avant toute écriture. Renvoie un message
+ * à afficher, ou false si le contrôle phyto attend le motif dans le formulaire ; '' si tout passe.
+ */
+export const TREATMENT_PRODUCT_MESSAGE = 'Indiquez le produit : un traitement terminé va au registre phytosanitaire.';
+/** Traitement terminé sans produit : refusé, il irait au registre (isTreatment : case, genre choisi ou libellé). */
+export const missingTreatmentProduct = entity => entity?.status === 'Terminé' && isTreatment(entity) && !String(entity.product || '').trim();
+/**
+ * Un genre (kind) choisi pour un autre libellé ne suit pas un changement de type : il primerait encore sur le nouveau
+ * libellé (registre, semences, azote). null explicite, car l'enregistrement fusionne.
+ */
+export const staleKind = (item, v) => Boolean(item?.kind) && normalizeType(v?.type) !== normalizeType(item?.type);
+/** Genre repris du « + » pour le lot : abandonné si le type a changé (staleKind), comme au formulaire simple. @param {any} prefill @param {any} v */
+export function batchKindFields(prefill, v) {
+  const kind = prefill?.kind && !staleKind(prefill, v) ? prefill.kind : '';
+  return {...(workFamily(v?.type, kind) === 'spray' ? {isPhytosanitary: true} : {}), ...(kind ? {kind} : {})};
+}
+export async function guardBatchWorks(entities, {form, phytoUI, hedgesUI} = {}) {
+  for (const entity of entities) {
+    if (missingTreatmentProduct(entity)) return TREATMENT_PRODUCT_MESSAGE;
+    if (phytoUI && !(await phytoUI.guardWork(form, entity))) return false;
+    const hedge = hedgesUI?.guardWork(entity, form);
+    if (hedge) return hedge;
+  }
+  return '';
+}
 
 // Valeurs du formulaire : la copie d'un travail (« Refaire ») repart à zéro pour les mesures, l'historique et l'échéance.
 function workItem(source, {duplicate, chosenParcel, data, recentWorks, today}) {
@@ -86,29 +117,28 @@ function recalcDuration(form) {
   if (minutes >= 0) form.elements.duration.value = (minutes / 60).toFixed(2);
 }
 
-const filled = value => String(value).trim();
-// Coûts : chaque poste saisi l'emporte, sinon il est calculé (machine x heures, carburant x prix, dose x prix x surface).
-function workCosts(v, {machines, data}) {
-  const machine = machines.find(m => m.id === v.equipmentId), duration = toNullableNumber(v.duration), fuel = toNullableNumber(v.fuel);
-  const machineCost = filled(v.machineCost) ? toNumber(v.machineCost) : (machine && duration !== null ? duration * toNumber(machine.hourlyCost) : 0);
-  const fuelCost = filled(v.fuelCost) ? toNumber(v.fuelCost) : (fuel !== null ? fuel * toNumber(data.preferences.fuelPrice) : 0);
-  const priced = toNullableNumber(v.dose) !== null && toNullableNumber(v.productUnitPrice) !== null && toNullableNumber(v.surfaceWorked) !== null;
-  const inputCost = filled(v.inputCost) ? toNumber(v.inputCost) : (priced ? toNumber(v.dose) * toNumber(v.productUnitPrice) * toNumber(v.surfaceWorked) : 0);
-  const operatorCost = toNumber(v.operatorCost), otherCost = toNumber(v.otherCost);
-  const components = machineCost + fuelCost + inputCost + operatorCost + otherCost, total = filled(v.cost) ? toNumber(v.cost) : components;
-  return {duration, fuel, machineCost, fuelCost, inputCost, operatorCost, otherCost, total};
-}
-
-function weatherSnapshotOf(weather) {
-  const c = weather.current;
-  return {capturedAt: Date.now(), place: weather.place, temperature: c?.temperature_2m, precipitation: c?.precipitation, wind: c?.wind_speed_10m,
-    gust: c?.wind_gusts_10m, humidity: c?.relative_humidity_2m, windDirection: c?.wind_direction_10m, forecastAt: weather.loadedAt};
-}
-
 export function createWorkFormUI(ctx) {
   const {$, $$} = ctx;
 
-  function open(work = null, parcelId = null, {duplicate = false} = {}) {
+  // Un travail « Pâturage » ne met aucun animal au pré : avis avec lien, sans bloquer (un travail prévu reste possible).
+  function bindGrazingNotice(form, parcelIds) {
+    const input = form?.elements?.type;
+    if (!input) return;
+    const note = document.createElement('p');
+    note.className = 'notice warning span-2'; note.hidden = true;
+    note.innerHTML = 'Ce travail ne met aucun animal au pré. <button type="button" class="text-button">Mettre au pré</button>';
+    note.querySelector('button').onclick = () => {
+      const ids = parcelIds().filter(Boolean);
+      ctx.closeModal();
+      ctx.openGrazingEntry({parcelIds: ids, type: input.value.trim()});
+    };
+    form.prepend(note);
+    const update = () => { note.hidden = !isGrazingType(input.value); };
+    input.addEventListener('input', update); update();
+  }
+
+  // onSaved : appelé après l'écriture (le « + » ne retire son brouillon qu'à ce moment, PF-15).
+  function open(work = null, parcelId = null, {duplicate = false, onSaved = null} = {}) {
     const data = ctx.state(), parcels = ctx.active('parcelles', data);
     if (!parcels.length) { ctx.toast('Créez ou importez d’abord une parcelle.', 'error'); return; }
     const templates = ctx.active('templates', data), machines = ctx.active('materiels', data);
@@ -132,6 +162,7 @@ export function createWorkFormUI(ctx) {
     const title = editing ? 'Modifier le travail' : duplicate ? 'Refaire ce travail' : 'Nouveau travail';
     ctx.modal(title, 'Un cas simple peut être enregistré avec les champs essentiels uniquement.', body, footer, 'large');
     const form = $('#work-form');
+    bindGrazingNotice(form, () => [form.elements.parcelId?.value || chosenParcel.id]);
     enhanceWorkForm(form, {data, today: ctx.todayIso(), recentIds: ctx.recentParcelIds});
     ctx.phytoUI?.enhanceWorkForm(form, item); ctx.hedgesUI?.enhanceWorkForm(form, item); ctx.stockLotsUI?.enhanceWorkForm(form, item);
     // n° 144 : le formulaire s’ouvre sans attendre, habitudes et semences s’y ajoutent à l’arrivée.
@@ -155,12 +186,12 @@ export function createWorkFormUI(ctx) {
       }
     };
     form.elements.endTime.onchange = () => recalcDuration(form); form.elements.startTime.onchange = () => recalcDuration(form);
-    $('#save-work').onclick = () => save({form, item, source, duplicate, machines, data, draft});
+    $('#save-work').onclick = () => save({form, item, source, duplicate, machines, data, draft, onSaved});
     $('#attach-work')?.addEventListener('click', () => { ctx.closeModal(); ctx.openAttachmentForm(item.parcelId, {interventionId: item.id}); });
     $('#delete-work')?.addEventListener('click', () => ctx.confirmDelete('interventions', item.id, 'ce travail'));
   }
 
-  async function save({form, item, source, duplicate, machines, data, draft}) {
+  async function save({form, item, source, duplicate, machines, data, draft, onSaved = null}) {
     if (!validateForm(form)) return;
     recalcDuration(form);
     const v = Object.fromEntries(new FormData(form));
@@ -170,6 +201,8 @@ export function createWorkFormUI(ctx) {
       surfaceWorked: toNullableNumber(v.surfaceWorked), dose: toNullableNumber(v.dose) ?? v.dose, productUnitPrice: toNullableNumber(v.productUnitPrice),
       duration, fuel, machineCost, fuelCost, inputCost, operatorCost, otherCost, weatherSnapshot, campaignId: campaignFor(v.date),
       source: item.id ? 'local' : (source.source || 'local')};
+    if (staleKind(item, v)) entity.kind = null;
+    if (missingTreatmentProduct(entity)) { ctx.toast(TREATMENT_PRODUCT_MESSAGE, 'error'); form.elements.product?.focus(); return; }
     if (v.status !== 'Terminé' && item.plannedDate && v.date !== item.date) entity.plannedDate = v.date;
     if (!entity.productLot && !item.productLot) delete entity.productLot; // n° 73 : lot du produit, seulement s'il est choisi
     if (ctx.phytoUI && !(await ctx.phytoUI.guardWork(form, entity))) return;
@@ -181,6 +214,7 @@ export function createWorkFormUI(ctx) {
     if (v.status === 'Terminé') entity.actualMetrics = metrics();
     const saved = await ctx.store.upsert('interventions', entity, {label: `Travail ${item.id ? 'modifié' : 'enregistré'} : ${v.type}`});
     draft.clear();
+    try { onSaved?.(saved); } catch { /* le rappel ne bloque pas l'enregistrement */ }
     if (v.status === 'Terminé' && (!source.id || duplicate || source.status !== 'Terminé')) ctx.habitsUI?.afterFinish(saved);
     if (form.elements.saveTemplate.checked) {
       const template = {name: `${v.type}${v.product ? ` · ${v.product}` : ''}`, type: v.type, culture: v.culture, product: v.product, dose: v.dose,
@@ -194,7 +228,7 @@ export function createWorkFormUI(ctx) {
   }
 
   // Travail groupé : une saisie, un travail relié (batchId) par parcelle ; selected précoche des parcelles (sélection de la carte).
-  function openBatch(selected = [], prefill = {}) {
+  function openBatch(selected = [], prefill = {}, {onSaved = null} = {}) {
     const data = ctx.state(), parcels = ctx.active('parcelles', data), machines = ctx.active('materiels', data);
     if (!parcels.length) return ctx.toast('Aucune parcelle disponible.', 'error');
     const rows = parcels.map(p => [
@@ -208,8 +242,11 @@ export function createWorkFormUI(ctx) {
       '<label>Type *<input name="type" required placeholder="Fauche, semis…"></label>',
       `<label>Date<input name="date" type="date" value="${ctx.todayIso()}" required></label>`,
       `<label>Statut<select name="status">${['À faire', 'En cours', 'Terminé'].map(v => `<option>${v}</option>`).join('')}</select></label>`,
-      '<label>Produit<input name="product"></label><label>Dose<input name="dose" inputmode="decimal"></label>',
-      `<label>Unité<select name="doseUnit"><option value="">—</option>${BATCH_UNITS.map(v => `<option>${v}</option>`).join('')}</select></label>`,
+      '<label>Produit<input name="product"></label><label>N° AMM<input name="amm" inputmode="numeric"></label>',
+      '<label>Dose<input name="dose" inputmode="decimal"></label>',
+      // Mêmes unités que le formulaire simple : une dose en q/ha ou en mm reprise du « + » garde son unité (AT-17).
+      `<label>Unité<select name="doseUnit"><option value="">—</option>${DOSE_UNITS.map(v => `<option>${v}</option>`).join('')}</select></label>`,
+      '<label>Heure début<input name="startTime" type="time"></label><label>Heure fin<input name="endTime" type="time"></label>',
       '<label>Matériel<select name="equipmentId"><option value="">Non renseigné</option>',
       `${machines.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('')}</select></label>`,
       '<label>Coût total du lot (€)<input name="batchCost" inputmode="decimal" type="number" min="0" step=".01"></label>',
@@ -222,6 +259,9 @@ export function createWorkFormUI(ctx) {
     for (const [name, value] of Object.entries(prefill || {})) {
       if (batchForm?.elements[name] && value !== undefined && value !== null && value !== '') batchForm.elements[name].value = value;
     }
+    bindGrazingNotice($('#batch-work-form'), () => $$('#batch-work-form input[name="parcelIds"]:checked').map(x => x.value));
+    // Contrôles du formulaire simple : le passage par plusieurs parcelles ne les contourne pas (fiches contrôlées à l'enregistrement).
+    ctx.phytoUI?.enhanceWorkForm(batchForm, {}); ctx.hedgesUI?.enhanceWorkForm(batchForm, {hedgeDerogation: Boolean(prefill?.hedgeDerogation)});
     const boxes = () => $$('#batch-work-form input[name="parcelIds"]');
     $('#batch-select-all').onclick = () => boxes().forEach(x => x.checked = true);
     $('#batch-clear').onclick = () => boxes().forEach(x => x.checked = false);
@@ -232,10 +272,18 @@ export function createWorkFormUI(ctx) {
       if (!ids.length) return ctx.toast('Sélectionnez au moins une parcelle.', 'error');
       const v = Object.fromEntries(new FormData(form)), batchId = uid('batch'), chosen = ids.map(id => ctx.parcelById(id)).filter(Boolean);
       const totalSurface = chosen.reduce((sum, p) => sum + toNumber(p.surfaceHa), 0), batchCost = toNumber(v.batchCost);
+      // Seul le motif saisi dans l'encadré visible compte : jamais un motif caché repris d'ailleurs.
+      const carriedReason = String(v.phytoOverrideReason || '').trim();
       const entities = chosen.map(p => ({batchId, parcelId: p.id, type: v.type, date: v.date, status: v.status, product: v.product,
+        amm: v.amm, target: v.target, stage: v.stage, startTime: v.startTime || '', endTime: v.endTime || '',
+        ...batchKindFields(prefill, v), ...(carriedReason ? {phytoOverrideReason: carriedReason} : {}),
         dose: toNullableNumber(v.dose) ?? v.dose, doseUnit: v.doseUnit, equipmentId: v.equipmentId, note: v.note, surfaceWorked: toNumber(p.surfaceHa),
         cost: batchCost && totalSurface ? batchCost * (toNumber(p.surfaceHa) / totalSurface) : 0, campaignId: campaignFor(v.date), source: 'local'}));
+      const refused = await guardBatchWorks(entities, {form, phytoUI: ctx.phytoUI, hedgesUI: ctx.hedgesUI});
+      if (refused === false) return;
+      if (refused) return ctx.toast(refused, 'error');
       await ctx.store.upsertMany('interventions', entities, {label: `Travail groupé : ${v.type} · ${chosen.length} parcelles`});
+      try { onSaved?.(entities); } catch { /* le rappel ne bloque pas l'enregistrement */ }
       ctx.closeModal();
       ctx.savedToast(`${chosen.length} travaux créés dans le même lot.`);
     };

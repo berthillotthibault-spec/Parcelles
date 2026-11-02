@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.26.0",
+      "date": "2026-11-01",
+      "title": "Le bouton Ajouter",
+      "items": [
+        "Le « + » devient « Ajouter » : Pâturage met vraiment un lot au pré, le rentre ou le change de pré.",
+        "Observation, Récolte, Fauche et Semis s’enregistrent au bon endroit, avec quantité et rendement.",
+        "Une rangée Tâche, Vêlage, Pesée, Soin sous « Quel travail ? », selon vos activités."
+      ]
+    },
+    {
       "version": "10.25.0",
       "date": "2026-10-28",
       "title": "Nouvelle navigation",

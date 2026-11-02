@@ -63,6 +63,8 @@ export function herdOperatorRecord(entity,record){
 }
 const herdOperatorOk=operation=>['animals','animalEvents'].includes(operation.entity)&&operation.action!=='delete'
   &&Boolean(operation.record||operation.payload)&&herdOperatorRecord(operation.entity,operation.record||operation.payload)&&herdOperatorRecord(operation.entity,operation.previous);
+// L'opérateur terrain enregistre les mises au pré et les sorties, sans suppression. Même règle que firestore.rules (herdOperatorDoc).
+const grazingOperatorOk=operation=>operation.entity==='grazingSessions'&&operation.action!=='delete'&&!(operation.record||operation.payload)?.deletedAt&&!operation.previous?.deletedAt;
 const ACCOUNTANT_ENTITIES=new Set(['clients','documents','stockItems','stockMovements','products','maintenanceRecords']);
 
 // n° 129 : fil de commentaires par parcelle (« Préco : fongicide T2 la semaine prochaine »). Tout rôle qui écrit
@@ -133,7 +135,7 @@ export function canMutate(role,operation={}){
   if(operation.entity===COMMENT_ENTITY&&!MANAGEMENT_ROLES.has(normalized))return ['write','delete'].includes(capability)&&roleCan(normalized,'write')&&commentOk(normalized,operation);
   if(!roleCan(normalized,capability))return false;
   if(['owner','manager','editor'].includes(normalized))return true;
-  if(normalized==='operator')return meterOnlyOperation(operation)||herdOperatorOk(operation)||OPERATOR_ENTITIES.has(operation.entity)&&!(operation.entity==='integrationImports'&&(financeRecord(operation)||DIRECTORY_KINDS.has(kindOf(operation))||!messageOk(normalized,operation)));
+  if(normalized==='operator')return meterOnlyOperation(operation)||herdOperatorOk(operation)||grazingOperatorOk(operation)||OPERATOR_ENTITIES.has(operation.entity)&&!(operation.entity==='integrationImports'&&(financeRecord(operation)||DIRECTORY_KINDS.has(kindOf(operation))||!messageOk(normalized,operation)));
   // Réglages de facturation (exploitation.invoicing, propres à l’appareil, jamais synchronisés) : la comptabilité les tient.
   if(normalized==='accountant')return ACCOUNTANT_ENTITIES.has(operation.entity)||operation.entity==='exploitation'&&financeRecord(operation)||operation.entity==='integrationImports'&&(financeRecord(operation)||MESSAGE_LOG_KINDS.has(kindOf(operation))&&messageOk(normalized,operation));
   return false;
@@ -142,7 +144,7 @@ export function canMutate(role,operation={}){
 export function roleScope(role){
   const r=normalizeRole(role);
   if(['owner','manager','editor'].includes(r))return {all:true,entities:[]};
-  if(r==='operator')return {all:false,entities:[...OPERATOR_ENTITIES,'animals','animalEvents',COMMENT_ENTITY]};
+  if(r==='operator')return {all:false,entities:[...OPERATOR_ENTITIES,'animals','animalEvents','grazingSessions',COMMENT_ENTITY]};
   if(r==='accountant')return {all:false,entities:[...ACCOUNTANT_ENTITIES,COMMENT_ENTITY]};
   if(r==='advisor')return {all:false,entities:[COMMENT_ENTITY]};
   return {all:false,entities:[]};

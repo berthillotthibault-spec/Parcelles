@@ -1,5 +1,34 @@
 # Changelog
 
+## 10.26.0 · le bouton « Ajouter » : pâturage, observations et récoltes au bon endroit — 2026-11-01
+
+Corrections du « + » de la 10.25.0, renommé « Ajouter ». Pas de changement de schéma (version 18), aucune migration : les anciennes fiches « Pâturage » enregistrées comme travaux restent dans Travaux.
+
+**À faire à la mise à jour : republier `firestore.rules`** (console Firebase ou `firebase deploy --only firestore:rules`). Sans cela, l’opérateur terrain d’une exploitation partagée verra ses mises au pré refusées à la synchronisation.
+
+Pâturage :
+- « Ajouter » puis Pâturage enregistre un vrai passage d’animaux (et non plus un travail) : mettre un lot au pré, le rentrer ou le changer de pré, avec lot, animaux choisis dans le troupeau, effectif et catégorie ; les écrans Troupeau, carte et accueil le voient aussitôt ;
+- contrôles de la mise au pré : pré déjà occupé, repos, délai de rentrée après traitement, parcelle qui n’est pas une prairie ; le troupeau est présenté par lot et un animal choisi quitte son ancien lot ; un effectif saisi sans choisir les animaux ne double plus le troupeau ;
+- une date future crée un travail « À faire » ; le terminer ouvre « Mettre au pré » prérempli ;
+- un pâturage ne coche plus des tâches sans rapport (clôture, abreuvoir) ;
+- l’opérateur terrain peut créer et modifier un passage, sans le supprimer (même règle dans l’application et dans `firestore.rules`) ; pour lui, « Annuler » ne supprime pas ;
+- les équivalences UGB ne changent pas : ovins, caprins, équins et bœufs restent comptés à 1 UGB avec l’avertissement existant, à valider.
+
+Autres types :
+- la tuile Observation enregistre une observation ; Récolte et Fauche demandent quantité et rendement (récolte rattachée à un lot) ; le Semis met à jour la culture de la parcelle ;
+- plus de dose enregistrée par défaut : un traitement terminé exige un produit, une dose vide est signalée ; unité adaptée au type ; la dose prévue n’est plus écrasée à la clôture, ni la culture du travail prévu ;
+- les champs métier de l’étape 3 sont facultatifs, avec un rappel après l’enregistrement s’ils restent vides ; contrôle des haies et délai avant récolte comme au formulaire complet ;
+- note, heure, matériel et produits complets ; « Formulaire complet » garde tous les choix et le statut ; le brouillon reprend heure, éléments écartés, motif de dérogation et dose.
+
+Le geste :
+- sous « Quel travail ? », une rangée compacte Tâche · Vêlage · Pesée · Soin, selon vos activités et votre rôle ;
+- un lecteur n’ouvre plus la saisie, un onglet en lecture seule le dit dès l’ouverture ; parcelle connue présélectionnée ; plus d’impasse sans parcelle ; liste stable pendant les coches ; retour et fermeture confirmés ;
+- les écritures d’un même enregistrement sont groupées : pas de doublon en cas de nouvel essai.
+
+Non traité dans cette version : parcelles hors exploitation, animaux de tiers, ajout automatique des veaux au lot après un vêlage, écran de rattrapage des anciennes fiches Pâturage.
+
+Technique : nouveaux modules quick-grazing.js et quick-grazing-ui.js (dans CORE du service worker) ; tests test-quick-grazing.mjs et specs Playwright paturage-plus, plus-ecritures, plus-metier, saisie-plus.
+
 ## 10.25.0 · nouvelle navigation : Accueil, Carte, +, Parcelles, Troupeau — 2026-10-28
 
 Refonte n° 160 « Parcelles, sans le fourre-tout » : l’application s’organise autour des quatre gestes du quotidien (saisir un travail, regarder la carte, ouvrir une parcelle, suivre le troupeau). Aucune fonction supprimée, pas de changement de schéma (version 18).

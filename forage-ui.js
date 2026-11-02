@@ -124,5 +124,5 @@ ${entry==='harvest'?field('msPct','Matière sèche (%)',t?`${t.msPct} % par déf
     if(name==='save-settings')return saveSettings();
   }
   document.addEventListener('click',ev=>{const c=ev.target.closest('[data-forage]');if(!c||c.disabled)return;c.disabled=true;action(c.dataset.forage,c).catch(error=>toast(error.message,'error')).finally(()=>{c.disabled=false;});});
-  return{open};
+  return{open,openRecord}; // openRecord : « Ajouter la récolte de fourrage » après une fauche saisie au « + »
 }

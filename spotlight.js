@@ -6,12 +6,12 @@ import {parsePeriod} from './query-engine.js';
 
 // Actions directes, en plus des outils de Plus : [mots-clés, libellé, action, description].
 export const SPOTLIGHT_ACTIONS = [
-  ['nouveau travail ajouter travail saisir', 'Nouveau travail', 'new-work', 'Saisir un travail'],
+  ['nouveau travail ajouter travail saisir', 'Ajouter un travail', 'new-work', 'Travail fait ou prévu'],
   ['nouvelle tache rappel', 'Nouvelle tâche', 'new-task', 'Ajouter une tâche'],
   ['troupeau lots vaches animaux pre velage', 'Troupeau', 'open-herd-view', 'Lots au pré, déplacer un lot, vêlages'],
   ['planning travaux agenda semaine calendrier', 'Planning', 'open-planning', 'Travaux à faire, en retard et réalisés'],
   ['nouvelle parcelle creer parcelle', 'Nouvelle parcelle', 'new-parcel', 'Dessiner ou saisir une parcelle'],
-  ['nouveau lot sortir les vaches mise a l herbe animaux pre paturage', 'Sortir un lot au pré', 'new-grazing', 'Nouveau pâturage'],
+  ['nouveau lot sortir les vaches mise a l herbe animaux pre', 'Mettre un lot au pré', 'new-grazing', 'Effectif, catégorie et prés'],
   ['nouvelle observation constat anomalie', 'Nouvelle observation', 'new-observation', 'Noter un constat terrain'],
   ['nouveau materiel tracteur machine', 'Nouveau matériel', 'new-equipment', 'Ajouter un engin'],
   ['nouveau stock produit intrant', 'Nouveau produit en stock', 'new-stock', 'Ajouter un article'],

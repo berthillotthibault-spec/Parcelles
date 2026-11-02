@@ -32,7 +32,8 @@ export const fieldActions = {
   'start-chantier-parcel'({id, control}) { ctx.closeModal(); ctx.openFieldSessionStart(id,{chantierId:control.dataset.chantierId}); },
   'open-grazing'() { ctx.openGrazing(); },
   'open-grazing-parcel'({id}) { ctx.openGrazing({parcelId:id}); },
-  'new-grazing'() { ctx.closeModal(); ctx.openGrazingForm(); },
+  // Mise au pré : dans le « + » ; le formulaire reste pour la modification.
+  'new-grazing'({control}) { ctx.closeModal(); ctx.openGrazingEntry({parcelIds: control?.dataset.parcelId ? [control.dataset.parcelId] : []}); },
   'edit-grazing'({id}) { const g=ctx.store.get('grazingSessions',id); if(g){ctx.closeModal();ctx.openGrazingForm(g);} },
   'move-grazing'({id}) { const g=ctx.store.get('grazingSessions',id); if(g){ctx.closeModal();ctx.getGrazingUI().openMove(g);} },
   async 'end-grazing'({id}) {

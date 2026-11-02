@@ -17,7 +17,11 @@ const txt=(v,max=80)=>String(v??'').trim().replace(/\s+/g,' ').slice(0,max);
 const day=v=>String(v||'').slice(0,10);
 const dayMs=d=>Date.parse(`${d}T12:00:00Z`);
 
-export const isSowingWork=work=>/\b(semis|seme|semer|semee|resemis|implantation|plantation)\b/.test(normalize(work?.type));
+export const isSowingWork=work=>{
+  if(work?.kind)return work.kind==='seed'; // genre choisi sous « Autre… » : il prime sur le libellé
+  const type=normalize(work?.type);
+  return /\b(semis|seme|semer|semee|resemis|sursemis|implantation|plantation)\b/.test(type)&&!/\bhaies?\b/.test(type);
+};
 
 /** Normalise la saisie du formulaire (champs seed*) ; null si rien n'est renseigné. */
 export function normalizeSeed(v={}){

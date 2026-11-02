@@ -1,8 +1,8 @@
 // Coût de revient par culture (n° 81) et assistant de complétude des coûts (n° 84).
 // Logique pure : aucun accès au DOM. Les écritures passent par le Store et ne remplacent
 // jamais un coût déjà renseigné ; une estimation porte costSource « estimé ».
-import {campaignFor,normalize} from './utils.js';
-import {active,completed} from './farm-memory.js';
+import {campaignFor,normalize,toNullableNumber,toNumber} from './utils.js';
+import {active,completed,isObservationWork} from './farm-memory.js';
 import {economicSituation} from './advanced-economics.js';
 import {requiredStock} from './work-effects.js';
 
@@ -42,6 +42,20 @@ const effectParts=(state,work)=>{
 };
 
 // Références €/ha par type de travail : coûts réels (jamais estimés) rapportés à la surface.
+// Coûts d'un travail (formulaire complet et saisie du « + ») : chaque poste saisi l'emporte, sinon il est calculé
+// (machine x heures, carburant x prix, dose x prix x surface).
+const filled=value=>String(value??'').trim();
+export function workCosts(v,{machines,data}){
+  const machine=machines.find(m=>m.id===v.equipmentId),duration=toNullableNumber(v.duration),fuel=toNullableNumber(v.fuel);
+  const machineCost=filled(v.machineCost)?toNumber(v.machineCost):(machine&&duration!==null?duration*toNumber(machine.hourlyCost):0);
+  const fuelCost=filled(v.fuelCost)?toNumber(v.fuelCost):(fuel!==null?fuel*toNumber(data.preferences?.fuelPrice):0);
+  const priced=toNullableNumber(v.dose)!==null&&toNullableNumber(v.productUnitPrice)!==null&&toNullableNumber(v.surfaceWorked)!==null;
+  const inputCost=filled(v.inputCost)?toNumber(v.inputCost):(priced?toNumber(v.dose)*toNumber(v.productUnitPrice)*toNumber(v.surfaceWorked):0);
+  const operatorCost=toNumber(v.operatorCost),otherCost=toNumber(v.otherCost);
+  const components=machineCost+fuelCost+inputCost+operatorCost+otherCost,total=filled(v.cost)?toNumber(v.cost):components;
+  return{duration,fuel,machineCost,fuelCost,inputCost,operatorCost,otherCost,total};
+}
+
 export function costReferences(state){
   const refs=new Map();
   for(const w of active(state,'interventions')){
@@ -64,7 +78,7 @@ export function proposeCost(state,work,{references=costReferences(state),rates=s
 
 export function costCompletion(state,{campaign=null}={}){
   const references=costReferences(state),rates=state.preferences?.costRates||{},parcels=new Map(active(state,'parcelles').map(p=>[p.id,p]));
-  const candidates=active(state,'interventions').filter(w=>completed(w)&&!hasCost(w)&&(!campaign||workCampaign(w)===campaign));
+  const candidates=active(state,'interventions').filter(w=>completed(w)&&!isObservationWork(w)&&!hasCost(w)&&(!campaign||workCampaign(w)===campaign));
   const rows=candidates.filter(w=>!w.costEstimateDismissedAt).map(work=>({work,parcel:parcels.get(work.parcelId)||null,area:workArea(state,work),proposal:proposeCost(state,work,{references,rates})}))
     .sort((a,b)=>String(b.work.date||'').localeCompare(String(a.work.date||''))||String(a.work.type||'').localeCompare(String(b.work.type||''),'fr'));
   const proposed=rows.filter(r=>r.proposal);
