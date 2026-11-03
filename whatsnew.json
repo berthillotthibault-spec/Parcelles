@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.28.0",
+      "date": "2026-11-03",
+      "title": "À surveiller, appli par appli",
+      "items": [
+        "Chaque appli commence par ce qui demande votre attention : entretiens, stocks, échéances, sauvegarde.",
+        "Facturation : clients à relancer et montant en retard, prestations à facturer, devis à suivre.",
+        "Une ligne ouvre directement la fiche ou l’onglet concerné."
+      ]
+    },
+    {
       "version": "10.27.0",
       "date": "2026-11-03",
       "title": "Plusieurs applis en une",

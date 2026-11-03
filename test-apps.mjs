@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {appAlerts, billingSummary} from './apps.js';
 import {APPS, APP_IDS, DEFAULT_APP, appById, appForAction, appForView, appRoute, appTools, normalizeAppId, parseAppRoute, returnChip, startScreen, switchTarget, visibleApps} from './apps.js';
 import {TOOL_MODULES} from './activity-modules.js';
 
@@ -102,4 +103,31 @@ test('ouverture sur la dernière appli utilisée, si elle est encore visible', (
   assert.deepEqual(startScreen('facturation'), {app: 'facturation', view: 'space'});
   assert.deepEqual(startScreen('troupeau'), {app: 'troupeau', view: 'herd'});
   assert.deepEqual(startScreen('troupeau', ['champs', 'reglages']), {app: 'champs', view: 'today'});
+});
+
+test('alertes rangées par appli (lignes de computeNotifications)', () => {
+  const rows = [
+    {id: 'maintenance-m1', level: 'urgent', entity: 'materiels'},
+    {id: 'stock-s1', level: 'warning', entity: 'stockItems'},
+    {id: 'deadline-certiphyto-x', level: 'warning', entity: 'regulated'},
+    {id: 'grazing-open-g1', level: 'warning', entity: 'grazingSessions'},
+    {id: 'backup-old', level: 'warning'},
+    {id: 'task-overdue-t1', level: 'urgent', entity: 'tasks'}
+  ];
+  assert.deepEqual(appAlerts('materiel', rows).map(r => r.id), ['maintenance-m1']);
+  assert.deepEqual(appAlerts('gestion', rows).map(r => r.id), ['stock-s1']);
+  assert.deepEqual(appAlerts('reglementaire', rows).map(r => r.id), ['deadline-certiphyto-x']);
+  assert.deepEqual(appAlerts('troupeau', rows).map(r => r.id), ['grazing-open-g1']);
+  assert.deepEqual(appAlerts('reglages', rows).map(r => r.id), ['backup-old']);
+  assert.deepEqual(appAlerts('champs', rows), [], 'Champs a son propre accueil');
+  assert.deepEqual(appAlerts('materiel', [null, {}]), []);
+});
+
+test('résumé de la facturation : compteurs non nuls, montant en retard', () => {
+  assert.deepEqual(billingSummary({}), []);
+  const rows = billingSummary({reminders: [{}, {}], unbilled: [{}], quotes: [], recurring: [{}], lateTotal: 1080});
+  assert.deepEqual(rows.map(r => [r.key, r.count]), [['reminders', 2], ['unbilled', 1], ['recurring', 1]]);
+  assert.equal(rows[0].label, 'clients à relancer');
+  assert.equal(rows[0].amount, 1080);
+  assert.equal(rows[1].label, 'prestation à facturer');
 });

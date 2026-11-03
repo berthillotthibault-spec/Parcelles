@@ -3393,3 +3393,11 @@ html[data-view="map"] .app-return-bar,html[data-view="parcel"] .app-return-bar{p
 .apps-grid.is-compact .app-tile-icon{width:36px;height:36px;border-radius:11px}
 .apps-grid.is-compact .app-tile small{display:none}
 }
+/* n° 161, étape 3 : « À surveiller » en tête de la page d'une appli. */
+@layer theme{
+.app-watch-row.is-urgent>span:first-child,.app-watch-row.is-bad>span:first-child{color:var(--danger)}
+.app-watch-row.is-warning>span:first-child,.app-watch-row.is-warn>span:first-child{color:var(--warning)}
+.app-watch-count{font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+.app-watch-calm{display:flex;align-items:center;gap:8px;margin:0;color:var(--text-secondary)}
+.app-watch-calm .ui-icon{color:var(--success,var(--brand))}
+}

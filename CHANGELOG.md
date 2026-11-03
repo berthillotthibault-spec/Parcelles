@@ -1,5 +1,14 @@
 # Changelog
 
+## 10.28.0 · « À surveiller » en tête de chaque appli (n° 161, étape 3) — 2026-11-03
+
+Pas de changement de schéma (version 18), aucune migration, règles Firebase inchangées.
+
+- la page de chaque appli commence par **À surveiller** : Matériel (entretiens dépassés ou proches), Gestion (stocks faibles ou épuisés), Réglementaire (Certiphyto, contrôle pulvérisateur, assurance, conseil stratégique), Réglages (sauvegarde ancienne, synchronisation en attente). Ce sont les alertes de la cloche, rangées par appli : chaque ligne ouvre la fiche concernée, cinq au plus puis « Voir les N alertes » ;
+- **Facturation** : clients à relancer (avec le montant en retard), prestations à facturer, devis à suivre et factures récurrentes dues, mêmes chiffres que l'onglet « À faire » qu'ils ouvrent ;
+- « Rien à signaler » quand tout est à jour ;
+- `test-apps.mjs` est désormais lancé par `npm test` (il ne l'était pas en 10.27.0).
+
 ## 10.27.0 · plusieurs applis en une (n° 161) — 2026-11-03
 
 Parcelles se présente comme plusieurs applis qui partagent les mêmes données. Pas de changement de schéma (version 18), aucune migration, règles Firebase inchangées.

@@ -4,9 +4,10 @@
 // seulement (html[data-app]) quand une autre appli est ouverte.
 import {html, raw} from './safe-html.js';
 import {icon} from './ui.js';
-import {APPS, DEFAULT_APP, LAST_APP_KEY, appById, appTools, normalizeAppId, returnChip, startScreen, switchTarget, visibleApps} from './apps.js';
+import {formatEuro} from './utils.js';
+import {APPS, DEFAULT_APP, LAST_APP_KEY, ALERT_RULES, appAlerts, appById, appTools, billingSummary, normalizeAppId, returnChip, startScreen, switchTarget, visibleApps} from './apps.js';
 
-export function createAppsUI({doc = document, catalog, isVisible, livestock, switchView, currentView, modal, closeModal, readLocal, writeLocal, routeHash, goRoute}) {
+export function createAppsUI({doc = document, catalog, isVisible, livestock, switchView, currentView, modal, closeModal, readLocal, writeLocal, routeHash, goRoute, alerts = () => [], billingTodo = async () => null}) {
   let current = DEFAULT_APP;
   /** Appli et adresse quittées lors d'une bascule automatique : {app, hash} ou null. */
   let back = null;
@@ -138,6 +139,7 @@ export function createAppsUI({doc = document, catalog, isVisible, livestock, swi
         <span class="app-space-icon" aria-hidden="true">${raw(icon(a.icon, {size: 30}))}</span>
         <div><h1 id="app-space-title" class="page-title">${a.title}</h1><p class="lead">${a.desc}</p></div>
       </header>
+      ${watchHtml(a)}
       ${a.plus ? html`<button class="button primary app-space-plus" data-action="${a.plus.action}">${raw(icon('plus', {size: 20}))}<span>${a.plus.label}</span></button>` : ''}
       <section class="app-space-section" aria-labelledby="app-space-tools"><h2 id="app-space-tools" class="section-title">Outils</h2>
         ${tools.length ? html`<div class="menu-list">${tools.map(([title, desc, action, ico]) => html`<button class="menu-row" data-action="${action}"><span>${raw(icon(ico, {size: 19}))}</span><span><strong>${title}</strong><small>${desc}</small></span><b aria-hidden="true">›</b></button>`)}</div>`
@@ -146,6 +148,32 @@ export function createAppsUI({doc = document, catalog, isVisible, livestock, swi
       <section class="app-space-section" aria-labelledby="app-space-others"><h2 id="app-space-others" class="section-title">Autres applis</h2>
         <div class="apps-grid is-compact">${others.map(tileHtml)}</div>
       </section>`);
+    if (a.id === 'facturation') fillBilling(a.id);
+  }
+
+  /** « À surveiller » : alertes de l'appli (notifications.js), ou le résumé de la facturation (rempli ensuite). */
+  function watchHtml(a) {
+    if (a.id === 'facturation') return html`<section class="app-space-section" aria-labelledby="app-space-watch-title"><h2 id="app-space-watch-title">À surveiller</h2><div id="app-space-watch" class="app-watch" aria-live="polite"><p class="app-watch-calm">Calcul en cours…</p></div></section>`;
+    if (!ALERT_RULES[a.id]) return '';
+    const rows = appAlerts(a.id, alerts());
+    const shown = rows.slice(0, 5);
+    return html`<section class="app-space-section" aria-labelledby="app-space-watch-title"><h2 id="app-space-watch-title">À surveiller</h2>
+      ${rows.length ? html`<div class="menu-list app-watch">${shown.map(n => html`<button class="menu-row app-watch-row is-${n.level || 'info'}" data-action="notification-open" data-entity="${n.entity || ''}" data-id="${n.entityId || ''}"><span>${raw(icon(n.level === 'info' ? 'bell' : 'alert', {size: 19}))}</span><span><strong>${n.title}</strong><small>${n.message || ''}</small></span><b aria-hidden="true">›</b></button>`)}${rows.length > shown.length ? html`<button class="menu-row app-watch-more" data-action="open-notifications"><span>${raw(icon('bell', {size: 19}))}</span><span><strong>Voir les ${rows.length} alertes</strong></span><b aria-hidden="true">›</b></button>` : ''}</div>`
+        : html`<p class="app-watch-calm">${raw(icon('check', {size: 18}))}<span>Rien à signaler.</span></p>`}
+    </section>`;
+  }
+
+  /** Compteurs de la facturation (billing-hub.js chargé à la demande) ; chaque ligne ouvre « À faire ». */
+  async function fillBilling(id) {
+    let todo = null;
+    try { todo = await billingTodo(); } catch { todo = null; }
+    const box = doc.getElementById('app-space-watch');
+    if (!box || current !== id) return;
+    if (!todo) { box.innerHTML = String(html`<p class="app-watch-calm">Résumé indisponible : ouvrez « À faire ».</p>`); return; }
+    const rows = billingSummary(todo);
+    box.innerHTML = String(rows.length
+      ? html`<div class="menu-list">${rows.map(r => html`<button class="menu-row app-watch-row is-${r.tone}" data-action="open-invoices" data-tab="afaire"><span class="app-watch-count">${r.count}</span><span><strong>${r.label}</strong>${r.amount ? html`<small>${formatEuro(r.amount)} en retard</small>` : ''}</span><b aria-hidden="true">›</b></button>`)}</div>`
+      : html`<p class="app-watch-calm">${raw(icon('check', {size: 18}))}<span>Rien à relancer ni à facturer.</span></p>`);
   }
 
   function tileHtml(a) {

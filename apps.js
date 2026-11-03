@@ -180,3 +180,42 @@ export function startScreen(lastApp, visibleIds = APP_IDS) {
   const app = visibleIds.includes(id) ? appById(id) : appById(DEFAULT_APP);
   return {app: app.id, view: app.home};
 }
+
+/**
+ * Alertes d'une appli (n° 161, étape 3) : tri des lignes de computeNotifications (notifications.js) selon
+ * l'appli qu'elles concernent. Champs a déjà son accueil ; la facturation a son propre résumé (hubTodo).
+ * @type {Record<string, (row: {id: string, entity?: string}) => boolean>}
+ */
+export const ALERT_RULES = {
+  troupeau: row => row.entity === 'grazingSessions' || row.id.startsWith('grazing'),
+  materiel: row => row.entity === 'materiels',
+  gestion: row => row.entity === 'stockItems',
+  reglementaire: row => row.id.startsWith('deadline-'),
+  reglages: row => row.id === 'sync-queue' || row.id === 'backup-old'
+};
+
+/**
+ * @param {string} id
+ * @param {{id: string, entity?: string, level?: string}[]} rows déjà triées par gravité
+ */
+export function appAlerts(id, rows = []) {
+  const rule = ALERT_RULES[id];
+  return rule ? rows.filter(row => row && typeof row.id === 'string' && rule(row)) : [];
+}
+
+/**
+ * Résumé de la facturation à partir de hubTodo (billing-hub.js) : quatre compteurs, chacun ouvrant
+ * l'onglet « À faire » de la facturation. Les compteurs à zéro sont omis.
+ * @param {{reminders?: any[], quotes?: any[], unbilled?: any[], recurring?: any[], lateTotal?: number}} todo
+ * @returns {{key: string, count: number, label: string, tone: string, amount?: number}[]}
+ */
+export function billingSummary(todo = {}) {
+  const n = list => (Array.isArray(list) ? list.length : 0);
+  const rows = [
+    {key: 'reminders', count: n(todo.reminders), label: n(todo.reminders) > 1 ? 'clients à relancer' : 'client à relancer', tone: 'bad', amount: Number(todo.lateTotal) || 0},
+    {key: 'unbilled', count: n(todo.unbilled), label: n(todo.unbilled) > 1 ? 'prestations à facturer' : 'prestation à facturer', tone: 'warn'},
+    {key: 'quotes', count: n(todo.quotes), label: n(todo.quotes) > 1 ? 'devis à suivre' : 'devis à suivre', tone: 'warn'},
+    {key: 'recurring', count: n(todo.recurring), label: n(todo.recurring) > 1 ? 'factures récurrentes dues' : 'facture récurrente due', tone: 'warn'}
+  ];
+  return rows.filter(row => row.count > 0);
+}
