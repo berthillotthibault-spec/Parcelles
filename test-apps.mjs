@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {appAlerts, billingSummary} from './apps.js';
+import {appAlerts, billingSummary, tpSummary} from './apps.js';
 import {APPS, APP_IDS, DEFAULT_APP, appById, appForAction, appForView, appRoute, appTools, normalizeAppId, parseAppRoute, returnChip, startScreen, switchTarget, visibleApps} from './apps.js';
 import {TOOL_MODULES} from './activity-modules.js';
 
@@ -130,4 +130,13 @@ test('résumé de la facturation : compteurs non nuls, montant en retard', () =>
   assert.equal(rows[0].label, 'clients à relancer');
   assert.equal(rows[0].amount, 1080);
   assert.equal(rows[1].label, 'prestation à facturer');
+});
+
+test('chantiers TP : en cours, planifiés, en pause ; les chantiers agricoles et supprimés sont ignorés', () => {
+  assert.deepEqual(tpSummary(), []);
+  const rows = tpSummary([
+    {kind: 'tp', status: 'En cours'}, {kind: 'tp', status: 'En cours'}, {kind: 'tp'}, {kind: 'tp', status: 'Terminé'},
+    {kind: 'tp', status: 'En pause', deletedAt: '2026-01-01'}, {status: 'En cours'}
+  ]);
+  assert.deepEqual(rows, [{key: 'running', count: 2, label: 'chantiers en cours'}, {key: 'planned', count: 1, label: 'chantier planifié'}]);
 });

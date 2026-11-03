@@ -219,3 +219,20 @@ export function billingSummary(todo = {}) {
   ];
   return rows.filter(row => row.count > 0);
 }
+
+/**
+ * Chantiers de travaux publics (chantiers de kind 'tp', public-works.js) : en cours, planifiés, en pause.
+ * Pas d'alerte inventée : un simple état, chaque ligne ouvrant la liste des chantiers.
+ * @param {{kind?: string, status?: string, deletedAt?: unknown}[]} chantiers
+ * @returns {{key: string, count: number, label: string}[]}
+ */
+export function tpSummary(chantiers = []) {
+  const tp = (Array.isArray(chantiers) ? chantiers : []).filter(c => c && !c.deletedAt && c.kind === 'tp');
+  const count = status => tp.filter(c => (c.status || 'Planifié') === status).length;
+  const rows = [
+    {key: 'running', count: count('En cours'), one: 'chantier en cours', many: 'chantiers en cours'},
+    {key: 'planned', count: count('Planifié'), one: 'chantier planifié', many: 'chantiers planifiés'},
+    {key: 'paused', count: count('En pause'), one: 'chantier en pause', many: 'chantiers en pause'}
+  ];
+  return rows.filter(r => r.count > 0).map(({key, count: n, one, many}) => ({key, count: n, label: n > 1 ? many : one}));
+}

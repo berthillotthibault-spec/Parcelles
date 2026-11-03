@@ -5,9 +5,9 @@
 import {html, raw} from './safe-html.js';
 import {icon} from './ui.js';
 import {formatEuro} from './utils.js';
-import {APPS, DEFAULT_APP, LAST_APP_KEY, ALERT_RULES, appAlerts, appById, appTools, billingSummary, normalizeAppId, returnChip, startScreen, switchTarget, visibleApps} from './apps.js';
+import {APPS, DEFAULT_APP, LAST_APP_KEY, ALERT_RULES, appAlerts, appById, appTools, billingSummary, tpSummary, normalizeAppId, returnChip, startScreen, switchTarget, visibleApps} from './apps.js';
 
-export function createAppsUI({doc = document, catalog, isVisible, livestock, switchView, currentView, modal, closeModal, readLocal, writeLocal, routeHash, goRoute, alerts = () => [], billingTodo = async () => null}) {
+export function createAppsUI({doc = document, catalog, isVisible, livestock, switchView, currentView, modal, closeModal, readLocal, writeLocal, routeHash, goRoute, alerts = () => [], billingTodo = async () => null, tpProjects = () => []}) {
   let current = DEFAULT_APP;
   /** Appli et adresse quittées lors d'une bascule automatique : {app, hash} ou null. */
   let back = null;
@@ -154,6 +154,12 @@ export function createAppsUI({doc = document, catalog, isVisible, livestock, swi
   /** « À surveiller » : alertes de l'appli (notifications.js), ou le résumé de la facturation (rempli ensuite). */
   function watchHtml(a) {
     if (a.id === 'facturation') return html`<section class="app-space-section" aria-labelledby="app-space-watch-title"><h2 id="app-space-watch-title">À surveiller</h2><div id="app-space-watch" class="app-watch" aria-live="polite"><p class="app-watch-calm">Calcul en cours…</p></div></section>`;
+    if (a.id === 'tp') {
+      const rows = tpSummary(tpProjects());
+      return html`<section class="app-space-section" aria-labelledby="app-space-watch-title"><h2 id="app-space-watch-title">Chantiers</h2>
+        ${rows.length ? html`<div class="menu-list">${rows.map(r => html`<button class="menu-row app-watch-row" data-action="open-public-works"><span class="app-watch-count">${r.count}</span><span><strong>${r.label}</strong></span><b aria-hidden="true">›</b></button>`)}</div>`
+          : html`<p class="app-watch-calm">${raw(icon('check', {size: 18}))}<span>Aucun chantier en cours ni prévu.</span></p>`}</section>`;
+    }
     if (!ALERT_RULES[a.id]) return '';
     const rows = appAlerts(a.id, alerts());
     const shown = rows.slice(0, 5);

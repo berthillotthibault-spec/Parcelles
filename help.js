@@ -183,6 +183,12 @@ export const HELP = {
     'Faites régulièrement une sauvegarde hors du téléphone : clé USB, ordinateur ou messagerie.',
     'Une sauvegarde restaurée remplace les données de cet appareil : vérifiez sa date.'
   ], link: {label: 'Sauvegarder maintenant', action: 'backup-now'}, tip: 'Astuce : la sauvegarde chiffrée protège vos données par un mot de passe.'},
+  // n° 161 : le lanceur « Mes applis » (logo en haut à gauche).
+  apps: {match: /^Mes applis$/i, title: 'Mes applis', points: [
+    'Parcelles regroupe plusieurs applis : Champs, Troupeau, Facturation, Matériel, Gestion, Réglementaire… Vos données sont les mêmes partout.',
+    'Chaque appli a sa couleur, sa barre du bas et son bouton « + ». Elle commence par ce qui demande votre attention.',
+    'Un bouton d’une autre appli vous y emmène tout seul : la pastille « Retour à … » vous ramène où vous étiez.'
+  ], tip: 'Astuce : Parcelles se rouvre sur la dernière appli utilisée.'},
   sync: {match: /^(Synchronisation|Compte & équipe|Sécurité & synchronisation|Conflit de synchronisation)/i, title: 'Synchronisation', points: [
     'Avec un compte, vos saisies passent d’un appareil à l’autre dès que le réseau revient.',
     'Sans réseau, tout est gardé sur l’appareil et envoyé plus tard.',

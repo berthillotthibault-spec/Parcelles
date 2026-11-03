@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.28.1 · aide « Mes applis » et chantiers TP — 2026-11-03
+
+Compléments du n° 161. Pas de changement de schéma (version 18), aucune migration, règles Firebase inchangées.
+
+- le lanceur « Mes applis » a sa fiche d'aide (bouton « ? ») : ce que sont les applis, leur barre, la bascule et la pastille de retour ;
+- l'appli Travaux publics commence par ses chantiers en cours, planifiés et en pause (chacun ouvre la liste) ;
+- nouveau parcours Playwright `tests-visual/applis.spec.mjs` : lanceur, barre de l'appli, réouverture sur la dernière appli, bascule et pastille, retour arrière, adresse d'une appli cachée.
+
 ## 10.28.0 · « À surveiller » en tête de chaque appli (n° 161, étape 3) — 2026-11-03
 
 Pas de changement de schéma (version 18), aucune migration, règles Firebase inchangées.
