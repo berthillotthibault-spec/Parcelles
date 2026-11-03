@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {parseArgs, buildString, setBuild, coverage, appendToList, CORE_RE, bumpCssVersion, bumpChangedCss, stylesheets, lazySheets, sheetVersions, bumpLazySheets, changelogEntry, whatsNewEntry, release, UPLOAD_EXCLUDE} from './tools/release.mjs';
+import {execFileSync} from 'node:child_process';
+import {parseArgs, buildString, setBuild, coverage, appendToList, CORE_RE, bumpCssVersion, bumpChangedCss, stylesheets, lazySheets, sheetVersions, bumpLazySheets, changelogEntry, whatsNewEntry, release, UPLOAD_EXCLUDE, uploadPlan} from './tools/release.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 
@@ -115,4 +116,18 @@ test('dossier d’upload : fichiers des assistants et CLAUDE.md exclus', () => {
   const excluded = rel => UPLOAD_EXCLUDE.some(re => re.test(rel));
   for (const rel of ['.claude/settings.json', '.cursor/x', '.kiro/y', 'CLAUDE.md', 'node_modules/a.js']) assert.ok(excluded(rel), rel);
   for (const rel of ['app.js', 'fixtures/backups/v17.json', 'tools/release.mjs', 'docs/CLAUDE.md']) assert.ok(!excluded(rel), rel);
+});
+
+test('dossier d’upload : un nouveau module non suivi n’est pas « à supprimer », un fichier effacé l’est (n° 160)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'parcelles-plan-'));
+  const git = (...args) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {cwd: dir, stdio: 'pipe'});
+  try {
+    git('init', '-q');
+    for (const f of ['a.js', 'neuf.js', 'vieux.js']) fs.writeFileSync(path.join(dir, f), `// ${f}\n`);
+    git('add', '.'); git('commit', '-qm', 'base');
+    git('rm', '-q', '--cached', 'neuf.js'); fs.rmSync(path.join(dir, 'vieux.js'));
+    const plan = uploadPlan(dir, 'HEAD');
+    assert.deepEqual(plan.deleted, ['vieux.js']);
+    assert.ok(plan.files.includes('neuf.js'));
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });

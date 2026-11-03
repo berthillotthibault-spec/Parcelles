@@ -59,6 +59,12 @@ for(const entry of fs.readdirSync(root,{withFileTypes:true})){
   const ext=path.extname(entry.name).toLowerCase();
   assert.ok(SERVED_EXT.has(ext),`${entry.name} : extension ${ext||'(aucune)'} interdite à la racine publiée (données réelles ou fichier non servi ?)`);
 }
+// Une image ou une police à la racine doit être citée par un fichier servi : une capture d'écran oubliée
+// (s.png, publié avec la 10.26.0) partirait sinon en ligne au téléversement.
+const MEDIA_EXT=new Set(['.png','.svg','.ico','.jpg','.jpeg','.webp','.woff','.woff2']);
+const servedText=fs.readdirSync(root).filter(f=>/\.(html|js|css|json|webmanifest)$/.test(f)).map(f=>fs.readFileSync(path.join(root,f),'utf8')).join('\n');
+const orphans=fs.readdirSync(root).filter(f=>MEDIA_EXT.has(path.extname(f).toLowerCase())&&!new RegExp(`(^|[^\\w.-])${f.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}`).test(servedText));
+assert.deepEqual(orphans,[],`image ou police non référencée à la racine publiée : ${orphans.join(', ')}`);
 // Régression visuelle (n° 146) : tests-visual/ ne contient que la configuration, les scénarios (.mjs)
 // et les références PNG de __screenshots__ ; les sorties d'exécution (.resultats, .rapport) sont ignorées par git.
 const VISUAL_DIR=path.join(root,'tests-visual');

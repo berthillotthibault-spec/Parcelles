@@ -46,7 +46,8 @@ service firebase.storage {
     // jamais réécrit (un nouvel instantané a un nouveau nom). permissions.js : capacité 'cloud-snapshot'.
     match /workspaces/{workspaceId}/snapshots/{fileId} {
       allow read, delete: if isOwner(workspaceId);
-      allow create: if isOwner(workspaceId)
+      // resource == null : un instantané n'est jamais réécrit (l'émulateur classe l'écrasement en « create »).
+      allow create: if isOwner(workspaceId) && resource == null
         && fileId.matches('parcelles-instantane-[0-9]{8}T[0-9]{6}Z(-chiffre)?[.]json')
         && request.resource.size < 50 * 1024 * 1024
         && request.resource.contentType == 'application/json';

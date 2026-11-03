@@ -4,11 +4,14 @@
 
 Corrections de la 10.26.0. Pas de changement de schéma (version 18), aucune migration, `firestore.rules` inchangé depuis la 10.26.0.
 
+**À faire à la mise à jour : republier `storage.rules`** (console Firebase › Storage › Règles, ou `firebase deploy --only storage`). Un instantané cloud ne peut plus être réécrit sous le même nom (constaté à l’émulateur : l’écrasement passait).
+
 - un prévu clos en même temps que la saisie passe « Annulé » (rattaché au passage réel) : plus de traitement compté deux fois au registre, à l’IFT et à l’azote ; un retard sans produit ne bloque plus l’enregistrement ;
 - répartition des quantités entre parcelles sans part négative (balles, récolte, durée, carburant) ; l’unité choisie à la main est gardée par les boutons + et − ; un brouillon repris ne garde plus la dose d’un prévu qui n’est plus clos ;
 - pâturage : un animal sorti ou absent à la date n’est plus écrit dans le lot ; un lot vidé est toujours clos ; la sortie prévue est conservée au retrait d’un animal ; « Enregistrer le reste » est annulé si la saisie change ; une date de déplacement avant l’entrée est refusée ; le rappel « Lot encore ouvert ? » du 1er janvier exige 30 jours ; « Toujours là » est enregistré sur le passage et suit la synchronisation ;
 - formulaire Travail : « Mettre au pré » clôt le pâturage prévu ; case « Facturable » pour rendre un travail de nouveau facturable ; un ancien traitement terminé sans produit reste modifiable (avertissement) ; décocher « phytosanitaire » sort bien le travail du registre ; clore un pâturage en retard propose la date du jour ;
 - export pâturage : libellé de la catégorie ; double échappement de « Retirer du lot ? » ; bouton « Changer » de l’étape 3 à 48 px ;
+- outillage : `npm run test:horloge` relance les tests avec l’horloge avancée de 400 et 800 jours (aussi en CI) ; test-static refuse une image ou une police non référencée à la racine ; `tools/release.mjs` ne propose plus de supprimer un nouveau module non encore suivi par git ; tests des règles à l’émulateur : 70 sur 70 ;
 - quick-grazing.js n’est plus chargé au démarrage ; tests rendus indépendants de la date du jour (facturation, requêtes, notifications, pilotage).
 
 ## 10.26.0 · le bouton « Ajouter » : pâturage, observations et récoltes au bon endroit — 2026-11-01
