@@ -13,8 +13,8 @@ assert.match(BUILD_ID,/^\d{4}\.\d{2}\.\d{2}-v[\w.-]+$/);
 const state=emptyState();
 state.preferences.autoBackup=false;
 state.parcelles.push(
-  {id:'p1',nom:'Blé Nord',surfaceHa:10,culture:'Blé',ownershipType:'own',economics:{yield:70,yieldUnit:'q/ha',salePrice:22,inputCostHa:100,operatorCostHa:20,otherCostHa:30},deletedAt:null},
-  {id:'p2',nom:'Prairie',surfaceHa:5,culture:'Prairie',ownershipType:'own',economics:{productHa:700,inputCostHa:30},deletedAt:null}
+  {id:'p1',nom:'Blé Nord',surfaceHa:10,culture:'Blé',ownershipType:'own',economicsByCampaign:{'2026/27':{yield:70,yieldUnit:'q/ha',salePrice:22,inputCostHa:100,operatorCostHa:20,otherCostHa:30}},deletedAt:null},
+  {id:'p2',nom:'Prairie',surfaceHa:5,culture:'Prairie',ownershipType:'own',economicsByCampaign:{'2026/27':{productHa:700,inputCostHa:30}},deletedAt:null}
 );
 state.interventions.push(
   {id:'w1',parcelId:'p1',type:'Semis',date:'2026-09-01',campaignId:'2026/27',cost:500,duration:4,machineCost:250,status:'Terminé',deletedAt:null},

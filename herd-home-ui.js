@@ -27,7 +27,12 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
       root.dataset.stillBound = '1';
       root.addEventListener('click', event => {
         const id = event.target.closest('[data-herd-still]')?.dataset.herdStill;
-        if (id) store.setPreferences({grazingStillThere: {...(state().preferences?.grazingStillThere || {}), [id]: todayIso()}}).then(() => render(root)).catch(error => toast(error.message, 'error'));
+        if (!id) return;
+        // « Toujours là » : écrit sur le passage (synchronisé) ; à défaut de droit d'écriture, réglage de cet appareil.
+        const session = (state().grazingSessions || []).find(s => s.id === id), day = todayIso();
+        const local = () => store.setPreferences({grazingStillThere: {...(state().preferences?.grazingStillThere || {}), [id]: day}});
+        (session ? store.upsert('grazingSessions', {...session, stillThereAt: day}, {label: 'Lot toujours au pré'}).catch(local) : local())
+          .then(() => render(root)).catch(error => toast(error.message, 'error'));
       });
     }
     const summary = doc.getElementById('herd-summary');
@@ -87,6 +92,13 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
   async function move(lot, parcelId) {
     const today = todayIso(), chosen = doc.querySelector('#herd-move-date')?.value, date = chosen && chosen <= today ? chosen : today;
     if (moving) return; // double appui (gants, rebond) : un seul déplacement
+    // L'attribut min ne bloque pas une date tapée : contrôle ici, rien n'est écrit.
+    if (chosen && chosen < lot.startDate) {
+      const box = doc.querySelector('#modal-root .herd-move-alert');
+      if (box) { box.hidden = false; box.innerHTML = String(html`<p>La date doit être postérieure à l’entrée du ${String(lot.startDate).split('-').reverse().join('/')}.</p>`); }
+      doc.querySelector('#herd-move-date')?.focus();
+      return;
+    }
     if (parcelId && pendingAlert !== parcelId) {
       const alert = grazingReentryAlert(state(), parcelId, date);
       if (alert) {

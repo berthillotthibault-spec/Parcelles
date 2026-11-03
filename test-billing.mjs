@@ -119,12 +119,12 @@ test('devis : envoi numéroté, validité, acceptation datée et signée, refus,
   const store=await makeStore();
   const q=await createDraft(store,{clientId:'c1',docType:'devis',lines:[L('Pelle',10,65),L('Cailloux',20,18,10,{unit:'t'})],today:'2026-10-01'});
   assert.equal(q.farmKind,QUOTE_KIND);assert.equal(q.validUntil,'2026-10-31');assert.equal(q.number,null);
-  await assert.rejects(acceptQuote(store,q.id,{signatory:'P. Martin'}),/Envoyez d’abord/);
+  await assert.rejects(acceptQuote(store,q.id,{signatory:'P. Martin',date:'2026-10-01',today:'2026-10-01'}),/Envoyez d’abord/);
   const sent=await emitDocument(store,q.id,{today:'2026-10-01'});
   assert.equal(sent.number,'D2026-0001');assert.equal(sent.status,'envoye');assert.equal(invoiceStatus(sent,store.state,'2026-10-02'),'envoye');
   assert.equal(invoiceStatus(sent,store.state,'2026-11-01'),'expire');
   assert.ok(invoiceHtml(store.state,sent).includes('Bon pour accord'));
-  await assert.rejects(acceptQuote(store,q.id,{signatory:''}),/signataire/);
+  await assert.rejects(acceptQuote(store,q.id,{signatory:'',date:'2026-10-05',today:'2026-10-05'}),/signataire/);
   await assert.rejects(acceptQuote(store,q.id,{signatory:'P. Martin',date:'2026-11-03',today:'2026-11-03'}),/expiré/);
   const ok=await acceptQuote(store,q.id,{signatory:'Paul Martin',date:'2026-10-05',today:'2026-10-05'});
   assert.deepEqual([ok.status,ok.acceptance.signatory,ok.acceptance.goodForAgreement],['accepte','Paul Martin',true]);
@@ -422,14 +422,14 @@ test('correctif : acompte déduit non annulable par avoir, une seule facture de 
   await assert.rejects(emitDocument(store,early.id,{today:'2026-10-05'}),/déjà déduit sur la facture F2026-0002/);
   await deleteDraft(store,early.id);
   await assert.rejects(createCreditNote(store,dep.id,{today:'2026-10-05'}),/établissez l’avoir sur cette facture/);
-  assert.equal(invoiceStatus(doc(store,dep.id),store.state),'emise');
+  assert.equal(invoiceStatus(doc(store,dep.id),store.state,'2026-10-06'),'emise');
   // BT-23 : facture définitive après acompte.
   const xml=facturXml(store.state,fin);assert.ok(xml.includes('<ram:ID>S4</ram:ID>'));assert.deepEqual(validateFacturX(xml).errors,[]);
   assert.ok(facturXml(store.state,dep).includes('<ram:ID>S1</ram:ID>'));
   // La facture de solde annulée par avoir, l’acompte redevient annulable.
   await emitDocument(store,(await createCreditNote(store,fin.id,{today:'2026-10-06'})).id,{today:'2026-10-06'});
   const ok=await createCreditNote(store,dep.id,{today:'2026-10-07'});await emitDocument(store,ok.id,{today:'2026-10-07'});
-  assert.equal(invoiceStatus(doc(store,dep.id),store.state),'annulee');
+  assert.equal(invoiceStatus(doc(store,dep.id),store.state,'2026-10-07'),'annulee');
   // Devis sans acompte : deux conversions simultanées, la seconde facture est refusée à l’émission.
   const q2=await acceptedQuote(store,[L('Fauche',2,80)],{today:'2026-10-07'});
   const two=(await Promise.allSettled([convertQuote(store,q2.id,{today:'2026-10-08'}),convertQuote(store,q2.id,{today:'2026-10-08'})])).filter(r=>r.status==='fulfilled').map(r=>r.value);

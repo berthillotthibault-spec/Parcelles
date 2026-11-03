@@ -237,7 +237,7 @@ function groupRows(items, key, label, value) {
 
 const result = (query, data) => ({recognized: true, query, filtersText: describeFilters(query), ...data});
 
-function runWorks(state, query) {
+function runWorks(state, query, now = Date.now()) {
   const {works, pending, parcels} = matchWorks(state, query);
   const name = w => parcels.get(w.parcelId)?.nom || 'Sans parcelle';
   const groupKey = query.groupBy === 'culture' ? (w => normalize(cultureOf(w, parcels)) || '-') : (w => w.parcelId || '-');
@@ -256,8 +256,8 @@ function runWorks(state, query) {
   if (query.measure === 'parcels') {
     const all = active(state, 'parcelles').filter(p => !p.archived);
     const had = new Set(works.map(w => w.parcelId));
-    const period = query.period || campaignRange(campaignFor(isoDate(new Date())));
-    if (!query.period) { query.period = period; return runWorks(state, query); }
+    const period = query.period || campaignRange(campaignFor(isoDate(new Date(now))));
+    if (!query.period) { query.period = period; return runWorks(state, query, now); }
     const list = query.negate ? all.filter(p => !had.has(p.id)) : all.filter(p => had.has(p.id));
     const rows = list.map(p => [p.nom, p.culture || '', fmt(p.surfaceHa)]);
     const answer = list.length ? `${plural(list.length, 'parcelle', 'parcelles')} : ${list.slice(0, 8).map(p => p.nom).join(', ')}${list.length > 8 ? '…' : ''}.` : (query.negate ? 'Toutes les parcelles en ont eu.' : 'Aucune parcelle.');
@@ -361,7 +361,7 @@ export function executeQuery(query, state, {now = Date.now()} = {}) {
   if (query.entity === 'grazing') return runGrazing(state, query, now);
   if (query.entity === 'harvests') return runHarvests(state, query);
   if (query.entity === 'parcels') return runParcels(state, query);
-  return runWorks(state, query);
+  return runWorks(state, query, now);
 }
 
 export function answerQuery(question, state, options = {}) {

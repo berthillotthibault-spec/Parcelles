@@ -231,9 +231,10 @@ export function longOpenLots(state,{date=new Date(),threshold=null}={}){
   const names=new Map((state?.parcelles||[]).map(p=>[p.id,text(p.nom)]));
   return liveSessions(state?.grazingSessions).filter(s=>grazingStatus(s,{date:day})==='current'&&s.startDate).flatMap(s=>{
     const start=grazingDate(s.startDate),days=daysBetween(start,day);
-    if(days<limit&&start.slice(0,4)===day.slice(0,4))return [];
+    // Changement d'année : rappel seulement pour un lot entré depuis au moins 30 jours (pas le 1er janvier pour une entrée du 28 décembre).
+    if(days<limit&&(start.slice(0,4)===day.slice(0,4)||days<30))return [];
     // « Toujours là » : plus de rappel pendant 30 jours.
-    const ack=typeof stillThere[s.id]==='string'?stillThere[s.id]:'';
+    const ack=[s.stillThereAt,stillThere[s.id]].filter(v=>typeof v==='string'&&v).sort().pop()||'';
     if(ack&&daysBetween(ack,day)<STILL_THERE_DAYS)return [];
     return [{id:s.id,parcelId:s.parcelId,days,total:grazingTotal(s),label:`${names.get(s.parcelId)||'Parcelle'} · ${lotLabel(s)||'Lot'} encore ouvert depuis ${days} jours : encore au pré ?`}];
   });

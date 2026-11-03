@@ -71,7 +71,7 @@ test('actions selon l’état : brouillon, devis envoyé puis accepté, acompte,
   assert.deepEqual(docActions(store.state, doc(store, draft.id), {today}), ['edit', 'emit', 'preview', 'delete']);
   const q = await issued(store, {docType: 'devis', lines: [L('Terrassement', 10, 100)], today: '2026-10-01'});
   assert.deepEqual(docActions(store.state, doc(store, q.id), {today}).slice(0, 3), ['accept', 'send', 'refuse']);
-  await acceptQuote(store, q.id, {date: '2026-10-02', signatory: 'Paul Martin'});
+  await acceptQuote(store, q.id, {date: '2026-10-02', today: '2026-10-02', signatory: 'Paul Martin'});
   assert.deepEqual(docActions(store.state, doc(store, q.id), {today}).slice(0, 2), ['invoice', 'deposit']);
   assert.equal(actionLabel('invoice', doc(store, q.id), store.state), 'Facturer');
   const dep = await createDepositInvoice(store, q.id, {percent: 30, today: '2026-10-03'});
@@ -122,7 +122,7 @@ test('solde : chaque acompte est déduit à l’identique ; acompte + solde = HT
   await saveDraft(store, d.id, {clientId: 'c1', clientName: d.clientName, clientAddress: d.clientAddress, lines: d.lines, issueDate: d.issueDate, validUntil: d.validUntil, discount: {type: 'pct', value: 5}});
   const q = await emitDocument(store, d.id, {today: '2026-10-01'});
   assert.deepEqual([q.totals.ht, q.totals.tva, q.totals.ttc], [864.5, 139.65, 1004.15]);
-  await acceptQuote(store, q.id, {date: '2026-10-02', signatory: 'Paul Martin'});
+  await acceptQuote(store, q.id, {date: '2026-10-02', today: '2026-10-02', signatory: 'Paul Martin'});
   const dep = await createDepositInvoice(store, q.id, {percent: 30, today: '2026-10-03'}); const de = await emitDocument(store, dep.id, {today: '2026-10-03'});
   assert.deepEqual([de.totals.ht, de.totals.ttc], [259.35, 301.25]);
   const fin = await convertQuote(store, q.id, {today: '2026-10-10'}); const fe = await emitDocument(store, fin.id, {today: '2026-10-10'});
@@ -148,7 +148,7 @@ test('frise : création, émission, envoi, relance, paiement, acceptation, conve
   const store = await makeStore();
   const q = await issued(store, {docType: 'devis', lines: [L('Terrassement', 10, 100)], today: '2026-10-01'});
   await logSent(store, q.id, {date: '2026-10-01', channel: 'email', recipients: [{name: 'Paul Martin'}]});
-  await acceptQuote(store, q.id, {date: '2026-10-02', signatory: 'Paul Martin'});
+  await acceptQuote(store, q.id, {date: '2026-10-02', today: '2026-10-02', signatory: 'Paul Martin'});
   const dep = await createDepositInvoice(store, q.id, {percent: 30, today: '2026-10-03'}); await emitDocument(store, dep.id, {today: '2026-10-03'});
   const fin = await convertQuote(store, q.id, {today: '2026-10-10'}); const fe = await emitDocument(store, fin.id, {today: '2026-10-10'});
   await addPayment(store, fe.id, {date: '2026-10-12', amount: 100, method: 'cheque', reference: 'CHQ 42'});
@@ -274,7 +274,7 @@ test('catalogue, prestations non facturées, prix suggéré, encours client et c
   assert.deepEqual(docAdvice(store.state, doc(store, b.id), '2026-10-20'), {text: 'Pas encore envoyée au client.', action: 'send'});
   const q = await issued(store, {docType: 'devis', lines: [L('Terrassement', 1, 100)], today: '2026-10-01'});
   assert.match(docAdvice(store.state, doc(store, q.id), '2026-10-27').text, /Valable encore 4 jours/);
-  await acceptQuote(store, q.id, {date: '2026-10-02', signatory: 'P'});
+  await acceptQuote(store, q.id, {date: '2026-10-02', today: '2026-10-02', signatory: 'P'});
   assert.equal(docAdvice(store.state, doc(store, q.id), '2026-10-27').action, 'deposit');
 });
 

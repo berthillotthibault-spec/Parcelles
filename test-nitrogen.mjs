@@ -5,7 +5,7 @@ import {emptyState} from './state.js';
 import {
   NITROGEN_REFERENCES,FERTILIZER_LIBRARY,nitrogenReferences,cultureReference,precedentEffect,fertilizerFor,nitrogenPerHa,
   olympicAverage,previousCampaigns,yieldHistory,parcelPlan,nitrogenRegister,gauge,banPeriodFor,nitrogenAlerts,
-  nitrogenOverview,nitrogenComplianceChecks,parcelInZone,normalizeComposition,planPdfBlocks,registerPdfBlocks,hasInAppPlan
+  nitrogenOverview,nitrogenComplianceChecks,parcelInZone,normalizeComposition,planPdfBlocks,registerPdfBlocks,hasInAppPlan,isFertilization
 } from './nitrogen.js';
 import {complianceChecks} from './compliance.js';
 
@@ -168,4 +168,9 @@ test('PDF : blocs du PPF et du cahier avec source et mention indicative', ()=>{
   assert.ok(plan.some(b=>b.type==='note'&&/indicatif/.test(b.text)));
   assert.equal(plan.find(b=>b.type==='table').rows.length,2);
   assert.match(reg[0].text,/Cahier/);
+});
+
+test('fertilisation : le genre choisi prime sur le libellé', () => {
+  assert.equal(isFertilization({kind:'none',type:'Épandage lisier'}),false);
+  assert.equal(isFertilization({kind:'fertilize',type:'Apport'}),true);
 });

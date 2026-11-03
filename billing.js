@@ -29,9 +29,10 @@ const carry=(doc,keys)=>Object.fromEntries(keys.filter(k=>doc[k]!==undefined&&do
 export const issueDocument=emitDocument;
 
 // ---------- Devis : acceptation, refus ----------
-export async function acceptQuote(store,id,{date=isoDay(),signatory='',goodForAgreement=true,today=isoDay(),late=false}={}){
+export async function acceptQuote(store,id,{date=isoDay(),signatory='',goodForAgreement=true,today,late=false}={}){
   const q=getDocument(store,id,[QUOTE_KIND]);if(docTypeOf(q)!=='devis')throw Error('Seul un devis s’accepte.');
-  const s=quoteStatus(q,today);
+  // Expiration jugée à la date d’acceptation saisie (pas à l’horloge du jour).
+  const s=quoteStatus(q,today||(validDay(date)?date:isoDay()));
   if(s==='brouillon')throw Error('Envoyez d’abord le devis (il reçoit alors son numéro).');
   if(s==='accepte'||s==='converti')throw Error('Ce devis est déjà accepté.');
   if(s==='refuse')throw Error('Ce devis a été refusé : dupliquez-le pour en établir un nouveau.');

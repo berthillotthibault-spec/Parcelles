@@ -81,6 +81,12 @@ test('quelles parcelles n’ont pas eu de désherbage : négation sur la campagn
   assert.match(r.recipe, /campagne 2026\/27/);
 });
 
+test('négation sans période : campagne déduite de now, pas de l’horloge réelle', () => {
+  const r = answerQuery('Quelles parcelles n’ont pas eu de désherbage ?', state, {now: Date.parse('2024-10-08T10:00:00')});
+  assert.equal(r.query.negate, true);
+  assert.match(r.recipe, /campagne 2024\/25/);
+});
+
 test('regroupement par culture, coût et surface', () => {
   const cost = ask('Coût des labours par parcelle cette campagne');
   assert.equal(cost.value, 200);

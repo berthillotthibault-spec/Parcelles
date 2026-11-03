@@ -73,3 +73,10 @@ test('ZIP complet : dossier lisible/ présent et ignoré par parseCompleteBackup
   assert.equal(parsed.data.parcelles.length, 3);assert.deepEqual(parsed.blobs, []);
   assert.equal(parsed.data.interventions[0].parcelId, 'p1', 'les données restaurées viennent de state.json');
 });
+
+test('pâturage : libellé de la catégorie animale, pas son identifiant', () => {
+  const state = {grazingSessions: [{id: 'g1', parcelId: 'p1', animalCategory: 'vache-laitiere'}, {id: 'g2', animalCategory: 'inconnue'}]};
+  const table = readableTables(state).find(t => t.file === 'paturage.csv');
+  const col = table.columns.find(([label]) => label === 'Catégorie')[1];
+  assert.deepEqual(table.rows.map(col), ['Vache laitière', 'inconnue']);
+});

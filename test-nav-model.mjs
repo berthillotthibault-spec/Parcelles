@@ -5,7 +5,7 @@ import {primaryTabs, sidebarViews, activeNavView, resolveView, isProfileView} fr
 test('barre du bas : Accueil · Carte · + · Parcelles · Troupeau', () => {
   const tabs = primaryTabs();
   assert.deepEqual(tabs.map(t => t.view || t.action), ['today', 'map', 'new-work', 'parcels', 'herd']);
-  assert.deepEqual(tabs.map(t => t.label), ['Accueil', 'Carte', 'Saisir un travail', 'Parcelles', 'Troupeau']);
+  assert.deepEqual(tabs.map(t => t.label), ['Accueil', 'Carte', 'Ajouter', 'Parcelles', 'Troupeau']);
   assert.equal(tabs[2].kind, 'action');
 });
 

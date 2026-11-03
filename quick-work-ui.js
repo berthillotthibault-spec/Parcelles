@@ -210,7 +210,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     const names = new Map(live(state().parcelles).map(p => [p.id, p.nom]));
     const kept = ignored.length ? html`<p class="qw-keep">Reste à faire : ${ignored.map(i => `${i.work.type || 'Travail'} · ${names.get(i.work.parcelId) || 'Parcelle'} (${i.reason})`).join(', ')}</p>` : '';
     if (!items.length) return kept;
-    return html`${kept}<fieldset class="qw-closing"><legend>Sera aussi marqué fait</legend>${items.map(i => html`<label class="qw-close-item">
+    return html`${kept}<fieldset class="qw-closing"><legend>Sera clos (même passage)</legend>${items.map(i => html`<label class="qw-close-item">
       <input type="checkbox" ${i.loose ? html`data-qw-include="${i.id}"${s.include.includes(i.id) ? raw(' checked') : ''}` : html`data-qw-skip="${i.id}"${s.skip.includes(i.id) ? '' : raw(' checked')}`}><span><b>${i.label}</b><small>${i.kind} · ${names.get(i.parcelId) || 'Parcelle'}</small></span></label>`)}</fieldset>`;
   }
 
@@ -733,8 +733,10 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
   function stepDose(dir) {
     const c = cfg();
     const hint = parseDose(s.dose) === null ? doseSuggestion(state(), {type: s.type, kind: s.kind, product: s.product}) : null;
-    const value = Math.max(0, +((parseDose(s.dose) ?? hint?.value ?? 0) + dir * c.step).toFixed(2));
-    if (hint?.unit) { s.doseUnit = hint.unit; showUnit(hint.unit); }
+    // Unité choisie à la main : gardée, et la valeur d'habitude ne sert que si elle est dans cette unité.
+    const usable = hint && (!s.unitTouched || hint.unit === s.doseUnit) ? hint : null;
+    const value = Math.max(0, +((parseDose(s.dose) ?? usable?.value ?? 0) + dir * c.step).toFixed(2));
+    if (usable?.unit && !s.unitTouched) { s.doseUnit = usable.unit; showUnit(usable.unit); }
     s.dose = value; s.doseTouched = true; persist();
     const input = root()?.querySelector('#qw-dose');
     if (input) input.value = formatDose(value, c.digits);
@@ -806,7 +808,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
       if (saved?.grazing) grazing.start({type: saved.type, entry: saved.grazing.entry, screen: saved.grazing.screen, workId: saved.grazing.workId});
       else if (saved && isGrazingType(saved.type)) grazing.start({type: saved.type, parcelIds: saved.parcelIds || []}); // brouillon d'avant cette saisie : jamais de faux pâturage
       else if (saved && isObservationType(saved.type)) { removeDraft(KEY, {storage: storage()}); s = {...s, parcelIds: saved.parcelIds || []}; openObservation(); }
-      else if (saved) { s = {...fresh(), ...saved, typeKind: saved.kind || '', step: saved.pending ? 3 : Math.max(2, saved.step || 2)}; render(); }
+      else if (saved) { s = {...fresh(), ...saved, typeKind: saved.kind || '', step: saved.pending ? 3 : Math.max(2, saved.step || 2)}; if (!s.pending) checkPrefill(); render(); }
     } else if (what === 'discard') { removeDraft(KEY, {storage: storage()}); render(); }
     else if (what === 'filter') { s.filter = el.dataset.filter; s.order = null; render({focus: `.qw-pill[data-filter="${CSS.escape(s.filter)}"]`}); }
     else if (what === 'clear-filter') { s.filter = 'all'; s.query = ''; s.order = null; render({focus: '#qw-query'}); }

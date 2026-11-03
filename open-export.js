@@ -2,6 +2,8 @@
 // Dossier lisible/ du ZIP complet : un CSV par collection principale (en français, « ; », JJ/MM/AAAA,
 // noms de parcelles plutôt qu'identifiants), parcelles.geojson, un classeur .xlsx si possible et LISEZMOI.txt.
 // Ces entrées sont ignorées à la restauration : seul state.json fait foi.
+import {ugbTable} from './grazing.js';
+
 export const READABLE_DIR = 'lisible/';
 
 const live = list => (Array.isArray(list) ? list : []).filter(item => item && !item.deletedAt);
@@ -40,6 +42,8 @@ export function readableTables(state = {}) {
   const equipment = new Map((state.materiels || []).map(m => [m.id, m]));
   const equipmentName = id => (id ? equipment.get(id)?.nom || equipment.get(id)?.name || '' : '');
   const stock = new Map((state.stockItems || []).map(s => [s.id, s]));
+  const ugbCategories = ugbTable(state).categories;
+  const categoryLabel = key => ugbCategories.find(c => c.key === key)?.label || key || '';
   return [
     {file: 'parcelles.csv', sheet: 'Parcelles', rows: live(state.parcelles), columns: [
       ['Nom', p => p.nom], ['Surface (ha)', p => frNumber(p.surfaceHa)], ['Culture', p => p.culture], ['Commune', p => p.commune], ['Îlot', p => p.ilot],
@@ -52,7 +56,7 @@ export function readableTables(state = {}) {
       ['Matériel', w => equipmentName(w.equipmentId)], ['Note', w => w.note]]},
     {file: 'paturage.csv', sheet: 'Pâturage', rows: live(state.grazingSessions), columns: [
       ['Parcelle', g => parcelName(g.parcelId)], ['Animaux', g => g.animalType], ['Nombre', g => frNumber(g.animalsCount)], ['Entrée', g => frDate(g.startDate)],
-      ['Sortie', g => frDate(g.endDate)], ['Note', g => g.note || g.notes], ['Catégorie', g => g.animalCategory || '']]},
+      ['Sortie', g => frDate(g.endDate)], ['Note', g => g.note || g.notes], ['Catégorie', g => categoryLabel(g.animalCategory)]]},
     {file: 'stocks.csv', sheet: 'Stocks', rows: live(state.stockItems), columns: [
       ['Produit', s => s.name], ['Catégorie', s => s.category], ['Quantité', s => frNumber(s.quantity)], ['Unité', s => s.unit], ['Seuil d’alerte', s => frNumber(s.alertBelow)],
       ['Prix unitaire (€)', s => frNumber(s.unitPrice)]]},

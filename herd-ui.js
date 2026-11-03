@@ -133,7 +133,7 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
 
   // Animal sorti (vente, mort, pension) encore listé dans un lot : proposer le retrait, sinon l'effectif reste faux.
   function offerLotRemoval(a,listed,date){
-    modal('Retirer du lot ?',`${e(animalLabel(a))} est sorti le ${e(fr(date))} mais figure encore dans ${listed.length>1?'des lots':'un lot'} au pré.`,`<ul>${listed.map(s=>`<li>${e(lotLabel(s))}</li>`).join('')}</ul><p class="form-note">Le passage est clos à cette date et rouvert sans cet animal, pour garder l’historique.</p><p class="form-error" id="herd-error" role="alert" hidden></p>`,
+    modal('Retirer du lot ?',`${animalLabel(a)} est sorti le ${fr(date)} mais figure encore dans ${listed.length>1?'des lots':'un lot'} au pré.`,`<ul>${listed.map(s=>`<li>${e(lotLabel(s))}</li>`).join('')}</ul><p class="form-note">Le passage est clos à cette date et rouvert sans cet animal, pour garder l’historique.</p><p class="form-error" id="herd-error" role="alert" hidden></p>`,
       `<button type="button" class="button secondary" id="herd-keep">Laisser dans le lot</button><button type="button" class="button primary" id="herd-remove">Retirer du lot</button>`);
     $('#herd-keep').onclick=()=>openAnimal(a.id);
     $('#herd-remove').onclick=async()=>{

@@ -37,7 +37,7 @@ export function computeNotifications(state,{uid='',now=Date.now()}={}){
     if(obs.severity==='urgent'&&obs.status!=='Résolu')rows.push({id:`observation-${obs.id}`,level:'urgent',title:'Observation terrain urgente',message:obs.title||obs.type||'Observation',entity:'observations',entityId:obs.id,date:obs.date});
   }
   // n° 129 : « 2 nouvelles préconisations » écrites par d'autres membres (conseiller, collègues) depuis la dernière lecture.
-  const fresh=newParcelComments(state,{uid});
+  const fresh=newParcelComments(state,{uid,now});
   if(fresh.count){const precos=fresh.precos===fresh.count,n=fresh.count;rows.push({id:'parcel-comments-new',level:'info',title:'Parcelles',message:`${n} ${precos?`nouvelle${n>1?'s':''} préconisation${n>1?'s':''}`:`nouveau${n>1?'x':''} commentaire${n>1?'s':''}`}`,entity:'parcelComments',entityId:fresh.comments[0].id});}
   rows.push(...deadlineNotifications(state,{today})); // v8a n° 72 : Certiphyto, contrôle, assurance, conseil stratégique
   // n° 102 : travail habituel non fait à la période attendue (désactivable : preferences.habitReminders).

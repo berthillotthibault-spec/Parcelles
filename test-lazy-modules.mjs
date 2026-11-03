@@ -188,6 +188,8 @@ test('modules différés : fichiers présents, en cache hors connexion et absent
     for (const m of read(file).matchAll(/(?:^|[;\s}])(?:import|export)\s*(?:[^'"();]*?\sfrom\s*)?['"]\.\/([^'"]+\.js)['"]/g)) stack.push(m[1]);
   }
   for (const [key, file] of Object.entries(lazyPaths)) assert.ok(!seen.has(file), `${file} (${key}) est encore importé statiquement`);
+  // Alertes du formulaire de pâturage : quick-grazing.js (et herd-home.js) chargés par import() dans grazing-ui.js (n° 160).
+  for (const file of ['quick-grazing.js', 'herd-home.js']) assert.ok(!seen.has(file), `${file} ne doit pas être chargé au démarrage`);
 });
 
 // Identifiants d'app.js qui désignent chaque module différé : instances, et accesseurs sous la forme « nom() ».
@@ -227,6 +229,7 @@ const SAFE_WITHOUT_MODULE = [
   /intel\(\)\?\.assistantActionRequiresConfirmation\(action\)\?\?true/, // sans le module, confirmation exigée par défaut
   /\(mode==='edit'\?contourEditUI\(\):walkMeasureUI\(\)\)\.askAbandon/, // outil actif, donc déjà chargé
   /hereUI\?(?:\.(?:pill|sheetHtml)\(|hereUI\.apply\()/, // n° 111 : sans position connue, ni pastille ni parcelle contextuelle
+  /(?:\.qw'\)\)|if\()quickWorkUI\?\.(?:back|closing)\?\.\(\)/, // n° 160 : feuille du « + » affichée, donc module chargé
   /get ([\w$]+)\(\)\{return \1;\}/ // n° 147 : accesseur du contexte partagé ; ses utilisateurs attendent le module (test-actions.mjs)
 ];
 

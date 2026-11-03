@@ -164,3 +164,14 @@ test('un avoir total est exactement l’opposé de la facture (arrondi symétriq
     assert.equal(invoiceTotals(l.map(x => ({...x, quantity: -1}))).ttc, -invoiceTotals(l).ttc);
   }
 });
+
+test('à facturer : observations ignorées, « non facturable » réversible', () => {
+  const s=farm(),w1=s.interventions.find(w=>w.id==='w1');
+  s.interventions.push({...w1,id:'wobs',type:'Observation'},{...w1,id:'wnf',billable:false});
+  let keys=billableItems(s,'c1').map(i=>i.key);
+  assert.ok(!keys.includes('work:wobs')&&!keys.includes('fuel:wobs'),'une observation ne se facture pas');
+  assert.ok(!keys.includes('work:wnf'),'travail marqué non facturable');
+  s.interventions.find(w=>w.id==='wnf').billable=true;
+  keys=billableItems(s,'c1').map(i=>i.key);
+  assert.ok(keys.includes('work:wnf'),'redevenu facturable');
+});

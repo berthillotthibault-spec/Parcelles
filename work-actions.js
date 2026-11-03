@@ -26,9 +26,8 @@ function armDone(control, id, kind) {
 // Pâturage prévu : la clôture met d'abord les animaux au pré (saisie préremplie), avec possibilité de terminer sans animaux.
 function finishToGrazing(w, control) {
   if (!isGrazingType(w.type) || control?.dataset?.noAnimals) return false;
-  const due = String(w.plannedDate || w.date || '').slice(0, 10);
   ctx.closeModal();
-  ctx.openGrazingEntry({parcelIds: [w.parcelId].filter(Boolean), type: w.type, workId: w.id, note: w.note || '', date: due <= ctx.todayIso() ? due : '',
+  ctx.openGrazingEntry({parcelIds: [w.parcelId].filter(Boolean), type: w.type, workId: w.id, note: w.note || '', date: ctx.todayIso(),
     finishPlain: () => workActions['finish-work']({id: w.id, control: {dataset: {noAnimals: '1'}, classList: {add() {}}}})});
   return true;
 }

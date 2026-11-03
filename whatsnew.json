@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.26.1",
+      "date": "2026-11-03",
+      "title": "Corrections du bouton Ajouter",
+      "items": [
+        "Un traitement prévu clos en même temps qu’une saisie n’est plus compté deux fois au registre.",
+        "Pâturage : un animal sorti n’est plus ajouté au lot, un lot vidé est clos, « Toujours là » vaut sur tous les appareils.",
+        "Formulaire Travail : case « Facturable », « Mettre au pré » clôt le pâturage prévu."
+      ]
+    },
+    {
       "version": "10.26.0",
       "date": "2026-11-01",
       "title": "Le bouton Ajouter",

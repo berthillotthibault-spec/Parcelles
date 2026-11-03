@@ -37,11 +37,8 @@ test('barre du pouce : actions primaires par écran, aucune en lecture seule ou 
   assert.deepEqual(thumbActions('today', {modalOpen: true}), []);
   assert.deepEqual(thumbActions('map', {fieldModeOpen: true}), []);
   for (const item of ['today', 'map', 'parcels', 'work'].flatMap(v => thumbActions(v))) assert.ok(item.label && item.icon);
-  // Saisie express disponible : « J’ai fait » au milieu, trois boutons au plus, jamais sur la carte.
-  assert.deepEqual(thumbActions('today', {quickWork: true}).map(a => a.action), ['open-field-mode', 'quick-work', 'new-work']);
-  assert.deepEqual(thumbActions('work', {quickWork: true}).map(a => a.action), ['new-task', 'quick-work', 'new-work']);
-  assert.deepEqual(thumbActions('parcels', {quickWork: true}).map(a => a.action), ['new-observation', 'quick-work', 'new-parcel']);
-  assert.ok(!thumbActions('map', {quickWork: true}).some(a => a.action === 'quick-work'));
+  // n° 160 : plus de bouton flottant « J’ai fait » ; jamais d'action quick-work dans la barre.
+  assert.ok(!['today', 'map', 'parcels', 'work'].flatMap(v => thumbActions(v)).some(a => a.action === 'quick-work'));
 });
 
 test('maintien : 600 ms sans glisser confirment, un glissement annule', () => {

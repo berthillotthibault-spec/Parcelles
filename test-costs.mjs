@@ -111,3 +111,10 @@ test('champs facultatifs conservés par la migration, modules servis hors connex
   const sw=read('sw.js');for(const f of ['./costs.js','./costs-ui.js'])assert.ok(sw.includes(`'${f}'`),f);
   assert.match(read('app.js'),/costsUI\.pilotageSection\(p\.campaign\)/);assert.match(read('package.json'),/test-costs\.mjs/);
 });
+
+test('liste à compléter : les observations sont ignorées', () => {
+  const s=farm(),w2=s.interventions.find(w=>w.id==='w2');
+  s.interventions.push({...w2,id:'wobs',type:'Observation'});
+  const c=costCompletion(s,{campaign:C});
+  assert.ok(!c.rows.some(r=>r.work.id==='wobs'));assert.equal(c.missing,4);
+});

@@ -3157,7 +3157,8 @@ body.gloves .qw-next{min-height:68px}
 /* Lot 4 : compte des cochées, GPS, aucune parcelle, date, heure, ordinateur et sombre (PF-16, PF-17, PF-20, PF-22) */
 .qw-count{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;font-size:14px;font-weight:600;color:var(--muted-text)}
 .qw-count .text-button,.qw-change{min-height:48px;color:var(--brand);font-weight:700}
-.qw-summary .qw-change{min-height:32px;padding:0 4px;font-size:14px}
+/* « Changer » : zone de 48 px, marges négatives pour garder la ligne du résumé à 32 px */
+.qw-summary .qw-change{min-height:48px;min-width:44px;margin:-8px 0;padding:0 4px;font-size:14px;vertical-align:middle}
 .qw-gps{margin:0}
 .qw-clear{justify-self:center}
 .qw-noparcel{margin-bottom:12px}

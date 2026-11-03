@@ -184,9 +184,9 @@ test('nouvelles préconisations : celles des autres, depuis la dernière lecture
   s.parcelComments.pop();
   assert.deepEqual(Object.keys(markCommentsSeen({old: now - 100 * 864e5, c1: now}, [], now)), ['c1'], 'anciennes lectures oubliées');
   s.preferences.parcelCommentsSeen = {};
-  const row = computeNotifications(s, {uid: 'me'}).find(n => n.id === 'parcel-comments-new');
+  const row = computeNotifications(s, {uid: 'me', now}).find(n => n.id === 'parcel-comments-new');
   assert.ok(row); assert.equal(row.message, '2 nouvelles préconisations'); assert.equal(row.entity, 'parcelComments');
-  assert.equal(computeNotifications(s).some(n => n.id === 'parcel-comments-new'), false);
+  assert.equal(computeNotifications(s, {now}).some(n => n.id === 'parcel-comments-new'), false);
   assert.deepEqual(commentsForParcel(s, 'p1').map(c => c.id), ['c3', 'c1', 'c4']);
 });
 

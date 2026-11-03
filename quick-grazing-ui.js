@@ -9,7 +9,7 @@ import {longOpenLots} from './grazing.js';
 import {herdLots, moveDestinations} from './herd-home.js';
 import {closingCandidates, draftDate, draftSummary, formatDose, parcelFilters} from './quick-work.js';
 import {HERD_FILTERS, buildGrazingEntries, categoryShortLabel, defaultGrazingFilter, finishedEntry, freshEntry, fullFormAllowed, grazingCategories, grazingClosings, grazingEntryAlerts,
-  grazingGestures, grazingParcelRows, herdGroups, planLotMoves, plannedEntry, plannedGrazingWorks, selectedParcels, splitByArea} from './quick-grazing.js';
+  grazingGestures, grazingParcelRows, herdGroups, planLotMoves, plannedEntry, plannedGrazingWorks, presentPicks, selectedParcels, splitByArea} from './quick-grazing.js';
 
 const DATES = [['today', 'Aujourd’hui'], ['yesterday', 'Hier'], ['custom', 'Autre date']];
 const TITLES = {gesture: 'Que faites-vous ?', parcels: 'Sur quels prés ?', details: 'Mettre au pré', exit: 'Rentrer ou retirer du pré', move: 'Changer de pré', denied: 'Pâturage'};
@@ -33,6 +33,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     if (!entry && date && date !== today) { fresh.dateChoice = 'custom'; fresh.customDate = date; }
     const plan = !entry && workId ? store.get('interventions', workId)?.grazingPlan : null;
     if (plan) Object.assign(fresh, plannedEntry(plan));
+    if (entry) fresh.picks = presentPicks(data, fresh.picks, draftDate(fresh.dateChoice, today, fresh.customDate)); // animal sorti depuis le brouillon
     const ways = grazingGestures(data, {today, parcelIds});
     const first = !can('create') ? 'denied' : screen || (workId || entry ? (fresh.parcelIds.length ? 'details' : 'parcels')
       : ways.skipToEntry ? (parcelIds.length ? 'details' : 'parcels') : 'gesture');
@@ -145,17 +146,15 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     if (date < today && !e.endDate) notes.push(`Entrée du ${frDay(date)} : ce lot comptera comme encore au pré tant qu’aucune sortie n’est indiquée.`);
     if (date > today) notes.push(`Date future : un travail « À faire » sera créé pour le ${frDay(date)} ; à sa clôture, cette saisie s’ouvrira préremplie. Aucun animal n’est mis au pré d’ici là.`);
     const reentry = list.filter(a => a.kind === 'reentry');
-    let emptied = [];
     try {
       if (date <= today) {
         const plan = planLotMoves(state(), buildGrazingEntries(e, state(), {today, date}).animals, {date, today, endDate: e.endDate});
-        emptied = plan.emptied;
+        for (const lot of plan.emptied) notes.push(`« ${lot.name} » se retrouve sans animal : il sera clos à son entrée.`);
         for (const lot of plan.closed) notes.push(`« ${lot.name} » sera clos le ${frDay(date)} : son historique est conservé.`);
         for (const row of plan.creates) notes.push(`${row.note || row.animalType} : le reste du lot (${row.animalsCount}) continue dans un nouveau passage à partir du ${frDay(date)}.`);
       }
     } catch { /* saisie incomplète : rien à annoncer */ }
     return html`${[...list.filter(a => a.kind !== 'reentry').map(a => a.message), ...notes].map(m => html`<p class="qw-phyto-line">${m}</p>`)}
-      ${emptied.map(lot => html`<label class="qg-animal"><input type="checkbox" data-qg-keep="${lot.id}"${e.keepEmptied.includes(lot.id) ? '' : raw(' checked')}><span><b>Clôturer « ${lot.name} »</b><small>Ce lot se retrouve sans animal.</small></span></label>`)}
       ${date <= today && reentry.length ? html`<div class="qw-phyto is-blocking" role="alert">${reentry.map(a => html`<p class="qw-phyto-line is-error">${a.message}</p>`)}
         ${e.reentryAck === reentryKey() ? html`<p class="qw-phyto-line">Mise au pré confirmée malgré le délai.</p>` : html`<button type="button" class="button secondary" data-qg="reentry-ack">Mettre au pré quand même</button>`}</div>` : ''}`;
   }
@@ -257,7 +256,15 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     if (!el) return;
     for (const [id, fn] of [['#qg-alerts', alertsHtml], ['#qg-closing', closingHtml], ['#qg-picked', pickedHtml], ['#qg-full', fullHtml]]) { const box = el.querySelector(id); if (box) box.innerHTML = String(html`${fn()}`); }
   }
-  function save() { persistDraft({type: g.type, parcelIds: g.entry.parcelIds, step: 3, grazing: {entry: g.entry, screen: g.screen, workId: g.workId}}); }
+  // Échec partiel puis saisie modifiée : « le reste » calculé avant ne correspond plus, on l'oublie (n° 160).
+  function dropRetry() {
+    if (!g.retry) return;
+    const n = g.retry.saved.length;
+    g.retry = null;
+    g.error = `Saisie modifiée : ${n > 1 ? `les ${n} passages déjà enregistrés restent` : 'le passage déjà enregistré reste'} ; le prochain enregistrement écrira toute la saisie, retirez ce qui l’est déjà.`;
+    const box = root()?.querySelector('.form-error'); if (box) box.textContent = g.error;
+  }
+  function save() { dropRetry(); persistDraft({type: g.type, parcelIds: g.entry.parcelIds, step: 3, grazing: {entry: g.entry, screen: g.screen, workId: g.workId}}); }
   // Retour au choix du geste : la mise au pré est abandonnée, son brouillon aussi.
   function go(screen) { g.screen = screen; g.error = ''; if (['parcels', 'details'].includes(screen)) save(); else if (screen === 'gesture') clearDraft(); render(); }
   // L'erreur est en bas du contenu : on l'amène à l'écran, sinon l'appui semble sans effet sur téléphone.
@@ -295,7 +302,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
       fail('Délai de rentrée en cours : confirmez avec « Mettre au pré quand même », ou changez de pré ou de date.');
       return;
     }
-    const plan = g.retry?.plan || planLotMoves(data, built.animals, {date, today, endDate: e.endDate, keepEmptied: e.keepEmptied});
+    const plan = g.retry?.plan || planLotMoves(data, built.animals, {date, today, endDate: e.endDate});
     plan.creates = plan.creates.map(row => ({...row, id: row.id || uid('grazingSession')})); // ids fixés : un nouvel essai n'en crée pas d'autres
     const closing = closingCandidates(data, {type: g.type, parcelIds: e.parcelIds, date, today});
     const undoList = [];
@@ -404,7 +411,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
       if (!e.parcelIds.includes(e.entryParcelId)) e.entryParcelId = e.parcelIds[0] || '';
       e.alloc = {}; save(); render({focus: `.qw-parcel[data-id="${CSS.escape(id)}"]`});
     } else if (what === 'date') {
-      e.dateChoice = el.dataset.date; e.reentryAck = ''; save(); render({focus: `.qw-pill[data-date="${el.dataset.date}"]`});
+      e.dateChoice = el.dataset.date; e.reentryAck = ''; e.picks = presentPicks(state(), e.picks, entryDate()); save(); render({focus: `.qw-pill[data-date="${el.dataset.date}"]`});
     } else if (what === 'herd-filter') { g.herdFilter = el.dataset.filter; render({focus: `.qw-pill[data-qg="herd-filter"][data-filter="${el.dataset.filter}"]`}); }
     else if (what === 'check-all') {
       const group = herdGroups(state(), {date: entryDate(), query: g.herdQuery, filter: g.herdFilter}).find(x => x.id === el.dataset.group);
@@ -443,7 +450,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     if (t.id === 'qg-exit-date') { g.exit.date = t.value; return; }
     if (data.qgExit) { g.exit.ids = t.checked ? [...new Set([...g.exit.ids, data.qgExit])] : g.exit.ids.filter(x => x !== data.qgExit); return; }
     if (t.id === 'qg-move-date') { if (event.type === 'change') { g.move.date = t.value; g.move.ack = ''; render({focus: '#qg-move-date'}); } return; }
-    if (t.id === 'qg-custom-date') { if (event.type !== 'change') return; e.customDate = t.value; e.reentryAck = ''; save(); render({focus: '#qg-custom-date'}); return; }
+    if (t.id === 'qg-custom-date') { if (event.type !== 'change') return; e.customDate = t.value; e.reentryAck = ''; e.picks = presentPicks(state(), e.picks, entryDate()); save(); render({focus: '#qg-custom-date'}); return; }
     // Champ tapé : « change » arrive à la sortie du champ et réécrirait le bloc sous le doigt, le toucher suivant serait perdu.
     if (event.type === 'change' && t.matches('input:not([type="checkbox"]), textarea')) return;
     if (t.id === 'qg-end') e.endDate = t.value;
@@ -466,7 +473,6 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     else if (data.qgPickParcel) e.picks[data.qgPickParcel].parcelId = t.value;
     else if (data.qgPickLine) e.picks[data.qgPickLine].line = Number(t.value);
     else if (data.qgSkip) { e.skip = t.checked ? e.skip.filter(x => x !== data.qgSkip) : [...e.skip, data.qgSkip]; save(); return; }
-    else if (data.qgKeep) { e.keepEmptied = t.checked ? e.keepEmptied.filter(x => x !== data.qgKeep) : [...e.keepEmptied, data.qgKeep]; save(); return; }
     else return;
     save();
     // Ne pas réécrire un menu pendant qu'on le manipule : seuls les blocs de contrôle changent.

@@ -362,13 +362,19 @@ export const isForageFollowup = type => /(fanage|andain|pressage|botte|enrubann|
 export const isGrainHarvest = (type, kind = '') => workFamily(type, kind) === 'harvest' && !/ensil/.test(normalizeType(type));
 
 const r2 = v => Math.round(v * 100) / 100;
-/** Quantité totale répartie au prorata des poids (surfaces), le reste sur la dernière ligne. @param {number} total @param {number[]} weights @param {number} [digits] */
+/** Quantité totale répartie au prorata des poids (surfaces), arrondie à digits décimales sans écart de somme. @param {number} total @param {number[]} weights @param {number} [digits] */
 export function shareOut(total, weights, digits = 2) {
-  const sum = weights.reduce((a, b) => a + (b > 0 ? b : 0), 0), f = 10 ** digits;
-  if (weights.length === 1 || sum <= 0) return weights.map((_, i) => i === weights.length - 1 ? total - Math.round(total / weights.length * f) / f * (weights.length - 1) : Math.round(total / weights.length * f) / f);
-  const parts = weights.map(w => Math.round(total * (w > 0 ? w : 0) / sum * f) / f);
-  parts[parts.length - 1] = Math.round((total - parts.slice(0, -1).reduce((a, b) => a + b, 0)) * f) / f;
-  return parts;
+  // Méthode des plus forts restes : parts arrondies vers le bas à la précision, unités restantes aux plus grandes
+  // fractions (à égalité, les dernières lignes) ; somme exacte, jamais de part négative.
+  if (!weights.length) return [];
+  const f = 10 ** digits, units = Math.round(total * f);
+  const sum = weights.reduce((a, b) => a + (b > 0 ? b : 0), 0);
+  const w = sum > 0 ? weights.map(v => (v > 0 ? v : 0)) : weights.map(() => 1), s = sum > 0 ? sum : weights.length;
+  const raw = w.map(v => units * v / s), base = raw.map(Math.floor);
+  let left = units - base.reduce((a, b) => a + b, 0);
+  const order = raw.map((v, i) => [v - base[i], i]).sort((a, b) => b[0] - a[0] || b[1] - a[1]); // à égalité, la dernière ligne d'abord
+  for (const [, i] of order) { if (left <= 0) break; base[i] += 1; left -= 1; }
+  return base.map(u => Math.round(u) / f);
 }
 
 /** Durée en heures entre deux heures « HH:MM », passage de minuit compris, comme le formulaire complet. @param {string} start @param {string} end */
@@ -544,7 +550,7 @@ export const harvestDarWarnings = (data, {parcelIds, date, catalog = null}) => p
  * Fiches à écrire. Une intervention par parcelle (batchId commun s'il y en a plusieurs) ; un travail du même
  * genre prévu près de la date (closingCandidates) est terminé à la place, et les tâches correspondantes cochées ;
  * l'utilisateur peut en écarter (skip). Une date future donne un travail « À faire ».
- * closedOnly : identifiants des prévus seulement clos (le même passage), hors stock, compteur et facturation.
+ * closedOnly : identifiants des prévus seulement clos (le même passage, « Annulé » avec mergedInto), hors stock, compteur et facturation.
  * Rien n'est écrit sans saisie : pas de dose par défaut, et un prévu garde sa dose si elle n'est pas retouchée.
  * details (lot 3) : champs de l'étape 3 par famille ; ils ajoutent les lots de récolte et de fourrage (records),
  * la rotation et la culture de la parcelle (rotations, parcels), et la destruction d'un couvert.
@@ -619,10 +625,10 @@ export function buildQuickWorks(draft, data, {today, batchId = '', skip = [], in
     const targets = [...planned.works.filter(w => w.parcelId === parcel.id && !skipped.has(w.id)),
       ...planned.looseWorks.filter(w => w.parcelId === parcel.id && included.has(w.id))];
     for (const [i, {overdue: _overdue, ...existing}] of targets.entries()) {
-      // Un seul prévu reçoit la saisie : les suivants (retard coché…) sont seulement clos, sans produit ni dose repris,
-      // pour ne pas compter deux fois le même passage au registre, à l'azote et aux doses cumulées.
+      // Un seul prévu reçoit la saisie : les suivants (retard coché…) sont clos comme « Annulé », fusionnés dans le
+      // premier (mergedInto), pour ne pas compter deux fois le même passage au registre, à l'IFT et à l'azote.
       if (i > 0) {
-        updates.push({...existing, status: 'Terminé', plannedDate: existing.plannedDate || existing.date || '', date, campaignId: campaignFor(date), ...(clientOf(parcel) ? {billable: false} : {})});
+        updates.push({...existing, status: 'Annulé', mergedInto: targets[0].id, plannedDate: existing.plannedDate || existing.date || '', date, campaignId: campaignFor(date), ...(clientOf(parcel) ? {billable: false} : {})});
         closedOnly.push(existing.id);
         continue;
       }
@@ -759,8 +765,9 @@ export function dropForbidden(result, canWrite) {
 }
 
 /** Refus avant écriture : un traitement terminé doit nommer son produit. @param {{creates: any[], updates: any[]}} result */
-export function quickWorksProblem({creates, updates}) {
-  const missing = [...creates, ...updates].some(w => w.status === 'Terminé' && isTreatment(w) && !String(w.product || '').trim());
+export function quickWorksProblem({creates, updates, closedOnly = []}) {
+  const closed = new Set(closedOnly);
+  const missing = [...creates, ...updates].some(w => !closed.has(w.id) && w.status === 'Terminé' && isTreatment(w) && !String(w.product || '').trim());
   return missing ? 'Indiquez le produit : un traitement terminé va au registre phytosanitaire.' : '';
 }
 
@@ -772,9 +779,11 @@ export const missingDose = ({creates, updates}) => [...creates, ...updates].some
  * La dérogation confirmée est posée sur les fiches concernées.
  * @param {{creates: any[], updates: any[]}} result @param {any} data @param {{derogation?: boolean, remark?: string}} [options]
  */
-export function hedgeBlock({creates, updates}, data, {derogation = false, remark = ''} = {}) {
+export function hedgeBlock({creates, updates, closedOnly = []}, data, {derogation = false, remark = ''} = {}) {
   let message = '';
+  const closed = new Set(closedOnly);
   for (const work of [...creates, ...updates]) {
+    if (closed.has(work.id)) continue;
     const check = trimCheck({...work, product: [work.product, remark].filter(Boolean).join(' '), hedgeDerogation: false}, data);
     if (!check.blocked) continue;
     message = check.message;
@@ -825,10 +834,12 @@ export function draftFields(draft) {
   const grazing = draft?.grazing ? {grazing: JSON.parse(JSON.stringify(draft.grazing))} : {};
   // Écriture partielle à terminer : conservée pour que la reprise ne recrée rien.
   const pending = draft?.pending ? {pending: JSON.parse(JSON.stringify(draft.pending))} : {};
+  // Prévu repris à l'étape 3 : la reprise vérifie qu'il sera encore clôturé, sinon sa dose ne part pas.
+  const prefill = draft?.prefill ? {prefill: JSON.parse(JSON.stringify(draft.prefill))} : {};
   // Heure affichée, prévus écartés ou ajoutés, motif de dérogation et unité choisie survivent aussi (PF-13).
   return {type, kind, parcelIds: [...parcelIds], dateChoice, customDate, product, dose, doseUnit, doseTouched, equipmentId, note, step, startTime,
     showTime: Boolean(showTime || startTime), skip: [...skip], include: [...include], reason: String(reason || ''), needReason: Boolean(needReason), unitTouched: Boolean(unitTouched),
-    ...details, ...grazing, ...pending};
+    ...details, ...grazing, ...pending, ...prefill};
 }
 
 export {defaultsFor};

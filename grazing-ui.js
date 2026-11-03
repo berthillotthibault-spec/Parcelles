@@ -4,7 +4,6 @@ import {emptyState} from './ui.js';
 const formatNumber=(value,digits=2)=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:digits}).format(Number(value)||0);
 import {fieldGrazingSummary,countGap,grazingCheckObservation,grazingDate,grazingAnimalList,grazingAnimalText,grazingTotal,grazingType,grazingStatus,filterGrazingSessions,summarizeParcelGrazing,parseGrazingAnimals,nationalIdKey,linkGrazingAnimals,ugbTable,ugbOf,stockingRate,restLabel,farmGrazingBalance} from './grazing.js';
 import {grazingTimeline} from './charts.js';
-import {grazingEntryAlerts} from './quick-grazing.js';
 import {exitedInLot} from './herd.js';
 import {saveGrazingSession,endGrazingSession,grazingReentryAlert,moveGrazingLot,updateGrazingCount} from './grazing-records.js';
 
@@ -102,7 +101,9 @@ export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=n
     const form=$('#grazing-form'),button=$('#save-grazing');
     bindHerdPicker(form);
     // Occupation et repos à la date choisie (le délai phyto reste au bouton Enregistrer, reentryGate).
-    const showAlerts=()=>{const box=$('#grazing-form-alerts');if(box)box.innerHTML=grazingEntryAlerts(state(),{parcelIds:[form.elements.parcelId.value],date:form.elements.startDate.value||today(),endDate:form.elements.endDate.value,ignoreId:session?row.id:'',withReentry:false}).map(a=>`<p class="notice warning">${escapeHtml(a.message)}</p>`).join('');};
+    // quick-grazing.js (et herd-home.js) chargé à l'ouverture du formulaire, pas au démarrage ; seule la dernière demande s'affiche.
+    let alertsTurn=0;
+    const showAlerts=()=>{const turn=++alertsTurn;import('./quick-grazing.js').then(({grazingEntryAlerts})=>{const box=$('#grazing-form-alerts');if(turn===alertsTurn&&box)box.innerHTML=grazingEntryAlerts(state(),{parcelIds:[form.elements.parcelId.value],date:form.elements.startDate.value||today(),endDate:form.elements.endDate.value,ignoreId:session?row.id:'',withReentry:false}).map(a=>`<p class="notice warning">${escapeHtml(a.message)}</p>`).join('');}).catch(()=>{});}; // alertes indicatives : un échec de chargement ne bloque pas la saisie
     form.addEventListener('change',showAlerts);showAlerts();
     const draft=formDraft?.(form,session?row.id:null);
     if(!parcels.some(parcel=>parcel.id===row.parcelId)){

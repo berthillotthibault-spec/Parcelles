@@ -97,8 +97,10 @@ export async function removeAnimalFromLot(store,sessionId,animal,{date=grazingDa
   // Sortie avant ou le jour de l'entrée : il n'a jamais compté dans ce passage, on corrige la liste sans nouveau passage.
   if(day<=start)return saveGrazingSession(store,{...base,startDate:start,endDate:current.endDate?grazingDate(current.endDate):null,animals:left,additionalAnimalsCount:additional},{id:sessionId,expected:current});
   await endGrazingSession(store,sessionId,{date:day});
-  try{return await saveGrazingSession(store,{...base,startDate:day,endDate:null,animals:left,additionalAnimalsCount:additional});}
-  catch(failure){await saveGrazingSession(store,{...base,startDate:start,endDate:null,animals:current.animals??[],additionalAnimalsCount:Number(current.additionalAnimalsCount)||0},{id:sessionId}).catch(()=>{});throw failure;}
+  // Une sortie déjà prévue (endDate futur) reste celle du passage rouvert ; le retour arrière la remet sur l'original.
+  const plannedEnd=current.endDate?grazingDate(current.endDate):null;
+  try{return await saveGrazingSession(store,{...base,startDate:day,endDate:plannedEnd,animals:left,additionalAnimalsCount:additional});}
+  catch(failure){await saveGrazingSession(store,{...base,startDate:start,endDate:plannedEnd,animals:current.animals??[],additionalAnimalsCount:Number(current.additionalAnimalsCount)||0},{id:sessionId}).catch(()=>{});throw failure;}
 }
 
 // n° 77 — mise à jour de l’effectif après comptage (sur confirmation) : seuls les animaux sans numéro changent.

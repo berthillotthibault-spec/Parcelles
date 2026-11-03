@@ -6,6 +6,7 @@ import {recentWorkSuggestions} from './insights.js';
 import {isGrazingType, workFamily} from './quick-work.js';
 import {normalizeType} from './quick-entry.js';
 import {isTreatment} from './phyto.js';
+import {isPending} from './home-priorities.js';
 import {enhanceWorkForm, validateForm} from './form-chips-ui.js';
 import {draftKey, persistFormDraft} from './form-drafts.js';
 import {weatherSnapshotOf} from './spray-window.js';
@@ -77,6 +78,9 @@ function essentialFields(item, {parcels, templates, data}) {
     `<label>Statut<select name="status">${options(STATUSES, item.status)}</select></label>`,
     '<label>Surface travaillée (ha)',
     `<input name="surfaceWorked" inputmode="decimal" type="number" min="0" step="any" value="${item.surfaceWorked ?? ''}"></label>`,
+    // Parcelle ou travail d'un client : « non facturable » (choisi au « + ») reste réversible ici.
+    parcels.find(p => p.id === item.parcelId)?.clientId || item.clientId
+      ? `<label><input type="checkbox" name="billable" ${item.billable === false ? '' : 'checked'}> Facturable</label>` : '',
     '</div>'].join('');
 }
 
@@ -91,7 +95,8 @@ function detailFields(item, machines) {
     `<label>Dose<input name="dose" inputmode="decimal" value="${escapeHtml(item.dose)}"></label>`,
     `<label>Unité dose<select name="doseUnit"><option value="">—</option>${options(DOSE_UNITS, item.doseUnit)}</select></label>`,
     `<label>AMM (si phytosanitaire)<input name="amm" value="${escapeHtml(item.amm || '')}"></label>`,
-    `<label><input type="checkbox" name="isPhytosanitary" ${item.isPhytosanitary ? 'checked' : ''}> Intervention phytosanitaire</label>`,
+    `<label><input type="checkbox" name="isPhytosanitary" ${item.isPhytosanitary || item.kind === 'spray' ? 'checked' : ''}>`
+      + ' Intervention phytosanitaire</label>',
     money('Prix produit / unité (€)', 'productUnitPrice'),
     `<label>Durée (h)<input name="duration" type="number" min="0" step="any" value="${item.duration ?? ''}"></label>`,
     `<label>Carburant (L)<input name="fuel" type="number" min="0" step="0.1" value="${item.fuel ?? ''}"></label>`,
@@ -121,7 +126,8 @@ export function createWorkFormUI(ctx) {
   const {$, $$} = ctx;
 
   // Un travail « Pâturage » ne met aucun animal au pré : avis avec lien, sans bloquer (un travail prévu reste possible).
-  function bindGrazingNotice(form, parcelIds) {
+  // Travail prévu en cours d'édition : la mise au pré le clôt (workId), comme finish-work.
+  function bindGrazingNotice(form, parcelIds, item = null) {
     const input = form?.elements?.type;
     if (!input) return;
     const note = document.createElement('p');
@@ -130,7 +136,8 @@ export function createWorkFormUI(ctx) {
     note.querySelector('button').onclick = () => {
       const ids = parcelIds().filter(Boolean);
       ctx.closeModal();
-      ctx.openGrazingEntry({parcelIds: ids, type: input.value.trim()});
+      const closing = item?.id && isPending(item) ? {workId: item.id, note: item.note || ''} : {};
+      ctx.openGrazingEntry({parcelIds: ids, type: input.value.trim(), ...closing});
     };
     form.prepend(note);
     const update = () => { note.hidden = !isGrazingType(input.value); };
@@ -162,7 +169,7 @@ export function createWorkFormUI(ctx) {
     const title = editing ? 'Modifier le travail' : duplicate ? 'Refaire ce travail' : 'Nouveau travail';
     ctx.modal(title, 'Un cas simple peut être enregistré avec les champs essentiels uniquement.', body, footer, 'large');
     const form = $('#work-form');
-    bindGrazingNotice(form, () => [form.elements.parcelId?.value || chosenParcel.id]);
+    bindGrazingNotice(form, () => [form.elements.parcelId?.value || chosenParcel.id], editing ? item : null);
     enhanceWorkForm(form, {data, today: ctx.todayIso(), recentIds: ctx.recentParcelIds});
     ctx.phytoUI?.enhanceWorkForm(form, item); ctx.hedgesUI?.enhanceWorkForm(form, item); ctx.stockLotsUI?.enhanceWorkForm(form, item);
     // n° 144 : le formulaire s’ouvre sans attendre, habitudes et semences s’y ajoutent à l’arrivée.
@@ -202,7 +209,15 @@ export function createWorkFormUI(ctx) {
       duration, fuel, machineCost, fuelCost, inputCost, operatorCost, otherCost, weatherSnapshot, campaignId: campaignFor(v.date),
       source: item.id ? 'local' : (source.source || 'local')};
     if (staleKind(item, v)) entity.kind = null;
-    if (missingTreatmentProduct(entity)) { ctx.toast(TREATMENT_PRODUCT_MESSAGE, 'error'); form.elements.product?.focus(); return; }
+    // Case décochée : le genre « Un produit » ne doit plus garder le travail au registre (genre neutre).
+    if (!entity.isPhytosanitary && item.kind === 'spray') entity.kind = 'none';
+    if (form.elements.billable) entity.billable = form.elements.billable.checked; // explicite : l'upsert fusionne
+    if (missingTreatmentProduct(entity)) {
+      // Seules la création et le passage à Terminé bloquent ; un ancien traitement terminé reste modifiable.
+      const stored = item.id && !duplicate ? ctx.store.get?.('interventions', item.id) || source : null;
+      if (!stored || stored.status !== 'Terminé') { ctx.toast(TREATMENT_PRODUCT_MESSAGE, 'error'); form.elements.product?.focus(); return; }
+      ctx.toast('Produit non renseigné : ce traitement reste incomplet au registre phytosanitaire.', 'warning');
+    }
     if (v.status !== 'Terminé' && item.plannedDate && v.date !== item.date) entity.plannedDate = v.date;
     if (!entity.productLot && !item.productLot) delete entity.productLot; // n° 73 : lot du produit, seulement s'il est choisi
     if (ctx.phytoUI && !(await ctx.phytoUI.guardWork(form, entity))) return;

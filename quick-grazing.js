@@ -19,7 +19,7 @@ export const categoryShortLabel = key => (ugbCategory(key)?.label || '').replace
 export function freshEntry(data, {parcelIds = []} = {}) {
   const last = live(data?.grazingSessions).filter(s => s.startDate).sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)))[0];
   return {parcelIds: [...parcelIds], dateChoice: 'today', customDate: '', endDate: '', animalType: last?.animalType && last.animalType !== 'Non précisé' ? last.animalType : 'Bovins',
-    lotName: '', numbers: '', lines: [{category: last?.animalCategory || '', count: ''}], picks: {}, alloc: {}, rotate: false, entryParcelId: parcelIds[0] || '', keepEmptied: [], skip: [], reentryAck: ''};
+    lotName: '', numbers: '', lines: [{category: last?.animalCategory || '', count: ''}], picks: {}, alloc: {}, rotate: false, entryParcelId: parcelIds[0] || '', skip: [], reentryAck: ''};
 }
 
 /** Gestes proposés : sans lot au pré, on passe directement à la mise au pré ; le lot du pré choisi vient d'abord. @param {any} data @param {{today: string, parcelIds?: string[]}} options */
@@ -133,6 +133,12 @@ function typedAnimals(data, text, date) {
   });
 }
 
+/** Coches limitées aux animaux présents à la date (changement de date, reprise de brouillon). @param {any} data @param {Record<string, any>} picks @param {string} date */
+export function presentPicks(data, picks, date) {
+  const here = new Set(filterAnimals(data, {status: 'present', today: date}).map(a => a.id));
+  return Object.fromEntries(Object.entries(picks || {}).filter(([id]) => here.has(id)));
+}
+
 /** Parcelles de la saisie, dans l'ordre de sélection : le même ordre à l'écran et à l'enregistrement (départage des restes). @param {any} data @param {string[]} ids */
 export const selectedParcels = (data, ids) => (ids || []).map(id => live(data?.parcelles).find(p => p.id === id)).filter(Boolean);
 
@@ -174,7 +180,8 @@ export function buildGrazingEntries(entry, data, {today, date}) {
     return n;
   });
   const typed = typedAnimals(data, entry.numbers || '', date);
-  const herd = new Map(live(data?.animals).map(a => [a.id, a]));
+  // Seuls les animaux présents à la date comptent : une coche restée sur un animal sorti (ou pas encore arrivé) est ignorée.
+  const herd = new Map(filterAnimals(data, {status: 'present', today: date}).map(a => [a.id, a]));
   const groups = herdGroups(data, {date}).flatMap(g => g.animals);
   const picks = Object.entries(entry.picks || {}).filter(([id]) => herd.has(id)).map(([id, pick]) => ({
     item: animalItem(herd.get(id), Boolean(groups.find(g => g.animal.id === id)?.gestation)),
@@ -209,11 +216,12 @@ export function buildGrazingEntries(entry, data, {today, date}) {
  * d'écrire les nouveaux passages.
  * Lot commencé avant la date : il est clos à cette date avec sa liste intacte (closed s'il est repris en entier), et le
  * reste repart dans un nouveau passage (creates), comme removeAnimalFromLot.
- * Lot commencé à cette date ou après : les animaux n'y ont pas compté, la liste est corrigée ; vide, sa clôture est proposée (emptied).
+ * Lot commencé à cette date ou après : les animaux n'y ont pas compté, la liste est corrigée ; vidé, il est toujours clos à son
+ * entrée (emptied, pour l'annoncer) : un lot ouvert à 0 animal n'existe pas.
  * Lot déjà clos ou saisie terminée (endDate passée) : rien ne change, c'est de l'historique.
- * @param {any} data @param {any[]} animals éléments {number, name, animalId, gestation} @param {{date: string, today?: string, endDate?: string, keepEmptied?: string[]}} options
+ * @param {any} data @param {any[]} animals éléments {number, name, animalId, gestation} @param {{date: string, today?: string, endDate?: string}} options
  */
-export function planLotMoves(data, animals, {date, today = date, endDate = '', keepEmptied = []}) {
+export function planLotMoves(data, animals, {date, today = date, endDate = ''}) {
   if (finishedEntry({endDate}, today)) return {updates: [], creates: [], emptied: [], closed: []};
   const original = live(data?.grazingSessions);
   let sessions = original;
@@ -238,9 +246,8 @@ export function planLotMoves(data, animals, {date, today = date, endDate = '', k
       else closed.push({id: row.id, name: lotLabel(row)});
       continue;
     }
-    const close = !total && !keepEmptied.includes(row.id);
     if (!total) emptied.push({id: row.id, name: lotLabel(row)});
-    updates.push({...row, animalsCount: total, ...(close && !row.endDate ? {endDate: start} : {})});
+    updates.push({...row, animalsCount: total, ...(!total ? {endDate: start} : {})});
   }
   return {updates, creates, emptied, closed};
 }
