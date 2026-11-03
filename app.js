@@ -6,7 +6,7 @@ import {createAppLoader} from './lazy-modules.js'; // n° 144, 147
 import {createSatelliteUI} from './satellite-ui.js';
 import {createWideLayoutUI} from './wide-layout-ui.js';
 import {HOME_SHORTCUTS,normalizePersonalization,homeLayout,filterMapParcels} from './personalization.js';
-import {createActivityModulesUI,activityChipsHtml,bindActivityChips} from './activity-modules-ui.js';import {hiddenToolCount,isModuleActive} from './activity-modules.js';import {activeNavView,resolveView,profileInitials,isProfileView} from './nav-model.js';import {lateBannerHtml,todayListHtml,animalsOut as homeAnimalsOut,animalsCardHtml,recentListHtml,workDayLabel} from './home-view.js';import {attachSheetSwipe} from './sheet-swipe.js'; // v6c n° 116
+import {createActivityModulesUI,activityChipsHtml,bindActivityChips} from './activity-modules-ui.js';import {hiddenToolCount,isModuleActive} from './activity-modules.js';import {activeNavView,resolveView,profileInitials,isProfileView} from './nav-model.js';import {createAppsUI} from './apps-ui.js';import {APPS,appRoute,parseAppRoute} from './apps.js';import {lateBannerHtml,todayListHtml,animalsOut as homeAnimalsOut,animalsCardHtml,recentListHtml,workDayLabel} from './home-view.js';import {attachSheetSwipe} from './sheet-swipe.js'; // v6c n° 116
 import {createGettingStartedUI} from './getting-started-ui.js';let gettingStartedUI=null; // v6c n° 119
 import {createWhatsNewUI} from './whats-new-ui.js';let whatsNewUI=null; // v6c n° 128
 import {createFriendlyErrorsUI} from './friendly-errors-ui.js';import {friendlyError} from './friendly-errors.js';let friendlyErrorsUI=null;function friendlyErrors(){return friendlyErrorsUI||(friendlyErrorsUI=createFriendlyErrorsUI({toast,openDiagnostic,copyText,buildId:BUILD_ID}));} // v6c n° 126
@@ -198,7 +198,7 @@ async function init(){
     speakLastAssistant,startChantier,startMapMeasurement,startMapPointPlacement,startMultipleSelection,startVoiceAssistant,storageCare,
     suggestWorkFromTrack,telepac,trash,viewAttachment,walkMeasureUI,
     get accountingExportUI(){return accountingExportUI;},get agroRiskUI(){return agroRiskUI;},get appLockUI(){return appLockUI;},
-    get automationsUI(){return automationsUI;},get backupVaultUI(){return backupVaultUI;},get billingHubUI(){return billingHubUI;},
+    get automationsUI(){return automationsUI;},get backupVaultUI(){return backupVaultUI;},get billingHubUI(){return billingHubUI;},get appsUI(){return appsUI;},
     get campaignHistoryUI(){return campaignHistoryUI;},get claimsUI(){return claimsUI;},get complianceUI(){return complianceUI;},
     get coversUI(){return coversUI;},get cropMarginsUI(){return cropMarginsUI;},get dossierUI(){return dossierUI;},
     get drawingParcelId(){return drawingParcelId;},set drawingParcelId(value){drawingParcelId=value;},get farmUI(){return farmUI;},
@@ -249,6 +249,7 @@ async function init(){
   // Dock visibility, orientation and editing tools all change the usable map area.
   if(globalThis.ResizeObserver)new ResizeObserver(()=>parcelMap.map?.invalidateSize({pan:false})).observe(document.querySelector('.map-stage'));
   bindEvents();store.subscribe((data,event)=>{renderAfterStoreChange(data,event);scheduleAutomationEvent(event);});perf.mark('events-ready');
+  appsUI=createAppsUI({catalog:()=>Object.values(MORE_CATEGORIES).flatMap(c=>c.items),isVisible:appToolVisible,livestock:()=>livestockOn(),switchView:(view,options)=>switchView(view,options),currentView:()=>currentView,modal,closeModal,readLocal:key=>readLocalJson(key,null),writeLocal:writeLocalJson,routeHash:()=>location.hash&&location.hash!=='#'?location.hash:routeHashForView(currentView),goRoute:hash=>{updateRoute(hash,'replace');applyHashRoute();}});
   applyTheme();renderDemoBanner();renderAll();renderNetwork();perf.mark('first-render');handleInvitationLink();
   requestPersistentStorage().catch(()=>false);
   whatsNewUI=createWhatsNewUI({store,modal,closeModal,toast,buildId:BUILD_ID,openers:{interventions:id=>openWorkForm(id?store.get('interventions',id):null),tasks:id=>openTaskForm(id?store.get('tasks',id):null),grazingSessions:id=>openGrazingForm(id?store.get('grazingSessions',id):null),observations:id=>openObservationForm(id?store.get('observations',id):null)}});
@@ -269,6 +270,7 @@ async function init(){
   // Double appui sur « Enregistrer » : un seul enregistrement à la fois (sinon une fiche neuve est créée deux fois).
   document.addEventListener('click',event=>{const button=event.target.closest?.('#modal-root button[id^="save-"]');if(!button||typeof button.onclick!=='function')return;event.stopPropagation();event.preventDefault();if(button.dataset.saving)return;button.dataset.saving='1';button.setAttribute('aria-busy','true');Promise.resolve().then(()=>button.onclick.call(button,event)).finally(()=>{delete button.dataset.saving;button.removeAttribute('aria-busy');});},true);
   window.addEventListener('hashchange',applyHashRoute);window.addEventListener('popstate',applyHashRoute);
+  {const start=appsUI.start();if(['','#','#today'].includes(location.hash)&&start.app!=='champs'&&!activeFieldSession())updateRoute(start.view==='space'?appRoute(start.app):`#${start.view}`,'replace');}
   applyHashRoute();
   if(shouldResumeField(location.hash,activeFieldSession()))setTimeout(()=>{if(!fieldModeOpen&&activeFieldSession()&&!$('#modal-root')?.classList.contains('has-modal'))openFieldMode();},150);
   idleTask(()=>navigator.onLine&&state().preferences.weatherAutoRefresh!==false&&refreshWeather({silent:true}),{timeout:900});
@@ -378,7 +380,7 @@ function mapWind(){return weatherCache?.current?{direction:weatherCache.current.
 function renderMapData(data){const mapData=currentView==='map'?mapRenderState(data):data;renderMapSheet(mapData);if(currentView==='map'){parcelMap.setBaseLayer(data.preferences.mapLayer||'osm');parcelMap.setCadastreOverlay(Boolean(data.preferences.mapCadastre),data.preferences.mapCadastreOpacity);parcelMap.setColorMode(data.preferences.mapColorMode||'culture');parcelMap.setWind(mapWind());parcelMap.render(mapData);photoGeo().syncLayer();setTimeout(()=>parcelMap.map?.invalidateSize(),20);}}
 // n° 145 : seule la vue visible est rendue après une modification ; les autres sont marquées et rendues au changement d’onglet.
 let renderScheduler=null,enteringMap=false;
-function renderViewNow(view){const data=state();if(view==='today')renderToday(data);else if(view==='parcels')renderParcels(data);else if(view==='work')renderWork(data);else if(view==='map'){if(enteringMap)renderMapSheet(mapRenderState(data));else renderMapData(data);}else if(view==='parcel'&&selectedParcelId)renderParcelDetailPage(selectedParcelId,currentParcelTab,data);else if(view==='herd')renderHerdHome();}
+function renderViewNow(view){const data=state();if(view==='today')renderToday(data);else if(view==='parcels')renderParcels(data);else if(view==='work')renderWork(data);else if(view==='map'){if(enteringMap)renderMapSheet(mapRenderState(data));else renderMapData(data);}else if(view==='parcel'&&selectedParcelId)renderParcelDetailPage(selectedParcelId,currentParcelTab,data);else if(view==='herd')renderHerdHome();else if(view==='space')appsUI?.renderSpace();}
 function scheduler(){return renderScheduler??=createRenderScheduler({render:renderViewNow,currentView:()=>currentView,raf:cb=>(typeof requestAnimationFrame==='function'?requestAnimationFrame(cb):setTimeout(cb,16)),clock:()=>performance.now(),onRendered:view=>perf.mark(`render:${view}`)});}
 function renderAfterStoreChange(data,event={}){
   workSubviews().refresh();
@@ -390,11 +392,13 @@ function renderAfterStoreChange(data,event={}){
   scheduler().invalidate(marked);
 }
 // n° 160 : 5e onglet Troupeau ou Travaux selon le module élevage, initiales de la pastille de profil.
+// n° 161 : applis dans l’appli (apps.js, apps-ui.js). Champs garde la barre n° 160.
+let appsUI=null;const appToolVisible=action=>actionVisibleForRole(cloudRole(),action)&&activities().filter([['','',action,'']]).length>0;
 let profileMenuUI=null;function openProfileMenu(){lazy.run('profileMenu',()=>profileMenuUI.open());}
 let quickWorkUI=null;function openQuickWork(options={}){return lazy.run('quickWork',()=>quickWorkUI.open(options));}function openGrazingEntry(options={}){return lazy.run('quickWork',()=>quickWorkUI.openGrazing(options));}
 function livestockOn(data=state()){return isModuleActive('livestock',data.preferences?.activeModules);}
 function renderNavModules(data){document.documentElement.classList.toggle('home-phone-compact',data.preferences?.homePhoneCompact!==false);const on=livestockOn(data);$$('[data-nav-livestock]').forEach(el=>{el.hidden=!on;});$$('[data-nav-no-livestock]').forEach(el=>{el.hidden=on;});const initials=profileInitials(data.exploitation?.nom||'');$$('.profile-initials').forEach(el=>{el.textContent=initials;});if(!on&&currentView==='herd')switchView('work',{historyMode:'replace'});}
-function renderAll(){const data=state();renderCommon(data);renderMoreModules();help().mountViewHelp();scheduler().remember(data);scheduler().renderNow();}
+function renderAll(){const data=state();renderCommon(data);appsUI?.refresh();renderMoreModules();help().mountViewHelp();scheduler().remember(data);scheduler().renderNow();}
 function renderNetwork(){
   if(!store)return;privacy().renderBadge();const data=state(),pending=data.queue.filter(item=>item.status==='pending').length,offline=!navigator.onLine;
   document.documentElement.classList.toggle('is-offline',offline);
@@ -422,12 +426,12 @@ function toast(message,type='success',action=null,{persist=false}={}){
 
 // n° 130 : toast d’enregistrement avec « Annuler » (restaure la version d’avant, synchronisée).
 function savedToast(message,extra=null){if(historyUI)historyUI.savedToast(message,extra);else toast(message,'success',extra);}
-function routeHashForView(view){let hash=`#${view}`;if(view==='parcel'&&selectedParcelId)hash=`#parcel/${encodeURIComponent(selectedParcelId)}/${currentParcelTab}`;if(view==='more-category')hash=`#more/${currentMoreCategory}`;return hash;}
+function routeHashForView(view){let hash=`#${view}`;if(view==='parcel'&&selectedParcelId)hash=`#parcel/${encodeURIComponent(selectedParcelId)}/${currentParcelTab}`;if(view==='more-category')hash=`#more/${currentMoreCategory}`;if(view==='space')hash=appRoute(appsUI?.current());return hash;}
 function updateRoute(hash,mode='push'){if(location.hash===hash)return;const method=mode==='replace'?'replaceState':'pushState';history[method]({parcellesRoute:true},'',hash);}
 function switchView(view,{updateHash=true,historyMode='push',scroll=true}={}){
   if(view!=='parcel'){satelliteUI?.cancel();yieldUI?.cancel();}
   if(view!=='map'){mapModes.exit({reason:'view'});parcelMap?.cancelPointPlacement();parcelMap?.map?.closePopup();parcelMap?.hideHover?.();closeMapSearch();}
-  const livestock=livestockOn();view=resolveView(view,{livestock});if(view==='work'&&updateHash)workSubviews().show('list');const previous=currentView;currentView=view;document.documentElement.dataset.view=view;nextActionUIInstance?.view(view);enteringMap=view==='map';try{scheduler().show(view);}finally{enteringMap=false;}
+  const livestock=livestockOn();view=resolveView(view,{livestock});if(view==='work'&&updateHash)workSubviews().show('list');const previous=currentView;currentView=view;document.documentElement.dataset.view=view;appsUI?.syncView(view);nextActionUIInstance?.view(view);enteringMap=view==='map';try{scheduler().show(view);}finally{enteringMap=false;}
   const showView=()=>{$$('.view').forEach(el=>el.classList.toggle('is-active',el.id===`view-${view}`));if(scroll&&previous!==view&&view!=='map')window.scrollTo({top:0,left:0,behavior:'auto'});$('#main')?.focus({preventScroll:true});};
   const animated=previous!==view&&document.documentElement.dataset.appReady==='1'&&viewTransitions().run(previous,view,showView);if(!animated)showView();
   $$('.nav-item').forEach(el=>{const on=el.dataset.view===activeNavView(view,{livestock,desktop:Boolean(el.closest('.desktop-sidebar'))});el.classList.toggle('is-active',on);if(on)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});
@@ -446,6 +450,7 @@ let quickBackEcho=false;function applyHashRoute(){
   const launch=parseLaunchRoute(route);if(launch){updateRoute('#today','replace');switchView('today',{updateHash:false});setTimeout(()=>openLaunchRoute(launch),80);return;}
   if(route.startsWith('parcel/')){const [,encodedId,tab='summary']=route.split('/');let id='';try{id=decodeURIComponent(encodedId||'');}catch{}if(parcelById(id)){selectedParcelId=id;currentParcelTab=['summary','activity','documents','economy','land','satellite','yield','history'].includes(tab)?tab:'summary';renderParcelDetailPage(selectedParcelId,currentParcelTab);switchView('parcel',{updateHash:false});return;}}
   if(route==='more'){updateRoute('#today','replace');if(currentView==='more'||currentView==='more-category')switchView('today',{updateHash:false});/* hashchange et popstate rappellent applyHashRoute : ouvrir après le second appel */setTimeout(openProfileMenu,80);return;}
+  const appId=parseAppRoute(route);if(appId){if(!appsUI.visibleIds().includes(appId)){updateRoute('#today','replace');switchView('today',{updateHash:false});return;}appsUI.setApp(appId);switchView('space',{updateHash:false});return;}
   if(route.startsWith('more/')){const category=route.split('/')[1]||'production';renderMoreCategory(category);switchView('more-category',{updateHash:false});return;}
   if(route==='work'||route.startsWith('work/')){switchView('work',{updateHash:false});workSubviews().show(route.slice(5)||'list');return;}
   if(['map','parcels','herd','work','more','today'].includes(route))switchView(route,{updateHash:false});else switchView('today',{updateHash:false});
@@ -1594,6 +1599,8 @@ function bindEvents(){
     const control=event.target.closest('[data-action],button[data-view],a[data-view],[data-work-tab],[data-parcel-filter],[data-map-open]');if(!control)return;
     // Toute action extérieure au mode de carte actif le quitte (tracé non enregistré : confirmation d’abord).
     if(mapModes.current&&(control.dataset.view||control.dataset.mapOpen||actionLeavesMode(mapModes.current,control.dataset.action||'',{insideModal:Boolean(control.closest('#modal-root'))}))){let blocked=false;if(!mapModes.leave(()=>{if(blocked&&control.isConnected)control.click();},{reason:'action'})){blocked=true;return;}}
+    // n° 161 : un bouton qui relève d’une autre appli y bascule (pastille « Retour à … »). Lanceur, barres d’appli et pastille exclus.
+    if(appsUI&&!control.closest('.apps-sheet,#app-nav,#sidebar-app-nav,#sidebar-apps,[data-app-return]')&&appsUI.follow({action:control.dataset.action||'',view:control.dataset.view||''})&&$('#modal-root')?.classList.contains('has-modal'))modalRouteHash=location.hash;
     if(control.dataset.view&&isProfileView(control.dataset.view)){openProfileMenu();return;}if(control.dataset.view){closeModal();if(currentView==='parcel'&&control.dataset.view==='parcels')viewTransitions().shareBackTo(selectedParcelId);/* la fiche ouverte depuis Parcelles n’est pas une sélection de carte : ne pas la rouvrir en bas de la Carte */if(currentView==='parcel'&&control.dataset.view!=='map'){selectedParcelId=null;if(parcelMap)parcelMap.selectedId=null;}switchView(control.dataset.view);return;}
     if(control.dataset.workTab){workTab=control.dataset.workTab;renderWork(state());revealView($('#view-work'));return;}
     if(control.dataset.parcelFilter){parcelFilter=control.dataset.parcelFilter;legendParcelFilter=null;$$('[data-parcel-filter]').forEach(b=>b.classList.toggle('is-active',b===control));renderParcels(state());revealView($('#view-parcels'));return;}
@@ -1654,8 +1661,9 @@ function openVoiceJournal(text=''){voiceNotes().open({text,analyzeNow:Boolean(St
 
 // n° 120 : la palette cherche aussi dans tous les outils de Plus et les actions directes, avec une faute tolérée.
 let spotlightIndex=null;
-function commandMatches(query){spotlightIndex||=buildCommandIndex(MORE_CATEGORIES);return matchCommands(query,spotlightIndex,{limit:6,visible:a=>activities().visible(a)&&actionVisibleForRole(cloudRole(),a)});}
+// n° 161 : les applis sont aussi des commandes (« facturation » propose d’ouvrir l’appli), filtrées selon les applis visibles.
+function commandMatches(query){spotlightIndex||=[...APPS.map(a=>({label:`Appli ${a.title}`,action:'switch-app',app:a.id,description:a.desc,icon:a.icon,kind:'app',text:normalize(`${a.title} appli application espace ${a.desc}`)})),...buildCommandIndex(MORE_CATEGORIES)];const apps=appsUI?.visibleIds()||[];return matchCommands(query,spotlightIndex,{limit:7,visible:a=>activities().visible(a)&&actionVisibleForRole(cloudRole(),a)}).filter(c=>c.kind!=='app'||apps.includes(c.app)).slice(0,6);}
 const RECENT_SEARCH_KEY='parcelles:recent-searches';
 function recentSearches(){try{const v=JSON.parse(localStorage.getItem(RECENT_SEARCH_KEY)||'[]');return Array.isArray(v)?v:[];}catch{return [];}}
 function rememberRecentSearch(query){try{localStorage.setItem(RECENT_SEARCH_KEY,JSON.stringify(rememberSearch(recentSearches(),query)));}catch{}}
-function commandHtml(commands){return commands.length?`<section class="search-result-group"><h3>Outils et actions<span>${commands.length}</span></h3>${commands.map(c=>`<button class="menu-row" data-action="${c.action}"><span>${c.icon?icon(c.icon,{size:19}):'↗'}</span><span><strong>${escapeHtml(c.label)}</strong><small>${escapeHtml(c.category?`${c.category} · ${c.description}`:c.description)}</small></span><b>›</b></button>`).join('')}</section>`:'';}
+function commandHtml(commands){return commands.length?`<section class="search-result-group"><h3>Outils et actions<span>${commands.length}</span></h3>${commands.map(c=>`<button class="menu-row" data-action="${c.action}"${c.app?` data-app="${c.app}"`:''}><span>${c.icon?icon(c.icon,{size:19}):'↗'}</span><span><strong>${escapeHtml(c.label)}</strong><small>${escapeHtml(c.category?`${c.category} · ${c.description}`:c.description)}</small></span><b>›</b></button>`).join('')}</section>`:'';}

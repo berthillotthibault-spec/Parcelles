@@ -1,5 +1,16 @@
 # Changelog
 
+## 10.27.0 · plusieurs applis en une (n° 161) — 2026-11-03
+
+Parcelles se présente comme plusieurs applis qui partagent les mêmes données. Pas de changement de schéma (version 18), aucune migration, règles Firebase inchangées.
+
+- **lanceur** : toucher le logo (en haut à gauche, ou en haut de la barre latérale sur ordinateur) ouvre « Mes applis » : Champs, Troupeau, Facturation, Matériel, Gestion, Réglementaire, Travaux publics et Réglages. Une appli sans outil utile pour vos activités ou votre rôle n'apparaît pas (Troupeau suit le module élevage) ;
+- **chaque appli** a sa couleur, sa barre du bas (onglets et « + » propres : Nouvelle facture, Nouvel engin, Nouveau pâturage…) et une page d'accueil avec ses outils (adresse `#app/<appli>`). **Champs garde la navigation de la 10.25** sans changement ; sur ordinateur, la barre latérale liste les applis puis les onglets de l'appli ouverte ;
+- **bascule automatique** : un bouton qui relève d'une autre appli y bascule (« Facturer » ouvre Facturation, l'onglet Troupeau ouvre l'appli Troupeau, une parcelle ramène à Champs). La pastille « Retour à … » ramène à l'appli et à l'écran quittés. Les réglages ponctuels (Paramètres, Aide…) s'ouvrent sans changer d'appli ;
+- **ouverture** sur la dernière appli utilisée, retenue par appareil (pas synchronisée) ;
+- la recherche propose aussi les applis (« facturation », « matériel »…) ;
+- nouveaux fichiers `apps.js` (logique pure, testée par `test-apps.mjs`) et `apps-ui.js`, ajoutés au cache hors ligne.
+
 ## 10.26.1 · corrections de la relecture du bouton « Ajouter » — 2026-11-03
 
 Corrections de la 10.26.0. Pas de changement de schéma (version 18), aucune migration, `firestore.rules` inchangé depuis la 10.26.0.

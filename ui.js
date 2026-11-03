@@ -1,4 +1,9 @@
 const PATHS={
+  // n° 161 : icônes des applis (Troupeau, Réglementaire) et des onglets À faire / Pâturage.
+  herd:['M9 3h6l4 5v6a7 7 0 0 1-14 0V8z','M10.4 8a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0','M9 14h6'],
+  shield:['M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z','M9 12l2 2 4-4'],
+  check:['M5 12.5l4.5 4.5L19 7.5'],
+  fence:['M5 20V7l2-3 2 3v13','M15 20V7l2-3 2 3v13','M9 10h6','M9 15h6'],
   home:['M3 10.5 12 3l9 7.5','M5 9.8V21h14V9.8','M9 21v-7h6v7'],
   map:['M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20z','M9 4v13.5','M15 6.5V20'],
   parcels:['M6 4h12l2 5-2 11H6L4 9z','M4 9h16','M9 4v16','M15 4v16'],

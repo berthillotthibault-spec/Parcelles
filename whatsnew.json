@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.27.0",
+      "date": "2026-11-03",
+      "title": "Plusieurs applis en une",
+      "items": [
+        "Touchez le logo en haut à gauche : Champs, Troupeau, Facturation, Matériel, Gestion, Réglementaire, Travaux publics et Réglages.",
+        "Chaque appli a sa couleur, sa barre du bas et son bouton « + » ; Champs ne change pas.",
+        "Un bouton qui relève d’une autre appli y bascule tout seul ; la pastille « Retour à … » ramène où vous étiez.",
+        "Parcelles se rouvre sur la dernière appli utilisée sur cet appareil."
+      ]
+    },
+    {
       "version": "10.26.1",
       "date": "2026-11-03",
       "title": "Corrections du bouton Ajouter",

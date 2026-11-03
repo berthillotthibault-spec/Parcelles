@@ -24,6 +24,10 @@ export const modulesActions = {
   'more-modules-filter': moreModules,
   // n° 160 : la pastille de profil ouvre le menu profil, qui remplace l'onglet « Plus ».
   'open-profile-menu'() { ctx.openProfileMenu(); },
+  // n° 161 : applis dans l'appli : lanceur (logo), choix d'une appli, pastille « Retour à … ».
+  'open-apps'() { ctx.appsUI?.openLauncher(); },
+  'switch-app'({control}) { ctx.appsUI?.open(control.dataset.app||''); },
+  'app-return'() { ctx.appsUI?.goBack(); },
   // Retour de la liste d'une catégorie (lien #more/<catégorie>) : accueil, puis menu profil.
   'more-category-back'() { ctx.switchView('today'); ctx.openProfileMenu(); },
   'open-more-category'({control}) { ctx.renderMoreCategory(control.dataset.category||'production'); ctx.switchView('more-category'); },

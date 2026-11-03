@@ -1,6 +1,7 @@
 import {BUILD_ID} from './utils.js';
 
 const REQUIRED_ASSETS = [
+ /* n° 161 */'./apps.js','./apps-ui.js',
  /* n° 160 */'./nav-model.js','./profile-menu.js','./profile-menu-ui.js','./quick-work.js','./quick-work-ui.js','./quick-grazing.js','./quick-grazing-ui.js','./home-view.js','./herd-home.js','./herd-home-ui.js','./sheet-swipe.js',
  /* n° 147 */'./app-context.js','./actions.js','./work-actions.js','./parcel-actions.js','./today-actions.js','./map-actions.js','./field-actions.js','./farm-actions.js','./modules-actions.js','./data-actions.js','./work-form-ui.js','./account-ui.js','./diagnostic-ui.js',
  /* n° 20 */'./public-works-day.js','./public-works-day-ui.js',

@@ -4,7 +4,7 @@
 // Barre latérale : Accueil · Carte · Parcelles · Troupeau · Planning · Modules.
 
 /** Vues que le routeur sait afficher. */
-export const NAV_VIEWS = ['today', 'map', 'parcels', 'parcel', 'herd', 'work', 'more', 'more-category'];
+export const NAV_VIEWS = ['today', 'map', 'parcels', 'parcel', 'herd', 'work', 'more', 'more-category', 'space'];
 
 /** Vues dont l'ancien accès passait par l'onglet « Plus » : elles s'ouvrent désormais par le menu profil. */
 export const PROFILE_VIEWS = ['more', 'more-category'];
