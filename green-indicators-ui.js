@@ -2,7 +2,7 @@
 // (lazy-modules.js) : chiffres clés, jauge par thème HVE, pistes de progrès, CO2 estimé et fiche
 // imprimable. Aucune nouvelle saisie : seules deux références IFT facultatives sont réglables, et pas
 // en lecture seule. Boutons repérés par data-green : un seul écouteur délégué, installé une fois.
-import {escapeHtml as e,isoDate,localDate} from './utils.js';
+import {escapeHtml as e,localDate,localIso} from './utils.js';
 import {roleCan} from './permissions.js';
 import {CO2_FACTORS,campaignChoices,greenIndicators,greenSettings,greenSheetHtml,improvementTips,keyFigures,themeSentence,validateGreenSettings} from './green-indicators.js';
 import {assetBase,openPrintable} from './dossier-ui.js';
@@ -14,7 +14,7 @@ const SOURCES={iae:['open-hedges','Haies et IAE'],prairies:['open-pac','Assistan
 export function createGreenIndicatorsUI({store,modal,toast,role=()=>'owner',catalogLookup=()=>null}){
   const $=s=>document.querySelector(s);
   const data=()=>store.snapshot();
-  const today=()=>isoDate(new Date());
+  const today=()=>localIso();
   const canEdit=()=>roleCan(role(),'write')&&!store.tabReadOnly;
   let campaign=null;
 
@@ -36,7 +36,7 @@ export function createGreenIndicatorsUI({store,modal,toast,role=()=>'owner',cata
     const figures=keyFigures(r).map(k=>{const src=SOURCES[k.key];return`<div class="preview-stat"><strong>${e(k.value)}</strong><small>${e(k.label)}</small><small style="display:block;margin-top:4px">${e(k.detail)}</small>${src?`<button type="button" class="text-button" data-action="${src[0]}">${e(src[1])} ›</button>`:''}</div>`;}).join('');
     const co2=r.carbon.lines.map(l=>`<div class="list-row"><div><strong>${e(l.label)}</strong><small>${e(Number(l.base||0).toLocaleString('fr-FR',{maximumFractionDigits:0}))} ${e(l.baseUnit)} × ${e(String(l.factor.value).replace('.',','))} ${e(l.factor.unit)} · ${e(l.factor.source)}</small></div><strong>${e(l.kg.toLocaleString('fr-FR'))} kg</strong></div>`).join('');
     const body=`<p class="notice warning" role="note"><strong>Auto-diagnostic, pas une certification.</strong> ${e(r.disclaimer)}</p>
-<label class="span-2">Campagne <select id="gi-campaign">${choices.map(c=>`<option value="${e(c)}" ${c===campaign?'selected':''}>${e(c)}</option>`).join('')}</select></label>
+<label class="field-label">Campagne <select id="gi-campaign">${choices.map(c=>`<option value="${e(c)}" ${c===campaign?'selected':''}>${e(c)}</option>`).join('')}</select></label>
 ${r.empty?'<p class="notice info" role="note">Aucune parcelle en propriété ou en fermage : ajoutez vos parcelles pour obtenir des indicateurs.</p>':''}
 <h3>Chiffres clés</h3><div class="preview-summary">${figures}</div>
 <h3>Grille HVE simplifiée · ${r.reached}/${r.scored} thème${r.scored>1?'s':''} au seuil de ${ref.threshold} points</h3>
@@ -52,7 +52,7 @@ ${tips.length?`<h3>Pistes de progrès</h3><ol class="stack-list">${tips.map(t=>`
 <p class="form-note">${e(ref.label)} · version ${e(ref.version)} du ${e(localDate(ref.date))}. ${e(ref.note)} ${e(r.inputs.reference.note)}</p>`;
     modal('Mon exploitation en chiffres verts',`Auto-diagnostic environnemental · campagne ${campaign} · référentiel ${ref.version}`,body,
       `<button type="button" class="button primary" data-green="print">Fiche imprimable</button>`,'large');
-    const select=$('#gi-campaign');if(select)select.onchange=()=>open({campaign:select.value});
+    const select=$('#gi-campaign');if(select)select.onchange=()=>{open({campaign:select.value});$('#gi-campaign')?.focus({preventScroll:true});};
   }
 
   async function saveSettings(){

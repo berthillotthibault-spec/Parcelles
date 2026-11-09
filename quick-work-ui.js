@@ -19,7 +19,8 @@ import {orderedWorkTypes, typeBadge, doseConfig, parseDose, formatDose, parcelCh
   isSoilBase, SOIL_TYPES, isMowCut, isForageFollowup, isGrainHarvest, HARVEST_UNITS, nextCut, hoursBetween, dateNotice} from './quick-work.js';
 import {createQuickGrazingUI} from './quick-grazing-ui.js';
 
-const KEY = draftKey('quick-work', 'nouveau');
+// Clé calculée à chaque usage : elle dépend de l’exploitation ouverte.
+const draftKeyNow = () => draftKey('quick-work', 'nouveau');
 const FROM_MAP = 'parcelles:quick-work:map';
 const TITLES = ['Quel travail ?', 'Sur quelles parcelles ?', 'Les détails'];
 const DATES = [['today', 'Aujourd’hui'], ['yesterday', 'Hier'], ['custom', 'Autre date']];
@@ -49,8 +50,8 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
   const isSpray = () => workFamily(s.type, s.kind) === 'spray';
   // Un vrai geste d'animaux quitte le parcours des travaux (isGrazingType, jamais typeFamily).
   const grazing = createQuickGrazingUI({store, state, toast, closeModal: close, todayIso, root, cultureColor, openGrazingForm, openGrazingList,
-    persistDraft: fields => writeDraft(KEY, draftFields(fields), {storage: storage()}),
-    clearDraft: () => removeDraft(KEY, {storage: storage()}),
+    persistDraft: fields => writeDraft(draftKeyNow(), draftFields(fields), {storage: storage()}),
+    clearDraft: () => removeDraft(draftKeyNow(), {storage: storage()}),
     onBack: () => { s = {...fresh(), parcelIds: s.parcelIds}; render(); }});
 
   function fresh({parcelIds = []} = {}) {
@@ -62,7 +63,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
   }
   function persist() {
     if (s.step < 2 || !s.type) return;
-    writeDraft(KEY, draftFields(s), {storage: storage()});
+    writeDraft(draftKeyNow(), draftFields(s), {storage: storage()});
   }
   function setType(type, kind = '') {
     // Le genre peut avoir été changé à l'étape 1 (s.kind) : on compare au genre du dernier choix de type.
@@ -110,7 +111,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
   }
 
   function resumeHtml() {
-    const saved = readDraft(KEY, {storage: storage()});
+    const saved = readDraft(draftKeyNow(), {storage: storage()});
     if (!saved?.fields?.type) return '';
     const f = saved.fields;
     return html`<div class="qw-resume" role="status"><span><strong>Reprendre la saisie</strong><small>${draftSummary(state(), {...f, date: draftDate(f.dateChoice, todayIso(), f.customDate), today: todayIso()})} · ${draftTimeLabel(saved.savedAt)}</small></span>
@@ -570,7 +571,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
       render({focus: '.qw-next'});
       return;
     }
-    removeDraft(KEY, {storage: storage()});
+    removeDraft(draftKeyNow(), {storage: storage()});
     close();
     const effectsError = await applyEffects(pending);
     const followUp = followUpOf(pending);
@@ -665,7 +666,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
       ...(s.hedgeOk ? {hedgeDerogation: true} : {}), ...(s.kind ? {kind: s.kind} : {}), ...(isSpray() ? {isPhytosanitary: true} : {})};
     // Le brouillon reste jusqu'à l'enregistrement du formulaire : l'annuler ne perd pas la saisie (« Reprendre » au prochain +).
     persist();
-    const onSaved = () => removeDraft(KEY, {storage: storage()});
+    const onSaved = () => removeDraft(draftKeyNow(), {storage: storage()});
     // Une parcelle et un seul travail prévu clôturable : on termine ce prévu, au lieu d'en créer un second à côté.
     const planned = s.parcelIds.length === 1 && date <= todayIso()
       ? closingCandidates(state(), {type: s.type, kind: s.kind, parcelIds: s.parcelIds, date, today: todayIso(), product: c.none ? '' : s.product}).works.filter(w => !s.skip.includes(w.id)) : [];
@@ -804,12 +805,12 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
         refreshPhyto();
       }
     } else if (what === 'resume') {
-      const saved = readDraft(KEY, {storage: storage()})?.fields;
+      const saved = readDraft(draftKeyNow(), {storage: storage()})?.fields;
       if (saved?.grazing) grazing.start({type: saved.type, entry: saved.grazing.entry, screen: saved.grazing.screen, workId: saved.grazing.workId});
       else if (saved && isGrazingType(saved.type)) grazing.start({type: saved.type, parcelIds: saved.parcelIds || []}); // brouillon d'avant cette saisie : jamais de faux pâturage
-      else if (saved && isObservationType(saved.type)) { removeDraft(KEY, {storage: storage()}); s = {...s, parcelIds: saved.parcelIds || []}; openObservation(); }
+      else if (saved && isObservationType(saved.type)) { removeDraft(draftKeyNow(), {storage: storage()}); s = {...s, parcelIds: saved.parcelIds || []}; openObservation(); }
       else if (saved) { s = {...fresh(), ...saved, typeKind: saved.kind || '', step: saved.pending ? 3 : Math.max(2, saved.step || 2)}; if (!s.pending) checkPrefill(); render(); }
-    } else if (what === 'discard') { removeDraft(KEY, {storage: storage()}); render(); }
+    } else if (what === 'discard') { removeDraft(draftKeyNow(), {storage: storage()}); render(); }
     else if (what === 'filter') { s.filter = el.dataset.filter; s.order = null; render({focus: `.qw-pill[data-filter="${CSS.escape(s.filter)}"]`}); }
     else if (what === 'clear-filter') { s.filter = 'all'; s.query = ''; s.order = null; render({focus: '#qw-query'}); }
     else if (what === 'change-parcels') go(2);
@@ -959,7 +960,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     // Parcelles données par l'écran d'origine (fiche, carte, mode terrain) : l'étape 2 sera sautée (PF-17).
     s.fixed = parcelIds.length > 0;
     // Reprise après « Choisir sur la carte » : seulement au retour de la sélection multiple (map-multiple-work).
-    const saved = fromMap && fromMapFlag ? readDraft(KEY, {storage: storage()})?.fields : null;
+    const saved = fromMap && fromMapFlag ? readDraft(draftKeyNow(), {storage: storage()})?.fields : null;
     if (saved?.type) s = {...fresh(), ...saved, typeKind: saved.kind || '', parcelIds: parcelIds.length ? [...parcelIds] : saved.parcelIds, step: 2};
     else if (!parcelIds.length) {
       // Parcelle sous les pieds (GPS précis et récent), comme l'ancienne saisie « J'ai fait » : signalée, jamais muette.
@@ -973,11 +974,11 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
   }
 
   // Mettre au pré direct : parcelle, date et travail à clore préremplis (recherche, finish-work, assistant, dictée…).
-  function openGrazing({parcelIds = [], date = '', workId = '', finishPlain = null, note = '', type = 'Pâturage'} = {}) {
+  function openGrazing({parcelIds = [], date = '', workId = '', finishPlain = null, note = '', type = 'Pâturage', screen = ''} = {}) {
     if (tabBlocked()) return;
     s = fresh({parcelIds});
     if (!mount()) return;
-    grazing.start({type, parcelIds, date, workId, finishPlain, note});
+    grazing.start({type, parcelIds, date, workId, finishPlain, note, screen});
   }
 
   // Retour matériel (Android) : recule d'une étape au lieu de fermer la feuille ; false si rien à reculer (PF-21).

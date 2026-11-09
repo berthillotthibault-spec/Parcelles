@@ -43,16 +43,16 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
         <button type="button" class="herd-action" data-action="open-herd-health"><b>Soin</b><small>Traitement</small></button>
         <button type="button" class="herd-action" data-action="herd-pick" data-kind="weighing"><b>Pesée</b><small>Poids</small></button>
       </div>
-      <section class="herd-section" aria-labelledby="herd-lots-title"><h2 id="herd-lots-title" class="herd-h">Lots</h2>
+      <section class="herd-section" aria-labelledby="herd-lots-title"><h2 id="herd-lots-title" class="herd-h" tabindex="-1">Lots</h2>
         ${lots.length ? lots.map(l => html`<article class="herd-lot">
-          <div class="herd-lot-head"><span class="herd-badge is-out"><b>${l.n}</b><small>têtes</small></span>
+          <div class="herd-lot-head"><span class="herd-badge is-out"><b>${l.n}</b><small>${l.n > 1 ? 'têtes' : 'tête'}</small></span>
             <span class="herd-lot-text"><b>${l.name}</b><small>${l.parcelName} · depuis le ${new Date(`${l.startDate}T12:00:00`).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}</small></span></div>
           <p class="herd-lot-days">Jour ${l.days} au pré</p>
           ${long.has(l.id) ? html`<p class="herd-lot-days">Ouvert depuis longtemps : encore au pré ? <button type="button" class="text-button" data-herd-still="${l.id}">Toujours là</button></p>` : ''}
           <button type="button" class="herd-lot-button" data-action="herd-move" data-id="${l.id}">Déplacer le lot</button></article>`)
         : html`<p class="herd-empty">Aucun lot au pré.</p>`}
         ${inside.length ? html`<article class="herd-lot">
-          <div class="herd-lot-head"><span class="herd-badge"><b>${inside.length}</b><small>têtes</small></span>
+          <div class="herd-lot-head"><span class="herd-badge"><b>${inside.length}</b><small>${inside.length > 1 ? 'têtes' : 'tête'}</small></span>
             <span class="herd-lot-text"><b>Au bâtiment</b><small>${plural(inside.length, 'animal enregistré', 'animaux enregistrés')} hors d’un lot au pré</small></span></div>
           <button type="button" class="herd-lot-button" data-action="new-grazing">Mettre au pré</button></article>` : ''}
       </section>
@@ -78,7 +78,7 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
         <span class="herd-event-text"><b>${r.parcel.nom}</b><small>${(Number(r.parcel.surfaceHa) || 0).toLocaleString('fr-FR', {maximumFractionDigits: 1})} ha · ${r.status}</small></span><span aria-hidden="true">›</span></button>`)
       : html`<p class="herd-empty">Aucune autre prairie : renseignez une culture de prairie sur vos parcelles.</p>`}
       <button type="button" class="herd-dest" data-move-to=""><span class="qw-dot is-inside" aria-hidden="true"></span>
-        <span class="herd-event-text"><b>Rentrer au bâtiment</b><small>Sortie du pré aujourd’hui</small></span><span aria-hidden="true">›</span></button>
+        <span class="herd-event-text"><b>Rentrer au bâtiment</b><small class="herd-move-exit">Sortie du pré aujourd’hui</small></span><span aria-hidden="true">›</span></button>
       <div class="herd-move-alert" role="alert" hidden></div></div>`;
     modal(`Déplacer · ${lot.name}`, `${plural(lot.n, 'tête', 'têtes')} · ${lot.parcelName} · jour ${lot.days}`, String(body), '', 'herd-move-sheet');
     doc.querySelector('#modal-root .herd-move')?.addEventListener('click', event => {
@@ -86,6 +86,11 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
       if (confirm) { pendingAlert = confirm.dataset.moveConfirm; move(lot, pendingAlert); return; }
       const button = event.target.closest('[data-move-to]');
       if (button) move(lot, button.dataset.moveTo);
+    });
+    // La ligne « Rentrer au bâtiment » suit la date choisie.
+    doc.querySelector('#herd-move-date')?.addEventListener('input', event => {
+      const v = event.target.value, el = doc.querySelector('#modal-root .herd-move-exit');
+      if (el) el.textContent = !v || v >= today ? 'Sortie du pré aujourd’hui' : `Sortie du pré le ${v.split('-').reverse().slice(0, 2).join('/')}`;
     });
   }
 
@@ -95,7 +100,7 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
     // L'attribut min ne bloque pas une date tapée : contrôle ici, rien n'est écrit.
     if (chosen && chosen < lot.startDate) {
       const box = doc.querySelector('#modal-root .herd-move-alert');
-      if (box) { box.hidden = false; box.innerHTML = String(html`<p>La date doit être postérieure à l’entrée du ${String(lot.startDate).split('-').reverse().join('/')}.</p>`); }
+      if (box) { box.hidden = false; box.innerHTML = String(html`<p>La date doit être au plus tôt celle de l’entrée, le ${String(lot.startDate).split('-').reverse().join('/')}.</p>`); }
       doc.querySelector('#herd-move-date')?.focus();
       return;
     }
@@ -125,6 +130,13 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
       return;
     } finally { moving = false; }
     closeModal();
+    // La carte du lot est reconstruite avec l'id du nouveau passage : le focus va sur son bouton, sinon sur le titre « Lots ».
+    const refocus = () => {
+      const target = (created?.id && doc.querySelector(`[data-action="herd-move"][data-id="${String(created.id).replace(/["\\]/g, '\\$&')}"]`)) || doc.querySelector('#herd-lots-title');
+      target?.focus?.({preventScroll: true});
+    };
+    const raf = doc.defaultView?.requestAnimationFrame;
+    if (raf) raf.call(doc.defaultView, refocus); else refocus();
     const name = (state().parcelles || []).find(p => p.id === parcelId)?.nom;
     // Annuler : le passage d'origine est rouvert tel qu'il était, le nouveau passage retiré.
     const undo = async () => {
@@ -133,7 +145,7 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
     };
     // Sans droit de suppression (opérateur), un déplacement ne s'annule pas : le passage créé ne peut être retiré.
     const canUndo = !created || !store.writeGuard || store.writeGuard({entity: 'grazingSessions', action: 'delete', entityId: created.id});
-    toast(parcelId ? `${lot.name} → ${name}` : `${lot.name} rentrés au bâtiment`, 'success', canUndo ? {label: 'Annuler', run: undo} : undefined);
+    toast(parcelId ? `${lot.name} → ${name}` : `${lot.name} : retour au bâtiment`, 'success', canUndo ? {label: 'Annuler', run: undo} : undefined);
   }
 
   // Vêlage et pesée se font depuis la fiche de l'animal (formulaires existants de herd-ui.js) : on choisit l'animal.

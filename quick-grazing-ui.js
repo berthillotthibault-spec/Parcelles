@@ -38,7 +38,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     const first = !can('create') ? 'denied' : screen || (workId || entry ? (fresh.parcelIds.length ? 'details' : 'parcels')
       : ways.skipToEntry ? (parcelIds.length ? 'details' : 'parcels') : 'gesture');
     g = {screen: first, type, entry: fresh, filter: defaultGrazingFilter(data), query: '', herdQuery: '', herdFilter: 'all', error: '', workId, finishPlain, workNote: note,
-      exit: {ids: ways.hereIds, date: today}, move: {lotId: ways.hereIds[0] || (ways.lots.length === 1 ? ways.lots[0].id : ''), dest: '', date: today, ack: '', all: false}, retry: null};
+      exit: {ids: ways.hereIds.length ? ways.hereIds : (ways.lots.length === 1 ? [ways.lots[0].id] : []), date: today}, move: {lotId: ways.hereIds[0] || (ways.lots.length === 1 ? ways.lots[0].id : ''), dest: '', date: today, ack: '', all: false}, retry: null};
     render();
   }
 
@@ -129,7 +129,8 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     const e = g.entry, ids = Object.keys(e.picks), manyParcels = e.parcelIds.length > 1 && !e.rotate, manyLines = e.lines.length > 1;
     if (!ids.length) return '';
     const animals = new Map(live(state().animals).map(a => [a.id, a]));
-    const count = html`<p class="qg-note"><b>${plural(ids.length, 'animal coché', 'animaux cochés')}</b></p>`;
+    const cat = categoryShortLabel(e.lines[0]?.category);
+    const count = html`<p class="qg-note"><b>${plural(ids.length, 'animal coché', 'animaux cochés')}</b>${!manyLines ? ` · catégorie : ${cat || 'non précisée (1 UGB)'}, la même que les animaux sans numéro` : ''}</p>`;
     if (!manyParcels && !manyLines) return count;
     return html`${count}${ids.map(id => html`<div class="qg-line"><span>${animals.get(id)?.name || animals.get(id)?.nationalId || 'Animal'}</span>
       ${manyParcels ? html`<select data-qg-pick-parcel="${id}" aria-label="Pré">${e.parcelIds.map(p => html`<option value="${p}"${selected((e.picks[id].parcelId || e.parcelIds[0]) === p)}>${parcelName(p)}</option>`)}</select>` : ''}
@@ -142,7 +143,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     const list = grazingEntryAlerts(state(), {parcelIds: e.rotate && e.parcelIds.length > 1 ? [e.entryParcelId] : e.parcelIds, date, endDate: e.endDate});
     const notes = [];
     const hasHerd = herdGroups(state(), {date}).length > 0, unnumbered = e.lines.reduce((n, line) => n + (Number(line.count) || 0), 0);
-    if (hasHerd && unnumbered && !Object.keys(e.picks).length) notes.push(`Ces ${unnumbered} animaux sans numéro s’ajoutent au troupeau enregistré, qui restera compté au bâtiment : cochez plutôt les animaux concernés.`);
+    if (hasHerd && unnumbered && !Object.keys(e.picks).length) notes.push(`${unnumbered > 1 ? `Ces ${unnumbered} animaux sans numéro s’ajoutent` : 'Cet animal sans numéro s’ajoute'} au troupeau enregistré, qui restera compté au bâtiment : cochez plutôt les animaux concernés.`);
     if (date < today && !e.endDate) notes.push(`Entrée du ${frDay(date)} : ce lot comptera comme encore au pré tant qu’aucune sortie n’est indiquée.`);
     if (date > today) notes.push(`Date future : un travail « À faire » sera créé pour le ${frDay(date)} ; à sa clôture, cette saisie s’ouvrira préremplie. Aucun animal n’est mis au pré d’ici là.`);
     const reentry = list.filter(a => a.kind === 'reentry');
@@ -201,8 +202,9 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
   function exitHtml() {
     const lots = herdLots(state(), {today: todayIso()});
     if (!lots.length) return html`<p class="qw-empty">Aucun lot au pré.</p>`;
+    const minDate = lots.filter(l => g.exit.ids.includes(l.id)).reduce((a, l) => l.startDate > a ? l.startDate : a, '');
     return html`<div class="herd-move">${lots.map(l => html`<label class="qg-animal"><input type="checkbox" data-qg-exit="${l.id}"${g.exit.ids.includes(l.id) ? raw(' checked') : ''}><span><b>${l.name}</b><small>${plural(l.n, 'tête', 'têtes')} · ${l.parcelName} · jour ${l.days}</small></span></label>`)}
-      <label class="qw-field"><span>Date de sortie</span><input id="qg-exit-date" type="date" value="${g.exit.date}" max="${todayIso()}"></label>
+      <label class="qw-field"><span>Date de sortie</span><input id="qg-exit-date" type="date" value="${g.exit.date}" max="${todayIso()}"${minDate ? html` min="${minDate}"` : ''}></label>
       ${g.error ? html`<p class="form-error" role="alert">${g.error}</p>` : ''}</div>`;
   }
 
@@ -349,6 +351,8 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     const {ids, date} = g.exit, today = todayIso();
     if (!ids.length) { fail('Choisissez au moins un lot.'); return; }
     if (!date || date > today) { fail('La date de sortie ne peut pas être future.'); return; }
+    const early = herdLots(state(), {today}).find(l => ids.includes(l.id) && date < l.startDate);
+    if (early) { fail(`${early.name} : la sortie doit être au plus tôt le ${frDay(early.startDate)}, jour de l’entrée.`); return; }
     const before = [];
     for (const id of ids) {
       const row = store.get('grazingSessions', id);
@@ -370,6 +374,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     if (!lot) { fail('Choisissez le lot.'); return; }
     if (!m.dest) { fail('Choisissez le pré.'); return; }
     if (!m.date || m.date > today) { fail('La date ne peut pas être future.'); return; }
+    if (m.date < lot.startDate) { fail(`La date doit être au plus tôt celle de l’entrée, le ${frDay(lot.startDate)}.`); return; }
     if (grazingEntryAlerts(state(), {parcelIds: [m.dest], date: m.date}).some(a => a.kind === 'reentry') && m.ack !== `${m.dest}|${m.date}`) { fail('Délai de rentrée en cours : confirmez avec « Déplacer quand même ».'); return; }
     const before = {...lot.session};
     let created;
@@ -424,7 +429,8 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     else if (what === 'del-line') {
       const i = Number(el.dataset.line);
       e.lines.splice(i, 1); e.alloc = {};
-      for (const pick of Object.values(e.picks)) pick.line = 0;
+      // Seuls les animaux de la ligne retirée passent sur la 1re ; les lignes suivantes descendent d'un rang.
+      for (const pick of Object.values(e.picks)) { const n = Number(pick.line) || 0; pick.line = n === i ? 0 : n > i ? n - 1 : n; }
       save(); render({focus: '[data-qg="add-line"]'});
     } else if (what === 'rotate') { e.rotate = el.dataset.on === '1'; if (!e.entryParcelId) e.entryParcelId = e.parcelIds[0]; save(); render({focus: `[data-qg="rotate"][data-on="${el.dataset.on}"]`}); }
     else if (what === 'reentry-ack') { e.reentryAck = reentryKey(); g.error = ''; refresh(); }

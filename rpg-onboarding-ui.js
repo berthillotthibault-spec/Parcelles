@@ -149,7 +149,7 @@ export function createRpgOnboardingUI({store,modal,closeModal,toast,importFile,o
     $('#rpg-pick-clear').onclick=()=>{selected.clear();render();updateCount();setStatus('Sélection vidée.','info');};
     $('#rpg-pick-add').onclick=save;
     if(typeof L==='undefined'||!el){setStatus('La carte n’est pas disponible sur cet appareil. Importez plutôt un fichier.','error');return;}
-    pickMap=L.map(el,{zoomControl:true,doubleClickZoom:false,attributionControl:true}).setView(DEFAULT_CENTER,6);
+    pickMap=L.map(el,{zoomControl:false,doubleClickZoom:false,attributionControl:true}).setView(DEFAULT_CENTER,6);L.control.zoom({zoomInTitle:'Zoom avant',zoomOutTitle:'Zoom arrière'}).addTo(pickMap);
     const base=baseLayerDefinition('ign-photo');
     L.tileLayer(base.url,{maxNativeZoom:base.maxNativeZoom,maxZoom:base.maxZoom,attribution:base.attribution}).addTo(pickMap);
     setTimeout(()=>pickMap?.invalidateSize(),60);

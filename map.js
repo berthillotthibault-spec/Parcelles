@@ -1,10 +1,11 @@
 import {mapEconomics,economicColor} from './pilotage.js';
 import {parcelSituation,localDay} from './home-priorities.js';
 import {parcelGrazingHtml} from './grazing-ui.js';
-import {escapeHtml, formatNumber, geometryCentroid, geometryAreaHa, haversineMeters, normalize, pointInGeometry} from './utils.js';
+import {campaignFor, escapeHtml, formatNumber, geometryCentroid, geometryAreaHa, haversineMeters, normalize, pointInGeometry} from './utils.js';
 import {labelPoint,labelLevel,labelLines,resolveLabelCollisions,parcelDayFlags,animateHighlights,labelFlagClasses,nextWorkText} from './map-labels.js';
 import {legendGroups,legendLine,legendStyle,groupBounds} from './map-legend.js';
-import {fetchRpgFeatures, rpgFeatureId} from './rpg.js';
+import {fetchRpgFeatures, rpgFeatureId, rpgCultureLabel} from './rpg.js';
+import {ringError} from './geometry-ops.js';
 import {bcae7ColorInfo} from './pac.js'; // v5b n° 58
 import {activeReentries} from './phyto.js';
 import {parcelIft,iftColor} from './ift.js';
@@ -54,7 +55,7 @@ export class ParcelMap{
     // Rapid taps on a feature then its popup action can become a synthetic
     // double click on the map. Pinch, wheel and +/- controls remain available.
     this.map=L.map('map',{zoomControl:false,preferCanvas:false,doubleClickZoom:false}).setView(DEFAULT_CENTER,12);
-    L.control.zoom({position:'bottomright'}).addTo(this.map);L.control.scale({imperial:false,position:'bottomright'}).addTo(this.map); // n° 54 : échelle métrique
+    L.control.zoom({position:'bottomright',zoomInTitle:'Zoom avant',zoomOutTitle:'Zoom arrière'}).addTo(this.map);L.control.scale({imperial:false,position:'bottomright'}).addTo(this.map); // n° 54 : échelle métrique
     for(const [name,zIndex] of [['parcelHaloPane',408],['parcelPane',410],['mapPointPane',500],['editingPane',550]]){this.map.createPane(name).style.zIndex=String(zIndex);}
     this.layers.parcels=L.featureGroup().addTo(this.map);this.layers.points=L.layerGroup().addTo(this.map);this.layers.rpg=L.layerGroup().addTo(this.map);this.layers.gps=L.layerGroup().addTo(this.map);this.layers.drawing=L.layerGroup().addTo(this.map);this.layers.measure=L.layerGroup().addTo(this.map);this.layers.labels=L.layerGroup().addTo(this.map);this.layers.parcelDecor=L.layerGroup().addTo(this.map);this.labelEntries=[];this.parcelLayers=new Map();this.map.getPane('parcelHaloPane').style.pointerEvents='none';this.vectorRenderer=L.canvas({padding:.15,pane:'parcelPane'});this.map.on('moveend resize',()=>this.scheduleLabels());this.map.on('zoomstart',()=>this.setZooming(true));this.map.on('zoomend',()=>this.setZooming(false));
     this.map.createPane('cadastrePane').style.zIndex='300';this.map.getPane('cadastrePane').style.pointerEvents='none';
@@ -223,11 +224,11 @@ export class ParcelMap{
   drawWind(){
     if(!this.map)return;this.layers.wind??=L.layerGroup().addTo(this.map);this.layers.wind.clearLayers();
     const parcel=this.wind&&!this.multiple?(this.lastState.parcelles||[]).find(p=>p.id===this.selectedId&&!p.deletedAt&&p.geometry):null;if(!parcel)return;
-    const c=geometryCentroid(parcel.geometry);if(!c)return;
+    const lp=labelPoint(parcel.geometry),c=lp?{latitude:lp[1],longitude:lp[0]}:geometryCentroid(parcel.geometry);if(!c)return;
     const from=Number(this.wind.direction),toward=windToward(from),water=windTowardWater(parcel,(this.lastState.points||[]).filter(p=>!p.deletedAt),from),speed=Number(this.wind.speed);
     const age=this.wind.loadedAt&&Date.now()-this.wind.loadedAt>3600000?` · ${forecastAge({loadedAt:this.wind.loadedAt},Date.now(),{online:navigator.onLine!==false})}`:'';
-    const text=`Vent ${Number.isFinite(speed)?formatNumber(Math.round(speed)):'?'} km/h du ${compass(from)}${water?' · vent vers le cours d’eau':''}`;
-    const html=`<div class="map-wind${water?' is-water':''}" role="img" aria-label="${escapeHtml(text+age)}"><svg viewBox="0 0 24 24" aria-hidden="true" style="transform:rotate(${Math.round(toward)}deg)"><path d="M12 2l6 9h-4.2v11h-3.6V11H6z"/></svg><span>${escapeHtml(`Vent ${Number.isFinite(speed)?formatNumber(Math.round(speed)):'?'} km/h du ${compass(from)}`)}<small>${escapeHtml([water?'Vers le cours d’eau':'',age.replace(/^ · /,'')].filter(Boolean).join(' · '))}</small></span></div>`;
+    const dir=compass(from),fromText=dir==='E'?'d’est':dir==='O'?'d’ouest':`du ${dir}`;const text=`Vent ${Number.isFinite(speed)?formatNumber(Math.round(speed)):'?'} km/h ${fromText}${water?' · vent vers le cours d’eau':''}`;
+    const html=`<div class="map-wind${water?' is-water':''}" role="img" aria-label="${escapeHtml(text+age)}"><svg viewBox="0 0 24 24" aria-hidden="true" style="transform:rotate(${Math.round(toward)}deg)"><path d="M12 2l6 9h-4.2v11h-3.6V11H6z"/></svg><span>${escapeHtml(`Vent ${Number.isFinite(speed)?formatNumber(Math.round(speed)):'?'} km/h ${fromText}`)}<small>${escapeHtml([water?'Vers le cours d’eau':'',age.replace(/^ · /,'')].filter(Boolean).join(' · '))}</small></span></div>`;
     L.marker([c.latitude,c.longitude],{interactive:false,keyboard:false,icon:L.divIcon({className:'map-wind-icon',html,iconSize:null})}).addTo(this.layers.wind);
   }
   toggleMultiple(enabled=!this.multiple){
@@ -398,7 +399,7 @@ export class ParcelMap{
     const groupOf=target=>this.legendValues?.[Number(target?.closest?.('[data-legend-index]')?.dataset.legendIndex)];
     const openList=group=>{if(group)document.dispatchEvent(new CustomEvent('parcelles:legend-filter',{detail:{label:group.label,ids:[...group.ids],mode:this.colorMode}}));};
     const cancel=()=>{clearTimeout(timer);timer=null;};
-    legend.addEventListener('pointerdown',event=>{const group=groupOf(event.target);if(!group)return;longPressed=false;cancel();timer=setTimeout(()=>{longPressed=true;timer=null;openList(group);},550);});
+    legend.addEventListener('pointerdown',event=>{const group=groupOf(event.target);if(!group)return;longPressed=false;cancel();timer=setTimeout(()=>{longPressed=true;timer=null;const swallow=e=>{e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();};document.addEventListener('click',swallow,{capture:true,once:true});const drop=()=>setTimeout(()=>document.removeEventListener('click',swallow,true),400);document.addEventListener('pointerup',drop,{capture:true,once:true});document.addEventListener('pointercancel',drop,{capture:true,once:true});openList(group);},550);});
     for(const type of ['pointerup','pointerleave','pointercancel'])legend.addEventListener(type,cancel);
     legend.addEventListener('contextmenu',event=>{if(groupOf(event.target))event.preventDefault();});
     legend.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.shiftKey){const group=groupOf(event.target);if(group){event.preventDefault();openList(group);}}});
@@ -413,7 +414,7 @@ export class ParcelMap{
     this.legendFocus=label??null;this.render(this.lastState);
     const group=label!=null?this.legendValues?.find(v=>v.label===label):null;
     const bounds=group&&groupBounds(this.lastState.parcelles,group.ids);
-    if(this.map&&bounds){try{this.map.fitBounds(L.latLngBounds(bounds).pad(.15),{maxZoom:17});}catch{}}
+    if(this.map&&bounds){try{const box=this.map.getContainer().getBoundingClientRect(),lg=document.getElementById('map-legend')?.getBoundingClientRect();const covers=lg&&lg.width&&lg.height&&lg.width>box.width*.5;const bottom=covers?Math.max(0,box.bottom-lg.top)+16:0;this.map.fitBounds(L.latLngBounds(bounds).pad(.15),{maxZoom:17,paddingTopLeft:[0,covers?72:0],paddingBottomRight:[0,bottom]});}catch{}}
     document.querySelector('#map-legend [aria-pressed="true"]')?.focus({preventScroll:true});
   }
 
@@ -427,7 +428,7 @@ export class ParcelMap{
     const legend=document.querySelector('#map-legend');if(!legend)return;
     const parcels=(this.lastState.parcelles||[]).filter(p=>!p.deletedAt&&p.geometry);
     const economic=['cost','margin'].includes(this.colorMode),ndviMode=NDVI_MODES.includes(this.colorMode),values=legendGroups(parcels,p=>this.colorInfo(p));if(economic)economicLegend(values,parcels,p=>this.colorInfo(p));if(ndviMode)values.sort((a,b)=>legendRank(this.colorMode,a.label)-legendRank(this.colorMode,b.label));this.legendValues=values;if(this.legendFocus!=null&&!values.some(v=>v.label===this.legendFocus))this.legendFocus=null;this.bindLegend(legend);
-    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha',ift:'IFT',bcae7:'BCAE 7',owner:'Propriétaires',soilph:'pH du sol',ndvi:'Vigueur (NDVI)',ndvitrend:'Tendance 15 j'}[this.colorMode]}${['cost','margin','bcae7'].includes(this.colorMode)?` · ${this.economics?.values().next().value?.campaign||''}`:''}</button><div class="legend-content">${this.legendFocus!=null?'<button type="button" class="legend-reset" data-legend-reset="1">Tout afficher</button>':''}${values.map((info,index)=>`<button type="button" class="legend-item legend-filter${this.legendFocus===info.label?' is-focused':''}${this.legendFocus!=null&&this.legendFocus!==info.label?' is-dimmed':''}" data-legend-index="${index}" aria-pressed="${this.legendFocus===info.label}" title="Appui : isoler sur la carte · appui long : voir la liste"><span class="legend-dot${ndviMode&&info.label===NDVI_NO_DATA.label?' is-hatched':''}" style="background:${info.color}"></span><span class="legend-text">${escapeHtml(legendLine(info)+(info.extra||''))}</span></button>`).join('')}${economic?`<button type="button" class="legend-item legend-intra" data-my="profit-zones"${this.selectedId?` data-id="${escapeHtml(this.selectedId)}"`:''} title="Croise la carte de rendement et les charges €/ha de la campagne">Intra-parcellaire · zones non rentables</button>`:''}${ndviMode?this.ndviLegendHtml(parcels):''}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
+    legend.innerHTML=`<button class="legend-toggle" type="button" data-action="toggle-legend">Légende · ${{culture:'Culture',status:'État',work:'Travaux',animals:'Animaux',last:'Dernière intervention',client:'Client',cost:'Coût/ha',margin:'Marge/ha',ift:'IFT',bcae7:'BCAE 7',owner:'Propriétaires',soilph:'pH du sol',ndvi:'Vigueur (NDVI)',ndvitrend:'Tendance 15 j'}[this.colorMode]}${(c=>c?` · ${escapeHtml(c)}`:'')(this.colorMode==='bcae7'?campaignFor(localDay()):['cost','margin'].includes(this.colorMode)?this.economics?.values().next().value?.campaign:'')}</button><div class="legend-content">${this.legendFocus!=null?'<button type="button" class="legend-reset" data-legend-reset="1">Tout afficher</button>':''}${values.map((info,index)=>`<button type="button" class="legend-item legend-filter${this.legendFocus===info.label?' is-focused':''}${this.legendFocus!=null&&this.legendFocus!==info.label?' is-dimmed':''}" data-legend-index="${index}" aria-pressed="${this.legendFocus===info.label}" title="Appui : isoler sur la carte · appui long : voir la liste"><span class="legend-dot${ndviMode&&info.label===NDVI_NO_DATA.label?' is-hatched':''}" style="background:${info.color}"></span><span class="legend-text">${escapeHtml(legendLine(info)+(info.extra||''))}</span></button>`).join('')}${economic?`<button type="button" class="legend-item legend-intra" data-my="profit-zones"${this.selectedId?` data-id="${escapeHtml(this.selectedId)}"`:''} title="Croise la carte de rendement et les charges €/ha de la campagne">Intra-parcellaire · zones non rentables</button>`:''}${ndviMode?this.ndviLegendHtml(parcels):''}${this.rpgVisible?'<div class="legend-item"><span class="legend-swatch rpg"></span> RPG/PAC</div>':''}<div class="legend-item"><span class="legend-dot gps"></span> Position</div></div>`;
   }
 
   select(id,{zoom=true}={}){
@@ -502,7 +503,7 @@ export class ParcelMap{
 
   createRpgLayer(data,year=this.rpgYear||2024){
     return L.geoJSON(data,{pane:'parcelPane',renderer:this.vectorRenderer,style:RPG_STYLE,onEachFeature:(feature,layer)=>{
-      const p=feature.properties||{},id=rpgFeatureId(feature,{year}),culture=p.CODE_CULTU||p.code_cultu||p.GROUPE_CULTURE||p.groupe_culture||'Culture non renseignée',surface=p.SURF_PARC??p.surf_parc??p.SURFACE??p.surface;
+      const p=feature.properties||{},id=rpgFeatureId(feature,{year}),code=p.CODE_CULTU||p.code_cultu,culture=code?rpgCultureLabel(code,code):(p.GROUPE_CULTURE||p.groupe_culture||'Culture non renseignée'),surface=p.SURF_PARC??p.surf_parc??p.SURFACE??p.surface;
       this.bindMapPopup(layer,`<div class="rpg-popup"><strong>Parcelle RPG · ${escapeHtml(year)}</strong><small>${escapeHtml(culture)}${surface!==undefined&&surface!==null?` · ${formatNumber(surface)} ha`:''}</small><button type="button" data-action="add-rpg-parcel" data-id="${escapeHtml(id)}">Ajouter cette parcelle</button></div>`,{maxWidth:320});
       layer.on('mouseover',()=>layer.setStyle({weight:4,fillOpacity:.5}));layer.on('mouseout',()=>layer.setStyle(RPG_STYLE));
     }});
@@ -539,7 +540,7 @@ export class ParcelMap{
     this.polygonDraw={points,snaps,click,onUpdate,onComplete,onCancel};this.suspendPopups();this.map.on('click',click);this.map.getContainer().classList.add('is-drawing');onUpdate?.(0);this.onDrawPoint?.();
   }
   finishPolygonDrawing(){
-    if(!this.polygonDraw)return null;const {points,onComplete}=this.polygonDraw;if(points.length<3)throw new Error('Ajoutez au moins 3 points pour dessiner la parcelle.');const ring=[...points,points[0]];const geometry={type:'Polygon',coordinates:[ring]};this.cancelPolygonDrawing(false);onComplete?.(geometry);return geometry;
+    if(!this.polygonDraw)return null;const {points,onComplete}=this.polygonDraw;if(points.length<3)throw new Error('Ajoutez au moins 3 points pour dessiner la parcelle.');const ring=[...points,points[0]];const error=ringError(ring);if(error)throw new Error(error);const geometry={type:'Polygon',coordinates:[ring]};this.cancelPolygonDrawing(false);onComplete?.(geometry);return geometry;
   }
   cancelPolygonDrawing(notify=true){
     if(!this.polygonDraw)return;const {click,onCancel}=this.polygonDraw;this.map?.off('click',click);this.layers.drawing?.clearLayers();this.map?.getContainer()?.classList.remove('is-drawing');this.polygonDraw=null;this.restorePopups();if(notify)onCancel?.();
@@ -550,7 +551,7 @@ export class ParcelMap{
     if(this.multiple)this.toggleMultiple(false);
     this.init();if(!this.map){this.onToast?.('La carte doit être disponible pour mesurer.','error');return;}this.cancelMeasurement(false);this.cancelPointPlacement();this.cancelPolygonDrawing();this.map.closePopup();const points=[];const render=()=>{this.layers.measure.clearLayers();const latlngs=points.map(p=>[p.latitude,p.longitude]);if(kind==='area'&&points.length>=3)L.polygon(latlngs,{pane:'editingPane',color:'#6d4fd3',weight:3,fillColor:'#8c78da',fillOpacity:.16,dashArray:'6 5'}).addTo(this.layers.measure);else if(points.length>=2)L.polyline(latlngs,{pane:'editingPane',color:'#6d4fd3',weight:3,dashArray:'6 5'}).addTo(this.layers.measure);points.forEach((p,i)=>L.circleMarker([p.latitude,p.longitude],{pane:'editingPane',radius:5,color:'#fff',weight:2,fillColor:'#6d4fd3',fillOpacity:1}).bindTooltip(String(i+1)).addTo(this.layers.measure));let value=0;if(kind==='distance'&&points.length>1)for(let i=1;i<points.length;i++)value+=haversineMeters(points[i-1],points[i]);if(kind==='area'&&points.length>=3){const ring=points.map(p=>[p.longitude,p.latitude]);ring.push(ring[0]);value=geometryAreaHa({type:'Polygon',coordinates:[ring]});}onUpdate?.({kind,points:[...points],value});};const click=e=>{points.push({latitude:e.latlng.lat,longitude:e.latlng.lng});render();};this.measure={kind,points,click,onUpdate,onComplete,onCancel};this.suspendPopups();this.map.on('click',click);this.map.getContainer().classList.add('is-measuring');render();
   }
-  finishMeasurement(){if(!this.measure)return null;const {kind,points,onComplete}=this.measure;let value=0;if(kind==='distance'){if(points.length<2)throw new Error('Ajoutez au moins deux points.');for(let i=1;i<points.length;i++)value+=haversineMeters(points[i-1],points[i]);}else{if(points.length<3)throw new Error('Ajoutez au moins trois points.');const ring=points.map(p=>[p.longitude,p.latitude]);ring.push(ring[0]);value=geometryAreaHa({type:'Polygon',coordinates:[ring]});}this.map.off('click',this.measure.click);this.map.getContainer().classList.remove('is-measuring');this.measure=null;this.restorePopups();onComplete?.({kind,points,value});return value;}
+  finishMeasurement(){if(!this.measure)return null;const {kind,points,onComplete}=this.measure;let value=0;if(kind==='distance'){if(points.length<2)throw new Error('Ajoutez au moins deux points.');for(let i=1;i<points.length;i++)value+=haversineMeters(points[i-1],points[i]);}else{if(points.length<3)throw new Error('Ajoutez au moins trois points.');const ring=points.map(p=>[p.longitude,p.latitude]);ring.push(ring[0]);const error=ringError(ring);if(error)throw new Error(error);value=geometryAreaHa({type:'Polygon',coordinates:[ring]});}this.map.off('click',this.measure.click);this.map.getContainer().classList.remove('is-measuring');this.measure=null;this.restorePopups();onComplete?.({kind,points,value});return value;}
   undoMeasurementPoint(){if(!this.measure?.points.length)return;this.measure.points.pop();const cfg={kind:this.measure.kind,onUpdate:this.measure.onUpdate,onComplete:this.measure.onComplete,onCancel:this.measure.onCancel},pts=[...this.measure.points];this.cancelMeasurement(false);this.startMeasurement(cfg.kind,cfg);for(const p of pts)this.measure.click({latlng:{lat:p.latitude,lng:p.longitude}});}
   cancelMeasurement(notify=true){this.layers.measure?.clearLayers();if(!this.measure)return;const {click,onCancel}=this.measure;this.map?.off('click',click);this.layers.measure?.clearLayers();this.map?.getContainer()?.classList.remove('is-measuring');this.measure=null;this.restorePopups();if(notify)onCancel?.();}
 

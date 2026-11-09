@@ -4,7 +4,7 @@
 // « agroInfra ») avec une géométrie GeoJSON (LineString, Point ou Polygon) : les tableaux imbriqués
 // passent par encodeCloudPayload à la synchronisation. Dates et coefficients : indicatifs, datés,
 // modifiables dans les préférences (agroInfraRules).
-import {normalize,haversineMeters,geometryAreaHa} from './utils.js';
+import {csvFormulaSafe,normalize,haversineMeters,geometryAreaHa} from './utils.js';
 import {farmRecords} from './farm-records.js';
 import {active} from './farm-memory.js';
 
@@ -108,7 +108,7 @@ export function trimCheck(work,state){
 export const INFRA_HEADERS=['Type','Nom','Parcelle','Linéaire (m)','Surface (m²)','Coefficient','Surface pondérée (m²)','Gestion durable','Dernier entretien','Essences'];
 export function infraCsv(state){
   const s=infraSummary(state),parcels=new Map(active(state,'parcelles').map(p=>[p.id,p.nom]));
-  const cell=x=>{const v=typeof x==='number'?String(x).replace('.',','):String(x??'');return/[;"\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v;};
+  const cell=x=>{const v=typeof x==='number'?String(x).replace('.',','):csvFormulaSafe(x);return/[;"\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v;};
   return'﻿'+[INFRA_HEADERS,...s.items.map(({item:i,m})=>{const t=s.rules.types.find(x=>x.key===i.type);return[t?.label||i.type,i.label||'',parcels.get(i.parcelId)||'',m.length||'',m.area||'',t?.coef??'',m.weighted,i.sustainable?'oui':'',i.lastMaintenance||'',i.species||''];})].map(r=>r.map(cell).join(';')).join('\r\n');
 }
 export function infraGeoJson(state){

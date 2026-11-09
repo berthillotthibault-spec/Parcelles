@@ -39,7 +39,7 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
   function bdniHtml(pending){
     if(!pending.length)return '';
     return `<div class="notice ${pending.some(p=>p.status==='late')?'danger':'warning'}" role="status"><strong>Naissances à notifier à l’EDE / BDNI</strong>
-      <div class="stack-list">${pending.map(p=>`<div class="list-row"><div><strong>${e(p.calf?animalLabel(p.calf):`Veau de ${animalLabel(p.mother)}`)}</strong><br><small>Né le ${e(fr(p.event.date))} · avant le ${e(ddmm(p.deadline))}${p.status==='late'?' · délai dépassé':p.status==='remind'?' · rappel':''}</small></div><label><input type="checkbox" data-herd-notified="${e(p.event.id)}"> Notifié</label></div>`).join('')}</div>
+      <div class="stack-list">${pending.map(p=>`<div class="list-row"><div><strong>${e(p.calf?animalLabel(p.calf):`Veau de ${animalLabel(p.mother)}`)}</strong><small>${p.calf?.sex==='F'?'Née':'Né'} le ${e(fr(p.event.date))} · avant le ${e(ddmm(p.deadline))}${p.status==='late'?' · délai dépassé':p.status==='remind'?' · rappel':''}</small></div><label><input type="checkbox" data-herd-notified="${e(p.event.id)}"> Notifié</label></div>`).join('')}</div>
       <p class="form-note">${e(BDNI_NOTICE)}</p></div>`;
   }
 
@@ -133,7 +133,7 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
 
   // Animal sorti (vente, mort, pension) encore listé dans un lot : proposer le retrait, sinon l'effectif reste faux.
   function offerLotRemoval(a,listed,date){
-    modal('Retirer du lot ?',`${animalLabel(a)} est sorti le ${fr(date)} mais figure encore dans ${listed.length>1?'des lots':'un lot'} au pré.`,`<ul>${listed.map(s=>`<li>${e(lotLabel(s))}</li>`).join('')}</ul><p class="form-note">Le passage est clos à cette date et rouvert sans cet animal, pour garder l’historique.</p><p class="form-error" id="herd-error" role="alert" hidden></p>`,
+    modal('Retirer du lot ?',`${animalLabel(a)} est sorti${a.sex==='F'?'e':''} le ${fr(date)} mais figure encore dans ${listed.length>1?'des lots':'un lot'} au pré.`,`<ul>${listed.map(s=>`<li>${e(lotLabel(s))}</li>`).join('')}</ul><p class="form-note">Le passage est clos à cette date et rouvert sans cet animal, pour garder l’historique.</p><p class="form-error" id="herd-error" role="alert" hidden></p>`,
       `<button type="button" class="button secondary" id="herd-keep">Laisser dans le lot</button><button type="button" class="button primary" id="herd-remove">Retirer du lot</button>`);
     $('#herd-keep').onclick=()=>openAnimal(a.id);
     $('#herd-remove').onclick=async()=>{
@@ -235,8 +235,13 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
       const rows=[['animalEvents',plan.event],['animals',plan.calf],['tasks',plan.task]];
       for(const [entity,rec] of rows)if(!can(entity,'create',rec))throw new Error('Votre rôle ne permet pas cette modification.');
       const normalized=rows.map(([entity,rec])=>[entity,normalizeEntity(entity,rec)]);
+      // Lot de la mère : le veau y est compté (liste ou effectif), dans la même mutation.
+      const lotBefore=plan.lotUpdate?store.get('grazingSessions',plan.lotUpdate.id):null;
+      const lot=lotBefore&&can('grazingSessions','update',lotBefore)?normalizeEntity('grazingSessions',plan.lotUpdate,lotBefore):null;
       await store._mutate(`Vêlage enregistré : ${animalLabel(mother)}`,state=>{
         for(const [entity,rec] of normalized){(state[entity]||(state[entity]=[])).push(rec);store.queue({entity,entityId:rec.id,action:'create',payload:clone(rec)});}
+        const i=lot?(state.grazingSessions||[]).findIndex(x=>x.id===lot.id):-1;
+        if(i>=0){state.grazingSessions[i]=lot;store.queue({entity:'grazingSessions',entityId:lot.id,action:'update',payload:clone(lot)});}
       },{entity:'animalEvents',entityId:plan.event.id,action:'create',payload:normalized[0][1],queue:false});
     });
   }
@@ -300,7 +305,7 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
       const writes=herdImportEntities(store.state,preview,{newId:()=>uid('animal'),today:today()});
       const normalized=writes.map(w=>{const existing=store.get('animals',w.id,{includeDeleted:true});return{value:normalizeEntity('animals',w,existing),existing};});
       const timestamp=Date.now(),sessionId=uid('import_session'),rollbackBackupId=`preimport_${sessionId}`;
-      await store.storage.backupPut({id:rollbackBackupId,period:'preimport',createdAt:timestamp,state:store.snapshot()});
+      await store.storage.backupPut({id:rollbackBackupId,workspaceId:store.workspaceId||'local',period:'preimport',createdAt:timestamp,state:store.snapshot()});
       const created=normalized.filter(n=>!n.existing).length,updated=normalized.length-created;
       const session=normalizeEntity('importSessions',{id:sessionId,fileNames:[fileName||'Inventaire CSV'],created,updated,skipped:preview.skip,interventions:0,surface:0,strategy:IMPORT_SOURCE,rollbackBackupId,source:'local'});
       await store._mutate(`Inventaire du troupeau importé : ${created} création${created>1?'s':''}, ${updated} mise${updated>1?'s':''} à jour`,state=>{

@@ -3,7 +3,7 @@
 // (stockItems/products, champ optionnel `phyto`), éventuellement complétée par le catalogue
 // E-Phy local (n° 59). Ils restent indicatifs : seule l'étiquette du produit fait foi et
 // l'absence d'alerte ne vaut jamais autorisation.
-import {campaignFor,escapeHtml,formatNumber,localDate,normalize,toNullableNumber} from './utils.js';
+import {campaignFor,csvFormulaSafe,escapeHtml,formatNumber,localDate,normalize,toNullableNumber} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {printCss,printDocument} from './dossier.js';
 import {operatorCertificateWarning} from './regulated-ops.js'; // v8a n° 72
@@ -295,7 +295,7 @@ export function registerCampaigns(state,today=Date.now()){
 }
 
 export function registerCsv(rows){
-  const cell=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+  const cell=v=>'"'+csvFormulaSafe(v).replaceAll('"','""')+'"';
   return'﻿'+[REGISTER_COLUMNS,...rows.map(r=>REGISTER_COLUMNS.map(c=>r.cells[c]))].map(row=>row.map(cell).join(';')).join('\r\n');
 }
 

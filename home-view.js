@@ -27,6 +27,9 @@ export function lateBannerHtml(entries, parcelNames) {
     <span class="home-late-text"><b>En retard</b><span>${first}${more}</span></span><span class="home-chevron" aria-hidden="true">›</span></button>`;
 }
 
+// Heure à la française, insécable : « 8 h 30 », « 14 h » (jamais « 30 » seul à la ligne).
+const clock = t => { const [h, m] = String(t).split(':'); return `${Number(h)}\u00a0h${m && m !== '00' ? `\u00a0${m}` : ''}`; };
+
 /**
  * Lignes « Aujourd'hui » : à faire (sans les retards, déjà dans le bandeau) puis faites aujourd'hui.
  * Triées par heure, puis par échéance. Un tap coche ou décoche (finish-*, reopen-*), « ··· » ouvre la fiche.
@@ -43,7 +46,7 @@ export function todayListHtml({pending, done}, parcels) {
   return html`<div class="home-today">${list.map(e => {
     const p = parcels.get(e.item.parcelId);
     const ha = e.kind === 'work' ? (Number(e.item.surfaceWorked) || Number(p?.surfaceHa) || 0) : 0;
-    const meta = [p?.nom || (e.kind === 'task' ? 'Tâche' : ''), ha ? `${num(ha)} ha` : '', e.item.startTime ? `à ${e.item.startTime.replace(':', ' h ').replace(/ 00$/, '')}` : ''].filter(Boolean).join(' · ');
+    const meta = [p?.nom || (e.kind === 'task' ? 'Tâche' : ''), ha ? `${num(ha)} ha` : '', e.item.startTime ? `à ${clock(e.item.startTime)}` : ''].filter(Boolean).join(' · ');
     const action = e.isDone ? (e.kind === 'work' ? 'reopen-work' : 'reopen-task') : (e.kind === 'work' ? 'finish-work' : 'finish-task');
     const title = titleOf(e);
     return html`<div class="home-row${e.isDone ? ' is-done' : ''}">
@@ -60,9 +63,11 @@ export function todayListHtml({pending, done}, parcels) {
  */
 export function animalsOut(data, date = new Date()) {
   const sessions = filterGrazingSessions(data?.grazingSessions || [], {status: 'current', date});
+  // Sessions rattachées à une parcelle placée dans la corbeille ignorées (noms tirés des seules parcelles actives, comme herd-home.js).
+  const trashed = new Set((data?.parcelles || []).filter(p => p && p.deletedAt).map(p => p.id));
+  const names = new Map((data?.parcelles || []).filter(p => p && !p.deletedAt).map(p => [p.id, p.nom]));
   const byParcel = new Map();
-  for (const s of sessions) byParcel.set(s.parcelId, (byParcel.get(s.parcelId) || 0) + grazingTotal(s));
-  const names = new Map((data?.parcelles || []).map(p => [p.id, p.nom]));
+  for (const s of sessions) if (!trashed.has(s.parcelId)) byParcel.set(s.parcelId, (byParcel.get(s.parcelId) || 0) + grazingTotal(s));
   const groups = [...byParcel.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
     .map(([parcelId, n]) => ({parcelId, name: names.get(parcelId) || 'Parcelle', n}));
   return {total: groups.reduce((sum, g) => sum + g.n, 0), groups};

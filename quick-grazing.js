@@ -2,9 +2,9 @@
 // Pâturage dans le « + » : logique pure, sans DOM. Trois gestes (Mettre au pré, Rentrer ou retirer du pré, Changer
 // de pré). Un passage par pré et par catégorie : le total est saisi une fois puis réparti, jamais recopié.
 // Écritures dans grazing-records.js ; interface dans quick-grazing-ui.js.
-import {filterGrazingSessions, grazingAnimalList, grazingDate, grazingStatus, isForageParcel, linkGrazingAnimals, parseGrazingAnimals,
+import {filterGrazingSessions, grazingAnimalList, grazingDate, grazingStatus, grazingTotal, isForageParcel, linkGrazingAnimals, parseGrazingAnimals,
   restLabel, stockingRate, ugbCategory, ugbTable} from './grazing.js';
-import {animalLot, filterAnimals, lotAssignment, lotLabel} from './herd.js';
+import {animalLot, filterAnimals, lotAssignment, lotLabel, normalizeNationalId} from './herd.js';
 import {herdLots, moveDestinations} from './herd-home.js';
 import {grazingReentryConflict} from './phyto.js';
 import {buildQuickWorks, parcelChoices} from './quick-work.js';
@@ -53,12 +53,17 @@ export const defaultGrazingFilter = data => live(data?.parcelles).some(p => !p.a
 export function grazingEntryAlerts(data, {parcelIds, date, endDate = '', ignoreId = '', now, withReentry = true}) {
   const parcels = live(data?.parcelles), sessions = live(data?.grazingSessions).filter(s => s.id !== ignoreId);
   const others = {...data, grazingSessions: sessions}, out = [];
+  const fmt = iso => iso.split('-').reverse().join('/'), until = endDate || grazingDate(now === undefined ? new Date() : new Date(now));
   for (const id of parcelIds || []) {
     const parcel = parcels.find(p => p.id === id);
     if (!parcel) continue;
     const name = parcel.nom || 'Parcelle';
+    // Tout passage qui recoupe [entrée, sortie ou aujourd'hui] : une entrée rétroactive peut recouvrir un passage plus récent.
     const occupants = filterGrazingSessions(sessions, {parcelId: id, date});
-    if (occupants.length) out.push({kind: 'occupied', parcelId: id, message: `${name} : déjà occupé le ${date.split('-').reverse().join('/')} par ${occupants.map(lotLabel).join(', ')}.`});
+    const later = sessions.filter(s => s.parcelId === id && !occupants.includes(s) && grazingStatus(s) !== 'invalid' && (endDate ? grazingDate(s.startDate) < until : grazingDate(s.startDate) <= until)
+      && grazingDate(s.startDate) >= date && (!s.endDate || grazingDate(s.endDate) > date));
+    if (occupants.length) out.push({kind: 'occupied', parcelId: id, message: `${name} : déjà occupé le ${fmt(date)} par ${occupants.map(lotLabel).join(', ')}.`});
+    for (const s of later) out.push({kind: 'occupied', parcelId: id, message: `${name} : déjà occupé du ${fmt(grazingDate(s.startDate))} au ${s.endDate ? fmt(grazingDate(s.endDate)) : 'aujourd’hui'} par ${lotLabel(s)}.`});
     const rate = stockingRate(others, id, {date});
     if (!occupants.length && rate.rested === false) out.push({kind: 'rest', parcelId: id, message: `${name} : ${restLabel(rate).toLowerCase()}.`});
     if (!isForageParcel(parcel, sessions)) out.push({kind: 'forage', parcelId: id, message: `${name} n’est pas une prairie : sa surface comptera ensuite dans la surface fourragère.`});
@@ -231,6 +236,18 @@ export function planLotMoves(data, animals, {date, today = date, endDate = ''}) 
     for (const row of lotAssignment({...data, grazingSessions: sessions}, animal, null, {today: date})) {
       changed.set(row.id, row);
       sessions = sessions.map(s => (s.id === row.id ? row : s));
+    }
+    // Lot qui compte l'animal par sa fiche (sessionId) sans le lister : il perd une tête de son effectif hors liste.
+    const noted = animalLot({...data, grazingSessions: sessions}, animal, {today: date});
+    const key = normalizeNationalId(animal.nationalId);
+    const listed = noted && grazingAnimalList(noted).some(x => x.animalId === animal.id || (key && normalizeNationalId(x.number) === key));
+    if (noted && !listed && (!noted.animals || Array.isArray(noted.animals))) {
+      const list = grazingAnimalList(noted), rest = grazingTotal(noted) - list.length;
+      if (rest > 0) {
+        const row = {...noted, animals: list, additionalAnimalsCount: rest - 1, animalsCount: list.length + rest - 1};
+        changed.set(row.id, row);
+        sessions = sessions.map(s => (s.id === row.id ? row : s));
+      }
     }
   }
   const updates = [], creates = [], emptied = [], closed = [];

@@ -23,8 +23,11 @@ export function frNumber(value) {
   return Number.isFinite(n) ? String(Math.round(n * 1e6) / 1e6).replace('.', ',') : String(value);
 }
 
+// Texte commençant par = + - @ (ou tabulation) : préfixé d'une apostrophe pour qu'Excel ne l'évalue pas
+// comme une formule (comme csvCell dans accounting-export.js). Les nombres négatifs restent des nombres.
 const cell = value => {
-  const text = String(value ?? '');
+  let text = String(value ?? '');
+  if (/^[=+\-@\t\r]/.test(text) && !/^-\d+(,\d+)?$/.test(text)) text = `'${text}`;
   return /[";\r\n]/.test(text) || /^\s|\s$/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };
 // CSV « ; » avec BOM UTF-8 (accents corrects à l'ouverture dans Excel).
@@ -45,7 +48,7 @@ export function readableTables(state = {}) {
   const ugbCategories = ugbTable(state).categories;
   const categoryLabel = key => ugbCategories.find(c => c.key === key)?.label || key || '';
   return [
-    {file: 'parcelles.csv', sheet: 'Parcelles', rows: live(state.parcelles), columns: [
+    {file: 'parcelles.csv', sheet: 'Parcelles', rows: live(state.parcelles).filter(p => !p.archived), columns: [
       ['Nom', p => p.nom], ['Surface (ha)', p => frNumber(p.surfaceHa)], ['Culture', p => p.culture], ['Commune', p => p.commune], ['Îlot', p => p.ilot],
       ['Statut foncier', p => ({own: 'Propriété', rented: 'Fermage', client: 'Client'}[p.ownershipType] || p.ownershipType || '')], ['Client', p => clientName(p.clientId)],
       ['Favorite', p => (p.favorite ? 'Oui' : '')], ['Contour', p => (p.geometry ? 'Oui' : 'Non')], ['Notes', p => p.notes], ['Identifiant externe', p => p.sourceId]]},
@@ -73,7 +76,7 @@ export function readableTables(state = {}) {
 }
 
 export function parcelsGeoJson(state = {}) {
-  const features = live(state.parcelles).filter(p => p.geometry).map(p => ({type: 'Feature', geometry: p.geometry,
+  const features = live(state.parcelles).filter(p => p.geometry && !p.archived).map(p => ({type: 'Feature', geometry: p.geometry,
     properties: {nom: p.nom || '', surface_ha: p.surfaceHa ?? null, culture: p.culture || '', commune: p.commune || '', ilot: p.ilot || '', identifiant: p.id}}));
   return `${JSON.stringify({type: 'FeatureCollection', features}, null, 2)}\n`;
 }

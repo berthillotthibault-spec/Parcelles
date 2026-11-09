@@ -13,11 +13,19 @@ const TYPE_NAMES = {
   observations: ['observation', 'observations'], stockItems: ['stock', 'stocks'], stockMovements: ['mouvement de stock', 'mouvements de stock'],
   maintenanceRecords: ['entretien', 'entretiens'], routeSessions: ['tournée', 'tournées'], fieldSessions: ['session terrain', 'sessions terrain'],
   chantiers: ['chantier', 'chantiers'], automationRules: ['automatisation', 'automatisations'], gpsTracks: ['trace GPS', 'traces GPS'],
-  integrationImports: ['import', 'imports'], weatherStations: ['station météo', 'stations météo']
+  integrationImports: ['import', 'imports'], weatherStations: ['station météo', 'stations météo'],
+  vetTreatments: ['soin vétérinaire', 'soins vétérinaires'], animals: ['animal', 'animaux'], animalEvents: ['événement d’élevage', 'événements d’élevage'],
+  parcelComments: ['commentaire de parcelle', 'commentaires de parcelle']
 };
 const FEMININE = new Set(['parcelles', 'tasks', 'rotations', 'photos', 'observations', 'routeSessions', 'fieldSessions', 'automationRules', 'gpsTracks', 'weatherStations']);
 export const typeName = (type, n = 2) => (TYPE_NAMES[type] || [type, type])[n > 1 ? 1 : 0];
 const count = (n, type) => `${n} ${typeName(type, n)}`;
+// Accord d'un participe ou adjectif avec le type : « supprimée », « différents ».
+const agree = (n, type, word) => `${word}${FEMININE.has(type) ? 'e' : ''}${n > 1 ? 's' : ''}`;
+// Contenu d'une fiche sans les clés techniques réécrites par upsert ; null et absent sont équivalents
+// (selectiveEntities remet à null les champs apparus depuis la sauvegarde).
+const TECH = new Set(['createdAt', 'updatedAt', 'version', 'deletedAt']);
+const content = item => JSON.stringify(Object.keys(item).filter(k => !TECH.has(k) && item[k] != null).sort().map(k => [k, item[k]]));
 const live = item => item && !item.deletedAt;
 const pad = n => String(n).padStart(2, '0');
 export const shortDate = ms => {const d = new Date(Number(ms));return Number.isFinite(d.getTime()) ? `${pad(d.getDate())}/${pad(d.getMonth() + 1)}` : '';};
@@ -28,7 +36,7 @@ export function itemTitle(type, item = {}) {
 
 // Comparaison d'une sauvegarde à l'état actuel, du point de vue « que changerait la restauration » :
 // - added : dans la sauvegarde, absent aujourd'hui (revient) ;
-// - changed : présent des deux côtés, updatedAt différent (version de la sauvegarde rétablie) ;
+// - changed : présent des deux côtés, updatedAt et contenu différents (version de la sauvegarde rétablie) ;
 // - deletedSince : actif dans la sauvegarde, à la corbeille aujourd'hui (revient) ;
 // - newer : actif aujourd'hui, absent ou supprimé dans la sauvegarde (perdu par une restauration complète).
 export function diffBackup(current = {}, backup = {}, types = RESTORABLE_TYPES) {
@@ -43,7 +51,7 @@ export function diffBackup(current = {}, backup = {}, types = RESTORABLE_TYPES) 
       const cur = now.get(id);
       if (!cur) row.added.push(id);
       else if (cur.deletedAt) row.deletedSince.push(id);
-      else if (Number(cur.updatedAt || 0) !== Number(old.updatedAt || 0)) row.changed.push(id);
+      else if (Number(cur.updatedAt || 0) !== Number(old.updatedAt || 0) && content(cur) !== content(old)) row.changed.push(id);
     }
     for (const [id, cur] of now) if (live(cur) && !live(then.get(id))) row.newer.push(id);
     if (Object.values(row).some(list => list.length)) {
@@ -54,16 +62,15 @@ export function diffBackup(current = {}, backup = {}, types = RESTORABLE_TYPES) 
   return {byType, totals, identical: !Object.keys(byType).length};
 }
 
-// « Cette sauvegarde du 28/09 : +2 parcelles, 14 travaux différents, 3 supprimés depuis. »
+// « Cette sauvegarde du 28/09 : +2 parcelles, 14 travaux différents, 3 travaux supprimés depuis. »
 export function previewSentence(diff, createdAt) {
   const parts = [];
   for (const [type, row] of Object.entries(diff.byType)) {
     if (row.added.length) parts.push(`+${count(row.added.length, type)}`);
-    if (row.changed.length) parts.push(`${count(row.changed.length, type)} différent${FEMININE.has(type) ? 'e' : ''}${row.changed.length > 1 ? 's' : ''}`);
+    if (row.changed.length) parts.push(`${count(row.changed.length, type)} ${agree(row.changed.length, type, 'différent')}`);
+    if (row.deletedSince.length) parts.push(`${count(row.deletedSince.length, type)} ${agree(row.deletedSince.length, type, 'supprimé')} depuis`);
+    if (row.newer.length) parts.push(`${count(row.newer.length, type)} ${agree(row.newer.length, type, 'créé')} ou ${agree(row.newer.length, type, 'rétabli')} depuis`);
   }
-  const {deletedSince, newer} = diff.totals;
-  if (deletedSince) parts.push(`${deletedSince} supprimé${deletedSince > 1 ? 's' : ''} depuis`);
-  if (newer) parts.push(`${newer} créé${newer > 1 ? 's' : ''} ou rétabli${newer > 1 ? 's' : ''} depuis`);
   const head = `Cette sauvegarde${createdAt ? ` du ${shortDate(createdAt)}` : ''}`;
   return parts.length ? `${head} : ${parts.join(', ')}.` : `${head} est identique à vos données actuelles.`;
 }

@@ -1,7 +1,7 @@
 // n° 48 : groupe « Réglementaire » du panneau Couches, bandeau de la fiche parcelle et valeurs indicatives.
 // Hors connexion : la dernière évaluation de la parcelle (mémorisée sur l'appareil) reste affichée.
 import {html, raw} from './safe-html.js';
-import {REG_DISCLAIMER, REG_LAYERS, REG_RULES_DEFAULT, evaluateParcel, evaluationMessages, evaluationRequests, geometrySignature, linesOf, normalizeRegLayers, regulatoryRules} from './regulatory.js';
+import {REG_DISCLAIMER, REG_LAYERS, REG_RULES_DEFAULT, evaluateParcel, evaluationMessages, evaluationRequests, geometrySignature, linesOf, normalizeRegLayers, regDatePhrase, regulatoryRules} from './regulatory.js';
 
 const CACHE_KEY='parcelles:reglementaire';
 const MAX_ENTRIES=300,STALE_MS=7*864e5,TIMEOUT_MS=15000;
@@ -51,7 +51,7 @@ export function createRegulatoryUI({state, store, parcelMap, toast, modal, close
     const date = evaluation ? new Date(evaluation.at).toLocaleDateString('fr-FR') : '';
     const lines = messages.length ? messages.map(msg => html`<p class="reg-msg is-${msg.level}">${msg.text}${(msg.links || []).slice(0, 3).map(l => html` <a href="${l.url}" target="_blank" rel="noopener">Fiche ${l.name}</a>`)}</p>`) : '';
     const status = loading ? 'Recherche des cours d’eau et zones protégées…' : error ? error : evaluation ? `Évaluée le ${date}${online() ? '' : ' · hors connexion, dernière évaluation'}` : online() ? '' : 'Hors connexion : aucune évaluation mémorisée pour cette parcelle.';
-    return html`<div class="reg-head"><strong>Réglementaire</strong><span class="badge info">indicatif</span>${parcel.geometry && online() ? html`<button type="button" class="text-button" data-reg-refresh="${parcel.id}">Actualiser</button>` : ''}</div>${lines}<small class="form-note">${status}</small><small class="form-note">${REG_DISCLAIMER} Valeurs du ${r.date}${r.custom ? ' (modifiées)' : ''}.</small>`;
+    return html`<div class="reg-head"><strong>Réglementaire</strong><span class="badge info">indicatif</span>${parcel.geometry && online() ? html`<button type="button" class="text-button" data-reg-refresh="${parcel.id}">Actualiser</button>` : ''}</div>${lines}<small class="form-note">${status}</small><small class="form-note">${REG_DISCLAIMER} Valeurs ${regDatePhrase(r.date)}${r.custom ? ' (modifiées)' : ''}.</small>`;
   }
   function parcelHtml(parcel) {
     if (!parcel?.geometry) return '';
@@ -102,13 +102,28 @@ export function createRegulatoryUI({state, store, parcelMap, toast, modal, close
   // ---------- Valeurs indicatives modifiables ----------
   function openRules() {
     const r = rules();
-    modal('Valeurs réglementaires indicatives', `Valeurs du ${r.date}, modifiables selon votre arrêté départemental.`,
+    modal('Valeurs réglementaires indicatives', `Valeurs ${regDatePhrase(r.date)}, modifiables selon votre arrêté départemental.`,
       html`<form id="reg-rules-form" class="form-grid"><label>Bande tampon BCAE (m)<input name="bcaeBufferM" type="number" min="0" max="500" step="1" value="${r.bcaeBufferM}"></label><label>ZNT minimale (m)<input name="zntMinM" type="number" min="0" max="500" step="1" value="${r.zntMinM}"></label><label>ZNT possibles selon l’AMM (m)<input name="zntOptionsM" value="${r.zntOptionsM.join(', ')}"></label><label>Signaler un cours d’eau à moins de (m)<input name="nearWaterM" type="number" min="0" max="500" step="1" value="${r.nearWaterM}"></label><label class="span-2">Date des valeurs<input name="date" value="${r.date}"></label><label class="span-2">Source<textarea name="source" rows="3">${r.source}</textarea></label></form><p class="form-note">${REG_DISCLAIMER}</p>`,
       html`<button class="button secondary" id="reg-rules-reset">Valeurs par défaut</button><button class="button primary" id="reg-rules-save">Enregistrer</button>`, 'small');
     doc.querySelector('#reg-rules-reset')?.addEventListener('click', async () => { await store.setPreferences({regulatoryRules: {}}); toast('Valeurs indicatives par défaut rétablies.'); closeModal?.(); });
     doc.querySelector('#reg-rules-save')?.addEventListener('click', async () => {
-      const form = new FormData(doc.querySelector('#reg-rules-form')), value = Object.fromEntries(form);
-      const next = {bcaeBufferM: Number(value.bcaeBufferM), zntMinM: Number(value.zntMinM), nearWaterM: Number(value.nearWaterM), zntOptionsM: String(value.zntOptionsM || '').split(/[;,\s]+/).map(Number).filter(Number.isFinite), date: String(value.date || ''), source: String(value.source || '')};
+      const formEl = doc.querySelector('#reg-rules-form'), value = Object.fromEntries(new FormData(formEl));
+      // Champ vide ou hors bornes : enregistrement bloqué avec un message, au lieu de 0 ou d'un retour silencieux au défaut.
+      const fail = (name, label, range) => {
+        let box = formEl.querySelector('.form-error');
+        if (!box) { box = doc.createElement('p'); box.className = 'form-error span-2'; box.setAttribute('role', 'alert'); formEl.append(box); }
+        box.textContent = `${label} : nombre entier de ${range} attendu.`;
+        formEl.querySelector(`[name="${name}"]`)?.focus();
+      };
+      const nums = {};
+      for (const [key, label] of [['bcaeBufferM', 'Bande tampon BCAE (m)'], ['zntMinM', 'ZNT minimale (m)'], ['nearWaterM', 'Signaler un cours d’eau à moins de (m)']]) {
+        const s = String(value[key] ?? '').trim(), n = Number(s);
+        if (s === '' || !Number.isInteger(n) || n < 0 || n > 500) { fail(key, label, '0 à 500'); return; }
+        nums[key] = n;
+      }
+      const options = String(value.zntOptionsM || '').split(/[;,\s]+/).filter(Boolean).map(Number);
+      if (!options.length || options.some(n => !Number.isInteger(n) || n < 1 || n > 500)) { fail('zntOptionsM', 'ZNT possibles selon l’AMM (m)', '1 à 500 (séparés par des virgules)'); return; }
+      const next = {...nums, zntOptionsM: options, date: String(value.date || ''), source: String(value.source || '')};
       const clean = regulatoryRules(next), stored = {};
       for (const key of ['bcaeBufferM', 'zntMinM', 'nearWaterM', 'zntOptionsM', 'date', 'source']) if (JSON.stringify(clean[key]) !== JSON.stringify(REG_RULES_DEFAULT[key])) stored[key] = clean[key];
       await store.setPreferences({regulatoryRules: stored}); toast('Valeurs indicatives enregistrées.', 'success'); closeModal?.();

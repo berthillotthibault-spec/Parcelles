@@ -30,6 +30,9 @@ export function createParcelCommentsUI({store, sync, modal, closeModal, toast, b
       <p class="pc-text">${e(c.text).replace(/\n/g, '<br>')}</p>${work ? `<small>Travail lié : ${e(work.type || 'Travail')}</small>` : ''}${actions ? `<div class="pc-actions">${actions}</div>` : ''}</li>`;
   }
 
+  // Parcelles dont tous les commentaires sont affichés (bouton « Afficher les plus anciens »).
+  const expanded = new Set();
+
   /** Section de la fiche parcelle (onglet Résumé). */
   function parcelHtml(p) {
     if (!p) return '';
@@ -38,7 +41,7 @@ export function createParcelCommentsUI({store, sync, modal, closeModal, toast, b
     const unread = newParcelComments(data(), {uid: who.uid}).comments.filter(c => c.parcelId === p.id).map(c => c.id);
     if (unread.length) queueMicrotask(() => markSeen(unread));
     return `<section class="panel pc-panel" id="parcel-comments"><div class="panel-heading"><h2>Commentaires et préconisations</h2>${canComment(who.role) ? `<button type="button" class="text-button" data-pc="new" data-id="${e(p.id)}">Commenter</button>` : ''}</div>
-      ${list.length ? `<ul class="pc-list">${list.slice(0, 20).map(c => itemHtml(c, who)).join('')}</ul>${list.length > 20 ? `<small>${list.length - 20} commentaire(s) plus ancien(s) non affiché(s).</small>` : ''}` : '<div class="empty-state">Aucun commentaire. Le conseiller ou l’équipe peut laisser ici une préconisation.</div>'}</section>`;
+      ${list.length ? `<ul class="pc-list">${(expanded.has(p.id) ? list : list.slice(0, 20)).map(c => itemHtml(c, who)).join('')}</ul>${list.length > 20 && !expanded.has(p.id) ? `<button type="button" class="text-button" data-pc="more" data-id="${e(p.id)}">Afficher les ${list.length - 20} plus ancien(s)</button>` : ''}` : '<div class="empty-state">Aucun commentaire. Le conseiller ou l’équipe peut laisser ici une préconisation.</div>'}</section>`;
   }
 
   function markSeen(commentIds) {
@@ -108,7 +111,8 @@ export function createParcelCommentsUI({store, sync, modal, closeModal, toast, b
     task: c => toTask(c.dataset.id),
     'open-task': c => openTask(c.dataset.id),
     parcel: c => { closeModal(); openParcel(c.dataset.id); },
-    inbox: () => openInbox()
+    inbox: () => openInbox(),
+    more: c => { const p = live('parcelles').find(x => x.id === c.dataset.id), sec = doc.getElementById('parcel-comments'); if (!p || !sec) return; expanded.add(p.id); sec.outerHTML = parcelHtml(p); }
   };
   doc?.addEventListener('click', event => {
     const control = event.target?.closest?.('[data-pc]');

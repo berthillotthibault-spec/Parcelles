@@ -2,6 +2,7 @@
 // et rappels en arrière-plan par Periodic Background Sync quand le navigateur le permet.
 import {buildCalendar,upcomingEvents,itemEvent,icsFileName,ICS_NOTICE} from './ics.js';
 import {download,localDate} from './utils.js';
+import {localDay} from './home-priorities.js';
 
 export const REMINDER_TAG='parcelles-rappels';
 const TWELVE_HOURS=12*60*60*1000;
@@ -10,7 +11,7 @@ const ICS_TYPE='text/calendar;charset=utf-8';
 export async function periodicReminderStatus(){
   try{
     if(!('serviceWorker'in navigator))return 'unsupported';
-    const registration=await Promise.race([navigator.serviceWorker.ready,new Promise(resolve=>setTimeout(()=>resolve(null),3000))]);
+    const registration=await navigator.serviceWorker.getRegistration().catch(()=>null);
     if(!registration||!('periodicSync'in registration))return 'unsupported';
     const tags=await registration.periodicSync.getTags().catch(()=>[]);
     return tags.includes(REMINDER_TAG)?'active':'available';
@@ -48,7 +49,7 @@ export function createIcsUI({store,state,modal,closeModal,toast,escapeHtml}){
   function exportUpcoming(){
     const events=upcomingEvents(state(),{days:30});
     if(!events.length){toast('Rien de prévu dans les 30 prochains jours.','info');return;}
-    download(`parcelles-30-jours-${new Date().toISOString().slice(0,10)}.ics`,buildCalendar(events,{name:'Parcelles · 30 jours'}),ICS_TYPE);
+    download(`parcelles-30-jours-${localDay()}.ics`,buildCalendar(events,{name:'Parcelles · 30 jours'}),ICS_TYPE);
     toast(`${events.length} rappel${events.length>1?'s':''} exporté${events.length>1?'s':''}. Réimportez le fichier après une modification.`,'success');
   }
 

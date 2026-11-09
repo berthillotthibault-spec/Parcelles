@@ -3,32 +3,15 @@
 // le RPG publié par l’IGN est anonyme, c’est l’utilisateur qui désigne ses îlots.
 import {clone,formatNumber,uid,validateParcel} from './utils.js';
 import {normalizeEntity} from './state.js';
-import {rpgFeatureId,rpgFeatureToParcel} from './rpg.js';
+import {rpgFeatureId,rpgFeatureToParcel,rpgCultureLabel} from './rpg.js';
 
 export const GEOCODE_URL='https://data.geopf.fr/geocodage/search';
 export const RPG_FALLBACK_YEAR=2024;
 export const ONBOARDING_RPG_RADIUS_KM=2.5;
 export const BATCH_LIMIT=300;
 
-// Extrait de la nomenclature officielle des cultures PAC (CODE_CULTU). Un code absent
-// de cette table est conservé tel quel : l’utilisateur pourra le renommer ensuite.
-export const RPG_CULTURE_LABELS=Object.freeze({
-  BTH:'Blé tendre d’hiver',BTP:'Blé tendre de printemps',BDH:'Blé dur d’hiver',BDP:'Blé dur de printemps',
-  ORH:'Orge d’hiver',ORP:'Orge de printemps',AVH:'Avoine d’hiver',AVP:'Avoine de printemps',
-  SGH:'Seigle d’hiver',TTH:'Triticale d’hiver',TTP:'Triticale de printemps',
-  MIS:'Maïs',MIE:'Maïs ensilage',SOG:'Sorgho',
-  CZH:'Colza d’hiver',CZP:'Colza de printemps',TRN:'Tournesol',SOJ:'Soja',LIH:'Lin non textile d’hiver',
-  FVL:'Féverole',PHI:'Pois d’hiver',PPR:'Pois de printemps',LUZ:'Luzerne',
-  BTN:'Betterave non fourragère',PTC:'Pomme de terre de consommation',
-  PPH:'Prairie permanente',PTR:'Prairie temporaire',PRL:'Prairie en rotation longue',
-  J5M:'Jachère de 5 ans ou moins',J6P:'Jachère de 6 ans ou plus',
-  VRC:'Vigne (raisins de cuve)'
-});
-
-export function rpgCultureLabel(code,fallback=''){
-  const key=String(code??'').trim().toUpperCase();
-  return RPG_CULTURE_LABELS[key]||String(fallback||key||'').trim();
-}
+// Nomenclature des cultures PAC déplacée dans rpg.js (réexportée ici pour telepac.js et les tests).
+export {RPG_CULTURE_LABELS,rpgCultureLabel} from './rpg.js';
 
 // Millésime N-1 d’abord (dernière déclaration connue), puis 2024, déjà éprouvé par la carte.
 export function onboardingRpgYears(now=new Date()){
@@ -128,7 +111,7 @@ export function addRpgParcelsBatch(store,features,{year=RPG_FALLBACK_YEAR}={}){
     const parcels=rows.map(row=>normalizeEntity('parcelles',row));
     for(const parcel of parcels){const errors=validateParcel(parcel);if(errors.length)throw new Error(`${parcel.nom} : ${errors.join(' — ')}`);}
     const timestamp=Date.now(),sessionId=uid('import_session'),rollbackBackupId=`preimport_${sessionId}`;
-    await store.storage.backupPut({id:rollbackBackupId,period:'preimport',createdAt:timestamp,state:store.snapshot()});
+    await store.storage.backupPut({id:rollbackBackupId,workspaceId:store.workspaceId||'local',period:'preimport',createdAt:timestamp,state:store.snapshot()});
     const surfaceHa=Math.round(parcels.reduce((sum,parcel)=>sum+(Number(parcel.surfaceHa)||0),0)*100)/100;
     const session=normalizeEntity('importSessions',{id:sessionId,fileNames:[`Carte PAC (RPG ${year})`],created:parcels.length,updated:0,skipped:skipped.length,interventions:0,surface:surfaceHa,strategy:'rpg-onboarding',rollbackBackupId,source:'local'});
     await store._mutate(`Parcelles PAC ajoutées : ${parcels.length}`,state=>{

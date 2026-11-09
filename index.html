@@ -10,7 +10,7 @@
        les plugins et le détournement de <base> ; Firebase, tuiles, météo, Worker et assistant restent libres.
        Les violations sont notées dans Plus › Mes données › Diagnostic. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'">
-  <meta name="parcelles-build" content="2026.11.03-v10.28.1">
+  <meta name="parcelles-build" content="2026.11.09-v10.28.2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -19,21 +19,21 @@
   <link rel="modulepreload" href="./app.js">
   <link rel="preload" href="./instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="./instrument-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="./tokens.css?v=2">
+  <link rel="stylesheet" href="./tokens.css?v=3">
   <link rel="stylesheet" href="./leaflet.min.css?v=1">
   <link rel="stylesheet" href="./base.css?v=2">
-  <link rel="stylesheet" href="./components.css?v=4">
-  <link rel="stylesheet" href="./map.css?v=2">
+  <link rel="stylesheet" href="./components.css?v=5">
+  <link rel="stylesheet" href="./map.css?v=3">
   <link rel="stylesheet" href="./shell.css?v=1">
-  <link rel="stylesheet" href="./screens.css?v=3">
-  <link rel="stylesheet" href="./responsive.css?v=1">
+  <link rel="stylesheet" href="./screens.css?v=4">
+  <link rel="stylesheet" href="./responsive.css?v=2">
   <link rel="stylesheet" href="./accessibility.css?v=1">
   <link rel="stylesheet" href="./assistant-launcher.css?v=1">
   <link rel="stylesheet" href="./grazing.css?v=2">
   <link rel="stylesheet" href="./public-works.css?v=2">
   <link rel="stylesheet" href="./motion.css?v=1">
   <link rel="stylesheet" href="./personalization.css?v=2">
-  <link rel="stylesheet" href="./design-v3.css?v=4.17">
+  <link rel="stylesheet" href="./design-v3.css?v=4.18">
   <title>Parcelles</title>
 </head>
 <body>
@@ -158,7 +158,7 @@
         <div class="map-stage">
           <div id="map" aria-label="Carte des parcelles"></div>
           <div class="map-topbar">
-            <label class="map-search"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span class="sr-only">Rechercher une parcelle</span><input id="map-search-input" type="search" autocomplete="off" placeholder="Rechercher une parcelle"></label>
+            <label class="map-search"><svg class="ui-icon" width="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span class="sr-only">Rechercher une parcelle</span><input id="map-search-input" type="search" role="combobox" aria-autocomplete="list" autocomplete="off" placeholder="Rechercher une parcelle" aria-controls="map-search-results" aria-expanded="false"></label>
             <button class="map-circle-button" data-action="open-map-layers" aria-label="Couches de la carte" title="Couches"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 2 3 7l9 5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg></button>
           </div>
           <div id="map-search-results" class="map-search-results hidden"></div>

@@ -1,9 +1,10 @@
 // Mes données › Exporter › Parcelles (n° 49) : Shapefile ZIP, KML (Google Earth) et ISOXML parcellaire.
 import {exportableParcels,parcelShapefileZip,parcelsKml,parcelsIsoxmlZip} from './parcel-formats.js';
 import {download,downloadBlob} from './utils.js';
+import {localDay} from './home-priorities.js';
 
 export function createParcelFormatsUI({state,toast,colorFor=()=>'#778579'}){
-  const day=()=>new Date().toISOString().slice(0,10);
+  const day=()=>localDay();
   const parcels=()=>{const list=exportableParcels(state());if(!list.length)toast('Aucune parcelle avec contour à exporter.','warning');return list;};
   const done=(list,format)=>toast(`${list.length} parcelle${list.length>1?'s':''} exportée${list.length>1?'s':''} en ${format}.`,'success');
   async function run(format){

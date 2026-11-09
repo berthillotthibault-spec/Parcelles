@@ -240,3 +240,25 @@ export function undoTpDay(store,chantierId,dayId){
     return{logs:logs.length,fuels:fills.length,documents:docs.length,meters};
   },{entity:'chantiers',entityId:chantierId,action:'update',queue:false});
 }
+
+/** Supprime une seule ligne d'une fin de journée : son plein passe à la corbeille et le compteur de l'engin reprend sa valeur précédente. */
+export function undoTpDayLog(store,chantierId,logId){
+  return store.mutate('Ligne de fin de journée supprimée',state=>{
+    const chantier=(state.chantiers||[]).find(row=>row.id===chantierId&&!row.deletedAt);
+    const log=active(chantier?.tpLogs).find(row=>row.id===logId);
+    if(!log?.dayId)throw new Error('Cette ligne du journal est introuvable ou déjà supprimée.');
+    const fills=active(state.integrationImports).filter(r=>r.tpDayId===log.dayId&&r.equipmentId===log.equipmentId);
+    const lastOfDay=!active(chantier.tpLogs).some(row=>row.id!==log.id&&row.dayId===log.dayId);
+    const docs=lastOfDay?active(state.documents).filter(r=>r.tpDayId===log.dayId):[];
+    const restore=log.meterEnd!==null&&log.meterEnd!==undefined&&log.meterEnd!==log.meterStart;
+    if(!tpDayAllowed(store.writeGuard,tpDayUndoOperations(chantierId,{meters:restore?1:0,fuels:fills.length,photo:docs.length})))throw new Error('Votre rôle ne permet pas de supprimer cette ligne (plein ou photo) : demandez à un responsable.');
+    const at=Date.now();
+    log.deletedAt=at;log.updatedAt=at;
+    let meters=0;
+    if(restore){const machine=(state.materiels||[]).find(m=>m.id===log.equipmentId);if(machine&&meterOf(machine)===log.meterEnd){machine.currentMeter=log.meterStart??null;touchMeter(store,machine);meters++;}}
+    for(const r of fills){r.deletedAt=at;touch(store,'integrationImports',r,'delete');}
+    for(const r of docs){r.deletedAt=at;touch(store,'documents',r,'delete');}
+    touch(store,'chantiers',chantier);
+    return{fuels:fills.length,documents:docs.length,meters};
+  },{entity:'chantiers',entityId:chantierId,action:'update',queue:false});
+}

@@ -26,7 +26,8 @@ export function matchesWorkTab(item,tab,today){
   if(tab==='overdue')return pending&&Boolean(date)&&date<today;
   if(tab==='upcoming')return pending&&(!date||date>today);
   // Un travail terminé aujourd’hui reste visible (barré) dans « Aujourd’hui » ; il passe dans l’historique le lendemain.
-  if(tab==='history')return !pending&&date!==today;
+  // Un annulé du jour, exclu d’« Aujourd’hui », va tout de suite dans l’historique.
+  if(tab==='history')return !pending&&(date!==today||['Annulé','Annulée'].includes(item.status));
   return true;
 }
 /** @param {Partial<import('parcelles/types').AppState>} data @param {string} today Jour AAAA-MM-JJ. */
@@ -59,7 +60,7 @@ export function dailySituation(data,today=localDay()){
   return {...agenda,planned,done,actions:pending.filter(e=>e.overdue||!e.date||e.date===today||e.item.status==='En cours'),
     tasks:(data.tasks||[]).filter(t=>isPending(t,'task')&&agendaDate(t,'task')===today),
     plannedArea:planned.reduce((sum,w)=>sum+Math.max(0,number(w.surfaceWorked)??number(parcels.get(w.parcelId)?.surfaceHa)??0),0),
-    doneArea:done.reduce((sum,w)=>sum+Math.max(0,number(w.surfaceWorked)??0),0),
+    doneArea:done.reduce((sum,w)=>sum+Math.max(0,number(w.surfaceWorked)??number(parcels.get(w.parcelId)?.surfaceHa)??0),0),
     equipmentHours:done.filter(w=>w.equipmentId).reduce((sum,w)=>sum+Math.max(0,number(w.duration)??0),0),
     grazingMoves:(data.grazingSessions||[]).filter(s=>!s.deletedAt&&s.startDate===today).length};
 }

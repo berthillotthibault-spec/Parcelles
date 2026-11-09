@@ -76,9 +76,9 @@ export function createPublicWorksUI({store,state,modal,closeModal,toast,confirmD
     });
     bind('#tp-save-log',event=>save(event.currentTarget,$('#tp-log-form'),values=>savePublicWorksLog(store,chantierId,values,{id}),()=>openDetail(chantierId)));
     bind('#tp-delete-log',()=>{
-      modal('Supprimer cette réalisation ?',`${dateLabel(log.date)} · ${c.type}`,'<p>Cette ligne sera retirée du journal et des totaux du chantier.</p>','<button class="button secondary" id="tp-keep-log">Conserver</button><button class="button danger" id="tp-confirm-delete-log">Supprimer</button>','small');
+      modal('Supprimer cette réalisation ?',`${dateLabel(log.date)} · ${c.type}`,`<p>Cette ligne sera retirée du journal et des totaux du chantier.${existing.dayId&&(existing.fuelLiters!=null||(existing.meterEnd!=null&&existing.meterEnd!==existing.meterStart))?' Son plein et son relevé de compteur seront aussi retirés.':''}</p>`,'<button class="button secondary" id="tp-keep-log">Conserver</button><button class="button danger" id="tp-confirm-delete-log">Supprimer</button>','small');
       bind('#tp-keep-log',()=>openLogForm(chantierId,id));
-      bind('#tp-confirm-delete-log',async event=>{const button=event.currentTarget;if(button.disabled)return;button.disabled=true;try{await deletePublicWorksLog(store,chantierId,id);if(button.isConnected){openDetail(chantierId);toast('Réalisation supprimée.');}}catch(error){toast(error.message,'error');if(button.isConnected)button.disabled=false;}});
+      bind('#tp-confirm-delete-log',async event=>{const button=event.currentTarget;if(button.disabled)return;button.disabled=true;try{if(existing.dayId)await (await import('./public-works-day.js')).undoTpDayLog(store,chantierId,id);else await deletePublicWorksLog(store,chantierId,id);if(button.isConnected){openDetail(chantierId);toast('Réalisation supprimée.');}}catch(error){toast(error.message,'error');if(button.isConnected)button.disabled=false;}});
     });
   }
 

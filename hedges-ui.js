@@ -1,6 +1,6 @@
 // n° 70 — Interface haies et IAE : compteur (km de haies, % de SAU en IAE), inventaire, tracé sur la
 // carte (ligne, contour) ou position GPS, réglages BCAE 8 et contrôle des travaux de taille.
-import {escapeHtml as e,download,localDate} from './utils.js';
+import {escapeHtml as e,download,localDate,localIso} from './utils.js';
 import {saveFarmRecord} from './farm-records.js';
 import {active} from './farm-memory.js';
 import {INFRA_KIND,INFRA_TYPES,infraType,infraRules,validateRules,geometryFromPoints,measure,validateInfra,infraItems,infraSummary,trimCheck,infraCsv,infraGeoJson} from './hedges.js';
@@ -105,8 +105,8 @@ ${r.types.map(t=>`<label>${e(t.label)} (${e(t.unit)})<input name="coef_${t.key}"
     if(name==='save')return save();
     if(name==='rules')return openRules();
     if(name==='save-rules')return saveRules();
-    if(name==='csv')return download(`haies-iae-${new Date().toISOString().slice(0,10)}.csv`,infraCsv(data()),'text/csv;charset=utf-8');
-    if(name==='geojson')return download(`haies-iae-${new Date().toISOString().slice(0,10)}.geojson`,JSON.stringify(infraGeoJson(data())),'application/geo+json');
+    if(name==='csv')return download(`haies-iae-${localIso()}.csv`,infraCsv(data()),'text/csv;charset=utf-8');
+    if(name==='geojson')return download(`haies-iae-${localIso()}.geojson`,JSON.stringify(infraGeoJson(data())),'application/geo+json');
   }
   document.addEventListener('click',ev=>{const c=ev.target.closest('[data-hedge]');if(!c||c.disabled)return;c.disabled=true;action(c.dataset.hedge,c).catch(error=>toast(error.message,'error')).finally(()=>{c.disabled=false;});});
   return{open,enhanceWorkForm,guardWork};

@@ -3,11 +3,11 @@
 import {html, raw} from './safe-html.js';
 import {CERTIPHYTO_CATEGORIES, REGULATED_NOTE, adminDeadlines, regulatedSettings, sprayerMachines} from './regulated-ops.js';
 import {phytoOperators} from './compliance.js';
-import {isoDate, localDate, normalize} from './utils.js';
+import {localDate, normalize, localIso} from './utils.js';
 
 const STATUS={ko:['danger','Dépassée'],warn:['warning','Proche'],unknown:['info','À renseigner'],ok:['success','À jour']};
 
-export function createRegulatedOpsUI({store, modal, toast, doc = globalThis.document, today = () => isoDate(new Date())} = {}) {
+export function createRegulatedOpsUI({store, modal, toast, doc = globalThis.document, today = () => localIso()} = {}) {
   const $ = sel => doc.querySelector(sel);
   function deadlinesHtml(rows) {
     if (!rows.length) return html`<div class="empty-state">Aucune échéance suivie. Renseignez vos opérateurs, vos pulvérisateurs ou l’échéance d’assurance d’un matériel.</div>`;

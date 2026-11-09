@@ -42,7 +42,7 @@ ${alerts.length?`<ul class="stock-alerts">${alerts.map(a=>`<li class="is-warning
     const t=tankLevel(data(),{today:todayIso()});
     modal(entry==='tank'?'Plein de cuve':'Plein d’engin',entry==='tank'?'Livraison de GNR dans la cuve de l’exploitation.':'Litres mis dans l’engin et compteur horaire.',`<form id="fuel-form" class="form-grid" data-entry="${entry}" data-id="${e(record?.id||'')}">
 ${entry==='machine'?`<label>Engin<select name="equipmentId" required><option value="">Choisir…</option>${list.map(m=>`<option value="${e(m.id)}" ${r.equipmentId===m.id?'selected':''}>${e(m.nom)}${m.currentMeter!==null&&m.currentMeter!==undefined&&m.currentMeter!==''?` · ${e(m.currentMeter)} h`:''}</option>`).join('')}</select></label>`:''}
-<label>Date<input type="date" name="date" value="${e(r.date)}"></label>
+<label>Date<input type="date" name="date" max="${todayIso()}" value="${e(r.date)}"></label>
 <label>Litres<input name="litres" type="number" min="0" step="any" inputmode="decimal" value="${e(r.litres??'')}" required></label>
 ${entry==='machine'?`<label>Compteur horaire (h)<input name="meter" type="number" min="0" step="any" inputmode="decimal" value="${e(r.meter??'')}" placeholder="Relevé au moment du plein"></label>
 <label><input type="checkbox" name="fromTank" ${r.fromTank!==false?'checked':''}> Pris à la cuve de l’exploitation</label>`:''}
@@ -67,7 +67,7 @@ ${entry==='machine'?`<label>Compteur horaire (h)<input name="meter" type="number
     const form=$('#fuel-form');if(!form)return;const entry=form.dataset.entry,existing=form.dataset.id?fuelEntries(data()).find(r=>r.id===form.dataset.id):null;
     const v=Object.fromEntries(new FormData(form));v.fromTank=entry==='machine'?form.elements.fromTank.checked:null;
     const machine=entry==='machine'?active(data(),'materiels').find(m=>m.id===v.equipmentId):null,cur=machine&&machine.currentMeter!==''&&machine.currentMeter!==null&&machine.currentMeter!==undefined?Number(machine.currentMeter):null;
-    const res=validateFill({...v,allowLowerMeter:!!existing},{entry,currentMeter:Number.isFinite(cur)?cur:null});if(res.error)return err('#fuel-error',res.error);
+    const res=validateFill({...v,allowLowerMeter:!!existing},{entry,currentMeter:Number.isFinite(cur)?cur:null,today:todayIso()});if(res.error)return err('#fuel-error',res.error);
     const file=form.elements.invoiceFile?.files?.[0];const documentId=file?await attachInvoice(file,res.value.date):existing?.documentId||null;
     await saveFarmRecord(store,FUEL_KIND,{...res.value,documentId,name:entry==='tank'?`Plein de cuve ${res.value.date}`:`Plein ${machine?.nom||'engin'} ${res.value.date}`},existing);
     if(machine&&res.value.meter!==null&&(cur===null||!Number.isFinite(cur)||res.value.meter>cur))await store.upsert('materiels',{...machine,currentMeter:res.value.meter},{label:`Compteur ${machine.nom} : ${res.value.meter} h`});
@@ -116,7 +116,7 @@ ${r.missingInvoice?`<p class="form-note">${r.missingInvoice} achat${r.missingInv
     if(name==='new-tank')return openFill('tank');
     if(name==='new-machine')return openFill('machine');
     if(name==='edit'){const r=fuelEntries(data()).find(x=>x.id===id);if(r)openFill(r.entry,r);return;}
-    if(name==='delete'){const r=fuelEntries(data()).find(x=>x.id===id);if(!r)return;await store.remove('integrationImports',r.id);toast('Plein supprimé.','success');return open();}
+    if(name==='delete'){const r=fuelEntries(data()).find(x=>x.id===id);if(!r)return;await store.remove('integrationImports',r.id);toast('Plein placé dans la corbeille.','success',{label:'Annuler',run:()=>store.restore('integrationImports',r.id).then(()=>open())});return open();}
     if(name==='save-fill')return saveFill();
     if(name==='tank-settings')return openTankSettings();
     if(name==='save-tank')return saveTank();

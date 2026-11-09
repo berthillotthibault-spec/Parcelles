@@ -11,7 +11,7 @@
 // Il ne doit importer aucun module billing-*.js.
 // Devis (cycle de vie), catalogue, récurrences : billing.js ; tableaux de bord et aide à la saisie :
 // billing-insights.js ; Factur-X, FEC et QR de virement : billing-export.js ; messages : billing-messages.js.
-import {normalize,uid} from './utils.js';
+import {csvFormulaSafe,normalize,uid} from './utils.js';
 import {active} from './farm-memory.js';
 import {saveFarmRecord} from './farm-records.js';
 import {printCss,printDocument} from './dossier.js';
@@ -377,7 +377,7 @@ export function emissionProblems(state,inv,docType=inv.docType||'facture',{today
     if(inv.issueDate&&lastDate&&inv.issueDate<lastDate)p.push(`Date d’émission antérieure à la dernière pièce de la série (${lastNumber} du ${dateFr(lastDate)}) : la numérotation doit rester chronologique.`);
   }
   const plan=installmentsOf(inv);if(plan.length&&Math.abs(round2(plan.reduce((s,x)=>s+x.amount,0))-totals.ttc)>0.005)p.push('Échéancier : la somme des échéances diffère du total TTC.');
-  if(settings.value)p.push(...complianceReport(state,inv,{today}).errors);
+  p.push(...complianceReport(state,inv,{today}).errors);
   return p;
 }
 
@@ -569,7 +569,7 @@ export async function createCreditNote(store,id,{today=isoDay(),lines=null}={}){
 }
 
 // ---------- Export comptable ----------
-const csvCell=v=>{const s=String(v??'');return/[;"\n\r]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+const csvCell=v=>{const s=csvFormulaSafe(v);return/[;"\n\r]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
 const dec=v=>num(v)===null?'':String(round2(v)).replace('.',',');
 export function invoicesCsv(state,{from='',to=''}={}){
   const head=['Date','Numéro','Type','Client','SIREN client','Taux TVA','Base HT','TVA','TTC','Échéance','Statut','Payée le','Facture d’origine','Encaissé','Reste dû'];
@@ -586,6 +586,8 @@ export const clientKey=c=>normalize(c?.name);
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const NB=' ';
 const money=v=>num(v)===null?'—':`${new Intl.NumberFormat('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v).replace(/[  ]/g,NB).replace(/^-/,'−')}${NB}€`;
+// PU affiché avec ses décimales utiles (jusqu'à 5) : le client peut refaire PU × quantité = total de ligne.
+const unitMoney=v=>num(v)===null?'—':`${new Intl.NumberFormat('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:5}).format(v).replace(/[  ]/g,NB).replace(/^-/,'−')}${NB}€`;
 const qty=v=>num(v)===null?'—':new Intl.NumberFormat('fr-FR',{maximumFractionDigits:3}).format(v).replace(/[  ]/g,NB).replace(/^-/,'−');
 const pctRate=r=>`${String(r).replace('.',',')}${NB}%`;
 export const dateFr=v=>{const m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:'—';};
@@ -612,7 +614,7 @@ export function invoiceView(state,inv){
     if(k==='subtotal')return{kind:k,date:'',label:text(l.label)||'Sous-total',qty:'',unit:'',price:'',vat:'',total:money(subs.get(l.id))};
     if(k==='comment')return{kind:k,date:'',label:[text(l.label),text(l.description)].filter(Boolean).join(' — '),qty:'',unit:'',price:'',vat:'',total:''};
     const ex=Number(l.vatRate)===0&&(l.vatExemption||inv.vatExemption);
-    return{kind:k,date:cols.date&&l.date?dateFr(l.date):'',label:[text(l.label),text(l.description)].filter(Boolean).join(' — '),qty:qty(l.quantity),unit:cols.unit?(l.unit==='forfait'?'forf.':text(l.unit)):'',price:`${money(l.unitPrice)}${cols.discount&&l.discountPct?` −${String(l.discountPct).replace('.',',')}${NB}%`:''}`,vat:ex?'Exo.':pctRate(l.vatRate),total:money(lineTotal(l))};});
+    return{kind:k,date:cols.date&&l.date?dateFr(l.date):'',label:[text(l.label),text(l.description)].filter(Boolean).join(' — '),qty:qty(l.quantity),unit:cols.unit?(l.unit==='forfait'?'forf.':text(l.unit)):'',price:`${unitMoney(l.unitPrice)}${cols.discount&&l.discountPct?` −${String(l.discountPct).replace('.',',')}${NB}%`:''}`,vat:ex?'Exo.':pctRate(l.vatRate),total:money(lineTotal(l))};});
   const totals=[[tot.discount||tot.shipping||tot.deductions?.ht?'Total des lignes HT':'Total HT',money(tot.discount||tot.shipping||tot.deductions?.ht?tot.linesHt:tot.ht)],
     ...(tot.discount?[[inv.discount?.type==='pct'?`Remise ${String(inv.discount.value).replace('.',',')}${NB}%`:'Remise',money(-tot.discount)]]:[]),...(tot.shipping?[[text(inv.shipping?.label)||'Frais',money(tot.shipping)]]:[]),
     ...(tot.deductions?.ht?[['Acomptes déduits HT',money(-tot.deductions.ht)]]:[]),...(tot.discount||tot.shipping||tot.deductions?.ht?[['Total HT',money(tot.ht)]]:[]),

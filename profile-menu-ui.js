@@ -5,8 +5,8 @@
 import {html, raw} from './safe-html.js';
 import {icon} from './ui.js';
 import {buildProfileMenu, farmSummary} from './profile-menu.js';
-import {herdSummary} from './herd.js';
-import {filterGrazingSessions, grazingTotal} from './grazing.js';
+import {herdLots, animalsInside} from './herd-home.js';
+import {grazingDate} from './grazing.js';
 import {profileInitials} from './nav-model.js';
 
 export function createProfileMenuUI({state, modal, catalog, visible, footerHtml, livestock, isDark, setDark, doc = document}) {
@@ -18,8 +18,9 @@ export function createProfileMenuUI({state, modal, catalog, visible, footerHtml,
     const area = parcels.reduce((sum, p) => sum + (Number(p.surfaceHa) || 0), 0);
     let animals = 0;
     if (livestock()) {
-      animals = herdSummary(data).present;
-      if (!animals) animals = filterGrazingSessions(data.grazingSessions || [], {status: 'current'}).reduce((sum, s) => sum + grazingTotal(s), 0);
+      // Même total que l'en-tête de Troupeau (herdHeadline) : lots au pré + animaux hors lot.
+      const today = grazingDate();
+      animals = herdLots(data, {today}).reduce((sum, lot) => sum + lot.n, 0) + animalsInside(data, {today}).length;
     }
     return {area, parcels: parcels.length, animals, first: parcels[0]};
   }

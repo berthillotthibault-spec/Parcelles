@@ -47,6 +47,8 @@ export function parcelGrazingHtml(sessions,parcelId,{compact=false,date=new Date
 }
 
 export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=null,formDraft=null,confirmDelete,today,openEntry=null}){
+  // Sortie d'un seul appui : Annuler remet le passage tel qu'il était (sans date de sortie), comme la feuille « Rentrer ou retirer du pré ».
+  const exitToast=(before,after)=>toast(`Sortie du pré enregistrée le ${localDate(today())}.`,'success',before?{label:'Annuler',run:async()=>{await store.upsert('grazingSessions',{...before,endDate:before.endDate||null},{label:'Sortie annulée'});after();}}:null);
   let filters={status:'current',parcelId:'',animalType:'',gestation:'all',query:''};
   const $=selector=>document.querySelector(selector);
   const active=key=>(state()[key]||[]).filter(row=>!row.deletedAt);
@@ -71,7 +73,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=n
     $('#grazing-results').querySelectorAll('[data-grazing-edit]').forEach(button=>button.onclick=()=>openForm(store.get('grazingSessions',button.dataset.grazingEdit)));
     $('#grazing-results').querySelectorAll('[data-grazing-exit]').forEach(button=>button.onclick=async()=>{
       if(button.disabled)return;button.disabled=true;
-      try{await endGrazingSession(store,button.dataset.grazingExit,{date:today()});if(button.isConnected)renderList();toast('Sortie du pré enregistrée.');}
+      try{const id=button.dataset.grazingExit;const before=store.get('grazingSessions',id);await endGrazingSession(store,id,{date:today()});if(button.isConnected)renderList();exitToast(before,()=>{if($('#grazing-results'))renderList();});}
       catch(error){button.disabled=false;toast(error.message,'error');}
     });
   }
@@ -194,7 +196,7 @@ ${mode==='count'?`<div class="field-grazing-panel field-grazing-counter"><button
           if(alert&&target.dataset.dreAck!==key){target.dataset.dreAck=key;const note=root.querySelector('.field-grazing-alert');note.textContent=`${alert.message} Touchez à nouveau le lot pour confirmer.`;note.hidden=false;return;}
           target.disabled=true;await moveGrazingLot(store,session,parcelId,{date:today()});(savedToast||toast)(`Lot amené sur ${info.parcel.nom}.`);refresh();
         }else if(target.dataset.fgExit){
-          target.disabled=true;await endGrazingSession(store,target.dataset.fgExit,{date:today()});(savedToast||toast)('Sortie du pré enregistrée.');refresh();
+          target.disabled=true;const before=store.get('grazingSessions',target.dataset.fgExit);await endGrazingSession(store,target.dataset.fgExit,{date:today()});exitToast(before,refresh);refresh();
         }else if(target.hasAttribute('data-fg-count-save')){
           if(target.dataset.confirm!=='1'){target.dataset.confirm='1';target.textContent=`Confirmer : effectif ${counter}`;target.classList.replace('secondary','primary');return;}
           target.disabled=true;await updateGrazingCount(store,info.here[0].id,counter);(savedToast||toast)(`Effectif mis à jour : ${counter}.`);refresh();

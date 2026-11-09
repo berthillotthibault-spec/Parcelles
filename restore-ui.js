@@ -15,7 +15,7 @@ export function createRestoreUI({store, sync, modal, closeModal, toast, exportCo
 
   function table(diff) {
     const rows = Object.entries(diff.byType).map(([type, r]) => `<tr><th scope="row">${escapeHtml(cap(typeName(type)))}</th><td>${r.added.length ? `+${r.added.length}` : '–'}</td><td>${r.changed.length || '–'}</td><td>${r.deletedSince.length || '–'}</td><td>${r.newer.length || '–'}</td></tr>`).join('');
-    return rows ? `<div class="restore-table-wrap"><table class="restore-table"><thead><tr><th scope="col">Type</th><th scope="col">Revient</th><th scope="col">Diffère</th><th scope="col">Supprimé<span class="sr-only"> depuis</span></th><th scope="col">Nouveau<span class="sr-only"> depuis</span></th></tr></thead><tbody>${rows}</tbody></table></div>` : '';
+    return rows ? `<div class="restore-table-wrap"><table class="restore-table"><thead><tr><th scope="col">Type</th><th scope="col">Revient</th><th scope="col">Diffère</th><th scope="col" title="Supprimé depuis"><span aria-hidden="true">Suppr.</span><span class="sr-only">Supprimé depuis</span></th><th scope="col" title="Nouveau depuis"><span aria-hidden="true">Nouv.</span><span class="sr-only">Nouveau depuis</span></th></tr></thead><tbody>${rows}</tbody></table></div>` : '';
   }
 
   // Aperçu : backup = {data (migrée), blobs?, meta:{createdAt, complete}}.
@@ -33,15 +33,17 @@ export function createRestoreUI({store, sync, modal, closeModal, toast, exportCo
       `<button class="button secondary" data-action="close-modal">Annuler</button>${diff.identical ? '' : '<button class="button secondary" id="restore-select">Restaurer seulement…</button>'}${fullAllowed ? '<button class="button primary" id="confirm-restore">Sauvegarder puis tout restaurer</button>' : ''}`, 'large');
     $('#restore-select')?.addEventListener('click', () => openSelection(backup, diff));
     $('#confirm-restore')?.addEventListener('click', async event => {
-      event.currentTarget.disabled = true;
+      // currentTarget vaut null après un await : on garde le bouton pour le réactiver en cas d'échec.
+      const button = event.currentTarget;button.disabled = true;
       try {await restoreAll(backup);closeModal();toast(cloud ? 'Sauvegarde restaurée : les différences seront envoyées au cloud.' : 'Sauvegarde restaurée.');}
-      catch (error) {event.currentTarget.disabled = false;toast(`Restauration impossible : ${error.message}`, 'error');}
+      catch (error) {button.disabled = false;toast(`Restauration impossible : ${error.message}`, 'error');}
     });
     return diff;
   }
 
   async function restoreAll(backup) {
-    await exportCompleteBackup({deliver: false});
+    // Sans copie de sécurité, on ne remplace rien (exportCompleteBackup renvoie false après son propre toast).
+    if (!(await exportCompleteBackup({deliver: false}))) throw new Error('sauvegarde de sécurité non faite, aucune donnée n’a été remplacée.');
     if (!cloudSpace()) {
       if (backup.meta?.complete) await restoreCompleteBackup(backup, store);
       else await store.replaceState(backup.data, 'Sauvegarde restaurée.', {kind: 'restore'});
@@ -72,11 +74,11 @@ export function createRestoreUI({store, sync, modal, closeModal, toast, exportCo
       const selection = [...form.querySelectorAll('input[name="item"]:checked')].map(input => {const [type, ...rest] = input.value.split('|');return {type, id: rest.join('|')};});
       const error = $('#restore-select-error');
       if (!selection.length) {error.hidden = false;return;}
-      error.hidden = true;event.currentTarget.disabled = true;
+      const button = event.currentTarget;error.hidden = true;button.disabled = true;
       try {
         const n = await restoreSelection(backup, selection);
         closeModal();toast(`${n} fiche${n > 1 ? 's' : ''} restaurée${n > 1 ? 's' : ''} depuis la sauvegarde.`);
-      } catch (err) {event.currentTarget.disabled = false;toast(`Restauration impossible : ${err.message}`, 'error');}
+      } catch (err) {button.disabled = false;toast(`Restauration impossible : ${err.message}`, 'error');}
     });
   }
 

@@ -4,6 +4,7 @@
 //  - lots de récolte (enregistrements « harvest ») : quantité totale de la campagne / surface de la parcelle ;
 //  - carte de rendement : moyenne des points retenus par analyzeYield avec le nettoyage standard (DEFAULT_RULES) et les seuils de rendement de la carte.
 import {campaignFor, geometryAreaHa} from './utils.js';
+import {harvestCampaign} from './harvest-traceability.js';
 import {analyzeYield, DEFAULT_RULES} from './yield.js';
 import {managementZones} from './management-zones.js';
 import {economicClass, ECONOMIC_CLASSES} from './pilotage.js';
@@ -34,11 +35,12 @@ export function parcelAreaHa(parcel) {
 }
 
 const harvestLots = (state, parcelId) => (state?.integrationImports || []).filter(r => !r.deletedAt && r.farmKind === 'harvest' && r.parcelId === parcelId);
-export const lotCampaign = lot => lot?.campaignId || (lot?.date ? campaignFor(lot.date) : null);
+// Avec state : campagne de la culture récoltée (semis, rotation), cf. harvestCampaign.
+export const lotCampaign = (lot, state) => state ? harvestCampaign(state, lot) : lot?.campaignId || (lot?.date ? campaignFor(lot.date) : null);
 
 /** Rendement des lots de récolte d'une parcelle pour une campagne (quantité brute, humidité non corrigée). */
 export function harvestMeasure(state, parcel, campaign) {
-  const lots = harvestLots(state, parcel?.id).filter(l => lotCampaign(l) === campaign);
+  const lots = harvestLots(state, parcel?.id).filter(l => lotCampaign(l, state) === campaign);
   if (!lots.length) return null;
   const valid = [], ignored = [];
   for (const lot of lots) {
@@ -94,7 +96,7 @@ export function yieldMapMeasure(doc, source, parcel) {
 
 /** Campagnes pour lesquelles une mesure existe (lots ou cartes déjà analysées), la plus récente d'abord. */
 export function measuredCampaigns(state, parcel, maps = []) {
-  const set = new Set([...harvestLots(state, parcel?.id).map(lotCampaign), ...maps.filter(m => m?.parcelId === undefined || m.parcelId === parcel?.id).map(m => m.campaign)].filter(Boolean));
+  const set = new Set([...harvestLots(state, parcel?.id).map(l => lotCampaign(l, state)), ...maps.filter(m => m?.parcelId === undefined || m.parcelId === parcel?.id).map(m => m.campaign)].filter(Boolean));
   return [...set].sort().reverse();
 }
 

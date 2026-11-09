@@ -34,13 +34,20 @@ export const HOME_CARDS = [
 // n° 79 : cartes ajoutées après coup, affichées une première fois tant que l’ordre enregistré ne les connaît pas
 // (comme « Ma campagne » dans normalizePersonalization). Après un enregistrement de Personnaliser, la case décide.
 export const LATER_HOME_CARDS=['calvings'];
+// Puces toujours affichées en tête des raccourcis de l'accueil (filtrées seulement par les activités) :
+// elles ne figurent donc pas dans HOME_SHORTCUTS, où leur case n'aurait aucun effet.
+export const FIXED_HOME_SHORTCUTS = [
+  {id:'palette-map',label:'Carte',icon:'map'},
+  {id:'open-grazing',label:'Pâturage',icon:'sun'},
+  {id:'open-stock',label:'Stocks',icon:'package'},
+  {id:'open-weather',label:'Météo',icon:'weather'}
+];
 export const HOME_SHORTCUTS = [
   {id:'new-work',label:'Travail',icon:'plus'},
   {id:'open-field-mode',label:'Terrain',icon:'locate'},
   {id:'new-observation',label:'Observation',icon:'alert'},
   {id:'open-calendar',label:'Calendrier',icon:'calendar'},
   {id:'open-tasks',label:'Tâches',icon:'work'},
-  {id:'open-weather',label:'Météo',icon:'weather'},
   {id:'open-day-route',label:'Tournée',icon:'map'},
   {id:'open-documents',label:'Documents',icon:'files'},
   {id:'open-equipment',label:'Matériel',icon:'tractor'},
@@ -98,15 +105,19 @@ export function homeLayout(preferences={}){
   if(saved)for(const id of LATER_HOME_CARDS)if(!saved.includes(id)&&!layout.homeCards.includes(id))layout.homeCards.push(id);
   return layout;
 }
+/** Cartes d’accueil après un formulaire qui n’en propose qu’une partie : les cartes sans case gardent leur état, les cases décident des autres. */
+export function mergeFormHomeCards(preferences={},formCards=[],checked=[]){
+  return [...homeLayout(preferences).homeCards.filter(id=>!formCards.includes(id)),...checked];
+}
 export function moveHomeCard(order,id,direction){
   const next=[...order],index=next.indexOf(id),target=index+direction;
   if(index<0||target<0||target>=next.length)return next;
   [next[index],next[target]]=[next[target],next[index]];return next;
 }
 export const HOME_PRESETS = {
-  essential:{label:'Essentiel',homeCards:['weather','today','tasks'],homeCardOrder:['today','weather','tasks','alerts','recent'],homeShortcuts:['new-work','open-tasks','open-weather'],homeSummary:true,homeNextAction:true},
-  field:{label:'Terrain',homeCards:['weather','today','alerts'],homeCardOrder:['weather','today','alerts','tasks','recent'],homeShortcuts:['open-field-mode','new-observation','open-day-route','new-work'],homeSummary:false,homeNextAction:true},
-  management:{label:'Gestion',homeCards:['today','tasks','alerts','recent'],homeCardOrder:['tasks','today','alerts','recent','weather'],homeShortcuts:['open-calendar','open-tasks','open-documents','open-equipment'],homeSummary:true,homeNextAction:true}
+  essential:{label:'Essentiel',homeCards:['weather','today','tasks'],homeCardOrder:['today','weather','tasks','alerts','recent','campaign'],homeShortcuts:['new-work','open-tasks','open-calendar'],homeSummary:true,homeNextAction:true},
+  field:{label:'Terrain',homeCards:['weather','today','alerts'],homeCardOrder:['weather','today','alerts','tasks','recent','campaign'],homeShortcuts:['open-field-mode','new-observation','open-day-route','new-work'],homeSummary:false,homeNextAction:true},
+  management:{label:'Gestion',homeCards:['today','tasks','alerts','recent'],homeCardOrder:['tasks','today','alerts','recent','weather','campaign'],homeShortcuts:['open-calendar','open-tasks','open-documents','open-equipment'],homeSummary:true,homeNextAction:true}
 };
 export function filterMapParcels(data,filter='all'){
   const pending=new Set([

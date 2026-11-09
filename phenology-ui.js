@@ -22,7 +22,7 @@ export function createPhenologyUI({store, state, modal, closeModal, toast, bindC
 
   function bar(r) {
     const total = r.profile.stages.at(-1).gdd, pct = Math.round(r.progress * 100);
-    const ticks = r.profile.stages.map(s => `<i style="inset-inline-start:${(s.gdd / total * 100).toFixed(1)}%" title="${e(s.name)} · ${formatNumber(s.gdd)} °C·j"></i>`).join('');
+    const ticks = r.profile.stages.map(s => `<i style="inset-inline-start:${(s.gdd / total * 100).toFixed(1)}%" title="${e(s.name)} · ${formatNumber(s.gdd)} °C·j"></i>`).join('');
     return `<div class="pheno-bar" role="img" aria-label="Cycle estimé à ${pct} %"><span style="width:${pct}%"></span>${ticks}</div>
       <ol class="pheno-stages">${r.profile.stages.map(s => `<li class="${r.sum >= s.gdd ? 'is-done' : ''}${r.next?.name === s.name ? ' is-next' : ''}"><span>${e(s.name)}</span><small>${formatNumber(s.gdd)}</small></li>`).join('')}</ol>`;
   }
@@ -41,12 +41,12 @@ export function createPhenologyUI({store, state, modal, closeModal, toast, bindC
     // Les jours manquants (archive pas encore chargée) déclenchent un complément discret.
     if (r.missing > 2) queueMicrotask(() => agro?.ensure({since: r.sowingDate}));
     const write = canWrite();
-    const next = r.next ? `<p class="pheno-next">Prochain stade : <strong>${e(r.next.name)}</strong> dans environ ${formatNumber(r.remaining)} °C·j${r.nextDate ? `, vers le ${short(r.nextDate)} selon la prévision` : ''}.</p>` : '<p class="pheno-next">Dernier stade du cycle atteint (estimation).</p>';
-    return wrap(`<p class="pheno-sentence">Depuis le semis (${short(r.sowingDate)}) : <strong>${formatNumber(r.sum)} °C·j</strong> base ${r.base}. Stade estimé : <strong>${e(r.stage?.name || 'avant levée')}</strong>.</p>
+    const next = r.next ? `<p class="pheno-next">Prochain stade : <strong>${e(r.next.name)}</strong> dans environ ${formatNumber(r.remaining)} °C·j${r.nextDate ? `, vers le ${short(r.nextDate)} selon la prévision` : ''}.</p>` : '<p class="pheno-next">Dernier stade du cycle atteint (estimation).</p>';
+    return wrap(`<p class="pheno-sentence">Depuis le semis (${short(r.sowingDate)}) : <strong>${formatNumber(r.sum)} °C·j</strong> base ${r.base}. Stade estimé : <strong>${e(r.stage?.name || 'avant levée')}</strong>.</p>
       ${bar(r)}${next}
       ${r.recalibrated ? `<p class="pheno-note">Recalé sur le stade observé « ${e(r.recalibrated.stage)} » le ${short(r.recalibrated.date)}.</p>` : ''}
       ${r.missing ? `<p class="pheno-note">${r.missing} jour${r.missing > 1 ? 's' : ''} sans température : la somme est sous-estimée.</p>` : ''}
-      <p class="pheno-source"><small>Estimation indicative · ${e(r.profile.label)}${r.profile.custom ? ' (seuils personnalisés)' : ''} · ${e(PHENOLOGY_SOURCE)} · météo ${e(AGRO_SOURCE)}${agro?.get()?.loadedAt ? `, ${e(localDate(new Date(agro.get().loadedAt).toISOString()))}` : ''}.</small></p>
+      <p class="pheno-source"><small>Estimation indicative · ${e(r.profile.label)}${r.profile.custom ? ' (seuils personnalisés)' : ''} · ${e(PHENOLOGY_SOURCE)} · météo ${e(AGRO_SOURCE)}${agro?.get()?.loadedAt ? `, ${e(localDate(new Date(agro.get().loadedAt).toISOString()).replace(/ /g, ' '))}` : ''}.</small></p>
       ${write ? `<div class="pheno-actions"><button type="button" class="button secondary" data-action="pheno-observed" data-id="${e(parcel.id)}">Stade observé</button><button type="button" class="button secondary" data-action="pheno-settings" data-id="${e(parcel.id)}">Régler les seuils</button></div>` : ''}`);
   }
 
@@ -102,7 +102,20 @@ export function createPhenologyUI({store, state, modal, closeModal, toast, bindC
     };
     doc.getElementById('pheno-settings-save').onclick = () => {
       if (!validateForm(form)) return;
-      save({base: Number(form.elements.base.value), stages: [...form.querySelectorAll('[data-stage]')].map(i => ({name: i.dataset.stage, gdd: Number(i.value)}))});
+      // Les stades suivent l'ordre de la plante : chaque seuil doit dépasser celui du stade précédent.
+      const inputs = [...form.querySelectorAll('[data-stage]')], stages = inputs.map(i => ({name: i.dataset.stage, gdd: Number(i.value)}));
+      inputs.forEach(i => i.removeAttribute('aria-invalid'));
+      const bad = stages.findIndex((s, i) => i > 0 && s.gdd <= stages[i - 1].gdd);
+      let error = form.querySelector('.form-error');
+      if (bad >= 0) {
+        if (!error) { error = doc.createElement('p'); error.className = 'form-error span-2'; error.setAttribute('role', 'alert'); form.append(error); }
+        error.textContent = `Le seuil de « ${stages[bad].name} » doit être supérieur à celui de « ${stages[bad - 1].name} ».`;
+        error.hidden = false;
+        inputs[bad].setAttribute('aria-invalid', 'true'); inputs[bad].focus();
+        return;
+      }
+      if (error) error.hidden = true;
+      save({base: Number(form.elements.base.value), stages});
     };
     doc.getElementById('pheno-settings-reset').onclick = () => save(null);
   }

@@ -1,4 +1,4 @@
-import {toNumber, campaignFor, normalize, localDate} from './utils.js';
+import {toNumber, campaignFor, normalize, localDate, localIso} from './utils.js';
 
 export function farmInsights(state){
   const active=(t)=>(state[t]||[]).filter(x=>!x.deletedAt);
@@ -6,7 +6,7 @@ export function farmInsights(state){
   const own=parcels.filter(p=>(p.ownershipType||'own')==='own');
   const area=own.reduce((s,p)=>s+toNumber(p.surfaceHa),0);
   const byCulture={}; own.forEach(p=>{const c=p.culture||'Non renseignée';byCulture[c]=(byCulture[c]||0)+toNumber(p.surfaceHa)});
-  const today=new Date().toISOString().slice(0,10);
+  const today=localIso();
   const overdueTasks=tasks.filter(t=>t.status!=='Terminé'&&t.dueDate&&t.dueDate<today);
   const dueMaintenance=machines.filter(m=>Number.isFinite(Number(m.maintenanceDue))&&Number.isFinite(Number(m.currentMeter))&&Number(m.currentMeter)>=Number(m.maintenanceDue)-20);
   const campaign=campaignFor();

@@ -7,6 +7,7 @@ import {herdEconomics,validateAnimalRecord,SALE_KIND,PURCHASE_KIND} from './herd
 const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}),n2=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
 const eur=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${v<0?'−':''}${n0.format(Math.abs(v))} €`;
 const eur2=v=>v===null||v===undefined?'—':`${n2.format(v)} €`;
+const plural=(n,one,many)=>`${n} ${Math.abs(n)>1?many:one}`;
 const todayIso=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 
 export function createHerdEconomicsUI({store,modal,toast}){
@@ -25,9 +26,9 @@ export function createHerdEconomicsUI({store,modal,toast}){
     const recs=[...h.sales.map(r=>({...r,kind:'Vente'})),...h.purchases.map(r=>({...r,kind:'Achat'}))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     modal('Atelier bovin',`Campagne ${campaign} · du ${localDate(h.bounds.from)} au ${localDate(h.bounds.to)}`,`
 <div class="preview-summary"><div class="preview-stat"><strong class="${h.margin<0?'negative':''}">${e(eur(h.margin))}</strong><small>marge brute</small></div><div class="preview-stat"><strong>${e(h.marginPerUgb===null?'—':eur(h.marginPerUgb))}</strong><small>marge par UGB${h.avgUgb?` (${n2.format(h.avgUgb)} UGB moyens)`:''}</small></div><div class="preview-stat"><strong>${e(eur2(h.grassPerAnimalDay))}</strong><small>coût de l’herbe par animal et par jour</small></div></div>
-${h.partial?`<p class="notice warning">Marge partielle : ${[h.grassMissing?`${h.grassMissing} travaux de prairie sans coût`:'',h.feed.unpriced?`${h.feed.unpriced} sortie(s) d’aliment sans prix`:'',h.vetUnpriced?`${h.vetUnpriced} soin(s) sans coût`:''].filter(Boolean).join(', ')}.</p>`:''}
-<div class="stack-list">${line('Ventes d’animaux',eur(h.product),`${h.soldHeads} animal(aux)${h.soldKg?` · ${n0.format(h.soldKg)} kg · ${n2.format(h.pricePerKg)} €/kg`:''}`)}${line('Achats d’animaux',eur(-h.bought),`${h.purchases.length} achat(s)`)}${line('Aliments',eur(-h.feed.total),`${h.feed.rows.length} sortie(s) de stock « Aliment » au PMP du jour`)}${line('Frais vétérinaires',eur(-h.vetCost),`${h.vetCount} enregistrement(s) du carnet sanitaire`)}${line('Coût des prairies',eur(-h.grassCost),`${n2.format(h.forageArea)} ha · ${n0.format(h.ugbDays)} jours UGB · ${eur2(h.grassPerUgbDay)} par jour UGB`)}</div>
-<h3>Ventes et achats</h3><div class="stack-list">${recs.map(r=>`<div class="list-row"><div><strong>${e(r.kind)} · ${e(r.count)} animal(aux)${r.category?` · ${e(r.category)}`:''}</strong><small>${e(localDate(r.date))}${r.party?` · ${e(r.party)}`:''}${r.kg?` · ${e(n0.format(r.kg))} kg`:''}</small></div><strong>${e(eur(r.amount))}</strong></div>`).join('')||'<div class="empty-state">Aucune vente ni achat sur la campagne.</div>'}</div>
+${h.partial?`<p class="notice warning">Marge partielle : ${[h.grassMissing?`${plural(h.grassMissing,'travail','travaux')} de prairie sans coût`:'',h.feed.unpriced?`${plural(h.feed.unpriced,'sortie','sorties')} d’aliment sans prix`:'',h.vetUnpriced?`${plural(h.vetUnpriced,'soin','soins')} sans coût`:''].filter(Boolean).join(', ')}.</p>`:''}
+<div class="stack-list">${line('Ventes d’animaux',eur(h.product),`${plural(h.soldHeads,'animal','animaux')}${h.soldKg?` · ${n0.format(h.soldKg)} kg · ${n2.format(h.pricePerKg)} €/kg`:''}`)}${line('Achats d’animaux',eur(-h.bought),`${plural(h.purchases.length,'achat','achats')}`)}${line('Aliments',eur(-h.feed.total),`${plural(h.feed.rows.length,'sortie','sorties')} de stock « Aliment » au PMP du jour`)}${line('Frais vétérinaires',eur(-h.vetCost),`${plural(h.vetCount,'enregistrement','enregistrements')} du carnet sanitaire`)}${line('Coût des prairies',eur(-h.grassCost),`${n2.format(h.forageArea)} ha · ${n0.format(h.ugbDays)} jours UGB · ${eur2(h.grassPerUgbDay)} par jour UGB`)}</div>
+<h3>Ventes et achats</h3><div class="stack-list">${recs.map(r=>`<div class="list-row"><div><strong>${e(r.kind)} · ${e(plural(r.count,'animal','animaux'))}${r.category?` · ${e(r.category)}`:''}</strong><small>${e(localDate(r.date))}${r.party?` · ${e(r.party)}`:''}${r.kg?` · ${e(n0.format(r.kg))} kg`:''}</small></div><strong>${e(eur(r.amount))}</strong></div>`).join('')||'<div class="empty-state">Aucune vente ni achat sur la campagne.</div>'}</div>
 <p class="form-note">Marge brute = ventes − achats − aliments − vétérinaire − charges des prairies (moteur de marge). UGB : coefficients du pâturage. Pas de lien avec la BDNI : les mouvements officiels restent à déclarer à l’EDE.</p>`,
       `<button type="button" class="button secondary" data-action="pilotage-campaign" data-campaign="${e(campaign)}">Pilotage</button><button type="button" class="button secondary" id="herd-econ-purchase">Achat</button><button type="button" class="button primary" id="herd-econ-sale">Vente d’animaux</button>`,'large');
     $('#herd-econ-sale').onclick=()=>form(SALE_KIND,campaign);
@@ -41,7 +42,7 @@ ${h.partial?`<p class="notice warning">Marge partielle : ${[h.grassMissing?`${h.
     $('#herd-econ-save').onclick=async()=>{
       const f=$('#herd-econ-form');if(!validateForm(f))return;const r=validateAnimalRecord(Object.fromEntries(new FormData(f)));
       if(r.error){const err=$('#herd-econ-error');err.textContent=r.error;err.hidden=false;return;}
-      await saveFarmRecord(store,kind,{...r.value,name:`${sale?'Vente':'Achat'} ${r.value.count} animal(aux) ${r.value.date}`});
+      await saveFarmRecord(store,kind,{...r.value,name:`${sale?'Vente':'Achat'} ${plural(r.value.count,'animal','animaux')} ${r.value.date}`});
       toast(sale?'Vente enregistrée.':'Achat enregistré.','success');open({campaign:campaignFor(r.value.date)});
     };
   }

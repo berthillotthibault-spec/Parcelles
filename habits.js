@@ -14,6 +14,8 @@ const DONE = new Set(['Terminé', 'Terminée']);
 
 const day = value => {const s = String(value || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';};
 const dayMs = s => Date.parse(`${s}T12:00:00Z`);
+// Date du jour en heure locale (AAAA-MM-JJ) : toISOString donnerait la veille entre 0 h et 2 h à Paris.
+const localDay = t => {const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;};
 export const habitKey = (culture, type) => `${normalize(culture || '')}|${normalize(type || '')}`;
 export function median(values = []) {
   const v = values.filter(Number.isFinite).sort((a, b) => a - b);
@@ -146,6 +148,7 @@ export function nextStepSuggestion(state = {}, work, {now = Date.now(), habits =
   if (already) return null;
   const raw = new Date(dayMs(from) + habit.delayDays * DAY).toISOString().slice(0, 10);
   const date = habit.weekday ? alignToWeekday(raw, habit.weekday.value) : raw;
+  if (date < localDay(now)) return null; // étape habituelle déjà passée : missedHabits s'en charge
   const years = habit.years;
   return {
     type: habit.type, date, delayDays: habit.delayDays, count: habit.count, years,
@@ -170,7 +173,7 @@ export const HABIT_GRACE_DAYS = 7, HABIT_MAX_LATE_DAYS = 30;
 export function missedHabits(state = {}, {now = Date.now(), habits = null, graceDays = HABIT_GRACE_DAYS, maxLateDays = HABIT_MAX_LATE_DAYS} = {}) {
   const learned = habits || learnHabits(state, {now});
   if (!Object.keys(learned.next).length) return [];
-  const today = day(new Date(now).toISOString()), campaign = campaignFor(today);
+  const today = localDay(now), campaign = campaignFor(today);
   const works = (state.interventions || []).filter(w => !w.deletedAt && w.parcelId && w.type && !['Annulé', 'Annulée'].includes(w.status));
   const last = new Map();
   for (const w of works) {

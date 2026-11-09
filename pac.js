@@ -1,7 +1,7 @@
 // n° 58 — Assistant PAC : assolement déclaratif, contrôle BCAE 7, rappel BCAE 6 et simulateur
 // d’éco-régime (voie des pratiques). Logique pure (testable sous Node). C’est une SIMULATION :
 // rien n’est transmis à Telepac, la déclaration reste à faire par l’exploitant.
-import {campaignFor,formatNumber,isoDate,normalize,toNumber} from './utils.js';
+import {campaignFor,csvFormulaSafe,formatNumber,normalize,toNumber,localIso} from './utils.js';
 import {active} from './farm-memory.js';
 import {coveredParcelIds} from './covers.js';
 
@@ -86,15 +86,16 @@ const kindOf=category=>category==='prairie-permanente'?'PP':category==='perenne'
 // ---------- Cultures par campagne ----------
 export function previousCampaign(c,n=1){const y=Number(String(c).slice(0,4))-n;return Number.isFinite(y)?`${y}/${String(y+1).slice(-2)}`:'';}
 const ownParcels=state=>active(state,'parcelles').filter(p=>(p.ownershipType||'own')==='own'&&!p.archived);
-export function cultureAt(state,parcel,campaign,today=isoDate(new Date())){
+export function cultureAt(state,parcel,campaign,today=localIso()){
   const r=active(state,'rotations').find(x=>x.parcelId===parcel.id&&x.campaignId===campaign);
   if(r?.culture)return String(r.culture);
-  return campaign===campaignFor(today)?String(parcel.culture||''):'';
+  // Sans rotation : la culture actuelle vaut pour la campagne en cours ; une prairie permanente ou une culture pérenne la garde d'une campagne à l'autre.
+  const current=String(parcel.culture||'');if(campaign===campaignFor(today))return current;const k=kindOf(pacCodeFor(current)?.category);return k==='PP'||k==='PERENNE'?current:'';
 }
 
 // ---------- (a) Déclaration ----------
 /** Lignes de l’assolement déclaratif par îlot : code culture (saisi, déduit de la culture ou du RPG), surface, prairie. */
-export function declarationRows(state,campaign,{today=isoDate(new Date())}={}){
+export function declarationRows(state,campaign,{today=localIso()}={}){
   const rotations=active(state,'rotations');
   return ownParcels(state).map(p=>{
     const r=rotations.find(x=>x.parcelId===p.id&&x.campaignId===campaign),culture=cultureAt(state,p,campaign,today);
@@ -107,7 +108,7 @@ export function declarationRows(state,campaign,{today=isoDate(new Date())}={}){
     return{parcel:p,ilot:String(p.ilot||''),culture,code,codeSource,codeLabel:CODE_INDEX.get(code)?.label||'',surface:toNumber(p.surfaceHa),prairie,category,kind:kindOf(category),rotation:r||null};
   }).sort((a,b)=>(!a.ilot-!b.ilot)||a.ilot.localeCompare(b.ilot,'fr',{numeric:true})||String(a.parcel.nom).localeCompare(String(b.parcel.nom),'fr'));
 }
-const csvCell=v=>{const s=String(v??'');return /[;"\n\r]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+const csvCell=v=>{const s=csvFormulaSafe(v);return /[;"\n\r]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
 export function declarationCsv(rows,campaign){
   const head=['Campagne','Îlot','Parcelle','Culture','Code culture PAC','Libellé code','Surface (ha)','Prairie','Catégorie'];
   const lines=rows.map(r=>[campaign,r.ilot,r.parcel.nom,r.culture,r.code,r.codeLabel,String(Math.round(r.surface*100)/100).replace('.',','),r.prairie,PAC_CATEGORIES[r.category]||'']);
@@ -117,7 +118,7 @@ export function declarationCsv(rows,campaign){
 // ---------- (b) BCAE 7 ----------
 const EXEMPT=new Set(['prairie-temporaire','jachere']);
 /** Statut BCAE 7 d’une parcelle : ko (même culture sur 3 campagnes), same, changed, unknown, na. */
-export function bcae7Parcel(state,parcel,campaign,{today=isoDate(new Date()),rules=pacRules(campaign)}={}){
+export function bcae7Parcel(state,parcel,campaign,{today=localIso(),rules=pacRules(campaign)}={}){
   const culture=cultureAt(state,parcel,campaign,today),mapped=pacCodeFor(culture),kind=kindOf(mapped?.category);
   if(!culture)return{status:'unknown',culture,history:[]};
   if(kind!=='TA'||EXEMPT.has(mapped?.category))return{status:'na',culture,history:[]};
@@ -128,7 +129,7 @@ export function bcae7Parcel(state,parcel,campaign,{today=isoDate(new Date()),rul
   if(!changed&&history.every(h=>h&&normalize(h)===normalize(culture)))return{status:'ko',culture,history};
   return{status:changed?'changed':'same',culture,history};
 }
-export function bcae7Summary(state,campaign,{today=isoDate(new Date())}={}){
+export function bcae7Summary(state,campaign,{today=localIso()}={}){
   const rules=pacRules(campaign),rows=ownParcels(state).map(p=>({parcel:p,area:toNumber(p.surfaceHa),...bcae7Parcel(state,p,campaign,{today,rules})}));
   const concerned=rows.filter(r=>r.status!=='na'),area=concerned.reduce((s,r)=>s+r.area,0);
   const changedArea=rows.filter(r=>r.status==='changed').reduce((s,r)=>s+r.area,0),unknownArea=rows.filter(r=>r.status==='unknown').reduce((s,r)=>s+r.area,0);
@@ -145,13 +146,13 @@ export const BCAE7_COLORS=Object.freeze({
   na:{label:'Non concernée (prairie, jachère, pérenne)',color:'#5f86a8'}
 });
 /** Mode couleur « BCAE 7 » de la carte. */
-export function bcae7ColorInfo(state,parcel,{today=isoDate(new Date())}={}){
+export function bcae7ColorInfo(state,parcel,{today=localIso()}={}){
   return BCAE7_COLORS[bcae7Parcel(state||{},parcel,campaignFor(today),{today}).status];
 }
 export const PAC_MAP_MODES=Object.freeze([['bcae7','BCAE 7']]);
 
 // ---------- BCAE 6 ----------
-export function bcae6Summary(state,campaign,{today=isoDate(new Date())}={}){
+export function bcae6Summary(state,campaign,{today=localIso()}={}){
   const rows=declarationRows(state,campaign,{today}).filter(r=>r.kind==='TA'),area=rows.reduce((s,r)=>s+r.surface,0);
   const withCover=coveredParcelIds(state,campaign);
   const covered=rows.filter(r=>withCover.has(r.parcel.id)||['cereale-hiver','prairie-temporaire','jachere'].includes(r.category)||/colza/.test(normalize(r.culture)));
@@ -162,7 +163,7 @@ export function bcae6Summary(state,campaign,{today=isoDate(new Date())}={}){
 // ---------- (c) Éco-régime, voie des pratiques ----------
 export function pointsFor(grid,share){let p=0;for(const [min,pts] of grid||[])if(share+1e-9>=min)p=pts;return p;}
 const r1=v=>Math.round(v*10)/10;
-export function ecoRegime(state,campaign,{today=isoDate(new Date())}={}){
+export function ecoRegime(state,campaign,{today=localIso()}={}){
   const rules=pacRules(campaign),eco=rules.eco,rows=declarationRows(state,campaign,{today});
   const ta=rows.filter(r=>r.kind==='TA'),taArea=ta.reduce((s,r)=>s+r.surface,0);
   const byCat={};for(const r of ta)byCat[r.category]=(byCat[r.category]||0)+r.surface;
@@ -220,7 +221,7 @@ export function ecoAdvice(result){
 }
 
 /** Entrée pour le tableau de conformité (n° 55). */
-export function pacComplianceChecks(state,{today=isoDate(new Date()),campaign=campaignFor(today)}={}){
+export function pacComplianceChecks(state,{today=localIso(),campaign=campaignFor(today)}={}){
   const s=bcae7Summary(state,campaign,{today}),labels={ko:'À corriger',warn:'À vérifier',unknown:'Non suivi',ok:'À jour',na:'Non concerné'};
   const detail=!s.area?'Aucune terre arable soumise à la rotation.':`${formatNumber(Math.round(s.share*100))} % des terres arables ont changé de culture (seuil ${formatNumber(s.rules.bcae7.minChangedShare*100)} %)${s.faulty.length?` · ${s.faulty.length} parcelle${s.faulty.length>1?'s':''} sans changement sur ${s.rules.bcae7.years} campagnes`:''}${s.unknownArea?` · historique incomplet sur ${formatNumber(Math.round(s.unknownArea*10)/10)} ha`:''}.`;
   return[{id:'pac-bcae7',label:'BCAE 7 : rotation sur 3 ans et 35 % de changement',status:s.status,statusLabel:labels[s.status],detail,

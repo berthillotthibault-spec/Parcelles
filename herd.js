@@ -12,7 +12,7 @@
 // Parcelles ne notifie jamais la BDNI : la tâche créée au vêlage est un rappel, la notification se fait sur le
 // portail de l'EDE (ou le logiciel habituel de l'éleveur).
 import {normalize} from './utils.js';
-import {grazingDate,grazingAnimalList,grazingStatus,grazingType,animalNumberKey,nationalIdKey} from './grazing.js';
+import {grazingDate,grazingAnimalList,grazingStatus,grazingTotal,grazingType,animalNumberKey,nationalIdKey} from './grazing.js';
 import {GESTATION_DAYS,BDNI_DAYS,BDNI_REMINDER_DAYS,addIsoDays,expectedCalvingDate,bdniDeadline,animalLabel,expectedCalvings,pendingBdni} from './home-priorities.js';
 import {parseCsv} from './phyto-catalog.js';
 
@@ -124,7 +124,7 @@ export const bdniTaskTitle=(birth,calf=null)=>`Notifier la naissance${calf?` de 
 
 /**
  * Vêlage : événement de la mère, veau prérempli (mère, naissance, lot de la mère) et tâche de rappel BDNI
- * (échéance J+7, rappel à J+5). Renvoie les trois fiches à écrire ensemble ; ne modifie rien.
+ * (échéance J+7, rappel à J+5), lot de la mère mis à jour (lotUpdate). Renvoie les fiches à écrire ensemble ; ne modifie rien.
  */
 export function calvingPlan(input,{state,today=grazingDate(),ids}){
   const mother=live(state,'animals').find(a=>a.id===input?.animalId);
@@ -139,17 +139,30 @@ export function calvingPlan(input,{state,today=grazingDate(),ids}){
   const deadline=bdniDeadline(date);
   const event={id:ids.event,animalId:mother.id,kind:'calving',date,calfId:calf.id,birthWeightKg,calvingEase:text(input?.calvingEase),bdniDeadline:deadline,bdniTaskId:ids.task,bdniNotifiedAt:null,note:text(input?.note)};
   const task={id:ids.task,title:bdniTaskTitle(date,calf.nationalId?calf:null),dueDate:deadline,remindOn:addIsoDays(date,BDNI_REMINDER_DAYS),status:'À faire',priority:'Haute',parcelId:lot?.parcelId||null,kind:'bdni',animalId:calf.id,animalEventId:event.id,note:BDNI_NOTICE};
-  return{event,calf,task};
+  // Le veau compte dans le lot de sa mère : ajouté à la liste si le lot en a une, sinon effectif + 1.
+  const lotUpdate=!lot?null:grazingAnimalList(lot).length?lotAssignment(state,calf,lot.id,{today}).find(s=>s.id===lot.id)||null:{...lot,animalsCount:grazingTotal(lot)+1};
+  return{event,calf,task,lotUpdate};
 }
 
-/** Lot de pâturage actuel : lot en cours qui liste l'animal (identifiant ou numéro), sinon le lot noté sur la fiche. */
+const animalsKey=s=>grazingAnimalList(s).map(a=>a.animalId||a.number||a.name||'').sort().join('|');
+/**
+ * Passage qui prend la suite d'un passage clos le jour de sa sortie, avec le même nom et le même type : sur le même pré
+ * (lot fractionné, removeAnimalFromLot, planLotMoves) ou ailleurs avec le même effectif et les mêmes animaux (moveGrazingLot).
+ */
+const nextPassage=(sessions,from)=>{
+  const end=grazingDate(from.endDate),key=animalsKey(from);
+  return sessions.find(s=>s.id!==from.id&&grazingDate(s.startDate)===end&&(s.note||'')===(from.note||'')&&(s.animalType||'')===(from.animalType||'')
+    &&(s.parcelId===from.parcelId||grazingTotal(s)===grazingTotal(from)&&animalsKey(s)===key))||null;
+};
+/** Lot de pâturage actuel : lot en cours qui liste l'animal (identifiant ou numéro), sinon le lot noté sur la fiche, suivi s'il a été déplacé ou fractionné. */
 export function animalLot(state,animal,{today=grazingDate()}={}){
   if(!animal)return null;
   const key=normalizeNationalId(animal.nationalId),sessions=live(state,'grazingSessions');
   const current=sessions.filter(s=>['current','planned'].includes(grazingStatus(s,{date:today})));
   const listed=current.find(s=>grazingAnimalList(s).some(item=>item.animalId===animal.id||key&&normalizeNationalId(item.number)===key));
   if(listed)return listed;
-  const noted=animal.sessionId?sessions.find(s=>s.id===animal.sessionId):null;
+  let noted=animal.sessionId?sessions.find(s=>s.id===animal.sessionId):null;
+  for(let i=0;noted&&noted.endDate&&grazingStatus(noted,{date:today})==='ended'&&i<50;i++)noted=nextPassage(sessions,noted);
   return noted&&grazingStatus(noted,{date:today})!=='ended'?noted:null;
 }
 /**

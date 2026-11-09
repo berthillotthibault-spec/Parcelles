@@ -1,7 +1,7 @@
 // n° 51 : découper une parcelle par une ligne tracée, fusionner deux parcelles adjacentes.
 import {escapeHtml,formatNumber} from './utils.js';
 import {simpleRing} from './geometry-ops.js';
-import {previewSplit,buildSplit,previewMerge,buildMerge} from './parcel-split.js';
+import {previewSplit,buildSplit,previewMerge,buildMerge,openLinks,openLinksCount,relink} from './parcel-split.js';
 import {validateForm} from './form-chips-ui.js';
 
 export const SPLIT_ACTIONS=Object.freeze(['split-undo','split-cancel','split-cut']);
@@ -54,17 +54,35 @@ export function createParcelSplitUI({getMap,store,toast,modal,closeModal,mapMode
     // Aperçu des deux morceaux sur la carte.
     const colors=['#2f7d4f','#c26a1b'];
     prev.parts.forEach((part,i)=>L.geoJSON(part.geometry,{pane:'editingPane',interactive:false,style:()=>({color:colors[i],weight:3,fillColor:colors[i],fillOpacity:.25})}).addTo(session.layer));
-    modal('Découper la parcelle',prev.summary,`<form id="split-form" class="form-grid">${prev.parts.map((part,i)=>`<label>Nom du morceau ${escapeHtml(part.label)} · ${formatNumber(part.areaHa)} ha<input name="name${i}" required maxlength="80" value="${escapeHtml(part.name)}"></label>`).join('')}<p class="notice info">« ${escapeHtml(parcel.nom)} » sera archivée avec son historique et ses travaux. Les deux nouvelles fiches indiqueront « issue de ${escapeHtml(parcel.nom)} ».</p></form>`,'<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="split-save">Découper</button>','small');
+    modal('Découper la parcelle',prev.summary,`<form id="split-form" class="form-grid">${prev.parts.map((part,i)=>`<label>Nom du morceau ${escapeHtml(part.label)} · ${formatNumber(part.surfaceHa??part.areaHa)} ha<input name="name${i}" required maxlength="80" value="${escapeHtml(part.name)}"></label>`).join('')}${(()=>{const links=openLinks(store.state,[parcel.id]);if(!openLinksCount(links))return'';return`<label>${escapeHtml(linksText(links))} : rattacher à<select name="target">${prev.parts.map((part,i)=>`<option value="${i}">${escapeHtml(part.name)}</option>`).join('')}</select></label>`;})()}<p class="notice info">« ${escapeHtml(parcel.nom)} » sera archivée avec son historique et ses travaux terminés. Les deux nouvelles fiches indiqueront « issue de ${escapeHtml(parcel.nom)} ».</p></form>`,'<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="split-save">Découper</button>','small');
     const form=document.getElementById('split-form');
-    document.getElementById('split-save').onclick=async()=>{
-      if(!validateForm(form))return;
-      const current=parcelById(parcel.id);if(!current)return;
-      const {children,original}=buildSplit(current,prev.parts,[form.elements.name0.value,form.elements.name1.value],[uid(),uid()]);
-      await store.upsertMany('parcelles',[...children,original],{label:`Parcelle découpée : ${current.nom}`});
+    const saveBtn=document.getElementById('split-save');
+    saveBtn.onclick=async()=>{
+      // Verrou : un double clic ne doit enregistrer qu'une découpe.
+      if(saveBtn.disabled||!validateForm(form))return;
+      const current=parcelById(parcel.id);if(!current||current.archived)return;
+      saveBtn.disabled=true;
+      let children;
+      try{
+        const links=openLinks(store.state,[current.id]);
+        const target=Number(form.elements.target?.value)||0;
+        const built=buildSplit(current,prev.parts,[form.elements.name0.value,form.elements.name1.value],[uid(),uid()]),original=built.original;children=built.children;
+        await store.upsertMany('parcelles',[...children,original],{label:`Parcelle découpée : ${current.nom}`});
+        await moveLinks(links,children[Math.min(target,children.length-1)].id,`Parcelle découpée : ${current.nom}`);
+      }finally{saveBtn.disabled=false;}
       closeModal();mapModes.exit({name:'split',force:true,reason:'close'});
       toast?.(`${current.nom} découpée en ${children.map(c=>c.nom).join(' et ')}.`,'success');
       onDone?.(children[0].id);
     };
+  }
+
+  // Lots au pré, travaux et tâches ouverts : rattachés à la parcelle choisie (l'historique reste sur l'origine).
+  const plural=(n,one,many)=>`${n} ${n>1?many:one}`;
+  function linksText(links){
+    return[[links.grazingSessions.length,'lot au pré','lots au pré'],[links.interventions.length,'travail à faire','travaux à faire'],[links.tasks.length,'tâche ouverte','tâches ouvertes']].filter(([n])=>n).map(([n,a,b])=>plural(n,a,b)).join(', ');
+  }
+  async function moveLinks(links,parcelId,label){
+    for(const type of ['grazingSessions','interventions','tasks'])if(links[type].length)await store.upsertMany(type,relink(links[type],parcelId),{label});
   }
 
   function canMerge(ids){
@@ -77,12 +95,23 @@ export function createParcelSplitUI({getMap,store,toast,modal,closeModal,mapMode
     if(ids?.length!==2){toast?.('Sélectionnez exactement deux parcelles qui se touchent.','error');return;}
     const [a,b]=ids.map(id=>parcelById(id));
     const prev=previewMerge(a,b);if(prev.error){toast?.(prev.error,'error');return;}
-    modal('Fusionner les parcelles',`${a.nom} + ${b.nom} · ${formatNumber(prev.areaHa)} ha`,`<form id="merge-form" class="form-grid"><label>Nom de la parcelle fusionnée<input name="nom" required maxlength="80" value="${escapeHtml(a.nom)}"></label><p class="notice info">Les deux parcelles d’origine seront archivées avec leurs travaux. La nouvelle fiche reprend la culture et les informations de « ${escapeHtml(a.nom)} ».</p></form>`,'<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="merge-save">Fusionner</button>','small');
+    const mergeLinks=openLinks(store.state,[a.id,b.id]);
+    modal('Fusionner les parcelles',`${a.nom} + ${b.nom} · ${formatNumber(prev.surfaceHa??prev.areaHa)} ha`,`<form id="merge-form" class="form-grid"><label>Nom de la parcelle fusionnée<input name="nom" required maxlength="80" value="${escapeHtml(a.nom)}"></label><p class="notice info">Les deux parcelles d’origine seront archivées avec leurs travaux terminés. La nouvelle fiche reprend la culture et les informations de « ${escapeHtml(a.nom)} ».${openLinksCount(mergeLinks)?` Les lots au pré, travaux et tâches en cours (${escapeHtml(linksText(mergeLinks))}) passent sur la nouvelle parcelle.`:''}</p></form>`,'<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="merge-save">Fusionner</button>','small');
     const form=document.getElementById('merge-form');
-    document.getElementById('merge-save').onclick=async()=>{
-      if(!validateForm(form))return;
-      const {merged,originals}=buildMerge(parcelById(a.id),parcelById(b.id),prev.geometry,form.elements.nom.value,uid());
-      await store.upsertMany('parcelles',[merged,...originals],{label:`Parcelles fusionnées : ${a.nom} + ${b.nom}`});
+    const saveBtn=document.getElementById('merge-save');
+    saveBtn.onclick=async()=>{
+      // Verrou : un double clic ne doit créer qu'une parcelle fusionnée.
+      if(saveBtn.disabled||!validateForm(form))return;
+      const ca=parcelById(a.id),cb=parcelById(b.id);if(!ca||!cb||ca.archived||cb.archived)return;
+      saveBtn.disabled=true;
+      let merged;
+      try{
+        const links=openLinks(store.state,[ca.id,cb.id]);
+        const built=buildMerge(ca,cb,prev.geometry,form.elements.nom.value,uid());merged=built.merged;
+        const label=`Parcelles fusionnées : ${ca.nom} + ${cb.nom}`;
+        await store.upsertMany('parcelles',[merged,...built.originals],{label});
+        await moveLinks(links,merged.id,label);
+      }finally{saveBtn.disabled=false;}
       closeModal();toast?.(`Parcelles fusionnées en ${merged.nom}.`,'success');onDone?.(merged.id,{merged:true});
     };
   }

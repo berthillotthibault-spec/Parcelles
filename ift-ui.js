@@ -17,11 +17,12 @@ export function createIftUI({store,modal,catalogLookup=()=>null}){
   function open(parcelId){
     const data=store.state,parcel=(data.parcelles||[]).find(p=>p.id===parcelId),campaign=campaignFor();
     const history=parcel?iftHistory(data,parcel.id,campaign,opts()):[],farm=farmIft(data,campaign,opts());
+    const miss=r=>r.missing?` <small>(${r.missing} sans réf.)</small>`:'';
     const row=(label,r,extra='')=>`<tr><th scope="row">${e(label)}${extra}</th><td>${fr(r.total)}</td><td>${fr(r.herbicide)}</td><td>${fr(r.other)}</td><td>${fr(r.biocontrol)}</td></tr>`;
     const head='<thead><tr><th scope="col"></th><th scope="col">Total</th><th scope="col">Herbicides</th><th scope="col"><abbr title="Hors herbicides">Autres</abbr></th><th scope="col">Biocontrôle</th></tr></thead>';
     modal('Indice de fréquence de traitement',parcel?`${parcel.nom} · ${parcel.culture||'culture non renseignée'}`:'Exploitation',
-      `<div class="ift-view">${parcel?`<h3>Historique de la parcelle</h3><div class="ift-table-wrap"><table class="ift-table">${head}<tbody>${history.map(h=>row(h.campaign,h,h.missing?` <small>(${h.missing} sans réf.)</small>`:'')).join('')}</tbody></table></div>`:''}
-      <h3>Campagne ${e(campaign)} par culture</h3><div class="ift-table-wrap"><table class="ift-table">${head}<tbody>${farm.cultures.map(c=>row(`${c.culture} (${fr(c.surface)} ha)`,c)).join('')}${row('Exploitation',farm.farm)}</tbody></table></div>
+      `<div class="ift-view">${parcel?`<h3>Historique de la parcelle</h3><div class="ift-table-wrap"><table class="ift-table">${head}<tbody>${history.map(h=>row(h.campaign,h,miss(h))).join('')}</tbody></table></div>`:''}
+      <h3>Campagne ${e(campaign)} par culture</h3><div class="ift-table-wrap"><table class="ift-table">${head}<tbody>${farm.cultures.map(c=>row(`${c.culture} (${fr(c.surface)} ha)`,c,miss(c))).join('')}${row('Exploitation',farm.farm,miss(farm.farm))}</tbody></table></div>
       <p class="phyto-disclaimer"><strong>Indicatif.</strong> ${e(IFT_REFERENCE_TABLE.method)}. Table de référence millésime ${e(IFT_REFERENCE_TABLE.vintage)} (embarquée vide : saisissez vos doses de référence dans la fiche produit), à défaut dose homologuée de l’usage. Le biocontrôle est exclu du total. Moyennes pondérées par la surface.</p></div>`,
       '<button class="button primary" data-action="close-modal">Fermer</button>','large');
   }

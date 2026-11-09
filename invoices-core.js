@@ -141,7 +141,7 @@ export function workLine(work,parcel,client,vatRate){
   return{...base,quantity:1,unit:'forfait',unitPrice:null,basis:'Forfait à saisir'};
 }
 export function fuelLine(work,parcel,vatRate,fuelPrice=null){
-  const liters=positive(work.fuel);if(liters===null)return null;const cost=positive(work.fuelCost),price=cost!==null?round2(cost/liters*1000)/1000:positive(fuelPrice);
+  const liters=positive(work.fuel);if(liters===null)return null;const cost=positive(work.fuelCost),price=cost!==null?round3(cost/liters):positive(fuelPrice);
   return{label:`Gazole refacturé · ${text(work.type)||'Prestation'}${parcel?.nom?` · ${text(parcel.nom)}`:''}`,date:work.date||'',quantity:round2(liters),unit:'L',unitPrice:price,vatRate,basis:cost!==null?'Coût carburant du travail':price!==null?`Prix du carburant des préférences (${fr(price)} €/L), à vérifier`:'Prix du carburant à saisir',source:{type:'fuel',id:work.id}};
 }
 const TP_PARTS=[['hours','h','hourlyRate','tp-h','heures'],['volumeM3','m³','m3Rate','tp-m3','volume'],['tonnage','t','tonneRate','tp-t','tonnage']];

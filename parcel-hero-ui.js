@@ -18,7 +18,7 @@ export function createParcelHeroUI({cultureAccent}){
     hero.classList.toggle('has-shape',Boolean(d));
     const frieze=rotationFrieze(p,(data?.rotations||[]),campaignFor(),3);
     let row=hero.querySelector('.hero-rotation');if(!row){row=document.createElement('ol');row.className='hero-rotation';row.setAttribute('aria-label','Rotation sur trois campagnes');hero.append(row);}
-    row.innerHTML=frieze.map(c=>`<li class="${c.current?'is-current':''}${c.culture?'':' is-empty'}" style="--rot:${c.culture?cultureAccent(c.culture):'transparent'}"><small>${e(c.campaignId)}</small><strong>${e(c.culture||'Non renseignée')}</strong></li>`).join('');
+    row.innerHTML=frieze.map(c=>`<li class="${c.current?'is-current':''}${c.culture?'':' is-empty'}" style="--rot:${c.culture?cultureAccent(c.culture):'transparent'}"><small>${e(c.campaignId)}</small><strong title="${e(c.culture||'Non renseignée')}">${e(c.culture||'—')}</strong></li>`).join('');
   }
   return{avatar,mount};
 }

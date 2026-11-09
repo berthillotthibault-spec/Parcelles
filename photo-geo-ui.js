@@ -100,12 +100,12 @@ export function createPhotoGeoUI({store,state,active,parcelById,toast,modal,clos
 
   // Frise des photos de la parcelle, avec avant/après et filtre par étiquette.
   async function renderGallery(root,parcelId,photos){
-    if(!root)return;const all=sortPhotos(photos);
+    // Classe posée avant l'état vide : une seule colonne, le message « Aucune photo » prend toute la largeur.
+    if(!root)return;root.classList.add('photo-timeline-root');const all=sortPhotos(photos);
     if(!all.length){root.innerHTML='<div class="empty-state">Aucune photo. Le bouton Photo du mode terrain les rattache automatiquement à la parcelle.</div>';return;}
     const tags=photoTagCounts(all);if(galleryTag&&!tags.some(([t])=>t===galleryTag))galleryTag=null;
     const list=galleryTag?all.filter(p=>(p.tags||[]).includes(galleryTag)):all,pair=beforeAfter(list,{tag:null});
     const thumb=(p,cls='photo-thumb')=>`<button type="button" class="${cls}" data-action="view-attachment" data-type="photos" data-id="${e(p.id)}"><img data-blob="${e(p.id)}" alt="${e(p.note||(p.tags||[]).join(', ')||'Photo de parcelle')}"><small>${e(shortDate(p.capturedAt))}${(p.tags||[]).length?` · ${e(p.tags.join(', '))}`:''}${Number.isFinite(p.latitude)?' · géolocalisée':''}</small></button>`;
-    root.classList.add('photo-timeline-root');
     root.innerHTML=`${tags.length?`<div class="photo-tag-filter" role="group" aria-label="Filtrer par étiquette"><button type="button" class="filter-chip${galleryTag?'':' is-active'}" data-photo-tag="" aria-pressed="${!galleryTag}">Toutes</button>${tags.map(([t,n])=>`<button type="button" class="filter-chip${galleryTag===t?' is-active':''}" data-photo-tag="${e(t)}" aria-pressed="${galleryTag===t}">${e(t)} (${n})</button>`).join('')}</div>`:''}${pair?`<section class="photo-before-after" aria-label="Avant et après"><h3>Avant / après · ${pair.days} jour${pair.days>1?'s':''}</h3><div>${thumb(pair.before,'photo-ba')}${thumb(pair.after,'photo-ba')}</div></section>`:''}<div class="photo-timeline">${list.map(p=>thumb(p)).join('')}</div>`;
     root.querySelectorAll('[data-photo-tag]').forEach(b=>b.onclick=()=>{galleryTag=b.dataset.photoTag||null;renderGallery(root,parcelId,photos);});
     const urls=[];for(const img of root.querySelectorAll('img[data-blob]')){const blob=await attachmentBlob(store,img.dataset.blob).catch(()=>null);if(blob){const u=URL.createObjectURL(blob);urls.push(u);img.src=u;}else img.closest('button')?.classList.add('is-missing');}

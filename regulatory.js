@@ -20,7 +20,7 @@ export const REG_LAYERS=Object.freeze([
   {id:'hydro',label:'Hydrographie BD TOPO',hint:'Réseau hydrographique détaillé',kind:'wmts',url:wmts('HYDROGRAPHY.HYDROGRAPHY',{matrixSet:'PM_6_18'}),minZoom:6,maxNativeZoom:18,attribution:`${IGN} (BD TOPO)`,source:'IGN, BD TOPO',date:'mise à jour continue'},
   {id:'natura-sic',label:'Natura 2000 – habitats (SIC/ZSC)',hint:'Directive Habitats',kind:'wms',url:GEOPF_WMS_V,layers:'Patrinat_SIC_France',attribution:`${IGN} · PatriNat (OFB-MNHN)`,source:'PatriNat (OFB-MNHN) via Géoplateforme',date:'dernière diffusion'},
   {id:'natura-zps',label:'Natura 2000 – oiseaux (ZPS)',hint:'Directive Oiseaux',kind:'wms',url:GEOPF_WMS_V,layers:'Patrinat_ZPS_France',attribution:`${IGN} · PatriNat (OFB-MNHN)`,source:'PatriNat (OFB-MNHN) via Géoplateforme',date:'dernière diffusion'},
-  {id:'zv',label:'Zones vulnérables nitrates',hint:'Dernière désignation (Sandre, service parfois lent)',kind:'wms',url:SANDRE_WMS,layers:'ZoneVuln',attribution:'Sandre – OFB',source:'Sandre (OFB), zonages réglementaires',date:'dernière désignation'},
+  {id:'zv',label:'Zones vulnérables nitrates',hint:'Directive Nitrates (Sandre, service parfois lent)',kind:'wms',url:SANDRE_WMS,layers:'ZoneVuln',attribution:'Sandre – OFB',source:'Sandre (OFB), zonages réglementaires',date:'dernière désignation'},
   {id:'pentes',label:'Pentes agricoles',hint:'Zones de pente > 10 % (RGE ALTI)',kind:'wmts',url:wmts('GEOGRAPHICALGRIDSYSTEMS.SLOPES.PAC',{style:'GEOGRAPHICALGRIDSYSTEMS.SLOPES.PAC',matrixSet:'PM_0_15'}),minZoom:0,maxNativeZoom:15,attribution:`${IGN} (RGE ALTI 2017)`,source:'IGN, carte des pentes pour l’agriculture',date:'2017'}
 ]);
 export const REG_LAYER_IDS=REG_LAYERS.map(layer=>layer.id);
@@ -33,6 +33,8 @@ export const REG_RULES_DEFAULT=Object.freeze({
   source:'Arrêté du 4 mai 2017 (ZNT des points d’eau, 5 m minimum, 20, 50 ou 100 m selon l’AMM) ; BCAE 4 de la PAC 2023-2027 (bande tampon de 5 m le long des cours d’eau BCAE).'
 });
 export const REG_DISCLAIMER='Indicatif : la ZNT applicable dépend du produit (AMM, étiquette) et de l’arrêté départemental des points d’eau. Vérifiez avant tout traitement.';
+// Date des valeurs en clair pour l'affichage : « d’octobre 2026 », « du 12 mars 2026 » ; le stockage garde la valeur brute.
+export function regDatePhrase(d){const s=String(d||'').trim();let m=s.match(/^(\d{4})-(\d{2})$/);if(m){const t=new Date(Date.UTC(+m[1],+m[2]-1,1)).toLocaleDateString('fr-FR',{month:'long',year:'numeric',timeZone:'UTC'});return (/^[aeiou]/i.test(t)?'d’':'de ')+t;}m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return 'du '+new Date(Date.UTC(+m[1],+m[2]-1,+m[3])).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});return s?'du '+s:'';}
 export function regulatoryRules(overrides={}){
   const r={...REG_RULES_DEFAULT},o=overrides||{};
   for(const key of ['bcaeBufferM','zntMinM','nearWaterM']){const n=Number(o[key]);if(Number.isFinite(n)&&n>=0&&n<=500)r[key]=n;}

@@ -93,7 +93,8 @@ export function createPublicWorksDayUI({store,state,modal,closeModal,toast,onDon
     const select=(row,field,{moveFocus=true}={})=>{
       focus={row,field};refresh();
       if(moveFocus)rowsRoot.querySelector(`.tp-day-cell[data-row="${row}"][data-field="${field}"]`)?.focus({preventScroll:true});
-      padEl.scrollIntoView?.({block:'nearest'});
+      // Tout le bloc de l'engin (cases + pavé) reste visible, pas seulement le pavé.
+      (rowsRoot.querySelector(`.tp-day-row[data-row="${row}"]`)||padEl).scrollIntoView?.({block:'nearest'});
     };
     const next=()=>{
       if(!focus)return;
@@ -161,7 +162,7 @@ export function createPublicWorksDayUI({store,state,modal,closeModal,toast,onDon
       return `<li><strong>${esc(e.name)}</strong><span>${esc(parts.join(' · '))}</span></li>`;
     }).join('');
     const t=plan.totals,writes=[`${count.logs} ligne${count.logs>1?'s':''} de journal`,count.meters?`${count.meters} compteur${count.meters>1?'s':''} mis à jour`:'',count.fuels?`${count.fuels} plein${count.fuels>1?'s':''} de carburant`:'',count.photo?'la photo du bon':''].filter(Boolean);
-    modal('Récapitulatif de la journée',`${c?.type||'Chantier TP'} · ${dateLabel(plan.date)}`,`<section class="tp-day-review"><div class="tp-metrics"><div><strong>${fr(t.hours)}</strong><span>heures</span></div><div><strong>${fr(t.volumeM3)}</strong><span>m³</span></div><div><strong>${fr(t.tonnage)}</strong><span>tonnes</span></div></div><ul class="tp-day-recap" aria-label="Détail par engin">${rows}</ul>${t.fuelLiters?`<p class="form-note">Carburant : ${fr(t.fuelLiters)} L${t.fuelAmount!==null?` · environ ${fr(t.fuelAmount)} €`:''} (donnée interne, absente du bon client).</p>`:''}${plan.operator?`<p class="form-note">Opérateur : ${esc(plan.operator)}</p>`:''}${plan.note?`<p class="tp-note">${esc(plan.note)}</p>`:''}${plan.warnings.length?`<div class="notice warning" role="status"><strong>À vérifier</strong><ul>${plan.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>`:''}<p class="form-note">La validation enregistre en une fois : ${esc(writes.join(', '))}. ${undoable?'Elle reste annulable.':'Votre rôle ne permettra pas de l’annuler : seul un responsable pourra la retirer.'}</p><p class="form-error" id="tp-day-save-error" role="alert" hidden></p></section>`,`<button class="button secondary" id="tp-day-edit">Corriger</button><button class="button primary" id="tp-day-confirm" data-autofocus>Valider la journée</button>`,'large');
+    modal('Récapitulatif de la journée',`${c?.type||'Chantier TP'} · ${dateLabel(plan.date)}`,`<section class="tp-day-review"><div class="tp-metrics"><div><strong>${fr(t.hours)}</strong><span>heures</span></div><div><strong>${fr(t.volumeM3)}</strong><span>m³</span></div><div><strong>${fr(t.tonnage)}</strong><span>tonnes</span></div></div><ul class="tp-day-recap" aria-label="Détail par engin">${rows}</ul>${t.fuelLiters?`<p class="form-note">Carburant : ${fr(t.fuelLiters)} L${t.fuelAmount!==null?` · environ ${fr(t.fuelAmount)} €`:''} (donnée interne, absente du bon client).</p>`:''}${plan.operator?`<p class="form-note">Opérateur : ${esc(plan.operator)}</p>`:''}${plan.note?`<p class="tp-note">${esc(plan.note)}</p>`:''}${plan.warnings.length?`<div class="notice warning" role="status"><strong>À vérifier</strong><ul>${plan.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></div>`:''}<p class="form-note">La validation enregistre en une fois : ${esc(writes.join(', '))}. ${undoable?'Elle reste annulable.':'Votre rôle ne permettra pas de l’annuler : seul un responsable pourra la retirer.'}</p><p class="form-error" id="tp-day-save-error" role="alert" hidden></p></section>`,`<button class="button secondary" id="tp-day-edit">Corriger</button><button class="button primary" id="tp-day-confirm" data-autofocus>Valider la journée</button>`,'large',{helpKey:'public-works'});
     $('#tp-day-edit').addEventListener('click',()=>open(chantierId,{keep:true}));
     $('#tp-day-confirm').addEventListener('click',async event=>{
       const button=event.currentTarget;if(button.disabled)return;button.disabled=true;
@@ -186,12 +187,14 @@ export function createPublicWorksDayUI({store,state,modal,closeModal,toast,onDon
 
   function done(chantierId,result,photo){
     const c=store.get('chantiers',chantierId),client=c?.clientId?(state().clients||[]).find(x=>x.id===c.clientId):null;
-    const text=tpDayShareText(result.plan,{chantier:c,clientName:client?.name||'',farmName:state().exploitation?.name||''});
-    modal('Journée enregistrée',`${c?.type||'Chantier TP'} · ${dateLabel(result.plan.date)}`,`<section class="tp-day-done"><p>Les heures, quantités${result.count.fuels?', pleins':''}${result.count.photo?' et la photo du bon':''} sont enregistrés. Vous pouvez envoyer le bon au client (sans le carburant).</p><pre class="tp-day-share" tabindex="0" aria-label="Aperçu du bon">${esc(text)}</pre></section>`,`${canUndo(chantierId,result.dayId)?'<button class="button secondary" id="tp-day-undo">Annuler la journée</button>':''}<button class="button secondary" id="tp-day-pdf">Bon PDF</button><button class="button secondary" id="tp-day-share">Partager le bon</button><button class="button primary" id="tp-day-close" data-autofocus>Terminé</button>`,'large');
+    const doneParts=['les heures','les quantités'];if(result.count.fuels)doneParts.push('les pleins');if(result.count.photo)doneParts.push('la photo du bon');
+    const doneText=doneParts.slice(0,-1).join(', ')+' et '+doneParts.at(-1),doneList=doneText[0].toUpperCase()+doneText.slice(1);
+    const text=tpDayShareText(result.plan,{chantier:c,clientName:client?.name||'',farmName:state().exploitation?.nom||state().exploitation?.name||''});
+    modal('Journée enregistrée',`${c?.type||'Chantier TP'} · ${dateLabel(result.plan.date)}`,`<section class="tp-day-done"><p>${doneList} sont ${result.count.fuels?'enregistrés':'enregistrées'}. Vous pouvez envoyer le bon au client (sans le carburant).</p><pre class="tp-day-share" tabindex="0" aria-label="Aperçu du bon">${esc(text)}</pre></section>`,`${canUndo(chantierId,result.dayId)?'<button class="button secondary" id="tp-day-undo">Annuler la journée</button>':''}<button class="button secondary" id="tp-day-pdf">Bon PDF</button><button class="button secondary" id="tp-day-share">Partager le bon</button><button class="button primary" id="tp-day-close" data-autofocus>Terminé</button>`,'large');
     $('#tp-day-close').addEventListener('click',()=>onDone?.(chantierId));
     $('#tp-day-undo')?.addEventListener('click',()=>undo(chantierId,result.dayId));
     $('#tp-day-share').addEventListener('click',()=>share(c?.type||'Bon de chantier',text,photo));
-    $('#tp-day-pdf').addEventListener('click',()=>voucherPdf(result.plan,{chantier:c,clientName:client?.name||'',farmName:state().exploitation?.name||''},photo));
+    $('#tp-day-pdf').addEventListener('click',()=>voucherPdf(result.plan,{chantier:c,clientName:client?.name||'',farmName:state().exploitation?.nom||state().exploitation?.name||''},photo));
   }
 
   // n° 19 : bon imprimable en PDF (fichier partageable, sinon téléchargé), photo du bon en annexe si JPEG.

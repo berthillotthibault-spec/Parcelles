@@ -30,7 +30,7 @@ export function createOfflineMapUI(host){
     const meta=readMeta(),layer=defaultLayer(),count=parcels().length;
     const canDownload=supported()&&count>0;
     modal('Carte hors connexion','Les fonds IGN autour de vos parcelles restent visibles sans réseau, au champ comme au fond d’une vallée.',`<form id="om-form" class="om-form" novalidate>
-      <div class="notice ${meta?'success':'info'} om-status" id="om-status"><strong>Carte hors ligne : ${escapeHtml(meta?offlineSummary(meta).replace(/^À jour/,'à jour'):'pas encore téléchargée')}</strong>${meta&&!meta.complete?'<br>Téléchargement interrompu : relancez-le pour compléter.':''}</div>
+      <div class="notice ${meta?(meta.complete?'success':'warning'):'info'} om-status" id="om-status"><strong>Carte hors ligne : ${escapeHtml(meta?offlineSummary(meta).replace(/^(À jour|Incomplète)/,m=>m.toLowerCase()):'pas encore téléchargée')}</strong>${meta&&!meta.complete?'<br>Téléchargement interrompu : relancez-le pour compléter.':''}</div>
       ${!supported()?'<div class="notice warning">Ce navigateur ne permet pas de garder des tuiles de carte.</div>':count===0?'<div class="notice warning">Aucune parcelle n’a de contour : dessinez ou importez vos parcelles d’abord.</div>':''}
       <div class="field-label"><span>Fond à télécharger *</span><input type="hidden" name="layer" value="${escapeHtml(layer)}"><div class="chip-choices om-chips" data-chip-target="layer" role="group" aria-label="Fond à télécharger">${OFFLINE_LAYERS.map(l=>`<button type="button" class="choice-chip${l.id===layer?' is-on':''}" data-value="${l.id}" aria-pressed="${l.id===layer}">${escapeHtml(l.label)}</button>`).join('')}</div></div>
       <label class="om-check"><input type="checkbox" name="cadastre"${meta?.cadastre||state().preferences?.mapCadastre?' checked':''}> Inclure le cadastre</label>
@@ -96,9 +96,9 @@ export function createOfflineMapUI(host){
       renderProgress();
     }
     window.removeEventListener('offline',onOffline);
-    const reason=controller.signal.aborted?controller.signal.reason:'',current=job;job=null;
+    const reason=controller.signal.aborted?controller.signal.reason:'',current=job;job=null;if(current.removed)return;
     const complete=!reason&&current.failed<current.total;
-    if(current.done>current.failed)writeMeta({at:Date.now(),layer,cadastre,tiles:current.done-current.failed,bytes:current.bytes,failed:current.failed,maxZoom:plan.zooms[plan.zooms.length-1],complete:complete&&current.done===current.total});
+    if(current.done>current.failed)writeMeta({at:Date.now(),layer,cadastre,tiles:current.done-current.failed,total:current.total,bytes:current.bytes,failed:current.failed,maxZoom:plan.zooms[plan.zooms.length-1],complete:complete&&current.done===current.total});
     await evict(cache,startedAt).catch(()=>{});
     if(document.getElementById('om-form'))open();
     if(reason==='offline')return toast('Connexion perdue : téléchargement interrompu. Les tuiles déjà reçues restent disponibles.','error',null,{persist:true});
@@ -116,7 +116,7 @@ export function createOfflineMapUI(host){
     return drop.length;
   }
   async function remove(){
-    if(job)job.controller.abort('user');
+    if(job){job.removed=true;job.controller.abort('user');}
     try{await caches.delete(await cacheName());}catch{}
     clearMeta();open();toast('Carte hors ligne supprimée de l’appareil.');
   }

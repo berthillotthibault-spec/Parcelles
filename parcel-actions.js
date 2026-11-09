@@ -2,6 +2,7 @@
 // d'une parcelle (n° 147, sorties d'app.js sans changement de comportement). Enregistrées par app.js.
 import {ctx} from './app-context.js';
 import {icon} from './ui.js';
+import {summarizeParcelGrazing} from './grazing.js';
 
 export const parcelActions = {
   // n° 160 : outils des parcelles regroupés derrière « ··· » (la rangée de tuiles reste sur ordinateur).
@@ -24,7 +25,17 @@ export const parcelActions = {
     ctx.openParcel(id);
   },
   'edit-parcel'({id}) { ctx.closeModal(); ctx.openParcelForm(ctx.parcelById(id)); },
-  'delete-parcel'({id}) { ctx.confirmDelete('parcelles', id, 'cette parcelle'); },
+  'delete-parcel'({id}) {
+    // Un lot encore au pré resterait sur une parcelle supprimée : il faut d'abord le sortir.
+    const n = summarizeParcelGrazing(ctx.state().grazingSessions || [], id).total || 0;
+    if (n > 0) {
+      const who = n > 1 ? `${n} animaux sont` : '1 animal est';
+      ctx.toast(`${who} encore au pré sur cette parcelle : sortez-les du pré avant de la placer dans la corbeille.`, 'error',
+        {label: 'Pâturage', run: () => { ctx.closeModal(); ctx.openGrazing(); }});
+      return;
+    }
+    ctx.confirmDelete('parcelles', id, 'cette parcelle');
+  },
   async 'archive-parcel'({id}) {
     const p = ctx.parcelById(id);
     if (!p) return;
@@ -34,11 +45,18 @@ export const parcelActions = {
   },
   'parcel-actions'({id}) { ctx.closeModal(); ctx.openParcelActions(id); },
   'parcel-tab'({id, control}) { ctx.closeModal(); ctx.openParcelDetail(id, control.dataset.tab, {historyMode: 'replace'}); },
-  async 'toggle-favorite'({id}) {
+  async 'toggle-favorite'({id, control}) {
     const p = ctx.parcelById(id);
     if (!p) return;
+    // Le rendu recrée l'étoile (ici, puis à l'image suivante via le planificateur de rendu) :
+    // on lui rend le focus clavier après les deux pour annoncer le nouvel état.
+    const hadFocus = Boolean(control) && document.activeElement === control;
     await ctx.store.upsert('parcelles', {...p, favorite: !p.favorite}, {label: `Favori ${!p.favorite ? 'activé' : 'désactivé'} : ${p.nom}`, queue: false});
     ctx.renderParcelDetailPage(id, ctx.currentParcelTab, ctx.state());
+    if (!hadFocus) return;
+    const refocus = () => ctx.$('#parcel-detail-top-actions [data-action="toggle-favorite"]')?.focus({preventScroll: true});
+    refocus();
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(refocus);
   },
   'add-note'({id}) { ctx.closeModal(); ctx.openNote(id); },
   // Tri de la liste : options du sélecteur parcourues en boucle ; la distance demande une position connue.

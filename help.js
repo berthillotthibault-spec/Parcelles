@@ -141,8 +141,8 @@ export const HELP = {
   'public-works': {match: /^Travaux publics/i, title: 'Travaux publics', points: [
     'Un chantier regroupe engins, heures et quantités pour un client.',
     'Les heures saisies au fil des jours préparent la facture.',
-    'Exportez le récapitulatif du chantier en PDF ou en tableur.'
-  ], link: {label: 'Factures', action: 'open-invoices'}, tip: 'Astuce : dupliquez une journée pour aller plus vite.'},
+    'Après « Fin de journée », le bon du jour se partage ou s’enregistre en PDF.'
+  ], link: {label: 'Factures', action: 'open-invoices'}, tip: 'Astuce : « Fin de journée » relève compteurs, heures, quantités et carburant en une seule saisie.'},
   'team-work': {match: /^(Consignes & heures|Confier un travail|Feuille d’heures)/i, title: 'Consignes et heures', points: [
     'Confiez un travail à un salarié : il le voit sur son téléphone avec les consignes.',
     'Chacun pointe ses heures ; la feuille d’heures se prépare seule.',
@@ -172,13 +172,13 @@ export const HELP = {
     'Cherchez une parcelle, un travail, un produit ou un outil.',
     'Posez une question simple : « combien d’azote sur le blé cette campagne ? ».',
     'Le détail du calcul est affiché et s’exporte en tableur.'
-  ], tip: 'Astuce : sur ordinateur, Ctrl K (ou Cmd K) ouvre la recherche.'},
+  ], tip: 'Astuce : posez une question, par exemple « combien de traitements cette campagne ? ».'},
   rotations: {match: /^(Assolement|Planifier la campagne)/i, title: 'Assolement', points: [
     'Voyez la surface de chaque culture et la rotation de chaque parcelle.',
     'Préparez la campagne suivante sans toucher à celle en cours.',
     'Les couverts d’interculture se notent ici aussi.'
   ], link: {label: 'Assistant PAC', action: 'open-pac'}, tip: 'Astuce : l’anneau d’assolement se touche pour isoler une culture.'},
-  'data-center': {match: /^(Mes données|Sauvegardes automatiques|Restaurer la sauvegarde|Sauvegarde)/i, title: 'Mes données', points: [
+  'data-center': {match: /^(Mes données|Sauvegardes automatiques|Copie hors de l’appareil|Restaurer la sauvegarde|Sauvegarde)/i, title: 'Mes données', points: [
     'Importez vos parcelles (PAC, SHP, Excel) et retrouvez la corbeille.',
     'Faites régulièrement une sauvegarde hors du téléphone : clé USB, ordinateur ou messagerie.',
     'Une sauvegarde restaurée remplace les données de cet appareil : vérifiez sa date.'
@@ -205,7 +205,7 @@ export const HELP = {
     'En restaurant une parcelle, Parcelles propose aussi ses travaux et passages supprimés le même jour.'
   ], link: {label: 'Sauvegarde complète', action: 'export-complete-backup'}, tip: 'Astuce : dans une exploitation partagée, seule la personne propriétaire peut vider la corbeille.'},
   telepac: {match: /^Importer depuis telepac/i, title: 'Import telepac', points: [
-    'Sur telepac : Déclaration › Téléchargements › « Parcelles graphiques (SHP) ». Gardez le ZIP tel quel.',
+    'Sur telepac : Déclaration › Téléchargements › « Parcelles graphiques (SHP) ». Gardez le ZIP tel quel.',
     'Parcelles reconnaît le fichier : nom « îlot.parcelle » (ex. 3.2), culture d’après le code PAC, surface admissible.',
     'L’année suivante, réimportez : l’aperçu liste les nouvelles parcelles, les découpes et les cultures changées.'
   ], link: {label: 'Historique des imports', action: 'open-import-history'}, tip: 'Astuce : le numéro PACAGE n’est jamais enregistré, et chaque import peut être annulé.'},

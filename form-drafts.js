@@ -7,7 +7,12 @@ export const DRAFT_PREFIX='parcelles:draft:';
 export const DRAFT_MAX_AGE_MS=7*86400000;
 const SAVE_DELAY_MS=400;
 
-export function draftKey(type,id){return `${DRAFT_PREFIX}${type}:${id?String(id):'nouveau'}`;}
+// Un brouillon reste dans l’exploitation où il a été saisi (ferme locale, démonstration, ferme cloud).
+// L’espace « local » garde l’ancienne clé, les autres reçoivent le suffixe « @<espace> ».
+let draftWorkspace=()=> 'local';
+export function setDraftWorkspace(fn){draftWorkspace=typeof fn==='function'?fn:()=> 'local';}
+export function currentDraftWorkspace(){try{return String(draftWorkspace()||'local');}catch{return 'local';}}
+export function draftKey(type,id,workspace=currentDraftWorkspace()){const ws=String(workspace||'local');return `${DRAFT_PREFIX}${type}:${id?String(id):'nouveau'}${ws==='local'?'':'@'+ws}`;}
 
 function defaultStorage(){try{return globalThis.localStorage||null;}catch{return null;}}
 export function readDraft(key,{storage=defaultStorage(),at=Date.now()}={}){

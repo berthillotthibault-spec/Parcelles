@@ -73,10 +73,12 @@ export function deadlineNotifications(state,{today=isoDate(new Date())}={}){
 /** Voyant du tableau de conformité pour les échéances non couvertes ailleurs (assurance, conseil stratégique). */
 export function adminDeadlinesCheck(state,{today=isoDate(new Date())}={}){
   const rows=adminDeadlines(state,{today}).filter(d=>d.kind==='insurance'||d.kind==='csp');
+  // Une ligne sans date (conseil stratégique non renseigné) n'est pas « suivie » : elle est à renseigner.
+  const missing=rows.filter(r=>!r.dueDate).length,tracked=rows.length-missing;
   const worst=['ko','warn','unknown','ok'].find(s=>rows.some(r=>r.status===s))||'na';
   const labels={ko:'À corriger',warn:'À vérifier',unknown:'Non suivi',ok:'À jour',na:'Non concerné'};
   return{id:'admin-deadlines',label:'Échéances administratives',status:worst,statusLabel:labels[worst],
-    detail:rows.length?`${rows.length} échéance${rows.length>1?'s':''} suivie${rows.length>1?'s':''} (assurances, conseil stratégique phytosanitaire).`:'Aucune assurance ni conseil stratégique renseigné.',
+    detail:!rows.length?'Aucune assurance ni conseil stratégique renseigné.':[tracked?`${tracked} échéance${tracked>1?'s':''} suivie${tracked>1?'s':''}`:'',missing?`${missing} échéance${missing>1?'s':''} à renseigner`:''].filter(Boolean).join(', ')+' (assurances, conseil stratégique phytosanitaire).',
     items:rows.filter(r=>r.status!=='ok').map(r=>({label:r.label,note:r.dueDate?`Échéance le ${localDate(r.dueDate)}`:r.detail})),
     action:{type:'regulated',label:'Opérateurs et échéances'},hint:REGULATED_NOTE};
 }

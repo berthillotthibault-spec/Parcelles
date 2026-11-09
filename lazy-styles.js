@@ -7,8 +7,8 @@
 // ?v= : monté par tools/release.mjs quand la feuille change, comme ceux d'index.html (test-release.mjs).
 // Les feuilles restent dans CORE (sw.js) et REQUIRED_ASSETS (runtime.js) pour le hors connexion.
 export const LAZY_SHEETS = Object.freeze({
-  'billing-docs.css': '1',
-  'billing-hub.css': '1'
+  'billing-docs.css': '2',
+  'billing-hub.css': '2'
 });
 export const LOAD_TIMEOUT = 2500;
 // Feuille chargée au démarrage avant laquelle les feuilles différées s'insèrent (la dernière d'index.html).

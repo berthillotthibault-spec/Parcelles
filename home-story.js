@@ -90,7 +90,9 @@ export function weatherFacts(weather, now = Date.now()) {
 }
 function weatherLead(facts, now) {
   const parts = [];
-  if (facts.hours) parts.push(facts.rainAt === null ? 'Pas de pluie prévue d’ici ce soir'
+  // Après 21 h, « ce soir » est déjà là : l'horizon des prévisions du jour est minuit.
+  const late = new Date(now).getHours() >= 21;
+  if (facts.hours) parts.push(facts.rainAt === null ? (late ? 'Pas de pluie prévue d’ici minuit' : 'Pas de pluie prévue d’ici ce soir')
     : facts.rainingNow || facts.rainAt - now < HOUR ? 'Pluie en cours ou imminente' : `Sec jusqu’à ${frenchClock(facts.rainAt)}`);
   if (facts.wind !== null) parts.push(`vent ${nf.format(Math.round(facts.wind))} km/h`);
   if (facts.temperature !== null) parts.push(`${nf.format(Math.round(facts.temperature))} °C`);
@@ -124,7 +126,7 @@ function weatherSentence(data, weather, cockpit, now, location) {
   for (const {work, rule} of candidates) {
     const window = todayWindow(weather, rule, now);
     if (window) {
-      const span = window.current ? (window.endsToday ? `jusqu’à ${frenchClock(window.end)}` : 'jusqu’à ce soir')
+      const span = window.current ? (window.endsToday ? `jusqu’à ${frenchClock(window.end)}` : new Date(now).getHours() >= 21 ? 'jusqu’à minuit' : 'jusqu’à ce soir')
         : window.endsToday ? `de ${frenchClock(window.start)} à ${frenchClock(window.end)}` : `à partir de ${frenchClock(window.start)}`;
       return {key: 'weather', tone: 'good', text: `${lead ? `${lead} : c` : 'C'}réneau favorable ${span} pour ${workLabel(work, parcels)}.`, action: 'edit-work', id: work.id, indicative: true};
     }

@@ -78,9 +78,9 @@ function pfdGeometry(pfd) {
   return polygons.length === 1 ? {type: 'Polygon', coordinates: polygons[0]} : {type: 'MultiPolygon', coordinates: polygons};
 }
 
-// Codes DDI (ISO 11783-11) des doses par surface : volume en mm³/m², masse en mg/m² ; 1 mm³/m² = 0,01 L/ha.
+// Codes DDI (ISO 11783-11) des doses par surface : volume en 0,01 mm³/m² (1 L/ha = 10 000), masse en mg/m² (1 kg/ha = 100).
 const DOSE_DDI = {
-  '0002': {unit: 'L/ha', factor: 0.01, actual: true}, '0001': {unit: 'L/ha', factor: 0.01, actual: false},
+  '0002': {unit: 'L/ha', factor: 0.0001, actual: true}, '0001': {unit: 'L/ha', factor: 0.0001, actual: false},
   '0007': {unit: 'kg/ha', factor: 0.01, actual: true}, '0006': {unit: 'kg/ha', factor: 0.01, actual: false},
 };
 function doseFrom(values) {

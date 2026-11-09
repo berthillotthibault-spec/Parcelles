@@ -1,6 +1,7 @@
 import {answerFarmQuestion} from './farm-agent.js';import {answerAgroQuestion} from './agro-assistant.js';
 import {agendaDate,isPending,localDay,maintenanceRemaining,isLowStock} from './home-priorities.js';
-import {campaignFor, isoDate, normalize, toNumber} from './utils.js';
+import {campaignFor, isoDate, normalize, toNumber, localIso} from './utils.js';
+import {grazingStatus,grazingTotal,grazingType} from './grazing.js';import {matchWorkType} from './voice-notes.js';
 
 const active=(state,type)=>(state?.[type]||[]).filter(item=>!item?.deletedAt);
 const fmt=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(Number(value)||0);
@@ -71,19 +72,22 @@ function cultureFromQuestion(question,state){
 }
 
 function worksForRange(state,range){return active(state,'interventions').filter(work=>inRange(workDate(work),range));}
+// Travaux en attente dont la date prévue est passée (même règle que l'accueil).
+function overdueWorks(state,now=Date.now()){const today=localDay(new Date(now));return active(state,'interventions').filter(w=>isPending(w)&&agendaDate(w)&&agendaDate(w)<today).sort((a,b)=>String(agendaDate(a)).localeCompare(String(agendaDate(b))));}
+const worksLabel=n=>`${n} ${n>1?'travaux':'travail'}`;
 
 export function buildActivityBrief(state,{period='today',now=Date.now()}={}){
   const range=period==='week'?weekRange(now):period==='yesterday'?dayRange(now,-1):dayRange(now,0);
   const works=worksForRange(state,range),done=works.filter(w=>w.status==='Terminé'),planned=works.filter(w=>!['Terminé','Annulé'].includes(w.status));
   const area=works.reduce((sum,w)=>sum+toNumber(w.surfaceWorked),0),cost=works.reduce((sum,w)=>sum+totalWorkCost(w),0);
   const today=isoDate(now),tasks=active(state,'tasks').filter(t=>t.status!=='Terminé'&&t.dueDate&&t.dueDate<=today),urgentObs=active(state,'observations').filter(o=>o.status!=='Résolu'&&norm(o.severity)==='urgent');
-  const lowStock=active(state,'stockItems').filter(isLowStock);
+  const lowStock=active(state,'stockItems').filter(isLowStock),late=overdueWorks(state,now);
   const maintenance=active(state,'materiels').filter(m=>maintenanceRemaining(m)!==null&&maintenanceRemaining(m)<=20);
-  const bits=[`${works.length} travail${works.length!==1?'aux':''} ${range.label}`,`${done.length} terminé${done.length>1?'s':''}`,`${planned.length} à faire`];
+  const bits=[`${worksLabel(works.length)} ${range.label}`,`${done.length} terminé${done.length>1?'s':''}`,`${planned.length} à faire`];
   if(area>0)bits.push(`${fmt(area)} ha saisis`);if(cost>0)bits.push(`${euro(cost)} de coûts saisis`);
-  const alerts=[];if(tasks.length)alerts.push(`${tasks.length} tâche${tasks.length>1?'s':''} à traiter`);if(urgentObs.length)alerts.push(`${urgentObs.length} observation${urgentObs.length>1?'s':''} urgente${urgentObs.length>1?'s':''}`);if(lowStock.length)alerts.push(`${lowStock.length} stock${lowStock.length>1?'s':''} faible${lowStock.length>1?'s':''}`);if(maintenance.length)alerts.push(`${maintenance.length} entretien${maintenance.length>1?'s':''} proche${maintenance.length>1?'s':''}`);
-  const actions=[];for(const work of works.slice(0,4))actions.push({type:'open_work',label:`Ouvrir · ${work.type||'Travail'}`,payload:{workId:work.id}});
-  return{range,works,done,planned,area,cost,tasks,urgentObs,lowStock,maintenance,answer:`${bits.join(' · ')}.${alerts.length?` À surveiller : ${alerts.join(', ')}.`:''}`,actions};
+  const alerts=[];if(late.length)alerts.push(`${worksLabel(late.length)} en retard`);if(tasks.length)alerts.push(`${tasks.length} tâche${tasks.length>1?'s':''} à traiter`);if(urgentObs.length)alerts.push(`${urgentObs.length} observation${urgentObs.length>1?'s':''} urgente${urgentObs.length>1?'s':''}`);if(lowStock.length)alerts.push(`${lowStock.length} stock${lowStock.length>1?'s':''} faible${lowStock.length>1?'s':''}`);if(maintenance.length)alerts.push(`${maintenance.length} entretien${maintenance.length>1?'s':''} proche${maintenance.length>1?'s':''}`);
+  const actions=[];for(const work of [...works,...late.filter(w=>!works.includes(w))].slice(0,4))actions.push({type:'open_work',label:`Ouvrir · ${work.type||'Travail'}`,payload:{workId:work.id}});
+  return{range,works,done,planned,area,cost,overdueWorks:late,tasks,urgentObs,lowStock,maintenance,answer:`${bits.join(' · ')}.${alerts.length?` À surveiller : ${alerts.join(', ')}.`:''}`,actions};
 }
 
 function assolementAnswer(state){
@@ -111,7 +115,7 @@ function observationsAnswer(state){
 }
 
 function tasksAnswer(state){
-  const today=isoDate(Date.now()),rows=active(state,'tasks').filter(t=>t.status!=='Terminé'&&t.dueDate&&t.dueDate<today).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
+  const today=localIso(),rows=active(state,'tasks').filter(t=>t.status!=='Terminé'&&t.dueDate&&t.dueDate<today).sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
   if(!rows.length)return{answer:'Aucune tâche en retard.',actions:[]};
   return{answer:`${rows.length} tâche${rows.length>1?'s':''} en retard : ${rows.slice(0,8).map(t=>t.title||'Tâche').join(' · ')}.`,actions:rows.slice(0,4).map(t=>({type:'open_task',label:`Ouvrir · ${t.title||'Tâche'}`,payload:{taskId:t.id}}))};
 }
@@ -124,20 +128,21 @@ function chantierAnswer(state){
 
 function alertBrief(state){
   const task=tasksAnswer(state),obs=observationsAnswer(state),stock=stockAnswer(state),maint=maintenanceAnswer(state);
-  const today=isoDate(Date.now());
+  const today=localIso();
   const taskRows=active(state,'tasks').filter(t=>t.status!=='Terminé'&&t.dueDate&&t.dueDate<today);
   const obsRows=active(state,'observations').filter(o=>o.status!=='Résolu'&&norm(o.severity)==='urgent');
   const stockRows=active(state,'stockItems').filter(isLowStock);
   const maintRows=active(state,'materiels').filter(m=>maintenanceRemaining(m)!==null&&maintenanceRemaining(m)<=20);
-  const total=taskRows.length+obsRows.length+stockRows.length+maintRows.length;
-  if(!total)return{answer:'Aucune alerte terrain prioritaire : pas de tâche en retard, observation urgente, stock sous seuil ni entretien à moins de 20 h.',actions:[]};
-  const parts=[];if(taskRows.length)parts.push(`${taskRows.length} tâche${taskRows.length>1?'s':''} en retard`);if(obsRows.length)parts.push(`${obsRows.length} observation${obsRows.length>1?'s':''} urgente${obsRows.length>1?'s':''}`);if(stockRows.length)parts.push(`${stockRows.length} stock${stockRows.length>1?'s':''} sous seuil`);if(maintRows.length)parts.push(`${maintRows.length} entretien${maintRows.length>1?'s':''} proche${maintRows.length>1?'s':''}`);
-  return{answer:`Alertes terrain : ${parts.join(' · ')}.`,actions:[...task.actions,...obs.actions,...stock.actions,...maint.actions].slice(0,6)};
+  const workRows=overdueWorks(state);
+  const total=workRows.length+taskRows.length+obsRows.length+stockRows.length+maintRows.length;
+  if(!total)return{answer:'Aucune alerte terrain prioritaire : pas de travail ni de tâche en retard, observation urgente, stock sous seuil ni entretien à moins de 20 h.',actions:[]};
+  const parts=[];if(workRows.length)parts.push(`${worksLabel(workRows.length)} en retard`);if(taskRows.length)parts.push(`${taskRows.length} tâche${taskRows.length>1?'s':''} en retard`);if(obsRows.length)parts.push(`${obsRows.length} observation${obsRows.length>1?'s':''} urgente${obsRows.length>1?'s':''}`);if(stockRows.length)parts.push(`${stockRows.length} stock${stockRows.length>1?'s':''} sous seuil`);if(maintRows.length)parts.push(`${maintRows.length} entretien${maintRows.length>1?'s':''} proche${maintRows.length>1?'s':''}`);
+  return{answer:`Alertes terrain : ${parts.join(' · ')}.`,actions:[...workRows.slice(0,4).map(w=>({type:'open_work',label:`Ouvrir · ${w.type||'Travail'}`,payload:{workId:w.id}})),...task.actions,...obs.actions,...stock.actions,...maint.actions].slice(0,6)};
 }
 
 function extractWorkType(question,parcel){
   let type=String(question||'');const verbs=/\b(ajoute|ajouter|cree|creer|planifie|planifier|enregistre|enregistrer|demarre|demarrer)\b/i;const hit=type.match(verbs);if(hit)type=type.slice((hit.index||0)+hit[0].length);
-  type=type.replace(/^\s*(un|une|le|la|du|de la|des)?\s*/i,'');
+  type=type.replace(/^\s*(?:(?:une|un|les|le|la|du|de\s+la|des)\b\s*)?/i,'');
   if(parcel){const escaped=parcel.nom.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');type=type.replace(new RegExp(`\\s+(sur|dans|pour)\\s+(la\\s+parcelle\\s+)?${escaped}.*$`,'i'),'');}
   type=type.replace(/\b(aujourd’hui|aujourd'hui|demain|maintenant)\b/ig,'').trim();return type||'Travail';
 }
@@ -171,28 +176,36 @@ export function answerLocalIntelligence(question,state,context={}){
   const writeVerb=/\b(ajoute|ajouter|cree|creer|planifie|planifier|enregistre|enregistrer|demarre|demarrer)\b/.test(q);
   if(writeVerb&&/\b(tache|rappel)\b/.test(q)){
     const title=raw.replace(/^.*?\b(?:tâche|tache|rappel)\b\s*/i,'').replace(/\b(aujourd’hui|aujourd'hui|demain)\b/ig,'').trim()||'Tâche';
-    const dueDate=/\bdemain\b/.test(q)?isoDate(Date.now()+86400000):isoDate(Date.now());
+    const dueDate=/\bdemain\b/.test(q)?localIso(new Date(new Date().setDate(new Date().getDate()+1))):localIso();
     return{recognized:true,intent:'create_task',answer:`Je peux préparer la tâche « ${title} ». Je ne l’enregistrerai qu’après confirmation.`,actions:[{type:'create_task',label:'Vérifier et créer la tâche',requiresConfirmation:true,payload:{title,dueDate,parcelId:parcel?.id||''}}]};
   }
+  // Une mise au pré n'est pas un travail : on ouvre l'entrée de pâturage (lot et effectif à vérifier).
+  if(writeVerb&&parcel&&(/\b(au pre|en pature|paturage|mise a l herbe)\b/.test(q)||/\b\d+\s*(vaches?|genisses?|bovins?|brebis|moutons?|chevres?|chevaux|juments?|taurillons?|veaux?|animaux)\b/.test(q))){
+    return{recognized:true,intent:'grazing_entry',answer:`Je peux ouvrir la mise au pré sur ${parcel.nom}. Choisissez le lot et vérifiez l’effectif avant d’enregistrer.`,actions:[{type:'open_grazing',label:'Ouvrir la mise au pré',payload:{parcelIds:[parcel.id],date:localIso()}}]};
+  }
   if(writeVerb&&parcel){
-    const type=extractWorkType(raw,parcel),tomorrow=/\bdemain\b/.test(q),date=tomorrow?isoDate(Date.now()+86400000):isoDate(Date.now()),status=/\b(planifie|planifier|demain)\b/.test(q)?'À faire':'Terminé';
+    const type=extractWorkType(raw,parcel),tomorrow=/\bdemain\b/.test(q),date=tomorrow?localIso(new Date(new Date().setDate(new Date().getDate()+1))):localIso(),status=/\b(planifie|planifier|demain)\b/.test(q)?'À faire':'Terminé';
     return{recognized:true,intent:'create_work',answer:`Je peux préparer « ${type} » sur ${parcel.nom}. Je ne modifierai rien avant votre confirmation.`,actions:[{type:'create_work',label:`Vérifier · ${type}`,requiresConfirmation:true,payload:{parcelId:parcel.id,type,date,status}}]};
   }
   if(/\b(resume|résume|bilan)\b/.test(raw.toLowerCase())&&/\b(semaine|hebdo)\b/.test(q)){const brief=buildActivityBrief(state,{period:'week'});return{recognized:true,intent:'weekly_brief',answer:brief.answer,actions:brief.actions,metrics:brief};}
   if(/\b(resume|résume|bilan|journee|journée)\b/.test(raw.toLowerCase())&&/\b(aujourd|journee|journée|jour)\b/.test(raw.toLowerCase())){const brief=buildActivityBrief(state,{period:'today'});return{recognized:true,intent:'daily_brief',answer:brief.answer,actions:brief.actions,metrics:brief};}
-  if(/\b(travaux?|interventions?)\b/.test(q)&&/\baujourd/.test(q)){const list=worksForRange(state,dayRange());return{recognized:true,intent:'works_today',answer:`${list.length} travail${list.length!==1?'aux':''} aujourd’hui${list.length?` : ${list.slice(0,8).map(w=>`${w.type||'Travail'} — ${parcelName(state,w.parcelId)}`).join(' · ')}`:''}.`,actions:list.slice(0,4).map(w=>({type:'open_work',label:`Ouvrir · ${w.type||'Travail'}`,payload:{workId:w.id}}))};}
-  if(/\b(travaux?|interventions?)\b/.test(q)&&/\bhier\b/.test(q)){const list=worksForRange(state,dayRange(Date.now(),-1));return{recognized:true,intent:'works_yesterday',answer:`${list.length} travail${list.length!==1?'aux':''} hier${list.length?` : ${list.slice(0,8).map(w=>`${w.type||'Travail'} — ${parcelName(state,w.parcelId)}`).join(' · ')}`:''}.`,actions:list.slice(0,4).map(w=>({type:'open_work',label:`Ouvrir · ${w.type||'Travail'}`,payload:{workId:w.id}}))};}
+  if(/\b(travaux?|interventions?)\b/.test(q)&&/\baujourd/.test(q)){const list=worksForRange(state,dayRange());return{recognized:true,intent:'works_today',answer:`${worksLabel(list.length)} aujourd’hui${list.length?` : ${list.slice(0,8).map(w=>`${w.type||'Travail'} — ${parcelName(state,w.parcelId)}`).join(' · ')}`:''}.`,actions:list.slice(0,4).map(w=>({type:'open_work',label:`Ouvrir · ${w.type||'Travail'}`,payload:{workId:w.id}}))};}
+  if(/\b(travaux?|interventions?)\b/.test(q)&&/\bhier\b/.test(q)){const list=worksForRange(state,dayRange(Date.now(),-1));return{recognized:true,intent:'works_yesterday',answer:`${worksLabel(list.length)} hier${list.length?` : ${list.slice(0,8).map(w=>`${w.type||'Travail'} — ${parcelName(state,w.parcelId)}`).join(' · ')}`:''}.`,actions:list.slice(0,4).map(w=>({type:'open_work',label:`Ouvrir · ${w.type||'Travail'}`,payload:{workId:w.id}}))};}
   if(/\b(alerte|alertes|surveiller|priorite|priorités|priorites)\b/.test(q)||([/\bstock/.test(q),/\bobservation/.test(q),/\btache/.test(q),/\b(entretien|maintenance)/.test(q)].filter(Boolean).length>=2)){const x=alertBrief(state);return{recognized:true,intent:'terrain_alerts',...x};}
   if(/\b(entretien|maintenance|machines?|materiels?|matériels?)\b/.test(raw.toLowerCase())&&/\b(bientot|bientôt|proche|du|dû|entretien|maintenance)\b/.test(raw.toLowerCase())){const x=maintenanceAnswer(state);return{recognized:true,intent:'maintenance_due',...x};}
-  if(/\b(stock|stocks|rupture|seuil)\b/.test(q)&&/\b(faible|bas|rupture|seuil|alerte|quels|quel)\b/.test(q)){const x=stockAnswer(state);return{recognized:true,intent:'low_stock',...x};}
+  if(/\bstocks?\b/.test(q)&&!/\b(faibles?|bas|rupture|seuil|alerte)\b/.test(q)){const m=q.match(/\bstocks?\s+(?:de|d|du|des|en)\s+(.+?)\s*$/);if(m){const term=m[1].trim(),one=term.replace(/s$/,''),items=active(state,'stockItems').filter(x=>{const n=norm(x.name),c=norm(x.category);return Boolean(n&&(n.includes(one)||term.includes(n)))||Boolean(c&&(c.includes(one)||term.includes(c)));});return{recognized:true,intent:'stock_quantity',answer:items.length?`${items.slice(0,8).map(x=>`${x.name||'Article'} : ${fmt(x.quantity)} ${x.unit||''}`.trim()).join(' · ')}.`:`Aucun article de stock ne correspond à « ${term} ».`,actions:items.slice(0,4).map(x=>({type:'open_stock',label:`Ouvrir · ${x.name||'Stock'}`,payload:{stockId:x.id}}))};}}
+  if(/\b(stock|stocks|rupture|seuil)\b/.test(q)&&/\b(faibles?|bas|rupture|seuil|alerte|quels|quel)\b/.test(q)){const x=stockAnswer(state);return{recognized:true,intent:'low_stock',...x};}
   if(/\b(observation|observations|alerte terrain)\b/.test(q)&&/\b(urgent|urgente|urgentes|ouvert|surveiller)\b/.test(q)){const x=observationsAnswer(state);return{recognized:true,intent:'urgent_observations',...x};}
   if(/\b(tache|taches|tâche|tâches)\b/.test(raw.toLowerCase())&&/\b(retard|en retard)\b/.test(raw.toLowerCase())){const x=tasksAnswer(state);return{recognized:true,intent:'overdue_tasks',...x};}
+  if(/\ben retard\b/.test(q)){const rows=overdueWorks(state);return{recognized:true,intent:'overdue_works',answer:rows.length?`${worksLabel(rows.length)} en retard : ${rows.slice(0,8).map(w=>`${w.type||'Travail'} — ${parcelName(state,w.parcelId)}`).join(' · ')}.`:'Aucun travail en retard.',actions:rows.slice(0,4).map(w=>({type:'open_work',label:`Ouvrir · ${w.type||'Travail'}`,payload:{workId:w.id}}))};}
+  if(/\b(animaux|lots?|troupeaux?|betes|vaches|genisses|brebis)\b/.test(q)&&/\b(ou|pre|pres|pature|paturent|paturage)\b/.test(q)){const rows=active(state,'grazingSessions').filter(s=>grazingStatus(s)==='current');return{recognized:true,intent:'grazing_current',answer:rows.length?`${rows.length} lot${rows.length>1?'s':''} au pré : ${rows.slice(0,8).map(s=>{const n=grazingTotal(s);return`${s.lotName||s.name||grazingType(s)} — ${parcelName(state,s.parcelId)}${n?` (${n})`:''}`;}).join(' · ')}.`:'Aucun lot au pré.',actions:[...new Set(rows.map(s=>s.parcelId).filter(Boolean))].slice(0,4).map(id=>({type:'open_parcel',label:`Ouvrir · ${parcelName(state,id)}`,payload:{parcelId:id}}))};}
   if(/\bchantier/.test(q)&&/\b(en cours|actif|planifie|planifié|quels|quel)\b/.test(raw.toLowerCase())){const x=chantierAnswer(state);return{recognized:true,intent:'chantiers',...x};}
   if(/\bassolement\b/.test(q))return{recognized:true,intent:'crop_plan',answer:assolementAnswer(state),actions:[]};
 
   const structured=filterParcelsStructured(raw,state,{now:context.now??Date.now()});
-  if(structured.recognized){const area=structured.rows.reduce((s,p)=>s+toNumber(p.surfaceHa),0),map=showOnMapAction(state,structured.rows.map(p=>p.id));return{recognized:true,intent:'parcel_filter',answer:`${structured.rows.length} parcelle${structured.rows.length>1?'s':''} correspondent (${fmt(area)} ha)${structured.rows.length?` : ${structured.rows.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:[...(map?[map]:[]),...structured.rows.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))],matches:structured.rows.map(p=>p.id)};}
+  if(structured.recognized){const area=structured.rows.reduce((s,p)=>s+toNumber(p.surfaceHa),0),map=showOnMapAction(state,structured.rows.map(p=>p.id));return{recognized:true,intent:'parcel_filter',answer:`${structured.rows.length?`${structured.rows.length} parcelle${structured.rows.length>1?'s correspondent':' correspond'} (${fmt(area)} ha)`:'Aucune parcelle ne correspond'}${structured.rows.length?` : ${structured.rows.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:[...(map?[map]:[]),...structured.rows.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))],matches:structured.rows.map(p=>p.id)};}
   if(/\bsans culture\b/.test(q)){const list=parcels.filter(p=>!String(p.culture||'').trim());return{recognized:true,intent:'missing_crop',answer:`${list.length} parcelle${list.length>1?'s':''} sans culture${list.length?` : ${list.slice(0,8).map(p=>p.nom).join(', ')}`:''}.`,actions:list.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))};}
+  if(/\bcereales?\b/.test(q)){const list=parcels.filter(p=>/\b(ble|orge|mais|triticale|avoine|seigle|epeautre|sorgho|cereales?)\b/.test(norm(p.culture))),area=list.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'cereal_area',answer:list.length?`${fmt(area)} ha de céréales sur ${list.length} parcelle${list.length>1?'s':''} : ${list.slice(0,8).map(p=>`${p.nom} (${p.culture})`).join(', ')}.`:'Aucune parcelle en céréales.',actions:list.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))};}
   if(/\b(combien|nombre)\b/.test(q)&&/\bparcelle/.test(q)){const own=parcels.filter(p=>(p.ownershipType||'own')==='own'),area=own.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'parcel_count',answer:`${parcels.length} parcelles actives, dont ${own.length} de l’exploitation pour ${fmt(area)} ha.`,actions:[]};}
   const culture=cultureFromQuestion(raw,state);
   if(culture&&/\b(surface|hectare|hectares|ha|combien)\b/.test(q)){const list=parcels.filter(p=>norm(p.culture)===norm(culture)),area=list.reduce((s,p)=>s+toNumber(p.surfaceHa),0);return{recognized:true,intent:'crop_area',answer:`${fmt(area)} ha en ${culture}, répartis sur ${list.length} parcelle${list.length>1?'s':''}.`,actions:list.slice(0,5).map(p=>({type:'open_parcel',label:`Ouvrir · ${p.nom}`,payload:{parcelId:p.id}}))};}
@@ -203,14 +216,14 @@ export function answerLocalIntelligence(question,state,context={}){
 
 export function intelligenceCapabilities(){return{
   local:true,offline:true,writeConfirmation:true,
-  intents:['daily_brief','weekly_brief','parcel_context','parcel_filter','crop_area','works_today','maintenance_due','low_stock','urgent_observations','overdue_tasks','chantiers','create_work','create_task']
+  intents:['daily_brief','weekly_brief','parcel_context','parcel_filter','crop_area','works_today','maintenance_due','low_stock','urgent_observations','overdue_tasks','overdue_works','grazing_current','grazing_entry','cereal_area','stock_quantity','chantiers','create_work','create_task']
 };}
 
 // A journal produces a draft and explicit alternatives, never a write action.
 export function parseVoiceJournal(text,state){
   const q=norm(text),parcelCandidates=active(state,'parcelles').filter(p=>norm(p.nom)&&q.includes(norm(p.nom)));
   const equipmentCandidates=active(state,'materiels').filter(m=>[m.nom,m.brand,m.model].some(v=>norm(v).length>2&&q.includes(norm(v))));
-  const type=[['Semis',/\b(semis|seme|semer)\b/],['Fauche',/\b(fauche|faucher)\b/],['Fertilisation',/\b(fertilisation|fertilise|engrais)\b/],['Pulvérisation',/\b(pulverisation|pulverise|traite)\b/],['Labour',/\b(labour|laboure)\b/]].find(([,pattern])=>pattern.test(q))?.[0]||'';
+  const type=[['Semis',/\b(semis|seme|semer)\b/],['Fauche',/\b(fauche|faucher)\b/],['Fertilisation',/\b(fertilisation|fertilise|engrais)\b/],['Pulvérisation',/\b(pulverisation|pulverise|traite)\b/],['Labour',/\b(labour|laboure)\b/]].find(([,pattern])=>pattern.test(q))?.[0]||matchWorkType(text,state).type||'';
   const dose=q.match(/(\d+(?:[.,]\d+)?)\s*(kilos?|kilogrammes?|kg|litres?|l|tonnes?|t)\s*(?:par\s*|\/\s*)?(?:hectares?|ha)\b/);
   const units={kg:'kg/ha',l:'L/ha',t:'t/ha'},unit=dose?/^(kilo|kg)/.test(dose[2])?'kg':/^(litre|l$)/.test(dose[2])?'l':'t':null;
   const times=[...q.matchAll(/\b(\d{1,2})\s*(?:heures?|h|:)\s*(\d{1,2})?\b/g)].map(m=>({h:Number(m[1]),m:Number(m[2]||0)})).filter(t=>t.h<24&&t.m<60).map(t=>`${String(t.h).padStart(2,'0')}:${String(t.m).padStart(2,'0')}`);

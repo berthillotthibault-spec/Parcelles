@@ -230,7 +230,7 @@ export function longOpenLots(state,{date=new Date(),threshold=null}={}){
   const stillThere=isRecord(state?.preferences?.grazingStillThere)?state.preferences.grazingStillThere:{};
   const names=new Map((state?.parcelles||[]).map(p=>[p.id,text(p.nom)]));
   return liveSessions(state?.grazingSessions).filter(s=>grazingStatus(s,{date:day})==='current'&&s.startDate).flatMap(s=>{
-    const start=grazingDate(s.startDate),days=daysBetween(start,day);
+    const start=grazingContinuousStart(state?.grazingSessions,s),days=daysBetween(start,day);
     // Changement d'année : rappel seulement pour un lot entré depuis au moins 30 jours (pas le 1er janvier pour une entrée du 28 décembre).
     if(days<limit&&(start.slice(0,4)===day.slice(0,4)||days<30))return [];
     // « Toujours là » : plus de rappel pendant 30 jours.
@@ -247,6 +247,20 @@ export function isForageParcel(parcel,sessions=[]){
 }
 
 const lotKey=session=>normalize(text(session?.note)||`${grazingType(session)} ${session?.animalCategory||''}`);
+/**
+ * Début de la présence continue d'un lot sur son pré : remonte les passages du même lot, sur le même pré, clos le jour
+ * où le suivant commence (lot fractionné par un retrait). Un lot déplacé sur un autre pré repart à son entrée.
+ */
+export function grazingContinuousStart(sessions,session){
+  let start=grazingDate(session?.startDate);
+  const list=liveSessions(sessions),key=lotKey(session),seen=new Set([session?.id]);
+  for(let i=0;start&&i<50;i++){
+    const p=list.find(x=>!seen.has(x.id)&&x.parcelId===session.parcelId&&x.endDate&&grazingDate(x.endDate)===start&&lotKey(x)===key);
+    if(!p)break;
+    seen.add(p.id);start=grazingDate(p.startDate)||start;
+  }
+  return start;
+}
 const lotLabel=session=>text(session?.note)||[grazingType(session),ugbCategory(session?.animalCategory)?.label].filter(Boolean).join(' · ');
 
 /** Bilan de l’exploitation sur une année civile, arrêté à la date du jour. */

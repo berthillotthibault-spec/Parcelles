@@ -1,4 +1,4 @@
-import {APP_VERSION, BUILD_ID, ENTITY_TYPES, campaignFor, checksum, clone, escapeHtml, geometryAreaHa, geometryBbox, normalize, pointInGeometry, parseImportDate, toNullableNumber, uid, validateGeometry, validateIntervention, validateParcel} from './utils.js';
+import {APP_VERSION, BUILD_ID, ENTITY_TYPES, campaignFor, checksum, clone, csvFormulaSafe, escapeHtml, geometryAreaHa, geometryBbox, normalize, pointInGeometry, parseImportDate, toNullableNumber, uid, validateGeometry, validateIntervention, validateParcel} from './utils.js';
 import {migrateData, newerSchemaError, normalizeEntity, storedSchemaVersion} from './state.js';
 import {dbfEncoding, parseDbf, parseShpDbf} from './shapefile-fallback.js';
 import {html} from './safe-html.js';
@@ -60,7 +60,7 @@ function objectFromRow(row,headers,mapping={}){
     surfaceHa:toNullableNumber(field('surfaceHa')),culture:String(field('culture')??'').trim(),
     commune:String(field('commune')??'').trim(),ilot:String(field('ilot')??'').trim(),exploitant:String(field('exploitant')??'').trim(),
     status:String(field('status')??'').trim(),type:String(field('type')??'').trim(),date:field('date'),
-    product:String(field('product')??'').trim(),dose:field('dose'),doseUnit:String(field('doseUnit')??'').trim(),cost:toNullableNumber(field('cost')),workSurfaceHa:toNullableNumber(field('workSurface')),workId:String(field('workId')??'').trim(),
+    product:String(field('product')??'').trim(),dose:toNullableNumber(field('dose')),doseUnit:String(field('doseUnit')??'').trim(),cost:toNullableNumber(field('cost')),workSurfaceHa:toNullableNumber(field('workSurface')),workId:String(field('workId')??'').trim(),
     pacCode:String(field('pacCode')??'').trim().toUpperCase(),declaredSurfaceHa:toNullableNumber(field('declaredSurfaceHa')),
     raw:row
   };
@@ -147,7 +147,7 @@ async function readZipEntries(file){
 async function zipContent(file){
   const entries=await readZipEntries(file);
   const task=entries.find(entry=>/(^|\/)TASKDATA\.XML$/i.test(entry.name));if(task)return[{name:task.name,type:'isoxml',value:await readImportText(task)}]; // n° 124
-  const geo=entries.find(entry=>/\.(geo)?json$/i.test(entry.name));if(geo)return[{name:geo.name,type:'geojson',value:JSON.parse(await readImportText(geo)),engine:'json'}];
+  const geo=entries.find(entry=>/\.(geo)?json$/i.test(entry.name));if(geo)return[{name:geo.name,type:'geojson',value:parseJsonText(await readImportText(geo),geo.name),engine:'json'}];
   const csv=entries.find(entry=>/\.csv$/i.test(entry.name));if(csv)return[{name:csv.name,type:'csv',value:await readImportText(csv),engine:'csv'}];
   const groups=new Map();
   for(const entry of entries){const ext=extensionOf(entry.name);if(!['.shp','.shx','.dbf','.prj','.cpg'].includes(ext))continue;const base=baseNameOf(entry.name.split('/').pop()),key=normalize(base);if(!groups.has(key))groups.set(key,{base,parts:{}});groups.get(key).parts[ext.slice(1)]=entry;}
@@ -175,6 +175,8 @@ async function looseShapefileContent(group){
   return parseShapefileParts({name:`${group.base}.shp`,shp:await shp.arrayBuffer(),dbf:await dbf.arrayBuffer(),prj:prj?await prj.text():'',cpg:cpg?await cpg.text():''});
 }
 
+// Traduit l’erreur du parseur (en anglais) ; le détail technique reste dans « cause ».
+function parseJsonText(text,name,message){try{return JSON.parse(text);}catch(error){throw new Error(message||`Fichier illisible : ${name} n’est pas un JSON valide (contenu incomplet ou abîmé).`,{cause:error});}}
 function classifyRows(rows,state){
   const existing=state.parcelles.filter(item=>!item.deletedAt);let duplicates=0,newRows=0,changed=0;const duplicateDetails=[];
   rows.filter(row=>row.nom&&!row.type).forEach(row=>{
@@ -209,7 +211,7 @@ export async function inspectFiles(files,state,mapping={}){
       const ext=extensionOf(file.name);let sources=[];
       if(ext==='.csv'){const sets=csvRows(await readImportText(file));sources=sets.map(s=>({file:file.name,type:'csv',...s,hasGeometry:false,engine:'PapaParse'}));}
       else if(['.xlsx','.xls'].includes(ext)){const sets=await spreadsheetRows(await file.arrayBuffer());sources=sets.map(s=>({file:file.name,type:'sheet',...s,hasGeometry:false,engine:'SheetJS'}));}
-      else if(['.json','.geojson'].includes(ext)){const value=JSON.parse(await readImportText(file)),rows=flattenGeoJson(value);sources=[{file:file.name,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:rows.some(r=>r.geometry),engine:'JSON'}];}
+      else if(['.json','.geojson'].includes(ext)){const value=parseJsonText(await readImportText(file),file.name),rows=flattenGeoJson(value);sources=[{file:file.name,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:rows.some(r=>r.geometry),engine:'JSON'}];}
       else if(ext==='.xml'){const text=await readImportText(file);if(isTaskDataXml(text))sources=[isoxmlSource(file.name,text,state,warnings)];else{const sets=xmlRows(text);sources=sets.map(s=>({file:file.name,type:'xml',...s,hasGeometry:false,engine:'DOMParser'}));}}
       else if(ext==='.kml'||ext==='.kmz'){const value=await kmlContent(file,ext),rows=flattenGeoJson(value);sources=[{file:file.name,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:true,engine:'KML'}];}
       else if(ext==='.zip'){const inputs=await zipContent(file);for(const input of inputs){if(input.type==='isoxml')sources.push(isoxmlSource(`${file.name}/${input.name}`,input.value,state,warnings));else if(input.type==='csv'){const sets=csvRows(input.value);sources.push(...sets.map(s=>({file:`${file.name}/${input.name}`,type:'csv',...s,hasGeometry:false,engine:'PapaParse'})));}else{const rows=flattenGeoJson(input.value);sources.push({file:`${file.name}/${input.name}`,type:'geojson',sheet:null,rows,headers:Object.keys(rows[0]||{}).filter(k=>!['_feature','geometry'].includes(k)),hasGeometry:true,engine:input.engine,diagnostic:input.diagnostic});}}}
@@ -222,9 +224,10 @@ export async function inspectFiles(files,state,mapping={}){
   for(const source of parsed)if(isTelepacHeaders(source.headers)){source.rows=telepacRows(source.rows,source.headers);source.headers=telepacHeaders(source.headers);source.telepac=true;}
   // n° 124 : historique d'un autre logiciel ; seules les lignes d'intervention comptent, jamais de parcelle créée.
   const history=isHistoryMapping(mapping),all=normalizeSources(parsed,mapping),normalized=history?all.filter(row=>row.type):all;const parcelCandidates=normalized.filter(row=>row.nom&&!row.type);
-  const validParcels=parcelCandidates.filter(row=>!validateParcel(row).length);const probableInterventions=normalized.filter(row=>row.type&&(row.date||row.product));
+  const validParcels=parcelCandidates.filter(row=>!validateParcel(row).length);for(const row of parcelCandidates){const errors=validateParcel(row);if(errors.length)warnings.push(`Ligne « ${row.nom} » ignorée : ${errors.join(', ')}.`);}const probableInterventions=normalized.filter(row=>row.type&&(row.date||row.product));
   const invalidGeometry=normalized.filter(row=>row.geometry&&validateGeometry(row.geometry).length).length;
   if(history)warnings.push(...historyWarnings(normalized,state,all.length-normalized.length));
+  const hc=history?historyCounts(normalized,state):null;
   parsed.forEach(source=>{
     if(!source.rows.length||source.prenormalized||history)return;const sample=source.rows[0],h=source.headers||Object.keys(sample||{}),missing=[];
     if(valueFromRow(sample,'name',h,mapping)===undefined)missing.push('nom (NOM_PARCEL)');
@@ -233,12 +236,12 @@ export async function inspectFiles(files,state,mapping={}){
     if(missing.length)warnings.push(`${source.file}${source.sheet?` / ${source.sheet}`:''} : champs utiles absents : ${missing.join(', ')}.`);
   });
   if(parsed.length&&!history&&!parcelCandidates.length&&!parsed.every(s=>s.prenormalized)){const keys=[...new Set(parsed.flatMap(s=>s.headers))].slice(0,40);warnings.unshift(`Aucune parcelle nommée détectée. Utilisez la correspondance manuelle des colonnes. Champs reçus : ${keys.join(', ')||'aucun'}.`);}
-  const classification=classifyRows(normalized,state);
+  const classification=classifyRows(validParcels,state);
   const surface=validParcels.reduce((sum,row)=>sum+(row.surfaceHa||0),0);
   return{
     engineBuild:IMPORT_ENGINE_BUILD,mapping,history,suggestedMapping:suggestMapping(parsed.flatMap(s=>s.headers||[]),mapping),sources:parsed.map(s=>({file:s.file,sheet:s.sheet,rows:s.rows.length,type:s.type,hasGeometry:s.hasGeometry,headers:s.headers,engine:s.engine,diagnostic:s.diagnostic,telepac:Boolean(s.telepac)})),
     telepac:parsed.some(s=>s.telepac)?{comparison:telepacComparison(state?.parcelles,normalized.filter(row=>row.nom&&!row.type))}:null,
-    rows:normalized,durationMs:Math.round((performance?.now?.()??Date.now())-started),summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface,cultures:[...new Set(validParcels.map(r=>r.culture).filter(Boolean))],communes:[...new Set(validParcels.map(r=>r.commune).filter(Boolean))],geometryValid:normalized.filter(r=>r.geometry&&!validateGeometry(r.geometry).length).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(r=>!r.nom&&!r.type).length,...classification},warnings,invalid
+    rows:normalized,durationMs:Math.round((performance?.now?.()??Date.now())-started),summary:{parcels:validParcels.length,interventions:probableInterventions.length,surface,cultures:[...new Set(validParcels.map(r=>r.culture).filter(Boolean))],communes:[...new Set(validParcels.map(r=>r.commune).filter(Boolean))],geometryValid:normalized.filter(r=>r.geometry&&!validateGeometry(r.geometry).length).length,geometryInvalid:invalidGeometry,ignored:normalized.filter(r=>!r.nom&&!r.type).length,...classification,...(hc?{historyNew:hc.fresh,historyDuplicates:hc.dup,historyMissing:[...hc.missing.values()].reduce((a,b)=>a+b,0),historyUndated:hc.undated}:{})},warnings,invalid
   };
 }
 
@@ -252,6 +255,8 @@ export const WORK_MAPPING_FIELDS=Object.freeze([['date','Date'],['type','Type d�
 export function suggestMapping(headers=[],mapping={}){
   const list=[...new Set(headers)],out={};
   for(const [key] of [...PARCEL_MAPPING_FIELDS,...WORK_MAPPING_FIELDS]){const found=findField(list,key,mapping);if(found)out[key]=found;}
+  // Historique : la surface de parcelle n'est pas proposée, une colonne « Surface » est la surface travaillée.
+  if(isHistoryMapping(mapping)&&!out.workSurface&&out.surfaceHa){out.workSurface=out.surfaceHa;delete out.surfaceHa;}
   return out;
 }
 /** Champs obligatoires de la correspondance : nom de parcelle, et pour un historique date et type. */
@@ -269,15 +274,20 @@ export function workRowSourceId(row,parcelId,date){
 }
 // Historique : la parcelle est retrouvée par son nom (et sa commune si la colonne existe), jamais par l'identifiant de la ligne.
 const historyParcel=(row,parcels)=>parcelMatch({nom:row.nom,commune:row.commune,sourceId:null},parcels);
-function historyWarnings(rows,state,ignored){
-  const out=[],parcels=state?.parcelles||[],missing=new Map();let dup=0,undated=0;
+// Compteurs d'un historique : travaux à créer, déjà importés, sans parcelle du même nom, sans date lisible.
+function historyCounts(rows,state){
+  const parcels=state?.parcelles||[],missing=new Map();let fresh=0,dup=0,undated=0;
   const existing=new Set((state?.interventions||[]).filter(i=>!i.deletedAt&&String(i.sourceId||'').startsWith('hist:')).map(i=>i.sourceId));
   for(const row of rows){
     const parcel=historyParcel(row,parcels),date=parseImportDate(row.date);
     if(!date){undated++;continue;}
     if(!parcel){const n=row.nom||'(sans nom)';missing.set(n,(missing.get(n)||0)+1);continue;}
-    if(existing.has(workRowSourceId(row,parcel.id,date)))dup++;
+    if(existing.has(workRowSourceId(row,parcel.id,date)))dup++;else fresh++;
   }
+  return{fresh,dup,undated,missing};
+}
+function historyWarnings(rows,state,ignored){
+  const out=[],{dup,undated,missing}=historyCounts(rows,state);
   if(ignored)out.push(`${ignored} ligne(s) sans type d’intervention ignorée(s).`);
   if(undated)out.push(`${undated} ligne(s) sans date lisible : elles seront ignorées.`);
   if(missing.size)out.push(`${[...missing.values()].reduce((a,b)=>a+b,0)} intervention(s) sans parcelle du même nom dans Parcelles (${[...missing.keys()].slice(0,8).join(', ')}${missing.size>8?'…':''}) : elles seront ignorées. Importez d’abord vos parcelles ou renommez-les.`);
@@ -324,8 +334,8 @@ function parcelMatch(row,parcels){
 }
 
 export async function applyImport(preview,store,strategy='merge'){
-  const before=store.snapshot();const next=clone(before);const timestamp=Date.now();const sessionId=uid('import_session');const rollbackBackupId=`preimport_${sessionId}`;let created=0,updated=0,skipped=0,interventions=0;
-  await store.storage.backupPut({id:rollbackBackupId,period:'preimport',createdAt:timestamp,state:before});
+  const before=store.snapshot();const next=clone(before);const timestamp=Date.now();const sessionId=uid('import_session');const rollbackBackupId=`preimport_${sessionId}`;let created=0,updated=0,skipped=0,interventions=0;const ops=[];
+  await store.storage.backupPut({id:rollbackBackupId,workspaceId:store.workspaceId||'local',period:'preimport',createdAt:timestamp,state:before});
   const history=Boolean(preview.history),parcelsRows=history?[]:preview.rows.filter(row=>row.nom&&!row.type),workRows=preview.rows.filter(row=>row.type&&(row.date||row.product));
   const knownWorks=new Set(next.interventions.filter(i=>!i.deletedAt&&String(i.sourceId||'').startsWith('hist:')).map(i=>i.sourceId));
   const dynamicParcels=next.parcelles;
@@ -340,9 +350,9 @@ export async function applyImport(preview,store,strategy='merge'){
       if(strategy==='merge'){
         const preserved={...match};for(const [key,value] of Object.entries(entity)){if(value!==null&&value!==undefined&&value!=='')preserved[key]=value;}entity=preserved;
       }
-      entity=normalizeEntity('parcelles',{...entity,id:match.id},match);const idx=dynamicParcels.findIndex(p=>p.id===match.id);dynamicParcels[idx]=entity;updated++;
+      entity=normalizeEntity('parcelles',{...entity,id:match.id},match);const idx=dynamicParcels.findIndex(p=>p.id===match.id);dynamicParcels[idx]=entity;updated++;ops.push({entity:'parcelles',entityId:entity.id,action:'update',payload:clone(entity)});
     }else{
-      entity=normalizeEntity('parcelles',entity);dynamicParcels.push(entity);created++;
+      entity=normalizeEntity('parcelles',entity);dynamicParcels.push(entity);created++;ops.push({entity:'parcelles',entityId:entity.id,action:'create',payload:clone(entity)});
     }
   }
   // Resolve against all staged parcels, using the same unambiguous match as the preview.
@@ -355,11 +365,13 @@ export async function applyImport(preview,store,strategy='merge'){
     const surfaceWorked=row.isoxml?undefined:row.workSurfaceHa;
     const raw={parcelId:parcel.id,date,type:row.type,product:row.product,dose:row.dose,doseUnit:row.doseUnit,cost:row.cost??0,campaignId:campaignFor(date),source:'import',status:'Terminé',...(sourceId?{sourceId,importSessionId:sessionId}:{}),...(surfaceWorked!==undefined&&surfaceWorked!==null?{surfaceWorked}:{}),...(row.isoxml?isoxmlInterventionFields(row):{})};
     if(validateIntervention(raw).length){skipped++;continue;}
-    next.interventions.push(normalizeEntity('interventions',raw));interventions++;if(sourceId)knownWorks.add(sourceId);
+    const work=normalizeEntity('interventions',raw);next.interventions.push(work);ops.push({entity:'interventions',entityId:work.id,action:'create',payload:clone(work)});interventions++;if(sourceId)knownWorks.add(sourceId);
   }
   const session=normalizeEntity('importSessions',{id:sessionId,fileNames:preview.sources.map(s=>s.file),created,updated,skipped,interventions,surface:preview.summary.surface,engineBuild:preview.engineBuild,strategy,rollbackBackupId,source:'local',...(history?{kind:'history',preset:String(preview.mapping?.preset||'').slice(0,40)}:{})});
   next.importSessions.push(session);next.metadata.lastImportAt=timestamp;
   await store.replaceState(next,`Import atomique terminé : ${created} ${(created)>1?'créations':'création'}, ${updated} ${(updated)>1?'mises':'mise'} à jour, ${interventions} ${(interventions)>1?'travaux':'travail'}.`,{kind:'import'});
+  // replaceState ne met rien en file : chaque fiche importée part vers l’espace cloud (store.queue ne fait rien hors synchronisation).
+  if(ops.length&&typeof store.mutate==='function')await store.mutate(`Import : ${ops.length} fiche${ops.length>1?'s':''} à synchroniser.`,()=>{for(const op of ops)store.queue(op);},{queue:false,log:false,kind:'import',entity:'state',action:'restore',bypassPermissions:true});
   return{created,updated,skipped,interventions,sessionId:session.id};
 }
 
@@ -409,8 +421,8 @@ export async function createCompleteBackup(store){
 export async function parseCompleteBackup(file){
   const entries=await readZipEntries(file),byName=new Map(entries.map(entry=>[entry.name,entry]));const manifestEntry=byName.get('manifest.json'),stateEntry=byName.get('state.json');
   if(!manifestEntry||!stateEntry)throw new Error('Sauvegarde ZIP incomplète : manifest.json ou state.json absent.');
-  const manifest=JSON.parse(await manifestEntry.text());if(manifest.format!=='parcelles-backup-complete')throw new Error('Format de sauvegarde ZIP non reconnu.');
-  const rawState=JSON.parse(await stateEntry.text());if(manifest.stateChecksum&&manifest.stateChecksum!==await checksum(rawState))throw new Error('L’état de la sauvegarde a échoué au contrôle d’intégrité.');
+  const manifest=parseJsonText(await manifestEntry.text(),null,'Sauvegarde ZIP illisible : fichier interne abîmé.');if(manifest.format!=='parcelles-backup-complete')throw new Error('Format de sauvegarde ZIP non reconnu.');
+  const rawState=parseJsonText(await stateEntry.text(),null,'Sauvegarde ZIP illisible : fichier interne abîmé.');if(manifest.stateChecksum&&manifest.stateChecksum!==await checksum(rawState))throw new Error('L’état de la sauvegarde a échoué au contrôle d’intégrité.');
   assertBackupNotNewer(manifest.formatVersion,rawState);
   const blobs=[];const missing=[];const invalid=[];
   for(const meta of manifest.attachments||[]){
@@ -438,17 +450,21 @@ export async function restoreCompleteBackup(parsed,store){
 export function exportCsv(state){
   const parcels=new Map(state.parcelles.filter(i=>!i.deletedAt).map(i=>[i.id,i]));
   const rows=state.interventions.filter(i=>!i.deletedAt).map(item=>({date:item.date,statut:item.status||'',campagne:item.campaignId,type:item.type,parcelle:parcels.get(item.parcelId)?.nom||'Parcelle supprimée',culture:item.culture||parcels.get(item.parcelId)?.culture||'',produit:item.product||'',dose:item.dose??'',unite:item.doseUnit||'',surface:item.surfaceWorked??'',cout:item.cost??0,operateur:item.operator||'',materiel:item.equipmentId||'',note:item.note||''}));
-  const headers=Object.keys(rows[0]||{date:'',statut:'',campagne:'',type:'',parcelle:'',culture:'',produit:'',dose:'',unite:'',surface:'',cout:'',operateur:'',materiel:'',note:''});const quote=v=>`"${String(v??'').replaceAll('"','""')}"`;return[headers.map(quote).join(';'),...rows.map(row=>headers.map(k=>quote(row[k])).join(';'))].join('\n');
+  const headers=Object.keys(rows[0]||{date:'',statut:'',campagne:'',type:'',parcelle:'',culture:'',produit:'',dose:'',unite:'',surface:'',cout:'',operateur:'',materiel:'',note:''});const quote=v=>`"${csvFormulaSafe(v).replaceAll('"','""')}"`;return[headers.map(quote).join(';'),...rows.map(row=>headers.map(k=>quote(row[k])).join(';'))].join('\n');
 }
 export function exportParcelsCsv(state){
-  const clients=new Map(state.clients.filter(i=>!i.deletedAt).map(i=>[i.id,i]));const rows=state.parcelles.filter(i=>!i.deletedAt).map(p=>({nom:p.nom,surface_ha:p.surfaceHa??'',culture:p.culture||'',commune:p.commune||'',ilot:p.ilot||'',statut:p.status||'',type:p.ownershipType||'own',client:clients.get(p.clientId)?.name||'',source_id:p.sourceId||''}));const headers=Object.keys(rows[0]||{nom:'',surface_ha:'',culture:'',commune:'',ilot:'',statut:'',type:'',client:'',source_id:''});const q=v=>`"${String(v??'').replaceAll('"','""')}"`;return[headers.map(q).join(';'),...rows.map(r=>headers.map(k=>q(r[k])).join(';'))].join('\n');
+  const clients=new Map(state.clients.filter(i=>!i.deletedAt).map(i=>[i.id,i]));const rows=state.parcelles.filter(i=>!i.deletedAt).map(p=>({nom:p.nom,surface_ha:p.surfaceHa??'',culture:p.culture||'',commune:p.commune||'',ilot:p.ilot||'',statut:p.status||'',type:p.ownershipType||'own',client:clients.get(p.clientId)?.name||'',source_id:p.sourceId||''}));const headers=Object.keys(rows[0]||{nom:'',surface_ha:'',culture:'',commune:'',ilot:'',statut:'',type:'',client:'',source_id:''});const q=v=>`"${csvFormulaSafe(v).replaceAll('"','""')}"`;return[headers.map(q).join(';'),...rows.map(r=>headers.map(k=>q(r[k])).join(';'))].join('\n');
 }
 export function exportGeoJson(state){return JSON.stringify({type:'FeatureCollection',features:state.parcelles.filter(i=>!i.deletedAt&&i.geometry).map(item=>({type:'Feature',geometry:item.geometry,properties:{id:item.id,sourceId:item.sourceId,nom:item.nom,surfaceHa:item.surfaceHa,culture:item.culture,commune:item.commune,ilot:item.ilot,status:item.status,ownershipType:item.ownershipType}}))},null,2);}
 
 export function importPreviewHtml(preview){
   const s=preview.summary,sample=preview.rows.slice(0,10),changed=(s.duplicateDetails||[]).filter(x=>['culture','surfaceHa','commune','ilot'].some(k=>JSON.stringify(x.match?.[k]??null)!==JSON.stringify(x.row?.[k]??null))).slice(0,8);
   const diffs=changed.length?`<details class="notice info"><summary>Voir ${changed.length} ${(changed.length)>1?'différences':'différence'} ${(changed.length)>1?'détectées':'détectée'}</summary>${changed.map(x=>{const pairs=[];for(const [k,label] of [['culture','Culture'],['surfaceHa','Surface'],['commune','Commune'],['ilot','Îlot']]){if(JSON.stringify(x.match?.[k]??null)!==JSON.stringify(x.row?.[k]??null))pairs.push(`${label} : ${escapeHtml(x.match?.[k]??'—')} → ${escapeHtml(x.row?.[k]??'—')}`);}return`<div style="margin-top:8px"><strong>${escapeHtml(x.row.nom||x.match?.nom||'Parcelle')}</strong><br><small>${pairs.join('<br>')}</small></div>`;}).join('')}</details>`:'';
-  return`${telepacPreviewHtml(preview.telepac)}<div class="preview-summary"><div class="preview-stat"><strong>${s.parcels}</strong><small>parcelles</small></div><div class="preview-stat"><strong>${s.surface.toLocaleString('fr-FR',{maximumFractionDigits:2})} ha</strong><small>surface</small></div><div class="preview-stat"><strong>${s.newRows}</strong><small>nouvelles</small></div><div class="preview-stat"><strong>${s.changed}</strong><small>modifiées</small></div><div class="preview-stat"><strong>${s.interventions}</strong><small>travaux</small></div><div class="preview-stat"><strong>${s.geometryValid}</strong><small>géométries valides</small></div></div>${diffs}${preview.invalid.length?`<div class="notice danger">${preview.invalid.map(i=>`${escapeHtml(i.file)} : ${escapeHtml(i.message)}`).join('<br>')}</div>`:''}${preview.warnings.length?`<details class="notice warning"><summary>${preview.warnings.length} ${(preview.warnings.length)>1?'avertissements':'avertissement'}</summary>${preview.warnings.map(escapeHtml).join('<br>')}</details>`:''}<p class="form-note">Moteur ${escapeHtml(preview.engineBuild)} · analyse ${preview.durationMs??'—'} ms · ${preview.sources.map(s=>`${escapeHtml(s.file)}${s.sheet?` / ${escapeHtml(s.sheet)}`:''} (${s.rows})${s.engine?` · ${escapeHtml(s.engine)}`:''}`).join('<br>')}</p><div class="table-wrap"><table><thead><tr><th>Nom / travail</th><th>Culture</th><th>Surface</th><th>Commune</th><th>Géométrie</th></tr></thead><tbody>${sample.map(row=>html`<tr><td>${row.nom||(row.parcelName?`${row.type} · ${row.parcelName}${row.date?` · ${row.date}`:''}`:row.type)||'—'}</td><td>${row.culture||'—'}</td><td>${row.surfaceHa!=null&&Number.isFinite(Number(row.surfaceHa))?`${Number(row.surfaceHa).toLocaleString('fr-FR',{maximumFractionDigits:2})} ha`:'—'}</td><td>${row.commune||'—'}</td><td>${row.geometry?'Oui':'—'}</td></tr>`).join('')}</tbody></table></div>`;
+  // n° 124 : en historique, compteurs de travaux et tableau date / type / parcelle / produit / surface travaillée.
+  const ha=v=>v!=null&&Number.isFinite(Number(v))?`${Number(v).toLocaleString('fr-FR',{maximumFractionDigits:2})} ha`:'—';
+  const historySummary=preview.history?`<div class="preview-summary"><div class="preview-stat"><strong>${s.historyNew??0}</strong><small>travaux à créer</small></div><div class="preview-stat"><strong>${s.historyDuplicates??0}</strong><small>déjà importés</small></div><div class="preview-stat"><strong>${s.historyMissing??0}</strong><small>sans parcelle</small></div><div class="preview-stat"><strong>${s.historyUndated??0}</strong><small>sans date</small></div></div>`:'';
+  const historyTable=preview.history?`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Parcelle</th><th>Produit</th><th>Surface travaillée</th></tr></thead><tbody>${sample.map(row=>html`<tr><td>${row.date??'—'}</td><td>${row.type||'—'}</td><td>${row.nom||'—'}</td><td>${row.product||'—'}</td><td>${ha(row.workSurfaceHa)}</td></tr>`).join('')}</tbody></table></div>`:'';
+  return`${telepacPreviewHtml(preview.telepac)}${preview.history?historySummary:`<div class="preview-summary"><div class="preview-stat"><strong>${s.parcels}</strong><small>${s.parcels>1?'parcelles':'parcelle'}</small></div><div class="preview-stat"><strong>${s.surface.toLocaleString('fr-FR',{maximumFractionDigits:2})} ha</strong><small>surface</small></div><div class="preview-stat"><strong>${s.newRows}</strong><small>${s.newRows>1?'nouvelles':'nouvelle'}</small></div><div class="preview-stat"><strong>${s.changed}</strong><small>${s.changed>1?'modifiées':'modifiée'}</small></div><div class="preview-stat"><strong>${s.interventions}</strong><small>travaux</small></div><div class="preview-stat"><strong>${s.geometryValid}</strong><small>géométries valides</small></div></div>`}${diffs}${preview.invalid.length?`<div class="notice danger">${preview.invalid.map(i=>`${escapeHtml(i.file)} : ${escapeHtml(i.message)}`).join('<br>')}</div>`:''}${preview.warnings.length?`<details class="notice warning"><summary>${preview.warnings.length} ${(preview.warnings.length)>1?'avertissements':'avertissement'}</summary>${preview.warnings.map(escapeHtml).join('<br>')}</details>`:''}<p class="form-note">Moteur ${escapeHtml(preview.engineBuild)} · analyse ${preview.durationMs??'—'} ms · ${preview.sources.map(s=>`${escapeHtml(s.file)}${s.sheet?` / ${escapeHtml(s.sheet)}`:''} (${s.rows})${s.engine?` · ${escapeHtml(s.engine)}`:''}`).join('<br>')}</p>${preview.history?historyTable:`<div class="table-wrap"><table><thead><tr><th>Nom / travail</th><th>Culture</th><th>Surface</th><th>Commune</th><th>Géométrie</th></tr></thead><tbody>${sample.map(row=>html`<tr><td>${row.nom||(row.parcelName?`${row.type} · ${row.parcelName}${row.date?` · ${row.date}`:''}`:row.type)||'—'}</td><td>${row.culture||'—'}</td><td>${row.surfaceHa!=null&&Number.isFinite(Number(row.surfaceHa))?`${Number(row.surfaceHa).toLocaleString('fr-FR',{maximumFractionDigits:2})} ha`:'—'}</td><td>${row.commune||'—'}</td><td>${row.geometry?'Oui':'—'}</td></tr>`).join('')}</tbody></table></div>`}`;
 }
 
 // Yield imports reuse the proven SHP reader without creating parcel records.

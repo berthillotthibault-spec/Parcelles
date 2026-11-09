@@ -42,7 +42,9 @@ export const mapActions = {
     const results=ctx.$('#map-search-results');
     if(results){results.classList.add('hidden');results.innerHTML='';}
     const input=ctx.$('#map-search-input');
-    if(input)input.value='';
+    if(input){input.value='';input.setAttribute('aria-expanded','false');}
+    // Le bouton de résultat focalisé vient d'être supprimé : focus sur la fiche carte, sinon sur le champ.
+    const target=ctx.$('#map-parcel-sheet:not(.is-empty) [data-action="open-parcel"]');(target||input)?.focus({preventScroll:true});
   },
   'close-map-parcel-sheet'() {
     ctx.selectedParcelId=null;

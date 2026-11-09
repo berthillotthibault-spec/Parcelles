@@ -10,10 +10,10 @@ export function computeNotifications(state,{uid='',now=Date.now()}={}){
   for(const task of active('tasks')){
     const date=agendaDate(task,'task');
     if(!isPending(task,'task')||!date)continue;
-    if(date<today)rows.push({id:`task-overdue-${task.id}`,level:'urgent',title:'Tâche en retard',message:task.title,entity:'tasks',entityId:task.id,date});
-    else if(date===today)rows.push({id:`task-today-${task.id}`,level:'warning',title:'Tâche prévue aujourd’hui',message:task.title,entity:'tasks',entityId:task.id,date});
+    if(date<today)rows.push({id:`task-overdue-${task.id}`,level:'urgent',title:'Tâche en retard',message:task.title,entity:'tasks',entityId:task.id,kind:task.kind||'',date});
+    else if(date===today)rows.push({id:`task-today-${task.id}`,level:'warning',title:'Tâche prévue aujourd’hui',message:task.title,entity:'tasks',entityId:task.id,kind:task.kind||'',date});
     // n° 79 : rappel avant l’échéance (remindOn, par exemple notification BDNI à J+5 pour une échéance à J+7).
-    else if(task.remindOn&&String(task.remindOn).slice(0,10)<=today)rows.push({id:`task-remind-${task.id}`,level:'warning',title:'Rappel',message:task.title,entity:'tasks',entityId:task.id,date});
+    else if(task.remindOn&&String(task.remindOn).slice(0,10)<=today)rows.push({id:`task-remind-${task.id}`,level:'warning',title:'Rappel',message:task.title,entity:'tasks',entityId:task.id,kind:task.kind||'',date});
   }
   for(const work of active('interventions')){
     const date=agendaDate(work);
@@ -46,9 +46,9 @@ export function computeNotifications(state,{uid='',now=Date.now()}={}){
   if(grazingThresholds.length)for(const row of grazingWatch(state,today,Math.min(...grazingThresholds)))rows.push({id:`grazing-${row.id}`,level:'warning',title:'Pâturage à surveiller',message:row.label,entity:'grazingSessions',entityId:row.id});
   for(const row of longOpenLots(state,{date:today}))rows.push({id:`grazing-open-${row.id}`,level:'warning',title:'Lot encore ouvert ?',message:row.label,entity:'grazingSessions',entityId:row.id});
   const pending=(state.queue||[]).filter(x=>x.status==='pending').length;
-  if(state.preferences?.syncEnabled&&pending>20)rows.push({id:'sync-queue',level:'warning',title:'Synchronisation en attente',message:`${pending} modifications attendent une synchronisation.`});
+  if(state.preferences?.syncEnabled&&pending>20)rows.push({id:'sync-queue',level:'warning',title:'Synchronisation en attente',message:`${pending} modifications attendent une synchronisation.`,entity:'sync'});
   const meta=state.metadata||{};
-  if(meta.lastAutoBackupDay){const age=(Date.now()-new Date(`${meta.lastAutoBackupDay}T12:00:00`).getTime())/86400000;if(age>3)rows.push({id:'backup-old',level:'warning',title:'Sauvegarde locale ancienne',message:`Dernière sauvegarde : ${localDate(meta.lastAutoBackupDay)}`});}
+  if(state.preferences?.autoBackup&&meta.lastAutoBackupDay){const age=(Date.now()-new Date(`${meta.lastAutoBackupDay}T12:00:00`).getTime())/86400000;if(age>3)rows.push({id:'backup-old',level:'warning',title:'Sauvegarde locale ancienne',message:`Dernière sauvegarde : ${localDate(meta.lastAutoBackupDay)}`,entity:'backup'});}
   const order={urgent:0,warning:1,info:2};
   return rows.sort((a,b)=>(order[a.level]??9)-(order[b.level]??9));
 }

@@ -30,7 +30,7 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
       prompt = document.createElement('p');
       prompt.id = 'story-name-prompt';
       prompt.className = 'story-name-prompt';
-      prompt.innerHTML = '<button type="button" class="text-button" data-story="name">Comment souhaitez-vous être salué ?</button><button type="button" class="story-dismiss" data-story="name-later" aria-label="Ne plus proposer de saisir le prénom">×</button>';
+      prompt.innerHTML = '<button type="button" class="text-button" data-story="name">Comment souhaitez-vous être salué&nbsp;?</button><button type="button" class="story-dismiss" data-story="name-later" aria-label="Ne plus proposer de saisir le prénom">×</button>';
       subtitle.after(prompt);
     }
   }

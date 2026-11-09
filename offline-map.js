@@ -86,9 +86,10 @@ export function formatCount(n){return new Intl.NumberFormat('fr-FR').format(Numb
 export function offlineSummary(meta){
   if(!meta||!meta.at)return 'Pas encore téléchargée';
   const d=new Date(meta.at),layer=offlineLayer(meta.layer)?.label||'Fond IGN';
+  if(meta.complete===false)return `Incomplète (${formatCount(meta.tiles)}${meta.total>meta.tiles?` / ${formatCount(meta.total)}`:''} tuiles) le ${pad(d.getDate())}/${pad(d.getMonth()+1)} · ${layer}${meta.cadastre?' + cadastre':''} · ${formatBytes(meta.bytes)}`;
   return `À jour le ${pad(d.getDate())}/${pad(d.getMonth()+1)} · ${layer}${meta.cadastre?' + cadastre':''} · ${formatBytes(meta.bytes)}`;
 }
 export function normalizeMeta(value){
   if(!value||typeof value!=='object'||!Number.isFinite(Number(value.at))||!offlineLayer(value.layer))return null;
-  return {at:Number(value.at),layer:value.layer,cadastre:Boolean(value.cadastre),tiles:Math.max(0,Number(value.tiles)||0),bytes:Math.max(0,Number(value.bytes)||0),failed:Math.max(0,Number(value.failed)||0),maxZoom:Number(value.maxZoom)||17,complete:value.complete!==false};
+  return {at:Number(value.at),layer:value.layer,cadastre:Boolean(value.cadastre),tiles:Math.max(0,Number(value.tiles)||0),bytes:Math.max(0,Number(value.bytes)||0),failed:Math.max(0,Number(value.failed)||0),maxZoom:Number(value.maxZoom)||17,total:Math.max(0,Number(value.total)||0),complete:value.complete!==false};
 }

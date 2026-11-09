@@ -69,7 +69,8 @@ const inCampaign=(date,campaign)=>Boolean(date)&&campaignFor(date)===campaign;
 export function machineCost(state,machine,{campaign=campaignFor(),rates=machineRates(state),fuelPrice=pos(state?.preferences?.fuelPrice)}={}){
   const id=machine.id;
   const works=active(state,'interventions').filter(w=>usesMachine(w,id)&&completed(w)&&w.status!=='Annulé'&&workCampaign(w)===campaign);
-  const tp=active(state,'chantiers').filter(c=>c.kind==='tp').flatMap(c=>(c.tpLogs||[]).filter(l=>!l.deletedAt&&l.equipmentId===id&&inCampaign(l.date,campaign)));
+  const tp=active(state,'chantiers').filter(c=>c.kind==='tp').flatMap(c=>(c.tpLogs||[]).filter(l=>!l.deletedAt&&l.equipmentId===id&&inCampaign(l.date,campaign)&&!(pos(l.hours)===null&&pos(l.volumeM3)===null&&pos(l.tonnage)===null)));
+  // Une ligne sans heures ni quantité (plein seul, relevé de compteur) n'est pas un travail.
   let hours=0,withHours=0,hectares=0,withArea=0;
   for(const w of works){const h=workHours(w);if(h!==null){hours+=h;withHours+=1;}const a=workArea(state,w);if(a!==null){hectares+=a;withArea+=1;}}
   for(const l of tp){const h=pos(l.hours);if(h!==null){hours+=h;withHours+=1;}}
@@ -90,7 +91,7 @@ export function machineCost(state,machine,{campaign=campaignFor(),rates=machineR
   const ref=rates.values[category]||{value:null,unit:'h'},refValue=ref.value,refUnit=ref.unit;
   const compared=refValue===null?null:refUnit==='ha'?perHa:perHour,refGapPct=compared!==null?Math.round((compared/refValue-1)*100):null;
   const meter=num(machine.currentMeter),due=num(machine.maintenanceDue),remaining=meter!==null&&due!==null?r2(due-meter):null;
-  const missing=[];if(amortization===null)missing.push('amortissement');if(insurance===null)missing.push('assurance');if(fuel===null)missing.push('carburant');if(!entries)missing.push('travaux');else if(withHours<entries)missing.push(`${entries-withHours} travail(aux) sans heures`);
+  const missing=[];if(amortization===null)missing.push('amortissement');if(insurance===null)missing.push('assurance');if(fuel===null)missing.push('carburant');if(!entries)missing.push('travaux');else if(withHours<entries)missing.push(`${entries-withHours} ${entries-withHours>1?'travaux':'travail'} sans heures`);
   const underused=hours>0&&hours<rates.underuseHours&&perHour!==null;
   return{machine,id,name:machine.nom||'Matériel',campaign,hours:r2(hours),hectares:r2(hectares),entries,withHours,withArea,completeness,
     amortization,insurance,maintenance:r2(maintenance),maintenanceCount:maintenanceRows.length,fuel:fuel===null?null:r2(fuel),fuelSource,fuelLitres:fuelLitres===null?null:r2(fuelLitres),

@@ -5,6 +5,7 @@ import {mapEconomics} from './pilotage.js';
 import {isTreatment} from './phyto.js';
 import {PAC_MAP_MODES} from './pac.js';
 import {withProgress} from './motion.js';
+import {onboardingRpgYears} from './rpg-onboarding.js';
 
 // Carte et satellite sont créés après l’enregistrement du module : lus par accesseurs à l’ouverture.
 export function createMapLayersUI({state, store, active, modal, toast, getMap = () => null, getSatellite = () => null, regulatory, photoGeo, renderMapSheet = () => {}, doc = globalThis.document} = {}) {
@@ -25,7 +26,7 @@ export function createMapLayersUI({state, store, active, modal, toast, getMap = 
   const body=`<div id="map-layer-form" class="ly-sheet">
     <p class="ly-label">Colorer par</p><div class="ly-chips">${colorModes.map(([k,l])=>chip('color',k,l,mode===k)).join('')}</div>
     <div id="ly-ndvi-wrap"${['ndvi','ndvitrend'].includes(mode)?'':' hidden'}>${satelliteUI.ndviControls()}</div>
-    <div class="ly-rpg"><div class="ly-rpg-head"><span class="ly-rpg-icon"></span><span class="ly-rpg-text"><strong>Parcelles PAC/RPG 2024</strong><small>Registre parcellaire IGN autour du centre de la carte</small></span>${sw('rpg',!!parcelMap.rpgVisible,'Parcelles PAC/RPG 2024')}</div>
+    <div class="ly-rpg"><div class="ly-rpg-head"><span class="ly-rpg-icon"></span><span class="ly-rpg-text"><strong>Parcelles PAC/RPG ${parcelMap.rpgYear||onboardingRpgYears()[0]}</strong><small>Registre parcellaire IGN autour du centre de la carte</small></span>${sw('rpg',!!parcelMap.rpgVisible,`Parcelles PAC/RPG ${parcelMap.rpgYear||onboardingRpgYears()[0]}`)}</div>
       <div class="ly-rpg-radius"><span>Rayon</span><span class="ly-chips">${chip('radius','5','5 km',radius===5)}${chip('radius','10','10 km',radius===10)}</span></div>
       <p id="rpg-load-progress" class="ly-progress" role="status" aria-live="polite"></p></div>
     <p class="ly-label">Fond de carte</p><div class="ly-bases" role="radiogroup" aria-label="Fond de carte">${BASE_LAYERS.map(layer=>`<button type="button" class="ly-base${base===layer.id?' is-on':''}" data-ly="base" data-value="${layer.id}" role="radio" aria-checked="${base===layer.id}"><i class="ly-thumb is-${layer.id}"></i><strong>${escapeHtml(layer.label)}</strong><small>${escapeHtml(layer.hint)}</small></button>`).join('')}</div>
@@ -46,11 +47,22 @@ export function createMapLayersUI({state, store, active, modal, toast, getMap = 
     const center=parcelMap.map?.getCenter();
     if(!center||!Number.isFinite(center.lat)||!Number.isFinite(center.lng))throw new Error('Ouvrez la carte avant de charger les parcelles RPG.');
     progress.textContent='Chargement des parcelles RPG…';
-    const count=await withProgress('Chargement des parcelles RPG…',activity=>parcelMap.loadRpgNearby({latitude:center.lat,longitude:center.lng,radiusKm:r,year:2024,onProgress:detail=>{
-      if(root.isConnected){const label=detail.loaded?`${formatNumber(detail.loaded)}${detail.total!=null?` / ${formatNumber(detail.total)}`:''} parcelles chargées`:'Recherche des parcelles RPG…';progress.textContent=label;activity.update({label,completed:detail.loaded,total:detail.total});}
-    }}));
-    if(root.isConnected)progress.textContent='';
-    toast(`${formatNumber(count)} parcelle${count>1?'s':''} RPG chargée${count>1?'s':''}. Touchez un contour pour l’ajouter.`);
+    // Même millésime que l'accueil : N-1 d'abord, puis repli sur l'année suivante si vide ou en erreur.
+    const years=onboardingRpgYears();
+    const count=await withProgress('Chargement des parcelles RPG…',async activity=>{
+      for(const year of years){
+        const last=year===years[years.length-1];
+        try{
+          const n=await parcelMap.loadRpgNearby({latitude:center.lat,longitude:center.lng,radiusKm:r,year,onProgress:detail=>{
+            if(root.isConnected){const label=detail.loaded?`${formatNumber(detail.loaded)}${detail.total!=null?` / ${formatNumber(detail.total)}`:''} parcelles chargées`:'Recherche des parcelles RPG…';progress.textContent=label;activity.update({label,completed:detail.loaded,total:detail.total});}
+          }});
+          if(n||last)return n;
+        }catch(error){if(error?.name==='AbortError'||last)throw error;}
+      }
+      return 0;
+    });
+    if(root.isConnected){progress.textContent='';const title=root.querySelector('.ly-rpg-text strong');if(title)title.textContent=`Parcelles PAC/RPG ${parcelMap.rpgYear}`;}
+    toast(`${formatNumber(count)} parcelle${count>1?'s':''} RPG ${parcelMap.rpgYear} chargée${count>1?'s':''}. Touchez un contour pour l’ajouter.`);
   };
   const opacity=root.querySelector('#cadastre-opacity');
   opacity?.addEventListener('input',()=>{const value=normalizeCadastreOpacity(Number(opacity.value)/100);parcelMap.setCadastreOpacity(value);setText('#cadastre-opacity-value',`${Math.round(value*100)} %`);});

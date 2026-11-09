@@ -83,14 +83,17 @@ export function netMargin(state,{campaign=campaignFor()}={}){
   const pac=pacAids(state);
   if(!STRUCTURE_AIDS.some(([k])=>sheet.items[k].amount!==null)){if(pac.total!==null){aidsTotal=pac.total*totalArea;for(const l of lines)aids.set(l.key,pac.total*l.area);aidsSource='marges';}else aidsSource=null;}
   const perHa=(map,l)=>l.area>0?(map.get(l.key)||0)/l.area:0;
-  const build=(l,rentHa,chargeHa,aidHa)=>{
-    const netHa=l.directHa===null?null:l.directHa-rentHa-chargeHa+aidHa;
+  // La marge directe €/ha ne porte que sur la surface qui a un produit (productArea) : la marge nette en euros
+  // l'applique à cette surface seulement, puis retire fermages, structure et ajoute les aides sur toute la surface.
+  const build=(l,rentHa,chargeHa,aidHa,productArea=l.area)=>{
+    const pa=productArea>0?productArea:l.area,netEur=l.directHa===null?null:l.directHa*pa-(rentHa+chargeHa-aidHa)*l.area,netHa=netEur===null?null:l.area>0?netEur/l.area:l.directHa-rentHa-chargeHa+aidHa;
     return{culture:l.culture,key:l.key,area:l.area,productHa:l.productHa,operationalHa:l.operationalHa,grossHa:l.grossHa,mechanizationHa:l.mechanizationHa,directHa:l.directHa,
-      rentHa:r2(rentHa),structureHa:r2(chargeHa),aidsHa:r2(aidHa),netHa:netHa===null?null:r2(netHa),net:netHa===null?null:r2(netHa*l.area),partial:l.partial,missing:l.missing};
+      rentHa:r2(rentHa),structureHa:r2(chargeHa),aidsHa:r2(aidHa),netHa:netHa===null?null:r2(netHa),net:netEur===null?null:r2(netEur),partial:l.partial,missing:l.missing};
   };
-  const rows=lines.map(l=>build(l,l.area>0?(rents.byCulture.get(l.key)?.total||0)/l.area:0,perHa(charges,l),perHa(aids,l)));
+  const productAreas=new Map(cm.model.byCulture.map(c=>[normalize(c.culture),c.productArea||0]));
+  const rows=lines.map(l=>build(l,l.area>0?(rents.byCulture.get(l.key)?.total||0)/l.area:0,perHa(charges,l),perHa(aids,l),productAreas.get(l.key)));
   const rentTotal=[...rents.byCulture.values()].reduce((s,g)=>s+g.total,0),t=cm.total;
-  const total=build({...t,key:'exploitation',culture:'Exploitation',area:totalArea},totalArea>0?rentTotal/totalArea:0,totalArea>0?chargesTotal/totalArea:0,totalArea>0?aidsTotal/totalArea:0);
+  const total=build({...t,key:'exploitation',culture:'Exploitation',area:totalArea},totalArea>0?rentTotal/totalArea:0,totalArea>0?chargesTotal/totalArea:0,totalArea>0?aidsTotal/totalArea:0,cm.model.total.productArea||0);
   return{campaign,sheet,rows,total,area:r2(totalArea),rentTotal:r2(rentTotal),chargesTotal:r2(chargesTotal),aidsTotal:r2(aidsTotal),chargesSource,aidsSource,
     rentMissing:rents.missing,noLease:rents.noLease,index:rents.index,missing:cm.missing,aidsAreEstimates:aidsTotal>0};
 }

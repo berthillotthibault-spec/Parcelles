@@ -35,7 +35,8 @@ function wrapField(control) {
   box.className = 'fc-other';
   box.innerHTML = `<span class="sr-only">${escapeHtml(fieldCaption(captionText))}</span>`;
   label.replaceWith(host);
-  box.append(control);
+  // Tout le contenu du label (span de champ, select voisin…), sauf son texte repris par la légende.
+  box.append(...[...label.childNodes].filter(n => n.nodeType !== 3));
   host.append(caption, box);
   return host;
 }

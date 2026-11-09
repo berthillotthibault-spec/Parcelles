@@ -126,6 +126,8 @@ export function forageBalance(state,{today}){
 /** Calendrier de coupe des prairies : coupes faites dans l'année, prochaine coupe et repère en °C·j. */
 export function cutCalendar(state,{today,days=[],type='ensilage-herbe'}){
   const year=today.slice(0,4),feb=`${year}-01-31`,sessions=active(state,'grazingSessions');
+  // Après octobre, plus de coupe d'herbe proposée : la somme de températures dépasse toujours le repère.
+  const offSeason=today.slice(5)>'10-31';
   const parcels=active(state,'parcelles').filter(p=>!p.archived&&isForageParcel(p,sessions)&&!/mais/.test(normalize(p.culture)));
   const cuts=forageRecords(state,'harvest').filter(r=>r.date.startsWith(year)&&r.parcelId&&CUT_TYPES.includes(r.type));
   const recent=days.filter(x=>x.date<=today&&Number.isFinite(x.tmax)&&Number.isFinite(x.tmin)).slice(-7);
@@ -134,8 +136,8 @@ export function cutCalendar(state,{today,days=[],type='ensilage-herbe'}){
     const done=cuts.filter(c=>c.parcelId===p.id),last=done.at(-1)||null,next=done.length+1;
     const ref=last?last.date:feb,target=last?FORAGE_REFERENCES.regrowth:FORAGE_REFERENCES.firstCut[type]||FORAGE_REFERENCES.firstCut['ensilage-herbe'];
     const g=days.length?degreeDays(days,{from:ref,to:today,base:0}):null,sum=g&&g.counted?g.sum:null;
-    const status=sum===null?'unknown':sum>=target?'ready':sum>=target*0.85?'soon':'growing';
-    const eta=sum!==null&&sum<target&&pace>0?shiftDay(today,Math.ceil((target-sum)/pace)):null;
+    const status=offSeason?'over':sum===null?'unknown':sum>=target?'ready':sum>=target*0.85?'soon':'growing';
+    const eta=!offSeason&&sum!==null&&sum<target&&pace>0?shiftDay(today,Math.ceil((target-sum)/pace)):null;
     return{parcel:p,done,last,next,ref,target,sum,status,eta,incomplete:g?g.missing>0:true};
-  }).sort((a,b)=>({ready:0,soon:1,growing:2,unknown:3}[a.status]-{ready:0,soon:1,growing:2,unknown:3}[b.status])||String(a.parcel.nom).localeCompare(String(b.parcel.nom),'fr'));
+  }).sort((a,b)=>({ready:0,soon:1,growing:2,unknown:3,over:4}[a.status]-{ready:0,soon:1,growing:2,unknown:3,over:4}[b.status])||String(a.parcel.nom).localeCompare(String(b.parcel.nom),'fr'));
 }

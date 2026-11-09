@@ -2,7 +2,7 @@
 // Logique pure (testable sous Node). Méthode du bilan simplifiée (COMIFER) :
 //   X = besoin (b × objectif de rendement) − reliquat sortie hiver − fournitures du sol − effet du précédent − effet du couvert.
 // Toutes les références sont dans une table versionnée, modifiable dans l’application et marquée « à vérifier ».
-import {campaignFor,formatNumber,isoDate,localDate,normalize,toNumber} from './utils.js';
+import {campaignFor,formatNumber,localDate,normalize,toNumber,localIso} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {farmRecords} from './farm-records.js';
 import {grazingNitrogen,longOpenLots} from './grazing.js';
@@ -111,6 +111,7 @@ export function precedentEffect(culture,refs=NITROGEN_REFERENCES){
   const hit=refs.precedents.find(p=>regex(p.match).test(text));
   return hit?{effect:hit.effect,label:hit.label}:{effect:0,label:''};
 }
+/** @type {(culture: any, refs?: any) => string} */
 export const cultureSeason=(culture,refs=NITROGEN_REFERENCES)=>cultureReference(culture,refs)?.season||'autre';
 
 /** Zone vulnérable : champ optionnel de la parcelle, sinon réglage de l’exploitation. */
@@ -171,7 +172,7 @@ const toUnit=(value,unit,target)=>{
   if(u.startsWith('kg'))return tq?value/100:value/1000;
   return tq?value:value/10; // q/ha par défaut
 };
-export function cultureFor(state,parcel,campaign,today=isoDate(new Date())){
+export function cultureFor(state,parcel,campaign,today=localIso()){
   const r=active(state,'rotations').find(x=>x.parcelId===parcel.id&&x.campaignId===campaign);
   if(r?.culture)return String(r.culture);
   return campaign===campaignFor(today)?String(parcel.culture||''):'';
@@ -202,7 +203,7 @@ export function coverEffect(rotation,refs=NITROGEN_REFERENCES){
 }
 
 /** PPF d’une parcelle pour une campagne. */
-export function parcelPlan(state,parcel,campaign,{today=isoDate(new Date()),refs=nitrogenReferences(state)}={}){
+export function parcelPlan(state,parcel,campaign,{today=localIso(),refs=nitrogenReferences(state)}={}){
   const culture=cultureFor(state,parcel,campaign,today),ref=cultureReference(culture,refs),rotation=rotationFor(state,parcel.id,campaign),ppf=rotation?.ppf||{};
   const prevCulture=cultureFor(state,parcel,previousCampaign(campaign),today),prev=precedentEffect(prevCulture,refs),cover=coverEffect(rotation,refs);
   const history=ref?yieldHistory(state,parcel,campaign,ref,today):[],avg=olympicAverage(history.map(h=>h.value));
@@ -237,20 +238,23 @@ export function gauge(planned,realized){
 
 // ---------- Alertes ----------
 const inPeriod=(md,from,to)=>from<=to?md>=from&&md<=to:md>=from||md<=to;
+/** @param {string} date @param {string} type @param {string} season @param {any} [refs] */
 export function banPeriodFor(date,type,season,refs=NITROGEN_REFERENCES){
   const md=String(date||'').slice(5,10);if(!MD.test(md))return null;
   return refs.banPeriods.find(p=>p.type===type&&p.season===season&&inPeriod(md,p.from,p.to))||null;
 }
 const mdLabel=md=>{const [m,d]=md.split('-');return`${Number(d)}/${m}`;};
 
-export function nitrogenAlerts(state,{today=isoDate(new Date()),campaign=campaignFor(today),refs=nitrogenReferences(state)}={}){
+export function nitrogenAlerts(state,{today=localIso(),campaign=campaignFor(today),refs=nitrogenReferences(state)}={}){
   const alerts=[],parcels=new Map(active(state,'parcelles').map(p=>[p.id,p]));
   for(const w of active(state,'interventions')){
-    if(completed(w)||w.status==='Annulé'||!isFertilization(w))continue;
-    const date=w.plannedDate||w.date,parcel=parcels.get(w.parcelId);if(!date||!parcel||!parcelInZone(state,parcel))continue;
+    if(w.status==='Annulé'||!isFertilization(w))continue;
+    // Fiches terminées : seulement la campagne affichée (cahier d’enregistrement), date de réalisation.
+    const done=completed(w);if(done&&workCampaign(w)!==campaign)continue;
+    const date=done?w.date:(w.plannedDate||w.date),parcel=parcels.get(w.parcelId);if(!date||!parcel||!parcelInZone(state,parcel))continue;
     const fert=fertilizerFor(state,w.product);if(!fert)continue;
     const season=cultureSeason(cultureFor(state,parcel,workCampaign(w),today)||parcel.culture,refs),ban=banPeriodFor(date,fert.type,season,refs);
-    if(ban)alerts.push({kind:'ban',status:'ko',workId:w.id,parcelId:parcel.id,label:`${parcel.nom} · ${w.product||w.type} le ${localDate(date)}`,
+    if(ban)alerts.push({kind:'ban',status:'ko',workId:w.id,parcelId:parcel.id,label:`${parcel.nom} · ${w.product||w.type} ${done?'réalisé':'prévu'} le ${localDate(date)}`,
       note:`Fertilisant de type ${fert.type} sur ${SEASON_LABELS[season].toLowerCase()} : épandage interdit du ${mdLabel(ban.from)} au ${mdLabel(ban.to)} (table ${refs.version}).`});
   }
   const sau=ownParcels(state).reduce((s,p)=>s+toNumber(p.surfaceHa),0);
@@ -265,13 +269,13 @@ export function nitrogenAlerts(state,{today=isoDate(new Date()),campaign=campaig
   const y=Number(String(campaign).slice(0,4)),end=`${y+1}-07-31`,grazing=Number.isFinite(y)?grazingNitrogen(state,{from:`${y}-08-01`,to:end<today?end:today}):{total:0,unknown:0};
   organic+=grazing.total;
   const longOpen=longOpenLots(state,{date:today});
-  const perHa=sau>0?round(organic/sau,1):0;
-  if(sau>0&&perHa>refs.organicCap)alerts.push({kind:'cap',status:'ko',label:`${formatNumber(perHa)} kg N organique/ha SAU en ${campaign}`,note:`Plafond de ${formatNumber(refs.organicCap)} kg N/ha SAU dépassé (apports prévus et réalisés, et ${formatNumber(grazing.total)} kg N déposés au pâturage).${longOpen.length?` ${longOpen.length} lot${longOpen.length>1?'s':''} encore ouvert${longOpen.length>1?'s':''} depuis longtemps pris en compte : vérifiez les sorties.`:''}`});
-  return{alerts,organic:{total:round(organic),perHa,sau:round(sau,2),cap:refs.organicCap,grazing:grazing.total,grazingUnknown:grazing.unknown}};
+  const perHa=sau>0?round(organic/sau,1):0,grazingPerHa=sau>0?round(grazing.total/sau,1):0;
+  if(sau>0&&perHa>refs.organicCap)alerts.push({kind:'cap',status:'ko',label:`${formatNumber(perHa)} kg N organique/ha SAU en ${campaign}`,note:`Plafond de ${formatNumber(refs.organicCap)} kg N/ha SAU dépassé (apports prévus et réalisés, et ${formatNumber(grazingPerHa)} kg N/ha déposés au pâturage).${longOpen.length?` ${longOpen.length} lot${longOpen.length>1?'s':''} encore ouvert${longOpen.length>1?'s':''} depuis longtemps pris en compte : vérifiez les sorties.`:''}`});
+  return{alerts,organic:{total:round(organic),perHa,sau:round(sau,2),cap:refs.organicCap,grazing:grazing.total,grazingPerHa,grazingUnknown:grazing.unknown}};
 }
 
 // ---------- Synthèse par campagne ----------
-export function nitrogenOverview(state,{today=isoDate(new Date()),campaign=campaignFor(today)}={}){
+export function nitrogenOverview(state,{today=localIso(),campaign=campaignFor(today)}={}){
   const refs=nitrogenReferences(state),register=nitrogenRegister(state,campaign);
   const plans=ownParcels(state).map(p=>{
     const plan=parcelPlan(state,p,campaign,{today,refs}),rows=register.filter(r=>r.parcel?.id===p.id);
@@ -282,7 +286,7 @@ export function nitrogenOverview(state,{today=isoDate(new Date()),campaign=campa
 }
 
 /** Entrées pour le tableau de conformité (n° 55) : statut du PPF calculé et alertes azote. */
-export function nitrogenComplianceChecks(state,{today=isoDate(new Date()),campaign=campaignFor(today)}={}){
+export function nitrogenComplianceChecks(state,{today=localIso(),campaign=campaignFor(today)}={}){
   const make=(id,label,status,detail,{items=[],action=null,hint=''}={})=>({id,label,status,statusLabel:{ko:'À corriger',warn:'À vérifier',unknown:'Non suivi',ok:'À jour',na:'Non concerné'}[status],detail,items,action,hint});
   if(!farmInZone(state))return[make('nitrogen-plan','Dose d’azote prévue et apports (zone vulnérable)','na','Aucune parcelle en zone vulnérable.',{action:{type:'nitrogen',label:'Azote'}})];
   const o=nitrogenOverview(state,{today,campaign}),zone=o.plans.filter(p=>p.zone);
@@ -299,7 +303,7 @@ export const hasInAppPlan=(state,campaign)=>active(state,'rotations').some(r=>r.
 
 // ---------- Documents (PDF) ----------
 const n0=v=>v===null||v===undefined?'—':formatNumber(v);
-export function planPdfBlocks(state,{today=isoDate(new Date()),campaign=campaignFor(today)}={}){
+export function planPdfBlocks(state,{today=localIso(),campaign=campaignFor(today)}={}){
   const o=nitrogenOverview(state,{today,campaign}),farm=state?.exploitation||{};
   const rows=o.plans.map(p=>[p.parcel.nom,p.zone?'oui':'non',p.culture||'—',p.objective?`${formatNumber(p.objective.value)} ${p.ref?.unit||''} (${p.objective.method})`:'—',n0(p.besoin),n0(p.rsh),n0(p.mh),n0(p.precedent.effect),n0(p.cover.effect),n0(p.dose)]);
   return[{type:'h1',text:`Plan prévisionnel de fumure azotée ${campaign}`},
@@ -311,7 +315,7 @@ export function planPdfBlocks(state,{today=isoDate(new Date()),campaign=campaign
     {type:'p',text:`Table ${o.refs.label}. Source : ${o.refs.source}`,small:true},
     {type:'p',text:o.refs.verify,small:true,muted:true}];
 }
-export function registerPdfBlocks(state,{today=isoDate(new Date()),campaign=campaignFor(today)}={}){
+export function registerPdfBlocks(state,{today=localIso(),campaign=campaignFor(today)}={}){
   const o=nitrogenOverview(state,{today,campaign}),farm=state?.exploitation||{};
   const rows=o.register.map(r=>[localDate(r.date),r.parcel?.nom||'—',r.product||'—',r.fert?.type||'—',r.dose!==null?`${formatNumber(r.dose)} ${r.doseUnit}`:'—',r.quantity!==null?formatNumber(r.quantity):'—',n0(r.nTotal),n0(r.nEff),r.missing.join(', ')||'—']);
   const gauges=o.plans.filter(p=>p.dose!==null||p.realized).map(p=>[p.parcel.nom,p.culture||'—',n0(p.dose),n0(p.realized),p.gauge.status==='over'?'au-delà':p.gauge.status==='under'?'en deçà':p.gauge.status==='ok'?'conforme':'—']);
@@ -321,5 +325,5 @@ export function registerPdfBlocks(state,{today=isoDate(new Date()),campaign=camp
     {type:'table',head:['Date','Parcelle','Produit','Type','Dose','Quantité','N total/ha','N eff./ha','Manquant'],rows:rows.length?rows:[['Aucun apport terminé','','','','','','','','']],align:['','','','','right','right','right','right','']},
     {type:'h2',text:'Écart au prévisionnel'},
     {type:'table',head:['Parcelle','Culture','Prévu (kg N/ha)','Réalisé (N eff.)','Écart'],rows:gauges.length?gauges:[['—','','','','']],align:['','','right','right','']},
-    {type:'p',text:`Azote organique : ${formatNumber(o.organic.perHa)} kg N/ha SAU (plafond ${formatNumber(o.organic.cap)}), dont ${formatNumber(o.organic.grazing||0)} kg N déposés au pâturage. Table ${o.refs.label}.`,small:true}];
+    {type:'p',text:`Azote organique : ${formatNumber(o.organic.perHa)} kg N/ha SAU (plafond ${formatNumber(o.organic.cap)}), dont ${formatNumber(o.organic.grazingPerHa||0)} kg N/ha déposés au pâturage (${formatNumber(o.organic.grazing||0)} kg N au total). Table ${o.refs.label}.`,small:true}];
 }

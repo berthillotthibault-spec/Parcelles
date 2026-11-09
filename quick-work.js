@@ -18,6 +18,7 @@ import {normalizeInterculture, intercultureError, minDestructionDate, coverSetti
 import {fertilizerFor, nitrogenPerHa, parcelPlan, nitrogenRegister, banPeriodFor, cultureSeason, cultureFor, parcelInZone, nitrogenReferences, FERTILIZER_LIBRARY} from './nitrogen.js';
 import {workCosts, estimatedCostPatch} from './costs.js';
 import {requiredStock} from './work-effects.js';
+import {harvestCampaign} from './harvest-traceability.js';
 
 export const QUICK_STEP_TYPES = 8;
 export const BASE_TYPES = ['Semis', 'Traitement', 'Fertilisation', 'Travail du sol', 'Récolte', 'Fauche', 'Pâturage', 'Observation'];
@@ -568,7 +569,7 @@ export function buildQuickWorks(draft, data, {today, batchId = '', skip = [], in
   const kind = String(draft.kind || '');
   const family = workFamily(type, kind);
   const spray = family === 'spray';
-  const x = {...DETAIL_DEFAULTS, ...(draft.details || {})};
+  const x = /** @type {Record<string, any>} */ ({...DETAIL_DEFAULTS, ...(draft.details || {})});
   const cfg = doseConfig(type, kind, draft.product);
   const dose = cfg.none ? null : (draft.dose ?? null);
   const fields = {
@@ -643,7 +644,7 @@ export function buildQuickWorks(draft, data, {today, batchId = '', skip = [], in
           duration: more.duration ?? existing.actualMetrics?.duration ?? existing.duration ?? null}});
     }
     if (targets.length) continue;
-    const work = {...base, ...fields, equipmentId, ...extra(parcel, index, base), status: future ? 'À faire' : 'Terminé', plannedDate: future ? date : ''};
+    const work = /** @type {Record<string, any>} */ ({...base, ...fields, equipmentId, ...extra(parcel, index, base), status: future ? 'À faire' : 'Terminé', plannedDate: future ? date : ''});
     // Prévu ou réalisé, comme le formulaire complet : la comparaison des prescriptions lit l'un ou l'autre (AT-M4).
     const metrics = {areaHa: work.surfaceWorked ?? null, dose: dose ?? null, duration: work.duration ?? null};
     if (future) { delete work.actualMetrics; work.plannedMetrics = metrics; } else work.actualMetrics = metrics;
@@ -654,7 +655,7 @@ export function buildQuickWorks(draft, data, {today, batchId = '', skip = [], in
   if (!future) for (const work of creates) {
     const need = item ? requiredStock({...work, dose: parseDose(work.dose), surfaceWorked: parseDose(work.surfaceWorked)}, item) : null;
     const price = item ? parseDose(item.unitPrice) : null;
-    const c = workCosts({...work, inputCost: need !== null && price !== null ? r2(need * price) : ''}, {machines: live(data?.materiels), data: {preferences: data?.preferences || {}}});
+    const c = /** @type {any} */ (workCosts({...work, inputCost: need !== null && price !== null ? r2(need * price) : ''}, {machines: live(data?.materiels), data: {preferences: data?.preferences || {}}}));
     const parts = [['machineCost', 'Matériel', c.machineCost], ['fuelCost', 'Carburant', c.fuelCost], ['inputCost', 'Intrant', c.inputCost]].filter(([, , v]) => v > 0)
       .map(([key, label, value]) => ({key, label: `${label} ${value.toLocaleString('fr-FR', {maximumFractionDigits: 2})} €`, value: r2(value)}));
     if (parts.length) Object.assign(work, estimatedCostPatch(work, {value: parts.reduce((a, p) => a + p.value, 0), method: 'effects', label: 'Saisie rapide', detail: parts.map(p => p.label).join(' + '), parts}, now));
@@ -675,7 +676,10 @@ export function buildQuickWorks(draft, data, {today, batchId = '', skip = [], in
     fresh.forEach(parcel => {
       const i = parcels.indexOf(parcel);
       const code = harvestLotCode(data, {date, parcel}, taken);
-      records.push({farmKind: 'harvest', format: 'Parcelles', recordVersion: 1, name: code, code, date, crop: String(x.culture || '').trim() || cultureFor(data, parcel, campaignFor(date), today) || parcel.culture || '',
+      // Culture de la campagne récoltée (semis précédent), pas celle de la date : un maïs d'octobre reste sur son semis.
+      // La campagne n'est pas figée sur le lot : harvestCampaign la recalcule si un semis est saisi plus tard.
+      const campaign = harvestCampaign(data, {date, parcelId: parcel.id, crop: String(x.culture || '').trim()});
+      records.push({farmKind: 'harvest', format: 'Parcelles', recordVersion: 1, name: code, code, date, crop: String(x.culture || '').trim() || cultureFor(data, parcel, campaign, today) || parcel.culture || '',
         quantity: shares[i], unit: HARVEST_UNITS.includes(x.quantityUnit) ? x.quantityUnit : 't', humidity: parseDose(x.humidity), impurities: parseDose(x.impurities),
         silo: String(x.silo || '').trim(), parcelId: parcel.id, sales: []});
     });
@@ -731,7 +735,7 @@ export function quickEffects(result, data, {details = {}, type, kind = '', produ
 
 /**
  * Prestation pour un client facturé seulement à l'heure : la durée est exigée (AT-15).
- * @param {{creates: any[], updates: any[]}} result @param {any} data
+ * @param {{creates: any[], updates: any[], closedOnly?: string[]}} result @param {any} data
  */
 export function billingProblem({creates, updates, closedOnly = []}, data) {
   const parcels = new Map(live(data?.parcelles).map(p => [p.id, p])), clients = live(data?.clients);
@@ -764,7 +768,7 @@ export function dropForbidden(result, canWrite) {
   return messages.length ? `Votre rôle ne permet pas de mettre à jour : ${messages.join(', ')}. À faire par le responsable.` : '';
 }
 
-/** Refus avant écriture : un traitement terminé doit nommer son produit. @param {{creates: any[], updates: any[]}} result */
+/** Refus avant écriture : un traitement terminé doit nommer son produit. @param {{creates: any[], updates: any[], closedOnly?: string[]}} result */
 export function quickWorksProblem({creates, updates, closedOnly = []}) {
   const closed = new Set(closedOnly);
   const missing = [...creates, ...updates].some(w => !closed.has(w.id) && w.status === 'Terminé' && isTreatment(w) && !String(w.product || '').trim());
@@ -777,7 +781,7 @@ export const missingDose = ({creates, updates}) => [...creates, ...updates].some
 /**
  * Contrôle BCAE 8 de chaque fiche (trimCheck). La remarque compte comme le produit du formulaire complet.
  * La dérogation confirmée est posée sur les fiches concernées.
- * @param {{creates: any[], updates: any[]}} result @param {any} data @param {{derogation?: boolean, remark?: string}} [options]
+ * @param {{creates: any[], updates: any[], closedOnly?: string[]}} result @param {any} data @param {{derogation?: boolean, remark?: string}} [options]
  */
 export function hedgeBlock({creates, updates, closedOnly = []}, data, {derogation = false, remark = ''} = {}) {
   let message = '';
@@ -794,7 +798,7 @@ export function hedgeBlock({creates, updates, closedOnly = []}, data, {derogatio
 
 /**
  * Identifiants attribués une seule fois, avant toute écriture : un nouvel essai met à jour au lieu de dupliquer.
- * @param {{creates: any[]}} result @param {Record<string, string>} memo par parcelle @param {() => string} makeId
+ * @param {{creates: any[], records?: any[], rotations?: any[]}} result @param {Record<string, string>} memo par parcelle @param {(kind?: string) => string} makeId
  */
 export function assignWriteIds(result, memo, makeId) {
   for (const work of result.creates) work.id = memo[work.parcelId] ||= makeId();

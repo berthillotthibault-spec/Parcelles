@@ -18,8 +18,9 @@ export const fuelEntries=(state,entry)=>farmRecords(state,FUEL_KIND).filter(r=>!
 export const tankFills=state=>fuelEntries(state,'tank');
 export const machineFills=(state,equipmentId)=>fuelEntries(state,'machine').filter(r=>!equipmentId||r.equipmentId===equipmentId);
 
-export function validateFill(v,{entry,currentMeter=null}={}){
+export function validateFill(v,{entry,currentMeter=null,today=null}={}){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(v.date||'')))return{error:'Date invalide.'};
+  if(today&&String(v.date)>today)return{error:'La date ne peut pas être dans le futur.'};
   const litres=num(v.litres);if(litres===null||litres<=0)return{error:'Indiquez le nombre de litres.'};
   const unitPrice=num(v.unitPrice),amount=num(v.amount),meter=num(v.meter);
   if([unitPrice,amount,meter].some(x=>x!==null&&x<0))return{error:'Valeurs négatives impossibles.'};

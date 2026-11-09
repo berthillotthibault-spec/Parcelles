@@ -183,13 +183,13 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
       toast(`Contact enregistré : ${payload.name}.`);
       if (afterContactSave) { const back = afterContactSave; afterContactSave = null; back(saved.id); return; }
       openContact(saved.id);
-    } catch (error) { fail(form, error?.message || 'Enregistrement impossible.', error?.message?.includes('Nom') ? f.name : null); }
+    } catch (error) { fail(form, error?.message || 'Enregistrement impossible.', /\bnom\b/i.test(error?.message || '') ? f.name : null); }
   }
   async function deleteContact(id) {
     const r = record(id);
     if (!r || !canManage()) return;
     await store.remove('integrationImports', id);
-    toast(`Contact placé dans la corbeille : ${r.name}.`);
+    toast(`Contact placé dans la corbeille : ${r.name}.`, 'success', {label: 'Annuler', run: async () => { await store.restore('integrationImports', id); toast('Contact restauré.'); if (doc.querySelector('.msg-contacts')) openContacts(); }});
     openContacts();
   }
 
@@ -303,11 +303,17 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
   }
   const varsFor = recipient => {
     const name = String(recipient?.name || '').trim();
-    return {...farmVars(data()), ...session.vars, ...(name ? {prenom: name.split(/\s+/)[0], nom: name} : {})};
+    // Destinataire libre sans nom (son numéro ou son adresse en guise de nom) : {prenom} et {nom} vides.
+    const anonymous = recipient?.kind === 'libre' && (name === recipient.email || (recipient.phone && normalizePhone(name) === recipient.phone));
+    return {...farmVars(data()), ...session.vars, ...(anonymous ? {prenom: '', nom: ''} : name ? {prenom: name.split(/\s+/)[0], nom: name} : {})};
   };
+  // Rendu d'un texte : « Bonjour {prenom}, » sans prénom donne « Bonjour, ».
+  const fill = (tpl, vars) => renderTemplate(tpl, vars).replace(/\bBonjour ,/g, 'Bonjour,');
+  // L'objet n'existe qu'en e-mail et en partage : en SMS ou WhatsApp, il est ignoré (et non contrôlé).
+  const hasSubject = () => session.channel === 'email' || session.channel === 'share';
   const recipientChannel = r => (session.channel === 'share' ? 'share' : channelFor(r, session.channel));
   function recipientsHtml() {
-    return html`${session.recipients.length ? html`<ul class="msg-rcpts">${session.recipients.map(r => html`<li class="msg-rcpt"><span>${r.name}<small>${session.channel === 'email' ? r.email || 'sans e-mail' : session.channel === 'share' ? '' : r.phone ? formatPhone(r.phone) : 'sans numéro'}</small></span><button type="button" class="msg-rcpt-x" data-msg="rcpt-remove" data-id="${r.id}" aria-label="Retirer ${r.name}">×</button></li>`)}</ul>` : html`<p class="msg-note">${session.channel === 'share' ? 'Le partage vous laisse choisir l’application et le destinataire.' : 'Aucun destinataire.'}</p>`}`;
+    return html`${session.recipients.length ? html`<ul class="msg-rcpts">${session.recipients.map(r => { const detail = session.channel === 'email' ? r.email || 'sans e-mail' : session.channel === 'share' ? '' : r.phone ? formatPhone(r.phone) : 'sans numéro'; return html`<li class="msg-rcpt"><span>${r.name}${detail && detail !== r.name ? html`<small>${detail}</small>` : ''}</span><button type="button" class="msg-rcpt-x" data-msg="rcpt-remove" data-id="${r.id}" aria-label="Retirer ${r.name}">×</button></li>`; })}</ul>` : html`<p class="msg-note">${session.channel === 'share' ? 'Le partage vous laisse choisir l’application et le destinataire.' : 'Aucun destinataire.'}</p>`}`;
   }
   function warningsHtml() {
     const out = [];
@@ -315,11 +321,11 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
       const ch = recipientChannel(r);
       if (session.channel === 'share') break;
       if (!ch) out.push(`${r.name} : ${session.channel === 'email' ? 'pas d’adresse e-mail' : 'pas de numéro'}.`);
-      else if (consentStatus(r, ch) === 'non') out.push(`${r.name} s’est opposé(e) à ce canal : il ne recevra rien.`);
+      else if (consentStatus(r, ch) === 'non') out.push(`${r.name} : opposition à ce canal, aucun message ne lui sera envoyé.`);
       else if ((ch === 'sms') && r.phone && !isMobile(r.phone)) out.push(`${r.name} : numéro fixe, le SMS risque de ne pas arriver.`);
     }
-    const sample = renderTemplate(session.body, varsFor(session.recipients[0]));
-    const missing = unresolvedVariables(`${session.subject} ${sample}`);
+    const sample = fill(session.body, varsFor(session.recipients[0]));
+    const missing = unresolvedVariables(`${hasSubject() ? session.subject : ''} ${sample}`);
     if (missing.length) out.push(`Variables sans valeur : ${missing.map(v => `{${v}}`).join(', ')}. Remplacez-les avant l’envoi.`);
     if (session.files.length && session.channel === 'sms') out.push('Un SMS ne transporte pas de pièce jointe : choisissez E-mail ou Partager.');
     return out.length ? html`<ul class="msg-warnings">${out.map(w => html`<li>${w}</li>`)}</ul>` : '';
@@ -328,7 +334,7 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
     const all = contacts().filter(c => !session.recipients.some(r => r.id === c.id)), groups = contactGroups(contacts());
     const templates = messageTemplates(data());
     const gateway = gatewayReady() && (session.channel === 'sms' || session.channel === 'email');
-    const sample = renderTemplate(session.body, varsFor(session.recipients[0]));
+    const sample = fill(session.body, varsFor(session.recipients[0]));
     return html`<form id="msg-compose" class="msg-compose" data-msg-session="${session.id}" novalidate>
       <fieldset class="msg-fieldset"><legend>Destinataires</legend><div id="msg-rcpts">${recipientsHtml()}</div>
         <div class="msg-add"><label>Ajouter<select name="add"><option value="">Choisir…</option>${groups.length ? html`<optgroup label="Groupes">${groups.map(g => html`<option value="group:${g.name}">${g.name} (${g.contacts.length})</option>`)}</optgroup>` : ''}${['contact', 'member', 'client'].map(kind => { const l = all.filter(c => c.kind === kind); return l.length ? html`<optgroup label="${({contact: 'Contacts', member: 'Équipe', client: 'Clients'})[kind]}">${l.map(c => html`<option value="${c.id}">${c.name}${c.role ? ` · ${c.role}` : ''}</option>`)}</optgroup>` : ''; })}</select></label>
@@ -360,7 +366,7 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
     form.addEventListener('keydown', event => { if (event.key === 'Enter' && event.target.name === 'free') { event.preventDefault(); addFree(); } });
   }
   function refreshComposerBits() {
-    const sample = renderTemplate(session.body, varsFor(session.recipients[0]));
+    const sample = fill(session.body, varsFor(session.recipients[0]));
     const counter = doc.getElementById('msg-counter'), preview = doc.getElementById('msg-preview'), warn = doc.getElementById('msg-warn');
     if (counter) counter.textContent = counterText(sample, session.channel);
     if (preview) preview.textContent = sample;
@@ -399,10 +405,10 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
       if (!ch) { skipped.push(`${r.name} (${session.channel === 'email' ? 'pas d’e-mail' : 'pas de numéro'})`); continue; }
       if (consentStatus(r, ch) === 'non') { skipped.push(`${r.name} (opposition)`); continue; }
       const vars = varsFor(r);
-      targets.push({recipient: r, channel: ch, body: renderTemplate(session.body, vars), subject: renderTemplate(session.subject, vars)});
+      targets.push({recipient: r, channel: ch, body: fill(session.body, vars), subject: hasSubject() ? fill(session.subject, vars) : ''});
     }
     if (session.channel !== 'share' && !targets.length) return fail(form, `Personne ne peut recevoir ce message : ${skipped.join(', ')}.`);
-    const missing = unresolvedVariables(targets.map(t => `${t.subject} ${t.body}`).join(' ') || renderTemplate(`${session.subject} ${session.body}`, varsFor(null)));
+    const missing = unresolvedVariables(targets.map(t => `${t.subject} ${t.body}`).join(' ') || fill(`${hasSubject() ? session.subject : ''} ${session.body}`, varsFor(null)));
     if (missing.length) return fail(form, `Variables sans valeur : ${missing.map(v => `{${v}}`).join(', ')}. Remplacez-les dans le texte.`, form.elements.body);
     if (session.mode === 'gateway' && gatewayReady() && (session.channel === 'sms' || session.channel === 'email')) return sendViaGateway(targets, skipped);
     return showDeviceSend(targets, skipped);
@@ -412,7 +418,7 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
     catch (error) { toast(error?.message || 'Journal des messages indisponible.', 'warning'); return null; }
   }
   function baseRecord(targets, {status = 'prepare', via = 'appareil', sendAt = ''} = {}) {
-    return messageRecord({channel: session.channel, recipients: targets.map(t => ({contactId: t.recipient.kind === 'libre' ? '' : t.recipient.id, name: t.recipient.name, phone: t.recipient.phone, email: t.recipient.email})), subject: targets[0]?.subject || session.subject, body: targets[0]?.body || session.body, status, via, context: session.context, deviceId: deviceId(), author: author(), now: now(), templateKey: session.templateKey, attachments: session.files, sendAt});
+    return messageRecord({channel: session.channel, recipients: targets.map(t => ({contactId: t.recipient.kind === 'libre' ? '' : t.recipient.id, name: t.recipient.name, phone: t.recipient.phone, email: t.recipient.email})), subject: hasSubject() ? targets[0]?.subject || session.subject : '', body: targets[0]?.body || session.body, status, via, context: session.context, deviceId: deviceId(), author: author(), now: now(), templateKey: session.templateKey, attachments: session.files, sendAt});
   }
 
   // Envoi par le téléphone : un lien par destinataire (SMS, WhatsApp), un e-mail groupé si le texte n'est pas personnalisé.
@@ -420,7 +426,7 @@ export function createMessagingUI({store, state, modal, closeModal, toast, sync 
     const ch = session.channel, p = platform();
     const personal = PERSONAL_VARS.test(`${session.subject} ${session.body}`);
     let links;
-    if (ch === 'share') links = [{label: 'Partager', share: true, body: targets[0]?.body || renderTemplate(session.body, varsFor(null)), subject: targets[0]?.subject || renderTemplate(session.subject, varsFor(null)), names: targets.map(t => t.recipient.name)}];
+    if (ch === 'share') links = [{label: 'Partager', share: true, body: targets[0]?.body || fill(session.body, varsFor(null)), subject: targets[0]?.subject || fill(session.subject, varsFor(null)), names: targets.map(t => t.recipient.name)}];
     else if (ch === 'email' && !personal && targets.length > 1) links = [{label: `E-mail à ${plural(targets.length, 'destinataire', 'destinataires')} (copie cachée)`, href: mailtoUri({bcc: targets.map(t => t.recipient.email), subject: targets[0].subject, body: targets[0].body}), names: targets.map(t => t.recipient.name), indexes: targets.map((_, i) => i)}];
     else links = targets.map((t, i) => ({label: t.recipient.name, detail: t.channel === 'email' ? t.recipient.email : formatPhone(t.recipient.phone), href: t.channel === 'email' ? mailtoUri({to: [t.recipient.email], subject: t.subject, body: t.body}) : t.channel === 'whatsapp' ? whatsappUri({phone: t.recipient.phone, body: t.body}) : smsUri({phones: [t.recipient.phone], body: t.body, platform: p}), names: [t.recipient.name], indexes: [i], channel: t.channel}));
     const rec = await logRecord({...baseRecord(targets), results: targets.map(t => ({to: t.recipient.phone || t.recipient.email || t.recipient.name, status: 'prepare'}))});

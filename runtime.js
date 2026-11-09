@@ -1,4 +1,4 @@
-import {BUILD_ID} from './utils.js';
+import {BUILD_ID,localIso} from './utils.js';
 
 const REQUIRED_ASSETS = [
  /* n° 161 */'./apps.js','./apps-ui.js',
@@ -180,7 +180,7 @@ export async function downloadEmergencyState(){
   if(!data)throw new Error('Aucune donnée locale récupérable.');
   const blob=new Blob([JSON.stringify({format:'parcelles-emergency-state',buildId:BUILD_ID,createdAt:Date.now(),data},null,2)],{type:'application/json;charset=utf-8'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download=`parcelles-secours-${new Date().toISOString().slice(0,10)}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+  a.href=url;a.download=`parcelles-secours-${localIso()}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
   return true;
 }
 

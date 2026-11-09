@@ -83,7 +83,7 @@ export function buildAssistantContext(state,context={}){
       interventions:needWorks?byParcel(state.interventions):[],tasks:needTasks?byParcel(state.tasks):[],
       materiels:/materiel|machine|tracteur|entretien|maintenance/.test(q)?state.materiels:[],
       observations:/observation|anomalie|alerte/.test(q)?byParcel(state.observations):[],
-      stockItems:/stock|produit|intrant|seuil|rupture/.test(q)?state.stockItems:[],chantiers:/chantier|\btp\b|travaux publics|terrassement/.test(q)?state.chantiers:[],assistantMessages:[],
+      stockItems:/stock|produit|intrant|seuil|rupture/.test(q)?state.stockItems:[],chantiers:/chantier|\btp\b|travaux publics|terrassement/.test(q)?state.chantiers:[],
       grazingSessions:/pature|paturage|\bpre\b|\blots?\b|animal|betail|troupeau|vache|brebis|genisse|veau|taureau|mouton/.test(q)?byParcel(state.grazingSessions):[],
       integrationImports:/recolte|rendement|moisson|\blots?\b/.test(q)?byParcel(state.integrationImports):[]};
     if(!/meteo|pluie|vent|temps|traite|pulveris|semer|semis|gel|orage|chaleur/.test(q))context={...context,weather:null};

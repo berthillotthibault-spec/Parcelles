@@ -1,5 +1,25 @@
 import {geometryAreaHa} from './utils.js';
 
+// Extrait de la nomenclature officielle des cultures PAC (CODE_CULTU). Un code absent
+// de cette table est conservé tel quel : l’utilisateur pourra le renommer ensuite.
+export const RPG_CULTURE_LABELS=Object.freeze({
+  BTH:'Blé tendre d’hiver',BTP:'Blé tendre de printemps',BDH:'Blé dur d’hiver',BDP:'Blé dur de printemps',
+  ORH:'Orge d’hiver',ORP:'Orge de printemps',AVH:'Avoine d’hiver',AVP:'Avoine de printemps',
+  SGH:'Seigle d’hiver',TTH:'Triticale d’hiver',TTP:'Triticale de printemps',
+  MIS:'Maïs',MIE:'Maïs ensilage',SOG:'Sorgho',
+  CZH:'Colza d’hiver',CZP:'Colza de printemps',TRN:'Tournesol',SOJ:'Soja',LIH:'Lin non textile d’hiver',
+  FVL:'Féverole',PHI:'Pois d’hiver',PPR:'Pois de printemps',LUZ:'Luzerne',
+  BTN:'Betterave non fourragère',PTC:'Pomme de terre de consommation',
+  PPH:'Prairie permanente',PTR:'Prairie temporaire',PRL:'Prairie en rotation longue',
+  J5M:'Jachère de 5 ans ou moins',J6P:'Jachère de 6 ans ou plus',
+  VRC:'Vigne (raisins de cuve)'
+});
+
+export function rpgCultureLabel(code,fallback=''){
+  const key=String(code??'').trim().toUpperCase();
+  return RPG_CULTURE_LABELS[key]||String(fallback||key||'').trim();
+}
+
 const RPG_URL='https://apicarto.ign.fr/api/rpg/v2';
 const PAGE_SIZE=1000;
 const MAX_PAGES=10000; // Fail explicitly if a broken server never reaches its end.
@@ -57,7 +77,7 @@ export function rpgFeatureToParcel(feature,{year=2024}={}){
   return{
     source:'rpg',sourceId,nom:`RPG ${id}`,
     geometry:structuredClone(feature.geometry),surfaceHa:Number.isFinite(surface)&&surface>=0?surface:geometryAreaHa(feature.geometry),
-    culture:String(property(p,'nom_cultu','NOM_CULTU','lib_cultu','LIB_CULTU')??cultureCode),
+    culture:rpgCultureLabel(cultureCode,property(p,'nom_cultu','NOM_CULTU','lib_cultu','LIB_CULTU')??cultureCode),
     commune:String(property(p,'lib_commune','LIB_COMMUNE','commune','COMMUNE')??''),
     ilot:String(property(p,'num_ilot','NUM_ILOT')??''),
     rpgYear:year,rpgId:id,rpgCodeCulture:cultureCode,rpgCodeGroup:String(property(p,'code_group','CODE_GROUP')??'')
