@@ -83,6 +83,8 @@ test('graphiques SVG : rôle image et équivalent textuel, couleurs par classes'
   assert.match(f, /dont 1 080,00 € déjà en retard/);
   assert.match(f, /class="bh-bar is-late"/);
   assert.match(revenueChartSvg([]), /aucune donnée/);
+  // Un mois net négatif (avoir) : aucune barre de hauteur négative.
+  assert.doesNotMatch(revenueChartSvg([{month: '2026-11', invoicedHt: -100, collected: 0}]), /height="-/);
 });
 
 test('À faire : relances groupées par client au niveau le plus avancé, devis à suivre, doublons ignorés', async () => {

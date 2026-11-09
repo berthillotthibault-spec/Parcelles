@@ -31,7 +31,7 @@ test('« Aujourd’hui » : retards exclus, tri par heure, fait barré avec reop
   }, parcels));
   const ids = [...out.matchAll(/home-row-main" data-action="([a-z-]+)" data-id="(\w+)"/g)].map(m => `${m[1]}:${m[2]}`);
   assert.deepEqual(ids, ['finish-work:w1', 'finish-work:w2', 'finish-task:t1', 'reopen-work:w5']);
-  assert.match(out, /Les Noues · 8,1 ha · à 14 h/);
+  assert.match(out, /Les Noues · 8,1 ha · à[ \u00a0]14\u00a0h/);
   assert.ok(!out.includes('<b>Rentrer</b>') && out.includes('&lt;b&gt;Rentrer'));
   assert.match(out, /home-row is-done/);
   assert.equal(todayListHtml({pending: [], done: []}, parcels), '');

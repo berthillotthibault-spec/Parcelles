@@ -105,3 +105,15 @@ test('travail habituel non fait : rappel après le délai médian + 7 j, jamais 
   assert.equal(notes.length, 1); assert.equal(notes[0].title, 'Travail habituel non fait'); assert.match(notes[0].message, /^Désherbage · Les Noues/);
   assert.equal(computeNotifications({...s, preferences: {habitReminders: false}}, {now: at('2026-06-06')}).filter(n => n.id.startsWith('habit-missed-')).length, 0, 'désactivable');
 });
+test('correctif : pas de proposition d’une étape habituelle déjà passée (travail terminé saisi en retard)', () => {
+  const sowing = w('n1', 'p1', 'Semis', '2026-04-26'); // désherbage habituel vers le 2026-06-03
+  assert.equal(nextStepSuggestion(farm([sowing]), sowing, {now: Date.parse('2026-11-08T10:00:00Z')}), null);
+  assert.equal(nextStepSuggestion(farm([sowing]), sowing, {now: new Date(2026, 5, 3, 0, 30).getTime()}).date, '2026-06-03', 'le jour même reste proposé');
+});
+test('correctif : « aujourd’hui » des rappels d’habitude en date locale', async () => {
+  const {missedHabits} = await import('./habits.js');
+  const s = farm([w('n1', 'p1', 'Semis', '2026-04-20')]); // désherbage attendu vers le 2026-05-28
+  const [row] = missedHabits(s, {now: new Date(2026, 5, 6, 0, 30).getTime()});
+  assert.equal(row.late, 9);
+  assert.equal(missedHabits(s, {now: new Date(2026, 5, 4, 0, 30).getTime()})[0]?.late, 7, 'le rappel apparaît dès minuit local');
+});

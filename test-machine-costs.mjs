@@ -77,3 +77,19 @@ test('mise à jour du coût horaire : seule la valeur réelle est reprise, l’a
   const empty = machineCost(s, {id: 'x', nom: 'Vide'}, {campaign: C});
   assert.throws(() => hourlyCostPatch({id: 'x'}, empty), /inconnu/);
 });
+
+test('une ligne TP « plein seul » (ni heures ni quantité) ne compte pas comme travail', () => {
+  const s = farm({}, {interventions: [], chantiers: [{id: 'c1', kind: 'tp', tpLogs: [{id: 'l1', equipmentId: 'm1', date: '2026-10-15', fuelLiters: 60, hours: null, volumeM3: null, tonnage: null}]}]});
+  const r = machineCost(s, s.materiels[0], {campaign: C});
+  assert.equal(r.entries, 0);
+  assert.equal(r.completeness, null);
+  assert.ok(!r.missing.some(m => /sans heures/.test(m)));
+});
+
+test('accord du nombre de travaux sans heures', () => {
+  const s = farm({}, {interventions: [
+    {id: 'a', parcelId: 'p1', type: 'Labour', date: '2026-10-05', status: 'Terminé', equipmentId: 'm1'},
+    {id: 'b', parcelId: 'p1', type: 'Labour', date: '2026-10-06', status: 'Terminé', equipmentId: 'm1'}]});
+  const r = machineCost(s, s.materiels[0], {campaign: C});
+  assert.ok(r.missing.includes('2 travaux sans heures'));
+});

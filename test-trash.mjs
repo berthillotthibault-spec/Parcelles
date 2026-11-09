@@ -28,6 +28,7 @@ test('« Supprimé il y a 3 j par X » : sync puis journal local', () => {
   assert.equal(deletedBy('interventions', {...item, modifiedEmail: 'zoe@ex.fr'}, {}), 'zoe@ex.fr');
   assert.equal(deletedLabel('interventions', item, {now: day(12), who: 'paul@ex.fr'}), 'Supprimé il y a 3 j par paul@ex.fr');
   assert.equal(deletedLabel('interventions', item, {now: day(12)}), 'Supprimé il y a 3 j');
+  assert.equal(deletedLabel('parcelles', {id: 'p1', deletedAt: day(12, 1)}, {now: day(12, 23)}), 'Supprimée aujourd’hui');
 });
 
 test('restauration d’une parcelle : travaux et passages du même jour proposés, rien de restauré d’office', async () => {

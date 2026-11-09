@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.28.2",
+      "date": "2026-11-09",
+      "title": "Grand nettoyage",
+      "items": [
+        "Plus de 300 corrections dans toute l’application : carte, travaux, troupeau, facturation, stocks, réglages.",
+        "Découper ou fusionner une parcelle ne crée plus de doublons, et les dates du jour sont justes même après minuit.",
+        "Navigation au clavier, contrastes et affichage sur téléphone revus ; pièces jointes et exports mieux protégés."
+      ]
+    },
+    {
       "version": "10.28.1",
       "date": "2026-11-03",
       "title": "Aide des applis",

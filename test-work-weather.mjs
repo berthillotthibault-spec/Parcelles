@@ -84,6 +84,8 @@ test('libellés de créneau', () => {
   assert.equal(slotSpan(at(8), at(12), now), 'maintenant jusqu’à 12 h');
   assert.equal(slotSpan(at(22), at(4, 9), now), 'aujourd’hui dès 22 h');
   assert.equal(slotSpan(at(6, 10), at(9, 10), now), 'samedi 6 h–9 h');
+  assert.equal(slotSpan(at(22), at(0, 9), now), 'aujourd’hui 22 h–24 h');
+  assert.equal(slotSpan(at(8), at(0, 9), now), 'maintenant jusqu’à 24 h');
 });
 
 test('automatisation quotidienne « Créneaux météo du jour »', () => {

@@ -38,6 +38,7 @@ test('valorisation : tarif hectare, horaire, m³ et gazole refacturé, sans prix
   const h=workLine(s.interventions[4],s.parcelles[2],c2,20);assert.deepEqual([h.quantity,h.unit,h.unitPrice],[2,'h',null]);assert.match(h.basis,/à saisir/);
   const fuel=fuelLine(s.interventions[0],s.parcelles[0],20);assert.equal(fuel.quantity,40);assert.equal(fuel.unitPrice,1.5,'coût carburant ÷ litres');
   assert.equal(fuelLine(s.interventions[1],s.parcelles[0],20).unitPrice,null,'pas de prix carburant connu');
+  assert.equal(fuelLine({id:'w',fuel:30,fuelCost:100},null,20).unitPrice,3.333,'PU du carburant au millième');
   assert.equal(fuelLine(s.interventions[1],s.parcelles[0],20,1.62).unitPrice,1.62);assert.match(fuelLine(s.interventions[1],s.parcelles[0],20,1.62).basis,/à vérifier/);
   const items=billableItems(s,'c1');
   assert.deepEqual(items.map(i=>i.key),['work:w1','fuel:w1','work:w2','fuel:w2','tp-h:log1','tp-m3:log1'],'travaux réalisés des parcelles du client, gazole et journal TP');

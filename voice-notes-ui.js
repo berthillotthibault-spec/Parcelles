@@ -8,11 +8,12 @@ import {locateParcels} from './field-ops.js';
 import {ugbTable} from './grazing.js';
 import {endGrazingSession, grazingReentryAlert, moveGrazingLot, saveGrazingSession} from './grazing-records.js';
 import {isGrazingType} from './quick-work.js';
-import {MEMO_MAX_MS, confirmationSentence, formatClock, grazingTotal, grazingType, loadVoiceGrammar, memoDocument, memoSummaryLabel, parseVoiceEntry, pendingMemos, pickAudioMime, voiceGrammarReady, workDraftsFromEntry} from './voice-notes.js';
+import {MEMO_MAX_MS, confirmationSentence, formatClock, grazingTotal, grazingType, loadVoiceGrammar, memoDocument, memoSummaryLabel, parseVoiceEntry, pendingMemos, pickAudioMime, plannedMatchFor, completePlannedWork, voiceGrammarReady, workDraftsFromEntry} from './voice-notes.js';
 
 const HOLD_MS=450,MIN_AUDIO_MS=700;
 const pad=n=>String(n).padStart(2,'0');
 const todayIso=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;};
+const dayLabel=iso=>new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR',{day:'numeric',month:'short'});
 const plural=(n,one,many)=>`${formatNumber(n)} ${n>1?many:one}`;
 
 export function createVoiceNotesUI(host){
@@ -23,6 +24,8 @@ export function createVoiceNotesUI(host){
   const canRecord=()=>Boolean(prefs().voiceEnabled!==false&&navigator.mediaDevices?.getUserMedia&&window.MediaRecorder);
   const canRecognize=()=>Boolean(SR()&&prefs().voiceEnabled!==false&&navigator.onLine!==false);
   const haptic=()=>{try{navigator.vibrate?.(18);}catch{}};
+  // Même notice que les brouillons de voice-intents-ui.js : le rôle lecteur est annoncé avant le clic.
+  const readOnlyNotice=entity=>(!store.writeGuard||store.writeGuard({entity,action:'create'}))?'':'<div class="notice warning">Votre rôle est en lecture seule : ce brouillon ne peut pas être enregistré.</div>';
   let rec=null,draft=null,player=null,closeWatch=null;
 
   // ---------- Bouton flottant ----------
@@ -241,6 +244,13 @@ export function createVoiceNotesUI(host){
     const p=document.querySelector('#modal-root .modal-header p');if(p)p.textContent=confirmationSentence({...entry,dateLabel:form.elements.date?.value===entry.date?entry.dateLabel:''},{type,parcels,status});
     const save=$('#vn-save');if(save&&entry.intent==='work')save.textContent=ids.length>1?`Enregistrer ${ids.length} travaux`:'Enregistrer le travail';
     const complete=$('#vn-complete');if(complete&&entry.intent==='work')complete.disabled=ids.length>1;
+    // Travail fait qui correspond à un travail prévu : il sera terminé, pas créé en double.
+    const planned=$('#vn-planned');
+    if(planned){
+      const date=form.elements.date?.value,matches=status==='Terminé'&&type?.trim()?ids.map(id=>plannedMatchFor(store.state,id,type.trim(),date)).filter(Boolean):[];
+      planned.textContent=matches.length===1?`Termine le travail prévu « ${matches[0].type} » du ${dayLabel(matches[0].plannedDate||matches[0].date)}`.replace(/\.?$/,'.'):matches.length?`Termine ${matches.length} travaux prévus au lieu d’en créer de nouveaux.`:'';
+      planned.classList.toggle('hidden',!matches.length);
+    }
   }
 
   // n° 13 : entretien, observation, sortie de stock et heures TP dans un module chargé à la demande.
@@ -274,11 +284,11 @@ export function createVoiceNotesUI(host){
     if(entry.intent==='grazing-exit')return renderGrazingExit(entry);
     if(entry.intent==='grazing-entry'||entry.intent==='grazing-move')return renderGrazingEntry(entry);
     const types=[...new Set([...(entry.type?[entry.type]:[]),...entry.typeChoices])].slice(0,6);
-    const body=`<label class="vn-type${hit(entry,'type')}">Travail *<input name="type" value="${escapeHtml(entry.type||'')}" placeholder="Semis, fauche, traitement…" autocomplete="off"></label>
+    const body=`${readOnlyNotice('interventions')}<label class="vn-type${hit(entry,'type')}">Travail *<input name="type" value="${escapeHtml(entry.type||'')}" placeholder="Semis, fauche, traitement…" autocomplete="off"></label>
       ${types.length>1||(!entry.type&&types.length)?chips('type',types.map(t=>[t,t]),entry.type,{label:'Types proposés'}):''}
       ${parcelPicker(entry)}
       <div class="field-label"><span>Statut</span><input type="hidden" name="status" value="${escapeHtml(entry.status)}">${chips('status',[['Terminé','Terminé'],['À faire','À faire']],entry.status,{label:'Statut'})}</div>
-      ${dateField(entry)}${detailRows(entry)}${quote(entry)}`;
+      ${dateField(entry)}<p class="form-note hidden" id="vn-planned"></p>${detailRows(entry)}${quote(entry)}`;
     const form=draftModal(body,footer(entry.parcels.length>1?`Enregistrer ${entry.parcels.length} travaux`:'Enregistrer le travail'));
     refreshSentence();
     $('#vn-save').onclick=()=>saveWorks(form);
@@ -300,19 +310,24 @@ export function createVoiceNotesUI(host){
     if(!type)return draftError('Champ obligatoire : travail.');
     if(!ids.length)return draftError('Champ obligatoire : parcelle.');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return draftError('Champ obligatoire : date.');
+    if(status==='Terminé'&&date>todayIso()){form.elements.date?.focus();return draftError('Date future : un travail terminé ne peut pas être daté après aujourd’hui. Choisissez « À faire » ou corrigez la date.');}
     // Un pâturage fait dicté comme travail passe par la mise au pré ; prévu, il reste un travail à faire.
     if(isGrazingType(type)&&status!=='À faire'&&host.openGrazingEntry){draft.handled=true;closeModal();host.openGrazingEntry({parcelIds:ids,date,type});return;}
+    // Travail fait qui correspond à un travail prévu : on termine ce dernier au lieu de créer un doublon.
+    const previous=[];
     const works=workDraftsFromEntry(entry,{parcelIds:ids,type,status,date}).map(work=>{
-      const parcel=parcelById(work.parcelId);
+      const parcel=parcelById(work.parcelId),planned=status==='Terminé'?plannedMatchFor(store.state,work.parcelId,type,date):null;
+      if(planned){previous.push(structuredClone(planned));const done=completePlannedWork(planned,{...work,dose:toNullableNumber(work.dose)},date);return {...done,culture:done.culture||parcel?.culture||'',surfaceWorked:done.surfaceWorked??toNullableNumber(parcel?.surfaceHa)};}
       return {...work,id:uid('work'),culture:work.culture||parcel?.culture||'',dose:toNullableNumber(work.dose),surfaceWorked:work.surfaceWorked??toNullableNumber(parcel?.surfaceHa)};
     });
+    const reused=new Set(previous.map(w=>w.id));
     button.disabled=true;
     try{await store.upsertMany('interventions',works,{label:`Saisie vocale : ${works.length} travail${works.length>1?'x':''}`});}
     catch(error){button.disabled=false;return draftError(error.message||'Enregistrement impossible.');}
     draft.handled=true;const memoId=draft.memoId;
     if(memoId)await markMemo(memoId,'done',{interventionIds:works.map(w=>w.id),transcript:entry.text}).catch(()=>{});
     closeModal();haptic();
-    toast(works.length>1?`${works.length} travaux enregistrés.`:`Travail enregistré : ${type}.`,'success',{label:'Annuler',run:async()=>{for(const w of works)await store.remove('interventions',w.id).catch(()=>{});if(memoId)await markMemo(memoId,'pending').catch(()=>{});toast('Saisie annulée.');}});
+    toast(works.length>1?`${works.length} travaux enregistrés.`:reused.size?`Travail prévu terminé : ${type}.`:`Travail enregistré : ${type}.`,'success',{label:'Annuler',run:async()=>{for(const w of works)if(!reused.has(w.id))await store.remove('interventions',w.id).catch(()=>{});for(const w of previous)await store.upsert('interventions',w,{label:'Annulation d’une saisie vocale'}).catch(()=>{});if(memoId)await markMemo(memoId,'pending').catch(()=>{});toast('Saisie annulée.');}});
   }
 
   function renderStockDraft(entry){
@@ -325,7 +340,7 @@ export function createVoiceNotesUI(host){
     const qty=item&&entry.unitOk?`<p class="vn-stock-line vn-hit">+ ${formatNumber(entry.stockQuantity)} ${escapeHtml(item.unit||'')} <small>(dit : ${formatNumber(entry.quantity)} ${escapeHtml(entry.unit)} · stock actuel ${formatNumber(item.quantity)} ${escapeHtml(item.unit||'')})</small></p>`
       :item?`<div class="notice warning">Unité à vérifier : vous avez dit « ${escapeHtml(entry.unit)} », le stock est suivi en « ${escapeHtml(item.unit||'?')} ». Utilisez « Compléter le formulaire ».</div>`:'';
     const canSave=Boolean((item&&entry.unitOk)||choices.length>1);
-    const form=draftModal(`${picker}${qty}${dateField(entry,{max:todayIso()})}${quote(entry)}`,footer(canSave?'Enregistrer l’entrée de stock':'Ouvrir le stock',{complete:Boolean(item||choices.length>1)}));
+    const form=draftModal(`${readOnlyNotice('stockMovements')}${picker}${qty}${dateField(entry,{max:todayIso()})}${quote(entry)}`,footer(canSave?'Enregistrer l’entrée de stock':'Ouvrir le stock',{complete:Boolean(item||choices.length>1)}));
     $('#vn-complete')?.addEventListener('click',()=>{const id=form.elements.stockItemId?.value;if(!id)return draftError('Champ obligatoire : produit.');draft.handled=true;host.openStockMovement?.(id);});
     $('#vn-save').onclick=async()=>{
       if(!canSave){draft.handled=true;closeModal();host.openStock?.();return;}
@@ -337,8 +352,7 @@ export function createVoiceNotesUI(host){
       const button=$('#vn-save');button.disabled=true;
       try{await store.recordStockMovement({stockItemId:id,type:'Entrée',quantity,date,note:`Dicté : « ${entry.text} »`});}
       catch(error){button.disabled=false;return draftError(error.message);}
-      draft.handled=true;if(draft.memoId)await markMemo(draft.memoId,'done',{transcript:entry.text}).catch(()=>{});
-      closeModal();haptic();toast(`Entrée de stock enregistrée : + ${formatNumber(quantity)} ${stock.unit||''} de ${stock.name}.`);
+      finish(`Entrée de stock enregistrée : + ${formatNumber(quantity)} ${stock.unit||''} de ${stock.name}.`,()=>store.recordStockMovement({stockItemId:id,type:'Sortie',quantity,date,note:'Annulation d’une saisie vocale'}));
     };
   }
   function convertFor(entry,stock){
@@ -351,7 +365,7 @@ export function createVoiceNotesUI(host){
     const sessions=entry.sessions||[];
     const picker=sessions.length?`<div class="field-label"><span>Lot *</span><div class="vn-chips vn-multi" data-single="1" role="group" aria-label="Lots au pré">${sessions.map((s,i)=>`<button type="button" class="choice-chip${sessions.length===1&&i===0?' is-on':''}" data-session="${escapeHtml(s.id)}" aria-pressed="${sessions.length===1&&i===0}">${escapeHtml(lotLabel(s))}</button>`).join('')}</div>${sessions.length>1?'<p class="form-note">Plusieurs lots correspondent : touchez le bon.</p>':''}</div>`
       :'<div class="notice warning">Aucun lot au pré ne correspond à cette phrase.</div>';
-    const form=draftModal(`${picker}${dateField(entry,{max:todayIso()})}${quote(entry)}`,footer(sessions.length?'Enregistrer la sortie':'Ouvrir le pâturage',{complete:false}));
+    const form=draftModal(`${readOnlyNotice('grazingSessions')}${picker}${dateField(entry,{max:todayIso()})}${quote(entry)}`,footer(sessions.length?'Enregistrer la sortie':'Ouvrir le pâturage',{complete:false}));
     $('#vn-save').onclick=async()=>{
       if(!sessions.length){draft.handled=true;closeModal();host.openGrazing?.();return;}
       const id=form.querySelector('[data-session][aria-pressed="true"]')?.dataset.session,date=form.elements.date.value;
@@ -367,7 +381,7 @@ export function createVoiceNotesUI(host){
     const lots=moving?`<div class="field-label"><span>Lot à déplacer *</span><div class="vn-chips vn-multi" data-single="1" role="group" aria-label="Lots au pré">${entry.sessions.map((s,i)=>`<button type="button" class="choice-chip${i===0&&entry.sessions.length===1?' is-on':''}" data-session="${escapeHtml(s.id)}" aria-pressed="${i===0&&entry.sessions.length===1}">${escapeHtml(lotLabel(s))}</button>`).join('')}</div></div>`:'';
     const lot=entry.lot?entry.lot.charAt(0).toLocaleUpperCase('fr')+entry.lot.slice(1):'';
     const fields=moving?'':`<label class="${entry.animalType?'vn-hit':''}">Type d’animaux<input name="animalType" value="${escapeHtml(entry.animalType||'')}" placeholder="Bovins, ovins…"></label><label class="${entry.count?'vn-hit':''}">Nombre d’animaux *<input name="count" type="number" min="1" step="1" inputmode="numeric" value="${entry.count??''}"></label><label>Catégorie (chargement UGB)<select name="animalCategory"><option value="">Non précisée (1 UGB par animal)</option>${ugbTable(store.state).categories.map(c=>`<option value="${escapeHtml(c.key)}">${escapeHtml(c.label)}</option>`).join('')}</select></label><label>Nom du lot<input name="note" value="${escapeHtml(lot)}"></label>`;
-    const form=draftModal(`${lots}${parcelPicker({...entry,parcelChoices:entry.parcelChoices||[]})}${fields}${dateField(entry,{max:todayIso()})}${quote(entry)}`,footer(moving?'Déplacer le lot':'Mettre au pré'));
+    const form=draftModal(`${readOnlyNotice('grazingSessions')}${lots}${parcelPicker({...entry,parcelChoices:entry.parcelChoices||[]})}${fields}${dateField(entry,{max:todayIso()})}${quote(entry)}`,footer(moving?'Déplacer le lot':'Mettre au pré'));
     form.querySelectorAll('.vn-multi:not([data-single])').forEach(g=>{g.dataset.single='1';});
     $('#vn-complete').onclick=()=>{draft.handled=true;const ids=chosenParcels(form);closeModal();host.openGrazingEntry?.({parcelIds:ids.slice(0,1),date:form.elements.date.value});};
     // Délai de rentrée phyto : alerte et confirmation par un bouton distinct, jamais par un second appui sur Enregistrer.

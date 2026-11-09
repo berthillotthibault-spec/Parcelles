@@ -92,6 +92,16 @@ test('vêlage : veau prérempli (mère, naissance, lot) et tâche BDNI à J+7 av
   assert.equal(anonymous.calf.name, 'Veau de Belle · n° 6789'); assert.equal(anonymous.calf.nationalId, '');
 });
 
+test('vêlage : le veau compte dans le lot de sa mère (liste complétée, ou effectif + 1 pour un lot sans liste)', () => {
+  const listed = calvingPlan({animalId: 'a1', date: '2026-10-18'}, {state: farm(), today: TODAY, ids});
+  assert.equal(listed.lotUpdate.id, 'g1');
+  assert.equal(listed.lotUpdate.animals.length, 3); assert.equal(listed.lotUpdate.animals[2].animalId, 'calf1');
+  const countOnly = {id: 'g1', parcelId: 'p1', animalType: 'Bovins', startDate: '2026-09-01', animalsCount: 24};
+  const plan = calvingPlan({animalId: 'a1', date: '2026-10-18'}, {state: farm({grazingSessions: [countOnly], animals: [{...cow, sessionId: 'g1'}, bull]}), today: TODAY, ids});
+  assert.equal(plan.calf.sessionId, 'g1'); assert.equal(plan.lotUpdate.animalsCount, 25);
+  assert.equal(calvingPlan({animalId: 'a1', date: '2026-10-18'}, {state: farm({grazingSessions: []}), today: TODAY, ids}).lotUpdate, null, 'mère hors lot');
+});
+
 test('échéance BDNI : en attente, rappel à J+5, retard après J+7, fermée par la case « notifié » ou la tâche', () => {
   const plan = calvingPlan({animalId: 'a1', date: '2026-10-10'}, {state: farm(), today: TODAY, ids});
   const s = farm({animals: [cow, bull, plan.calf], animalEvents: [plan.event], tasks: [plan.task]});
@@ -219,7 +229,11 @@ test('conformité BDNI : naissances non notifiées signalées, jamais déclaré 
   const plan = calvingPlan({animalId: 'a1', date: '2026-10-01'}, {state: farm(), today: TODAY, ids});
   const s = farm({animals: [cow, bull, plan.calf], animalEvents: [plan.event], tasks: [plan.task]});
   const c = complianceChecks(s, {today: TODAY}).find(x => x.id === 'bdni');
-  assert.equal(c.status, 'warn'); assert.equal(c.items.length, 1); assert.match(c.items[0].note, /08\/10/);
+  // Échéance au 08/10 dépassée le 20/10 : à corriger.
+  assert.equal(c.status, 'ko'); assert.equal(c.items.length, 1); assert.match(c.items[0].note, /08\/10/);
+  const recent = calvingPlan({animalId: 'a1', date: '2026-10-16'}, {state: farm(), today: TODAY, ids});
+  const inTime = complianceChecks(farm({animals: [cow, bull, recent.calf], animalEvents: [recent.event], tasks: [recent.task]}), {today: TODAY}).find(x => x.id === 'bdni');
+  assert.equal(inTime.status, 'warn', 'dans le délai de 7 jours');
   const done = complianceChecks({...s, animalEvents: [{...plan.event, bdniNotifiedAt: 1}]}, {today: TODAY}).find(x => x.id === 'bdni');
   assert.equal(done.status, 'unknown');
 });

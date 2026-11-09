@@ -28,7 +28,7 @@ export function simulationBase(state,{campaign=campaignFor(),culture=''}={}){
   const withProduct=rows.filter(r=>r.product!==null),product=withProduct.reduce((s,r)=>s+r.product,0),charges=withProduct.reduce((s,r)=>s+r.charges,0);
   const area=rows.reduce((s,r)=>s+r.area,0),gnrPrice=num(state?.preferences?.fuelPrice)??1.7;
   const nm=netMargin(state,{campaign}),netLine=culture?nm.rows.find(r=>r.key===normalize(culture)):nm.total;
-  return{campaign,culture,area,parcels:rows.length,net:netLine&&netLine.net!==null&&netLine.net!==undefined?netLine.net:null,
+  return{campaign,culture,area,productArea:withProduct.reduce((s,r)=>s+r.area,0),parcels:rows.length,net:netLine&&netLine.net!==null&&netLine.net!==undefined?netLine.net:null,
     netParts:netLine?{rent:netLine.rentHa*netLine.area,structure:netLine.structureHa*netLine.area,aids:netLine.aidsHa*netLine.area}:null,withoutProduct:rows.length-withProduct.length,product,charges,fert,litres,fuelCost,gnrPrice,
     reliability:rows.length?Math.round(rows.reduce((s,r)=>s+r.reliability*(r.area||0),0)/Math.max(area,1e-9)):0,
     margin:withProduct.length?product-charges:null};
@@ -42,7 +42,7 @@ export function simulate(base,{yieldPct=0,pricePct=0,fertPct=0,gnrPrice=null}={}
   const product=base.product*(1+y/100)*(1+p/100),fertEffect=base.fert*f/100,gnrEffect=base.litres*(g-base.gnrPrice);
   const charges=base.charges+fertEffect+gnrEffect,margin=product-charges;
   const delta=margin-base.margin,net=base.net===null||base.net===undefined?null:base.net+delta;
-  return{margin,product,charges,delta,fertEffect,gnrEffect,productDelta:product-base.product,net,netHa:net!==null&&base.area>0?net/base.area:null,marginHa:base.area>0?margin/base.area:null};
+  return{margin,product,charges,delta,fertEffect,gnrEffect,productDelta:product-base.product,net,netHa:net!==null&&base.area>0?net/base.area:null,marginHa:base.productArea>0?margin/base.productArea:base.productArea===undefined&&base.area>0?margin/base.area:null};
 }
 
 const harvestYear=campaign=>Number(String(campaign).slice(0,4))+1;

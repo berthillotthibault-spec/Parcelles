@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {alignmentPositions, byteCapacity, codewords, encodeQR, formatBits, gfMul, qrRuns, qrSvg, rsEncode, versionBits} from './qr.js';
 import {appBaseUrl, labelSheetPdf, parseQrRoute, qrLink} from './qr-labels.js';
+import {qrFuelFill} from './equipment-qr-ui.js';
+import {machineFills, tankLevel, validateFill, FUEL_KIND} from './fuel.js';
+import {machineCost} from './machine-costs.js';
 
 test('Reed-Solomon : vecteur connu « HELLO WORLD » 1-M (thonky.com)', () => {
   const data = [32, 91, 11, 120, 209, 114, 220, 77, 67, 64, 236, 17, 236, 17, 236, 17];
@@ -74,4 +77,27 @@ test('planche A4 en PDF : 12 étiquettes par page', () => {
   assert.match(text, /\/Count 2 >>/);
   assert.ok(text.includes('Tracteur 6155M n'));
   assert.throws(() => labelSheetPdf([], {base: 'x'}), /Aucune étiquette/);
+});
+
+test('plein scanné : plein d’engin GNR (cuve, l/h, coût réel), pas un entretien', () => {
+  const m = {id: 'm1', nom: 'Tracteur', currentMeter: 1200};
+  const res = qrFuelFill(m, {liters: 40, meter: 1215, cost: 60, fromTank: true}, '2026-11-08');
+  assert.equal(res.error, undefined);
+  assert.equal(res.value.entry, 'machine');
+  assert.equal(res.value.equipmentId, 'm1');
+  assert.equal(res.value.fromTank, true);
+  assert.equal(res.value.amount, 60);
+  assert.match(qrFuelFill(m, {liters: 40, meter: 1100}, '2026-11-08').error, /Compteur/);
+  const state = {materiels: [m], maintenanceRecords: [], preferences: {fuelTank: {capacity: 3000, initialLevel: 1000, initialDate: '2026-01-01'}},
+    integrationImports: [{id: 'f1', farmKind: FUEL_KIND, ...res.value}]};
+  assert.equal(machineFills(state, 'm1').length, 1);
+  assert.equal(tankLevel(state).level, 960);
+  const cost = machineCost(state, m, {campaign: '2026/27'});
+  assert.equal(cost.maintenance, 0);
+  assert.equal(cost.maintenanceCount, 0);
+});
+
+test('plein daté dans le futur refusé quand la date du jour est fournie', () => {
+  assert.match(validateFill({date: '2027-05-01', litres: 1000}, {entry: 'tank', today: '2026-11-08'}).error, /futur/);
+  assert.ok(validateFill({date: '2026-11-08', litres: 1000}, {entry: 'tank', today: '2026-11-08'}).value);
 });

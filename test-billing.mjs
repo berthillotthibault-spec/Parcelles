@@ -320,6 +320,16 @@ test('saisie rapide en français : brouillon de lignes, jamais d’écriture',as
   assert.deepEqual(parseQuickEntry('devis Martin 40 m² de bâche à 2 €',state).lines.map(l=>[l.quantity,l.unit,l.unitPrice]),[[40,'m²',2]]);
   state.integrationImports=[];
   assert.equal(state.integrationImports.length,0);
+  // Séparateur de milliers (espace, insécable ou fine) : le montant entier est lu, rien ne reste dans le libellé.
+  for(const txt of ['3 h de pelle à 1 234,50 €','3 h de pelle à 1\u00a0234,50 €','3 h de pelle à 1\u202f234,50 €'])
+    assert.deepEqual(parseQuickEntry(txt,state).lines.map(l=>[l.label,l.quantity,l.unitPrice]),[['Pelle',3,1234.5]]);
+  assert.equal(parseQuickEntry('devis Dupont 12 t de cailloux à 18 € HT',state).lines[0].unitPrice,18);
+});
+
+test('émission : erreurs de conformité listées même quand les paramètres sont incomplets',()=>{
+  const p=emissionProblems(emptyState(),{docType:'facture',clientAddress:'1 rue',issueDate:'2026-10-01',dueDate:'2026-10-31',lines:[L('Pelle',1,100)]},'facture',{today:'2026-10-01'});
+  assert.ok(p.some(x=>/^Paramètres de facturation/.test(x)),'erreur de paramètres');
+  assert.ok(p.some(x=>/N° de TVA intracommunautaire du vendeur manquant/.test(x)),'erreur de conformité dès la 1re tentative');
 });
 
 test('Factur-X EN 16931 : facture remisée à TVA mixte, avoir positif en 381, contrôle de structure',async()=>{

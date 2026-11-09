@@ -5,7 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {emptyState} from './state.js';
 import {DOSSIER_PRESETS,DOSSIER_SECTIONS,campaignShift,cascade,chargesDetail,dossierCampaigns,dossierHtml,dossierModel,parcelMapSvg,stockAt,stockDate,yieldsByParcel,assolement,expectedReceipts} from './dossier.js';
-import {pilotageReportHtml,farmReportHtml} from './reports.js';
+import {pilotageReportHtml,farmReportHtml,clientReportHtml} from './reports.js';
 
 const root=path.dirname(fileURLToPath(import.meta.url));
 const read=rel=>fs.readFileSync(path.join(root,rel),'utf8');
@@ -106,6 +106,27 @@ test('dossier sur une exploitation vide : pas d’erreur ni de valeur inventée'
 test('rapports existants : même gabarit A4, sans bouton dupliqué',()=>{
   const html=pilotageReportHtml(farm(),C);assert.match(html,/Marge brute estimée/i);assert.match(html,/@page\{size:A4/);assert.equal((html.match(/id="print"/g)||[]).length,1);
   assert.equal((farmReportHtml(farm()).match(/id="print"/g)||[]).length,1);
+});
+
+test('produit inconnu : marge « — » partout, pas de cascade chiffrée',()=>{
+  const s=emptyState();s.parcelles=[{id:'p1',nom:'Les Noues',culture:'Blé tendre',surfaceHa:10}];
+  s.interventions=[{id:'w1',parcelId:'p1',type:'Semis',date:'2025-10-10',status:'Terminé',cost:450}];
+  const m=dossierModel(s,{campaign:C,preset:'gestion',today:TODAY});
+  assert.equal(m.pilotage.margin,null);assert.equal(m.cascade.unknown,true);assert.equal(m.cascade.net,null);assert.equal(m.cascade.steps.length,0);
+  assert.equal(m.history.at(-1).margin,null);
+  const html=dossierHtml(s,{campaign:C,preset:'gestion',today:TODAY});
+  assert.ok(!/−450/.test(html),'aucune marge négative inventée');assert.match(html,/la cascade n’est pas calculée/);assert.ok(!/NaN|undefined|Infinity/.test(html));
+});
+
+test('rapport exploitation : parcelles archivées exclues, coût inconnu « — » et statut affiché',()=>{
+  const s=emptyState();
+  s.parcelles=[{id:'pa',nom:'Les Noues',culture:'Blé tendre',surfaceHa:11.3,archived:true,splitInto:['a','b']},{id:'a',nom:'Les Noues A',culture:'Blé tendre',surfaceHa:5.3},{id:'b',nom:'Les Noues B',culture:'Blé tendre',surfaceHa:6},{id:'c',nom:'La Côte',culture:'Colza',surfaceHa:5}];
+  s.interventions=[{id:'w1',parcelId:'pa',type:'Semis',date:new Date().toISOString().slice(0,10),status:'À faire'}];
+  const html=farmReportHtml(s);
+  assert.match(html,/<strong>3<\/strong><br>parcelles/);assert.match(html,/16,3/);assert.ok(!/27,6/.test(html));
+  assert.ok(!/0,00\s?€/.test(html),'aucun coût inventé');assert.match(html,/<td>À faire<\/td><td>—<\/td>/);assert.match(html,/Les Noues<\/td>/);
+  const client={...s,clients:[{id:'k1',nom:'Client'}],parcelles:s.parcelles.map(p=>({...p,clientId:'k1'}))};
+  const ch=clientReportHtml(client,'k1');assert.ok(!/27,6/.test(ch));assert.match(ch,/16,3/);assert.match(ch,/<td>Semis<\/td><td>Les Noues<\/td><td>—<\/td>/);assert.ok(!/0,00\s?€/.test(ch));
 });
 
 test('fichiers servis : dossier.js et dossier-ui.js en cache, accroches dans app.js',()=>{

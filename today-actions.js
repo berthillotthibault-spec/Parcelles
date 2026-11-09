@@ -19,6 +19,7 @@ function openNotificationEntity(entity, id) {
   else if(entity==='observations')ctx.openObservations();
   else if(entity==='weather')ctx.openWeather();
   else if(entity==='sync')ctx.openSync();
+  else if(entity==='backup')ctx.lazy.run('backupVault',()=>ctx.backupVaultUI?.open());
   else if(entity==='parcelComments')ctx.lazy.run('parcelComments',()=>ctx.parcelCommentsUI?.openInbox());
 }
 
@@ -51,6 +52,7 @@ export const todayActions = {
       save:async preferences=>{await ctx.store.setPreferences(preferences);ctx.renderAll();}});
   },
   async 'hide-assistant'() {
+    ctx.closeModal();
     await ctx.store.setPreferences({assistantDock:false});
     ctx.toast('Assistant masqué. Réactivez-le dans Personnaliser.','success',{label:'Annuler',run:()=>ctx.store.setPreferences({assistantDock:true})});
   },

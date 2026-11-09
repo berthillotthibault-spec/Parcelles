@@ -1,7 +1,9 @@
 // @ts-check
 import {PERSONALIZATION_DEFAULTS,normalizePersonalization} from './personalization.js';
 import {HISTORY_MAX_AGE_DAYS,HISTORY_MAX_PER_ENTITY,buildHistoryEntry,isMeaningfulEntry,shouldRecordHistory} from './history.js';
-import {APP_VERSION, ENTITY_TYPES, campaignFor, clone, isoDate, now, parseImportDate, toNumber, uid, validateIntervention, validateParcel} from './utils.js';
+import {APP_VERSION, ENTITY_TYPES, campaignFor, clone, now, parseImportDate, toNullableNumber, toNumber, uid, validateIntervention, validateParcel} from './utils.js';
+// Date civile en heure locale (AAAA-MM-JJ) : isoDate passe par l’UTC et date de la veille entre minuit et 1 h/2 h.
+export const localIsoDate=value=>{const d=value instanceof Date?value:new Date(value??Date.now());return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 
 /** @returns {import('parcelles/types').AppState} État vierge au format APP_VERSION. */
 export function emptyState(){
@@ -55,7 +57,7 @@ export function normalizeEntity(type,entity,existing=null,{preserveDeleted=false
   if(type==='documents'||type==='photos'){
     normalized.category=normalized.category||(type==='photos'?'Photo / constat':'Autre');
     normalized.tags=Array.isArray(normalized.tags)?normalized.tags.map(tag=>String(tag||'').trim()).filter(Boolean).slice(0,20):String(normalized.tags||'').split(/[;,]/).map(tag=>tag.trim()).filter(Boolean).slice(0,20);
-    normalized.documentDate=parseImportDate(normalized.documentDate)||isoDate(normalized.capturedAt||normalized.createdAt||timestamp);
+    normalized.documentDate=parseImportDate(normalized.documentDate)||localIsoDate(normalized.capturedAt||normalized.createdAt||timestamp);
     for(const key of ['parcelId','interventionId','equipmentId','clientId','chantierId'])normalized[key]=normalized[key]||null;
   }
   return normalized;
@@ -69,6 +71,26 @@ function stringArray(value){
 }
 
 const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+// Format accepté pour un identifiant d’entité : les ids générés par uid() (préfixe_base36_base36) et ceux
+// des imports y entrent. Rien qui puisse sortir d’un attribut HTML (guillemets, chevrons, esperluette).
+// Identifiant sûr : jamais de quoi sortir d'un attribut HTML (< > " ' ` ni caractère de contrôle). Les ids
+// légitimes (uid(), imports) n'en contiennent jamais ; on ne restreint pas davantage pour ne perdre aucune donnée ancienne.
+export const SAFE_ID=/^[^<>"'`\u0000-\u001f]{1,256}$/;
+export const isSafeId=value=>(typeof value==='string'||typeof value==='number')&&SAFE_ID.test(String(value));
+// Références vers d’autres entités : une valeur hors format est effacée (null) plutôt que gardée.
+const REFERENCE_KEYS=['parcelId','clientId','equipmentId','materielId','interventionId','chantierId','animalId','taskId','productId','stockItemId','observationId','pointId'];
+const REFERENCE_LIST_KEYS=['parcelIds','completedParcelIds'];
+// Écarte les entités dont l’id est hors format (sauvegarde restaurée, import, état altéré) et efface les références hors format.
+function dropUnsafeIds(data){
+  ENTITY_TYPES.forEach(type=>{
+    data[type]=data[type].filter(entity=>entity.id===undefined||entity.id===null||entity.id===''||isSafeId(entity.id)).map(entity=>{
+      let next=entity;
+      for(const key of REFERENCE_KEYS)if(next[key]!==undefined&&next[key]!==null&&next[key]!==''&&!isSafeId(next[key])){if(next===entity)next={...entity};next[key]=null;}
+      for(const key of REFERENCE_LIST_KEYS)if(Array.isArray(next[key])&&next[key].some(id=>!isSafeId(id))){if(next===entity)next={...entity};next[key]=next[key].filter(isSafeId);}
+      return next;
+    });
+  });
+}
 
 function sanitizeCurrentShape(data){
   // Harden nested collections even when the stored state already reports the current schema version.
@@ -129,7 +151,9 @@ export function migrateData(input){
     data.interventions=data.interventions.map(item=>normalizeEntity('interventions',{
       status:item.status||'Terminé',plannedDate:item.plannedDate||null,doseUnit:item.doseUnit||'',productUnitPrice:item.productUnitPrice??null,
       machineCost:item.machineCost??0,inputCost:item.inputCost??0,operatorCost:item.operatorCost??0,otherCost:item.otherCost??0,
-      ...item
+      ...item,
+      // Dose importée en texte (« 1,5 ») avant la conversion à l'import : ramenée à un nombre.
+      ...(typeof item.dose==='string'&&item.dose.trim()?{dose:toNullableNumber(item.dose)}:{})
     },null,{preserveDeleted:true}));
     data.version=4;
   }
@@ -166,8 +190,8 @@ export function migrateData(input){
   if(data.version<9){
     data={...base,...data,preferences:{...base.preferences,...data.preferences},metadata:{...base.metadata,...data.metadata}};
     ensureArrays(data);
-    data.documents=data.documents.map(item=>normalizeEntity('documents',{category:item.category||'Autre',tags:item.tags||[],documentDate:item.documentDate||isoDate(item.capturedAt||item.createdAt),equipmentId:item.equipmentId||null,clientId:item.clientId||null,chantierId:item.chantierId||null,...item},null,{preserveDeleted:true}));
-    data.photos=data.photos.map(item=>normalizeEntity('photos',{category:item.category||'Photo / constat',tags:item.tags||[],documentDate:item.documentDate||isoDate(item.capturedAt||item.createdAt),equipmentId:item.equipmentId||null,clientId:item.clientId||null,chantierId:item.chantierId||null,...item},null,{preserveDeleted:true}));
+    data.documents=data.documents.map(item=>normalizeEntity('documents',{category:item.category||'Autre',tags:item.tags||[],documentDate:item.documentDate||localIsoDate(item.capturedAt||item.createdAt),equipmentId:item.equipmentId||null,clientId:item.clientId||null,chantierId:item.chantierId||null,...item},null,{preserveDeleted:true}));
+    data.photos=data.photos.map(item=>normalizeEntity('photos',{category:item.category||'Photo / constat',tags:item.tags||[],documentDate:item.documentDate||localIsoDate(item.capturedAt||item.createdAt),equipmentId:item.equipmentId||null,clientId:item.clientId||null,chantierId:item.chantierId||null,...item},null,{preserveDeleted:true}));
     data.version=9;
   }
 
@@ -297,10 +321,12 @@ export function migrateData(input){
   if(!Array.isArray(data.vetTreatments))data.vetTreatments=[];
   ensureArrays(data);
   sanitizeCurrentShape(data);
+  dropUnsafeIds(data);
   return data;
 }
 
 function validate(type,entity){
+  if(!isSafeId(entity?.id))return ['Identifiant invalide'];
   if(type==='parcelles')return validateParcel(entity);
   if(type==='interventions')return validateIntervention(entity);
   if(type==='rotations'){
@@ -591,16 +617,16 @@ export class Store{
     this._announcePersisted();
     // Démonstration : aucune sauvegarde automatique.
     if(!this.isDemo&&this.state.preferences.autoBackup&&now()>=this.backupRetryAt){
-      const day=new Date().toISOString().slice(0,10);
+      const day=localIsoDate(new Date());
       if(this.state.metadata.lastAutoBackupDay!==day){
-        const d=new Date(); const weekStart=new Date(d); weekStart.setDate(d.getDate()-((d.getDay()+6)%7));
-        const week=weekStart.toISOString().slice(0,10); const month=day.slice(0,7);
+        const d=new Date(); const weekStart=new Date(d); weekStart.setDate(d.getDate()-((d.getDay()+6)%7));weekStart.setHours(0,0,0,0);
+        const week=localIsoDate(weekStart); const month=day.slice(0,7);
         const snapshot=clone(this.state), createdAt=now();
         try{
           await this.storage.backupPut({id:`auto_daily_${this.workspaceId}_${day}`,workspaceId:this.workspaceId,period:'daily',createdAt,state:snapshot});
           await this.storage.backupPut({id:`auto_weekly_${this.workspaceId}_${week}`,workspaceId:this.workspaceId,period:'weekly',createdAt,state:snapshot});
           await this.storage.backupPut({id:`auto_monthly_${this.workspaceId}_${month}`,workspaceId:this.workspaceId,period:'monthly',createdAt,state:snapshot});
-          await this.storage.pruneBackups?.({daily:7,weekly:4,monthly:3});
+          await this.storage.pruneBackups?.({daily:7,weekly:4,monthly:3,preimport:5});
           this.state.metadata.lastAutoBackupDay=day;
           this.state.metadata.lastAutoBackupError=null;
           await this._writeState();
@@ -722,7 +748,7 @@ export class Store{
       const duplicate=this.state.rotations.find(item=>!item.deletedAt&&item.id!==normalized.id&&item.parcelId===normalized.parcelId&&item.campaignId===normalized.campaignId);
       if(duplicate)throw new Error('Une rotation existe déjà pour cette parcelle et cette campagne.');
     }
-    let before=null;const mutationLabel=label||`${existing?'Modification':'Création'} ${type}`;
+    let before=null;const mutationLabel=label||(existing?'Élément modifié':'Élément créé');
     await this._mutate(mutationLabel,state=>{
       const index=state[type].findIndex(item=>item.id===normalized.id);
       before=index>=0?clone(state[type][index]):null;
@@ -760,7 +786,7 @@ export class Store{
 
   async remove(type,id){
     const found=this.get(type,id);if(!found)throw new Error('Élément introuvable.');
-    const deletedAt=now(),label=`${type.slice(0,-1)} placé dans la corbeille.`;let before=null,after=null;
+    const deletedAt=now(),label='Élément placé dans la corbeille.';let before=null,after=null;
     await this.mutate(label,state=>{
       const item=state[type].find(value=>value.id===id);before=clone(item);item.deletedAt=deletedAt;item.updatedAt=deletedAt;item.version=(item.version||0)+1;after=clone(item);
     },{entity:type,entityId:id,action:'delete',payload:{id,deletedAt}});
@@ -769,14 +795,14 @@ export class Store{
 
   async restore(type,id){
     const found=this.get(type,id,{includeDeleted:true});if(!found?.deletedAt)throw new Error('Élément introuvable dans la corbeille.');
-    const label=`${type.slice(0,-1)} restauré.`;let before=null,after=null;
+    const label='Élément restauré.';let before=null,after=null;
     await this.mutate(label,state=>{const item=state[type].find(v=>v.id===id);before=clone(item);item.deletedAt=null;item.updatedAt=now();item.version=(item.version||0)+1;after=clone(item);},{entity:type,entityId:id,action:'update',payload:{id,deletedAt:null},previous:found});
     await this._recordHistory([{type,before,after,action:'restore'}],{label});
   }
 
   async purge(type,id){
     const found=this.get(type,id,{includeDeleted:true});if(!found)throw new Error('Élément introuvable.');
-    await this.mutate(`${type.slice(0,-1)} supprimé définitivement.`,state=>{state[type]=state[type].filter(v=>v.id!==id);},{queue:false,kind:'purge',entity:type,entityId:id,action:'purge'});
+    await this.mutate('Élément supprimé définitivement.',state=>{state[type]=state[type].filter(v=>v.id!==id);},{queue:false,kind:'purge',entity:type,entityId:id,action:'purge'});
     if((type==='photos'||type==='documents'))await this.storage.blobDelete(id);
   }
 
@@ -791,7 +817,7 @@ export class Store{
       else if(movement.type==='Sortie'){delta=-quantity;next=Math.max(0,current-quantity);if(quantity>current)throw new Error('Stock insuffisant pour cette sortie.');}
       else {next=quantity;delta=next-current;}
       const enteredPrice=movement.unitPrice!==null&&movement.unitPrice!==undefined&&String(movement.unitPrice).trim()!==''?toNumber(movement.unitPrice):null;
-      if(movement.type==='Entrée'&&enteredPrice!==null&&next>0){const oldValue=current*toNumber(stock.unitPrice),newValue=quantity*enteredPrice;stock.unitPrice=(oldValue+newValue)/next;}
+      if(movement.type==='Entrée'&&enteredPrice!==null&&next>0){const hasPrice=stock.unitPrice!==null&&stock.unitPrice!==undefined&&String(stock.unitPrice).trim()!=='';const oldValue=current*(hasPrice?toNumber(stock.unitPrice):enteredPrice),newValue=quantity*enteredPrice;stock.unitPrice=(oldValue+newValue)/next;}
       else if(movement.type==='Ajustement'&&enteredPrice!==null)stock.unitPrice=enteredPrice;
       normalized.delta=delta;normalized.balanceAfter=next;normalized.unitPrice=enteredPrice;
       state.stockMovements.push(normalized);stock.quantity=next;stock.updatedAt=now();stock.version=(stock.version||0)+1;
@@ -803,7 +829,8 @@ export class Store{
   async applyRemote(type,entity,{expectedQueueId}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     const incoming=clone(entity);
-    const errors=validate(type,incoming);if(errors.length&&!incoming.deletedAt)throw new Error(errors.join(' — '));
+    // Un id hors format est refusé même pour une suppression (il finirait dans les gabarits HTML).
+    const errors=validate(type,incoming);if(errors.length&&(!incoming.deletedAt||!isSafeId(incoming.id)))throw new Error(errors.join(' — '));
     let before=null;
     const applied=await this.mutate(`Synchronisation distante : ${type}`,state=>{
       if(expectedQueueId!==undefined){
@@ -827,7 +854,7 @@ export class Store{
     const prepared=(items||[]).map(({type,entity,expectedQueueId})=>{
       if(!ENTITY_TYPES.includes(type))return{error:new Error(`Type inconnu : ${type}`)};
       const incoming=clone(entity);const errors=validate(type,incoming);
-      if(errors.length&&!incoming.deletedAt)return{error:new Error(errors.join(' — '))};
+      if(errors.length&&(!incoming.deletedAt||!isSafeId(incoming.id)))return{error:new Error(errors.join(' — '))};
       return{type,incoming,expectedQueueId};
     });
     const ready=prepared.filter(item=>!item.error);

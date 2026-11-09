@@ -1,6 +1,6 @@
 // n° 73 (et n° 97) — Stocks d'intrants : lots, péremption, AMM retirées, PPNU, inventaire valorisé
 // au coût moyen pondéré (PMP glissant) et dérive de prix. Logique pure, sans écriture.
-import {normalize} from './utils.js';
+import {csvFormulaSafe,normalize,localDate,formatNumber,formatEuro} from './utils.js';
 import {active} from './farm-memory.js';
 import {phytoSheet} from './phyto.js';
 
@@ -77,7 +77,7 @@ export function pmpAt(state,item,date){return pmpReplay(item,movementsOf(state,i
 /** Inventaire valorisé à une date : quantité, PMP et valeur par article. */
 export function valuationAt(state,date,{today=date}={}){
   const end=dayMs(date)+12*36e5;
-  const rows=active(state,'stockItems').filter(i=>!i.createdAt||i.createdAt<=end).map(item=>{
+  const rows=active(state,'stockItems').filter(i=>!i.createdAt||i.createdAt<=end||movementsOf(state,i.id).some(m=>day(m.date)<=date)).map(item=>{
     const moves=movementsOf(state,item.id),r=pmpReplay(item,moves,{date}),lots=itemLots(state,item,{today});
     const next=lots.filter(l=>l.remaining>0&&l.expiryDate).sort((a,b)=>a.expiryDate.localeCompare(b.expiryDate))[0]||null;
     return{item,quantity:r.qty,pmp:r.pmp,estimated:r.estimated,value:r.pmp===null?null:r2(r.qty*r.pmp),nextExpiry:next?.expiryDate||'',lots:lots.filter(l=>l.lotNumber).map(l=>l.lotNumber)};
@@ -88,7 +88,7 @@ export function valuationAt(state,date,{today=date}={}){
 export const INVENTORY_HEADERS=['Article','Catégorie','Unité','Quantité','PMP (€)','Valeur (€)','Lots','Péremption la plus proche','PPNU'];
 export function inventoryTable(v){return v.rows.map(r=>[r.item.name||'',r.item.category||'',r.item.unit||'',r.quantity,r.pmp??'',r.value??'',r.lots.join(' '),r.nextExpiry,r.item.ppnu||'']);}
 export function inventoryCsv(v){
-  const cell=x=>{const s=typeof x==='number'?String(x).replace('.',','):String(x??'');return/[;"\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+  const cell=x=>{const s=typeof x==='number'?String(x).replace('.',','):csvFormulaSafe(x);return/[;"\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
   return'﻿'+[INVENTORY_HEADERS,...inventoryTable(v),['Total','','','','',String(v.total).replace('.',','),'','','']].map(r=>r.map(cell).join(';')).join('\r\n');
 }
 
@@ -115,14 +115,14 @@ export function inputAlerts(state,{today=day(new Date().toISOString()),lookup=nu
     if(item.ppnu==='à évacuer'){out.push({kind:'ppnu',level:'warning',item,text:`${name} : PPNU à évacuer (collecte ADIVALOR).`});continue;}
     if(item.ppnu==='évacué')continue;
     for(const l of itemLots(state,item,{today}).filter(l=>l.remaining>0)){
-      if(l.expired)out.push({kind:'expired',level:'danger',item,lot:l,text:`${name}${l.lotNumber?` lot ${l.lotNumber}`:''} : périmé depuis le ${l.expiryDate} (${l.remaining} ${item.unit||''} restants).`});
-      else if(l.expiringSoon)out.push({kind:'expiring',level:'info',item,lot:l,text:`${name}${l.lotNumber?` lot ${l.lotNumber}`:''} : périme le ${l.expiryDate}.`});
+      if(l.expired)out.push({kind:'expired',level:'danger',item,lot:l,text:`${name}${l.lotNumber?` lot ${l.lotNumber}`:''} : périmé depuis le ${localDate(l.expiryDate)} (${formatNumber(l.remaining)} ${item.unit||''} restants).`});
+      else if(l.expiringSoon)out.push({kind:'expiring',level:'info',item,lot:l,text:`${name}${l.lotNumber?` lot ${l.lotNumber}`:''} : périme le ${localDate(l.expiryDate)}.`});
     }
     const amm=ammStatus(item,{today,lookup});
-    if(amm.status==='interdit')out.push({kind:'amm',level:'danger',item,text:`${name} : AMM retirée, utilisation interdite depuis le ${amm.useUntil}. À déclarer en PPNU.`});
-    else if(amm.status==='retiré')out.push({kind:'amm',level:'warning',item,text:`${name} : AMM retirée le ${amm.withdrawnAt}${amm.useUntil?`, utilisable jusqu’au ${amm.useUntil}`:''}.`});
+    if(amm.status==='interdit')out.push({kind:'amm',level:'danger',item,text:`${name} : AMM retirée, utilisation interdite depuis le ${localDate(amm.useUntil)}. À déclarer en PPNU.`});
+    else if(amm.status==='retiré')out.push({kind:'amm',level:'warning',item,text:`${name} : AMM retirée le ${localDate(amm.withdrawnAt)}${amm.useUntil?`, utilisable jusqu’au ${localDate(amm.useUntil)}`:''}.`});
     const drift=priceDrift(state,item);
-    if(drift)out.push({kind:'drift',level:'info',item,text:`${name} : dernier prix ${drift.price} € (${drift.ratio>0?'+':''}${Math.round(drift.ratio*100)} % par rapport au PMP de ${drift.pmp} €).`});
+    if(drift)out.push({kind:'drift',level:'info',item,text:`${name} : dernier prix ${formatEuro(drift.price)} (${drift.ratio>0?'+':''}${Math.round(drift.ratio*100)} % par rapport au PMP de ${formatEuro(drift.pmp)}).`});
   }
   const rank={danger:0,warning:1,info:2};
   return out.sort((a,b)=>rank[a.level]-rank[b.level]||normalize(a.item.name).localeCompare(normalize(b.item.name)));

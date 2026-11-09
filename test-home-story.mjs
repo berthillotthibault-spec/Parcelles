@@ -156,6 +156,14 @@ test('briefing calme : une phrase rassurante', () => {
   assert.equal(brief.sentences[1].key, 'calm');
 });
 
+test('briefing tardif : après 21 h, l’horizon est minuit et non « ce soir »', () => {
+  const late = at(22, 10), today = localDay(late);
+  const calm = composeMorningBrief(farm(today, {interventions: []}), forecast(late), {now: late.getTime()});
+  assert.match(calm.sentences[0].text, /^Pas de pluie prévue d’ici minuit/);
+  const open = composeMorningBrief(farm(today), forecast(late), {now: late.getTime()});
+  assert.ok(!open.sentences[0].text.includes('ce soir'), open.sentences[0].text);
+});
+
 test('sous-titre : agenda du jour en une phrase, accords au singulier', () => {
   const now = at(9), today = localDay(now);
   const yesterday = localDay(new Date(now.getTime() - 86400000));

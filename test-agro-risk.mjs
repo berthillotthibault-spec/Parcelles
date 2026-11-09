@@ -40,9 +40,12 @@ test('septoriose : 1 pluie de 10 mm = surveiller, 2 = risque, hors saison rien',
   assert.equal(s.parcelId, 'b');
   assert.match(s.data, /12 mm/);
   assert.match(s.rule, /≥ 10 mm/);
+  assert.equal(s.title, 'Les Noues · septoriose à surveiller');
+  assert.match(s.rule, /de mars à juin/);
   assert.equal(s.source, RISK_SOURCES.septoria);
   const two = evaluateAgroRisks(farm(), weather(now, () => ({}), (d, i) => (i === -2 || i === 2 ? {rain: 15} : {})), {now});
   assert.equal(two.find(a => a.kind === 'septoria').level, 'risque');
+  assert.equal(two.find(a => a.kind === 'septoria').title, 'Les Noues · risque de septoriose');
   assert.match(two.find(a => a.kind === 'septoria').data, /\(prévue\)/);
   const winter = new Date(2026, 0, 15, 10).getTime();
   assert.equal(evaluateAgroRisks(farm(), weather(winter, () => ({}), (d, i) => (i === -2 ? {rain: 20} : {})), {now: winter}).length, 0);
@@ -65,6 +68,11 @@ test('colza : 3 jours humides et doux en floraison = risque', () => {
   const now = new Date(2026, 3, 15, 10).getTime();
   const r = evaluateAgroRisks(farm(), weather(now, (d, h, i) => (i >= -1 && i <= 1 ? {rh: 88} : {})), {now});
   assert.equal(r.find(x => x.kind === 'sclerotinia').level, 'risque');
+  assert.equal(r.find(x => x.kind === 'sclerotinia').title, 'La Côte · risque de sclérotinia');
+  assert.match(r.find(x => x.kind === 'sclerotinia').rule, /de mars à mai/);
+  // Seuil « surveiller » du colza réglable, et seuils inversés : le seuil « risque » s'applique quand même.
+  const one = evaluateAgroRisks(farm(), weather(now, (d, h, i) => (i === 0 ? {rh: 88} : {})), {now, thresholds: riskThresholds({agroRiskThresholds: {sclerotinia: {watchDays: 2, riskDays: 1}}})});
+  assert.equal(one.find(x => x.kind === 'sclerotinia').level, 'risque');
 });
 
 test('bovins au pré : THI croisé avec les lots', () => {
@@ -76,6 +84,11 @@ test('bovins au pré : THI croisé avec les lots', () => {
   assert.equal(a[0].level, 'risque');
   assert.match(a[0].message, /^24 vaches sur Le Pré Bas, THI 77 demain après-midi : vérifier l’eau et l’ombre\.$/);
   assert.equal(evaluateAgroRisks(farm({grazingSessions: lots}), weather(now), {now}).filter(x => x.kind === 'thi').length, 0);
+  // Seuils incohérents déjà enregistrés (surveiller 90 > risque 72) : l'alerte « risque » ne disparaît pas.
+  const inverted = riskThresholds({agroRiskThresholds: {thi: {watch: 90, risk: 72}}});
+  const b = evaluateAgroRisks(farm({grazingSessions: lots}), weather(now, (d, h, i) => (i === 1 && h === 15 ? {t: 29, rh: 50} : {})), {now, thresholds: inverted}).filter(x => x.kind === 'thi');
+  assert.equal(b.length, 1);
+  assert.equal(b[0].level, 'risque');
 });
 
 test('automatisation « alertes sanitaires » : notifie les risques', () => {

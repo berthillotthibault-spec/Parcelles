@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {DRAFT_MAX_AGE_MS,applyFields,draftKey,draftTimeLabel,persistFormDraft,purgeStaleDrafts,readDraft,removeDraft,serializeForm,writeDraft} from './form-drafts.js';
+import {DRAFT_MAX_AGE_MS,applyFields,draftKey,setDraftWorkspace,draftTimeLabel,persistFormDraft,purgeStaleDrafts,readDraft,removeDraft,serializeForm,writeDraft} from './form-drafts.js';
 
 function memoryStorage(){const map=new Map();return {map,get length(){return map.size;},key:i=>[...map.keys()][i]??null,getItem:k=>map.has(k)?map.get(k):null,setItem:(k,v)=>map.set(k,String(v)),removeItem:k=>map.delete(k)};}
 function el(name,value='',type='text',extra={}){return {name,value,type,checked:false,disabled:false,dispatchEvent(){},...extra};}
@@ -14,6 +14,16 @@ const fakeDoc=()=>({visibilityState:'visible',listeners:{},addEventListener(t,f)
 test('clé par type et identifiant, « nouveau » sans identifiant',()=>{
   assert.equal(draftKey('interventions','w3'),'parcelles:draft:interventions:w3');
   assert.equal(draftKey('tasks',null),'parcelles:draft:tasks:nouveau');
+});
+
+test('clé propre à l’exploitation : un brouillon de la ferme n’est pas proposé en démonstration',()=>{
+  try{
+    setDraftWorkspace(()=> 'demo');
+    assert.equal(draftKey('tasks',null),'parcelles:draft:tasks:nouveau@demo');
+    assert.notEqual(draftKey('tasks',null),draftKey('tasks',null,'local'));
+    setDraftWorkspace(()=> 'local');
+    assert.equal(draftKey('tasks',null),'parcelles:draft:tasks:nouveau');
+  }finally{setDraftWorkspace(null);}
 });
 
 test('sérialisation : champs nommés, cases à cocher, jamais de fichier ni de mot de passe',()=>{

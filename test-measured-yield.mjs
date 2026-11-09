@@ -163,3 +163,27 @@ test('légende chiffrée : classes en €/ha, valeur détaillée conservée', ()
   assert.equal(toUnit(7.8456, 't/ha'), 7.85);
   assert.equal(toUnit(7.8456, 'q/ha'), 78.5);
 });
+
+test('lot récolté après le 1er août : campagne du semis, traitements et ventes rattachés', async () => {
+  const {harvestCampaign, harvestTrace} = await import('./harvest-traceability.js');
+  const {lotCampaign: salesLotCampaign} = await import('./sales.js');
+  const state = {parcelles: [{id: 'p1', nom: 'Grand Champ', culture: 'Maïs'}], rotations: [], documents: [], integrationImports: [],
+    interventions: [
+      {id: 's', parcelId: 'p1', type: 'Semis', date: '2026-04-20', status: 'Terminé'},
+      {id: 't', parcelId: 'p1', type: 'Traitement herbicide', date: '2026-06-01', status: 'Terminé'},
+      {id: 'c', parcelId: 'p1', type: 'Semis couvert', date: '2025-08-20', status: 'Terminé'}]};
+  const lot = {id: 'l1', parcelId: 'p1', date: '2026-10-15', crop: 'Maïs', quantity: 10, unit: 't'};
+  assert.equal(harvestCampaign(state, lot), '2025/26');
+  const trace = harvestTrace(state, lot);
+  assert.equal(trace.campaign, '2025/26');
+  assert.deepEqual(trace.works.map(w => w.id).sort(), ['c', 's', 't']);
+  assert.equal(lotCampaign(lot, state), '2025/26');
+  assert.equal(salesLotCampaign(lot, state), '2025/26');
+  // Sans semis : la rotation de la culture sur la campagne précédente l'emporte pour une récolte d'automne.
+  const noSow = {...state, interventions: [], rotations: [{id: 'r', parcelId: 'p1', campaignId: '2025/26', culture: 'Maïs'}, {id: 'r2', parcelId: 'p1', campaignId: '2026/27', culture: 'Blé'}]};
+  assert.equal(harvestCampaign(noSow, lot), '2025/26');
+  // campaignId posé sur le lot : prioritaire ; rien de connu : campaignFor(date).
+  assert.equal(harvestCampaign(state, {...lot, campaignId: '2024/25'}), '2024/25');
+  assert.equal(harvestCampaign({...state, interventions: []}, lot), '2026/27');
+  assert.equal(harvestCampaign(state, {...lot, date: '2026-07-15'}), '2025/26');
+});

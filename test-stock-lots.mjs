@@ -123,3 +123,21 @@ test('branchement : champs de capture, emballages et lot du travail', async () =
   const cap = readFileSync(new URL('./stock-capture-ui.js', import.meta.url), 'utf8');
   assert.ok(cap.includes('sc-supplier') && cap.includes('sc-expiry'));
 });
+
+test('inventaire passé : article créé après une entrée antidatée', () => {
+  const s = {preferences: {}, interventions: [],
+    stockItems: [{id: 'i1', name: 'Fongicide Alpha', unit: 'L', quantity: 20, createdAt: Date.parse('2026-11-06')}],
+    stockMovements: [mv('m1', '2026-03-01', 'Entrée', 20, {unitPrice: 10, createdAt: Date.parse('2026-11-06')})]};
+  const v = valuationAt(s, '2026-04-01');
+  assert.equal(v.rows.length, 1);
+  assert.equal(v.rows[0].quantity, 20);
+  assert.equal(valuationAt(s, '2026-02-01').rows.length, 0);
+});
+
+test('alertes d’intrants : dates et nombres au format français', () => {
+  const s = farm({stockMovements: [
+    mv('m1', '2026-02-01', 'Entrée', 12.5, {unitPrice: 10, lotNumber: 'L-123', expiryDate: '2026-10-01'})]});
+  const text = inputAlerts(s, {today: T}).map(a => a.text).join(' | ');
+  assert.match(text, /périmé depuis le 1 oct\. 2026 \(12,5 L restants\)/);
+  assert.doesNotMatch(text, /2026-10-01/);
+});

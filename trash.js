@@ -34,9 +34,11 @@ export function deletedBy(type, item, {journal = [], remoteAuthor = null} = {}) 
   if (local) return local.by || '';
   return item.modifiedEmail || '';
 }
+// Collections dont le libellé (typeLabel) est féminin : accord de « Supprimé ».
+const FEMININE = new Set(['parcelles', 'tasks', 'observations', 'photos', 'harvests', 'invoices', 'sales', 'rotations']);
 export function deletedLabel(type, item, {now = Date.now(), who = ''} = {}) {
   const ago = deletedAgo(item.deletedAt, now);
-  return `Supprimé ${ago}${who ? ` par ${who}` : ''}`;
+  return `Supprimé${FEMININE.has(type) ? 'e' : ''} ${ago}${who ? ` par ${who}` : ''}`;
 }
 
 // Travaux et passages (pâturage) d'une parcelle supprimés le même jour qu'elle : proposés, jamais restaurés d'office.

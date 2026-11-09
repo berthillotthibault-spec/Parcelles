@@ -52,8 +52,8 @@
   --c-thumb-sat-1:#5d6f3f;--c-thumb-sat-2:#6f8550;--c-thumb-sat-3:#4f5f37;--c-thumb-plan-1:#efede7;--c-thumb-plan-2:#f7f6f2;
   --c-thumb-plan-3:#e6e2d9;
   /* n° 160 : pastilles des types de travaux (familles de typeFamily, quick-entry.js), lettres blanches dessus */
-  --c-work-seed:#4a8550;--c-work-spray:#3a6ea3;--c-work-fertilize:#8f6a38;--c-work-soil:#735640;--c-work-harvest:#a87c14;
-  --c-work-mow:#5f8c32;--c-work-graze:#33735f;--c-work-other:#5f646a
+  --c-work-seed:#3f7444;--c-work-spray:#3a6ea3;--c-work-fertilize:#8f6a38;--c-work-soil:#735640;--c-work-harvest:#8a6510;
+  --c-work-mow:#4e7629;--c-work-graze:#33735f;--c-work-other:#5f646a
 }
 /* Variante sombre unique (classe posée par theme-ui.js). */
 :root.theme-dark,.theme-dark{

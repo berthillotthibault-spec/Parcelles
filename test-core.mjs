@@ -14,3 +14,7 @@ assert.equal(pointInGeometry(5.005,46.005,polygon),true);
 assert.equal(pointInGeometry(6,47,polygon),false);
 assert.ok(haversineMeters({latitude:46,longitude:5},{latitude:46.01,longitude:5})>1000);
 console.log('✓ Utilitaires : dates FR, zéro valide, géométrie et distance validés.');
+// Identifiants : jamais de quoi sortir d'un attribut HTML (XSS stockée), mais aucun id légitime refusé.
+const {isSafeId}=await import('./state.js');
+for(const id of ['obj_m3k2_9zx','p1',12,'parcelle 12','FR-123/4','é_ü']) assert.equal(isSafeId(id),true,String(id));
+for(const id of ['x" onmouseover="a','<img>','a`b',"a'b",'','x'.repeat(257),null,{}]) assert.equal(isSafeId(id),false,String(id));

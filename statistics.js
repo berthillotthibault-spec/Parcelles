@@ -1,4 +1,4 @@
-import {campaignFor, toNumber} from './utils.js';
+import {campaignFor, toNumber, localIso} from './utils.js';
 
 const active=(state,type)=>(state[type]||[]).filter(x=>!x.deletedAt);
 
@@ -23,7 +23,7 @@ export function buildStatistics(state,{campaign=campaignFor()}={}){
     const linked=works.filter(w=>w.equipmentId===m.id||w.machineId===m.id);
     return{id:m.id,name:m.nom||'Matériel',works:linked.length,hours:linked.reduce((s,w)=>s+toNumber(w.duration??w.durationHours),0),cost:linked.reduce((s,w)=>s+toNumber(w.machineCost),0)};
   }).sort((a,b)=>b.hours-a.hours||b.works-a.works);
-  const today=new Date().toISOString().slice(0,10);
+  const today=localIso();
   const tasksOpen=tasks.filter(t=>t.status!=='Terminé');
   return{
     campaign,area,parcelCount:own.length,workCount:works.length,totalCost,totalHours,totalFuel,

@@ -23,7 +23,7 @@ export function scenarioText(base,simulated,line,shift){
   const to=addMonths(line.month,shift),out=simulated.months.length&&to>simulated.months.at(-1).key;
   const where=out?'au-delà des 12 mois':`en ${monthLabel(to<simulated.start?simulated.start:to)}`;
   const delta=simulated.low&&base.low?simulated.low.balance-base.low.balance:0;
-  return`Si « ${line.label} » (${eur(line.amount)}) arrive ${where} au lieu de ${monthLabel(line.month)} : point bas ${eur(simulated.low?.balance??0)} fin ${simulated.low?.label||'—'}${delta?` (${delta<0?'−':'+'}${n0.format(Math.abs(delta))} € par rapport au prévisionnel)`:' (inchangé)'}. Simulation : rien n’est enregistré.`;
+  return`Si « ${SOURCES[line.source]||line.source} · ${line.label} » (${eur(line.amount)}) arrive ${where} au lieu de ${monthLabel(line.month)} : point bas ${eur(simulated.low?.balance??0)} fin ${simulated.low?.label||'—'}${delta?` (${delta<0?'−':'+'}${n0.format(Math.abs(delta))} € par rapport au prévisionnel)`:' (inchangé)'}. Simulation : rien n’est enregistré.`;
 }
 
 export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=()=>'owner'}){
@@ -71,6 +71,8 @@ export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=
 <p class="form-note span-2" id="tr-scenario-result" role="status" aria-live="polite"></p></form></details>`;
   }
 
+  // Redessine la fenêtre en gardant le défilement et en rendant le focus (n° 160).
+  const rerender=focusSel=>{const top=document.querySelector('#modal-root .modal-body')?.scrollTop||0;open();const body=document.querySelector('#modal-root .modal-body');if(body)body.scrollTop=top;document.querySelector(focusSel)?.focus({preventScroll:true});};
   function open(){
     if(!canSeeTreasury(role())){toast('La trésorerie n’est pas accessible en lecture seule.','info');return;}
     const state=data(),settings=treasurySettings(state),f=treasuryForecast(state,{start:monthKey(),today:dayKey()}),low=f.low;
@@ -102,18 +104,18 @@ ${scheduleHtml(f,settings)}
     }
     if(kind==='opening'){
       const res=validateOpening(document.querySelector('#tr-opening-form [name="openingBalance"]')?.value);if(res.error)return fail('#tr-opening-error',res.error);
-      await save({openingBalance:res.value});toast('Solde de départ enregistré.','success');return open();
+      await save({openingBalance:res.value});toast('Solde de départ enregistré.','success');return rerender('[data-tr="opening"]');
     }
     if(kind==='add'){
       const form=document.querySelector('#tr-item-form');if(!form||!validateForm(form))return;
       const res=validateItem(Object.fromEntries(new FormData(form)));if(res.error)return fail('#tr-item-error',res.error);
       const items=treasurySettings(data()).items;if(items.length>=50)return fail('#tr-item-error','Échéancier plein (50 lignes au plus).');
-      await save({items:[...items,{id:`ech_${Date.now().toString(36)}`,...res.value}]});toast('Échéance ajoutée.','success');return open();
+      await save({items:[...items,{id:`ech_${Date.now().toString(36)}`,...res.value}]});toast('Échéance ajoutée.','success');return rerender('#tr-item-form [name="label"]');
     }
     if(kind==='remove'){
       const items=treasurySettings(data()).items,removed=items.find(i=>i.id===c.dataset.id);if(!removed)return;
-      await save({items:items.filter(i=>i.id!==removed.id)});open();
-      toast('Échéance supprimée.','info',{label:'Annuler',run:async()=>{await save({items:[...treasurySettings(data()).items,removed]});open();}});
+      await save({items:items.filter(i=>i.id!==removed.id)});rerender('#tr-item-form [name="label"]');
+      toast('Échéance supprimée.','info',{label:'Annuler',run:async()=>{await save({items:[...treasurySettings(data()).items,removed]});rerender('#tr-item-form [name="label"]');}});
     }
   }
   document.addEventListener('click',ev=>{const c=ev.target.closest('[data-tr]');if(!c||c.disabled)return;c.disabled=true;action(c.dataset.tr,c).catch(err=>toast(err.message,'error')).finally(()=>{c.disabled=false;});});

@@ -1,6 +1,6 @@
 // @ts-check
 export const APP_VERSION = 18;
-export const BUILD_ID = '2026.11.03-v10.28.1';
+export const BUILD_ID = '2026.11.09-v10.28.2';
 export const ENTITY_TYPES = [
   'parcelles','interventions','tasks','rotations','grazingSessions','materiels',
   'products','clients','documents','photos','points','templates','importSessions','syncConflicts','notifications','observations','stockItems','stockMovements','maintenanceRecords','routeSessions','fieldSessions','chantiers','members','assistantMessages','devices','automationRules','automationRuns','gpsTracks','integrationImports','weatherStations','platformJobs','platformEvents','vetTreatments','animals','animalEvents','parcelComments'
@@ -13,6 +13,8 @@ export const isoDate = value => {
   const date = value instanceof Date ? value : new Date(value ?? Date.now());
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0,10);
 };
+// Jour civil local « AAAA-MM-JJ » (isoDate passe par l'UTC : entre minuit et 1 h ou 2 h, elle donne la veille).
+export const localIso = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 export const localDate = value => {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? '—' : new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium'}).format(d);
@@ -80,6 +82,10 @@ export async function checksum(value){
 export function download(filename, text, type = 'application/json;charset=utf-8'){
   downloadBlob(filename,new Blob([text],{type}));
 }
+// Cellule CSV : texte commençant par = + - @ (ou tabulation, retour chariot) préfixé d'une apostrophe
+// pour qu'un tableur ne l'évalue pas comme une formule (même règle qu'open-export.js). Les nombres négatifs restent intacts.
+export function csvFormulaSafe(v){const s=String(v??'');return typeof v!=='number'&&/^[=+\-@\t\r]/.test(s)&&!/^-\d+([.,]\d+)?$/.test(s)?`'${s}`:s;}
+
 export function downloadBlob(filename, blob){
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -182,7 +188,7 @@ export function validateIntervention(intervention){
   if(!intervention.parcelId)errors.push('Parcelle obligatoire');
   if(!intervention.date || !parseImportDate(intervention.date))errors.push('Date invalide');
   if(!String(intervention.type||'').trim())errors.push('Type obligatoire');
-  for(const key of ['cost','surfaceWorked','duration','fuel','productUnitPrice','machineCost','inputCost','operatorCost','otherCost']){
+  for(const key of ['cost','surfaceWorked','duration','fuel','dose','productUnitPrice','machineCost','fuelCost','inputCost','operatorCost','otherCost']){
     if(intervention[key]!==undefined && intervention[key]!==null && Number(intervention[key])<0)errors.push(`${key} invalide`);
   }
   return errors;

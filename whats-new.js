@@ -36,7 +36,9 @@ export function parseDraftKey(key, prefix = 'parcelles:draft:') {
   const rest = String(key).slice(prefix.length), index = rest.indexOf(':');
   if (index < 1) return null;
   const type = rest.slice(0, index), id = rest.slice(index + 1);
-  return {type, id: id === 'nouveau' ? null : id};
+  // Suffixe « @<espace> » : brouillon d’une autre exploitation que la ferme locale.
+  const at = id.lastIndexOf('@'), workspace = at >= 0 ? id.slice(at + 1) : 'local', rawId = at >= 0 ? id.slice(0, at) : id;
+  return {type, id: rawId === 'nouveau' ? null : rawId, workspace};
 }
 export function resumeTarget(keys, {types = RESUMABLE_DRAFT_TYPES} = {}) {
   for (const key of keys || []) { const parsed = parseDraftKey(key); if (parsed && types.includes(parsed.type)) return {...parsed, key}; }

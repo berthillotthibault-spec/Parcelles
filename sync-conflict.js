@@ -39,8 +39,8 @@ export function clockLabel(ms, now = Date.now()) {
 
 // Valeur affichée : dates en français, surfaces en ha, doses avec leur unité, contours résumés.
 export function formatFieldValue(key, value, entity = {}, {parcelName} = {}) {
+  if (key === 'deletedAt') {if (isEmpty(value)) return 'Fiche conservée'; const when = clockLabel(value); return when.includes('/') ? `Supprimée le ${when}` : `Supprimée à ${when}`;}
   if (isEmpty(value)) return '(vide)';
-  if (key === 'deletedAt') return `Supprimé le ${clockLabel(value)}`;
   if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
   if (/At$/.test(key) && Number.isFinite(Number(value))) return clockLabel(value);
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {const [y, m, d] = value.slice(0, 10).split('-');return `${d}/${m}/${y}${value.length > 10 && /T\d{2}:\d{2}/.test(value) ? ` à ${Number(value.slice(11, 13))} h ${value.slice(14, 16)}` : ''}`;}

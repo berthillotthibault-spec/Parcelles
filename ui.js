@@ -43,7 +43,10 @@ const PATHS={
   mic:['M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z','M5 11a7 7 0 0 0 14 0','M12 18v3','M9 21h6'],
   entry:['M4 4h10v16H4z','M9 12h11','M17 9l3 3-3 3'],
   close:['M6 6l12 12','M18 6 6 18'],
-  ellipsis:['M6 12h.01','M12 12h.01','M18 12h.01']
+  ellipsis:['M6 12h.01','M12 12h.01','M18 12h.01'],
+  ruler:['M3 17 17 3l4 4L7 21z','M7 13l2 2','M10 10l2 2','M13 7l2 2'],
+  area:['M5 5h14v14H5z','M5 5l14 14','M9 5v4','M5 9h4'],
+  flag:['M5 21V4','M5 4h11l-2 4 2 4H5']
 };
 
 export function icon(name,{size=20,className='ui-icon',label=''}={}){

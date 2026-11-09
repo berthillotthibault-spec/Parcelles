@@ -120,7 +120,8 @@ export function finishPunch(item, person = {}, {kind = 'work', now = Date.now(),
     next.plannedDate = item.plannedDate || item.date || '';
     next.date = today;
     const current = Number(item.duration);
-    if (!(Number.isFinite(current) && current > 0) && hours > 0) next.duration = Math.round(hours * 100) / 100;
+    const rounded = Math.round(hours * 100) / 100;
+    if (!(Number.isFinite(current) && current > 0) && rounded > 0) next.duration = rounded;
     if (!String(item.operator || '').trim() && cleanName(person.name)) next.operator = cleanName(person.name);
   } else {
     next.completedAt = now;

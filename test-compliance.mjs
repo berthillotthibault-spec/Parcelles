@@ -43,7 +43,7 @@ test('exploitation vide : rien n’est déclaré « à jour » sans donnée', ()
   assert.equal(checks.length,14); // + échéances administratives (n° 72, v8a), registre phyto (n° 62, v5a), entrées azote (n° 63), BCAE 7 (n° 58) et CIPAN (n° 74) de la v5b, carnet sanitaire (n° 76, v6b)
   assert.equal(byId(checks,'herd-health').status,'na');
   assert.equal(byId(checks,'admin-deadlines').status,'na');
-  assert.equal(byId(checks,'phyto').status,'ok');
+  assert.equal(byId(checks,'phyto').status,'na');
   assert.equal(byId(checks,'sprayer').status,'na');
   assert.equal(byId(checks,'nitrogen').status,'na');
   assert.equal(byId(checks,'rotation').status,'unknown');
@@ -114,11 +114,20 @@ test('rotation BCAE 7 : seuil paramétrable de campagnes consécutives', ()=>{
   const history=new Map([['2026/27','Blé'],['2025/26','blé'],['2024/25','Orge']]);
   assert.equal(sameCultureStreak(history,'2026/27').streak,2);
   let c=byId(complianceChecks(s,{today:TODAY}),'rotation');
-  assert.equal(c.status,'warn');assert.deepEqual(c.items.map(i=>i.id),['p1']);assert.match(c.items[0].note,/3 campagnes consécutives/);
+  // 3 campagnes de Blé tendre : non conforme BCAE 7, même verdict que l’Assistant PAC.
+  assert.equal(c.status,'ko');assert.deepEqual(c.items.map(i=>i.id),['p1']);assert.match(c.items[0].note,/3 campagnes consécutives \(non conforme BCAE 7\)/);
+  assert.equal(byId(complianceChecks(s,{today:TODAY}),'pac-bcae7').status,'ko');
   s.exploitation.conformite={rotationMaxSame:2};
   assert.equal(byId(complianceChecks(s,{today:TODAY}),'rotation').status,'ko');
   s.exploitation.conformite={rotationMaxSame:4};
-  assert.equal(byId(complianceChecks(s,{today:TODAY}),'rotation').status,'ok');
+  assert.equal(byId(complianceChecks(s,{today:TODAY}),'rotation').status,'ko','le seuil ne masque pas BCAE 7');
+  // 2 campagnes seulement : seuil 3 atteint au plus tard la prochaine, seuil 4 non atteint.
+  s.rotations=s.rotations.filter(r=>r.id!=='r1');s.exploitation.conformite={};
+  c=byId(complianceChecks(s,{today:TODAY}),'rotation');
+  assert.equal(c.status,'ok');
+  s.exploitation.conformite={rotationMaxSame:2};
+  c=byId(complianceChecks(s,{today:TODAY}),'rotation');
+  assert.equal(c.status,'warn');assert.match(c.items[0].note,/changer à la prochaine campagne/);
 });
 
 test('BDNI : jamais déclaré à jour, faute de données', ()=>{
@@ -155,4 +164,23 @@ test('Certiphyto : une fiche sans date mais avec n° ou catégorie est conservé
   const ui=fs.readFileSync(new URL('./compliance-ui.js',import.meta.url),'utf8');
   assert.doesNotMatch(ui,/\.filter\(c=>c\.nom&&c\.expiresAt\)/);
   assert.match(ui,/\.filter\(c=>c\.nom&&\(c\.expiresAt\|\|c\.numero\|\|c\.categorie\)\)/);
+});
+
+test('dossier de contrôle : un opérateur phyto sans Certiphyto saisi figure dans le tableau', ()=>{
+  const s=farm({interventions:[
+    {id:'w1',parcelId:'p1',type:'Fongicide',date:'2026-09-20',campaignId:'2026/27',status:'Terminé',product:'A',operator:'Jean Dupont'},
+    {id:'w2',parcelId:'p2',type:'Fongicide',date:'2026-09-21',campaignId:'2026/27',status:'Terminé',product:'B',operator:'Paul Martin'}
+  ]});
+  s.exploitation.conformite={certiphytos:[{nom:'paul martin',expiresAt:'2028-01-01'}]};
+  const materiel=controlDossierHtml(s,{today:TODAY}).split('<section id="materiel">')[1].split('</section>')[0];
+  assert.match(materiel,/<td>Jean Dupont<\/td><td>non renseigné<\/td>/);
+  assert.match(materiel,/<td>Paul Martin<\/td><td>1 janv\. 2028<\/td>/);
+  assert.equal((materiel.match(/Paul Martin|paul martin/gi)||[]).length,1,'pas de doublon');
+});
+
+test('complétude du suivi : la note liste ce qui reste à compléter', ()=>{
+  const s=farm({interventions:[{id:'w1',parcelId:'p3',type:'Fauche',date:'2026-09-20',campaignId:'2026/27',status:'Terminé'}]});
+  const item=byId(complianceChecks(s,{today:TODAY}),'followup').items.find(i=>i.id==='p3');
+  assert.match(item.note,/ · à compléter : coûts, surfaces, opérateurs$/);
+  assert.doesNotMatch(item.note,/renseign/);
 });

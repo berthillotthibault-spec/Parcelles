@@ -37,7 +37,10 @@ service firebase.storage {
         && request.resource.size < 25 * 1024 * 1024
         && request.resource.metadata != null
         && request.resource.metadata.entityId == fileId
-        && request.resource.metadata.entityType == entityType;
+        && request.resource.metadata.entityType == entityType
+        // Jamais de type exécutable par le navigateur (HTML, XML, SVG, script) : un collaborateur ne doit pas
+        // pouvoir faire rendre du HTML dans l'origine de l'appli via une pièce jointe (viewAttachment).
+        && !request.resource.contentType.matches('(?i).*(html|xml|svg|javascript|ecmascript).*');
       allow delete: if isOwner(workspaceId);
     }
 

@@ -6,6 +6,7 @@ import {campaignFor,normalize} from './utils.js';
 import {active} from './farm-memory.js';
 import {costPriceByCulture,cultureFor} from './costs.js';
 import {farmRecords,saveFarmRecord} from './farm-records.js';
+import {harvestCampaign} from './harvest-traceability.js';
 
 export const CONTRACT_KIND='salesContract';
 export const CONTRACT_TYPES=[
@@ -30,19 +31,20 @@ export const contracts=(state,{campaign=null}={})=>farmRecords(state,CONTRACT_KI
 export function contractPrice(contract){const base=positive(contract?.price);if(base===null)return null;const premium=loose(contract?.premium)||0;const v=base+premium;return v>0?v:null;}
 export const contractIsFirm=c=>c?.type==='ferme'&&contractPrice(c)!==null;
 
-export function lotCampaign(lot){return lot?.date?campaignFor(lot.date):null;}
-export function lotCulture(state,lot,campaign=lotCampaign(lot)){
+// Campagne de la culture récoltée (un maïs récolté en octobre reste sur la campagne de son semis).
+export function lotCampaign(lot,state){return state?harvestCampaign(state,lot):lot?.campaignId||(lot?.date?campaignFor(lot.date):null);}
+export function lotCulture(state,lot,campaign=lotCampaign(lot,state)){
   const own=text(lot?.crop);if(own)return own;const parcel=active(state,'parcelles').find(p=>p.id===lot?.parcelId);
   return parcel&&campaign?cultureFor(state,parcel,campaign):'';
 }
 // Contrats proposés pour une vente d’un lot : même culture et même campagne.
-export function contractsForLot(state,lot){const campaign=lotCampaign(lot),key=normalize(lotCulture(state,lot,campaign));if(!campaign||!key)return[];return contracts(state,{campaign}).filter(c=>normalize(c.culture)===key);}
+export function contractsForLot(state,lot){const campaign=lotCampaign(lot,state),key=normalize(lotCulture(state,lot,campaign));if(!campaign||!key)return[];return contracts(state,{campaign}).filter(c=>normalize(c.culture)===key);}
 
 // Toutes les ventes déclarées des lots de la campagne, avec leur valeur en €/t.
 export function campaignSales(state,campaign){
   const all=contracts(state),byId=new Map(all.map(c=>[c.id,c])),rows=[];
   for(const lot of farmRecords(state,'harvest')){
-    if(lotCampaign(lot)!==campaign)continue;const culture=lotCulture(state,lot,campaign);
+    if(lotCampaign(lot,state)!==campaign)continue;const culture=lotCulture(state,lot,campaign);
     for(const sale of lot.sales||[]){
       const tonnes=toTonnes(sale.quantity,lot.unit);if(tonnes===null)continue;const contract=sale.contractId?byId.get(sale.contractId)||null:null;
       const own=pricePerTonne(sale.price,lot.unit),fallback=contract?contractPrice(contract):null,price=own??fallback;
@@ -63,7 +65,7 @@ export function commercialisation(state,{campaign=campaignFor(),targetHa=state.p
   const target=loose(targetHa),costs=costPriceByCulture(state,{campaign}),groups=new Map();
   const group=(key,culture)=>{if(!groups.has(key))groups.set(key,{key,culture,cost:null,harvested:0,lots:0,sales:[],contracts:[]});return groups.get(key);};
   for(const row of costs.rows)group(row.key,row.culture).cost=row;
-  for(const lot of farmRecords(state,'harvest')){if(lotCampaign(lot)!==campaign)continue;const culture=lotCulture(state,lot,campaign),key=normalize(culture);if(!key)continue;const t=toTonnes(lot.quantity,lot.unit);const g=group(key,culture);g.lots+=1;if(t!==null)g.harvested+=t;}
+  for(const lot of farmRecords(state,'harvest')){if(lotCampaign(lot,state)!==campaign)continue;const culture=lotCulture(state,lot,campaign),key=normalize(culture);if(!key)continue;const t=toTonnes(lot.quantity,lot.unit);const g=group(key,culture);g.lots+=1;if(t!==null)g.harvested+=t;}
   for(const sale of campaignSales(state,campaign)){if(!sale.key)continue;group(sale.key,sale.culture).sales.push(sale);}
   for(const c of contracts(state,{campaign})){const key=normalize(c.culture);if(!key)continue;group(key,text(c.culture)).contracts.push(contractProgress(state,c));}
   const rows=[...groups.values()].filter(g=>g.cost?.area>0||g.lots||g.sales.length||g.contracts.length).map(g=>{

@@ -3,7 +3,7 @@
 // PMG, lot, semence certifiée ou de ferme, traitement de semence, article de stock « Semence ».
 // Compatible avec les anciennes sauvegardes (champ absent = pas de semence renseignée).
 // Le rendement vient des lots de récolte existants (enregistrements « harvest ») de la parcelle.
-import {normalize,campaignFor} from './utils.js';
+import {normalize,campaignFor,csvFormulaSafe} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {farmRecords} from './farm-records.js';
 
@@ -117,6 +117,6 @@ export const seedStockItems=state=>active(state,'stockItems').filter(i=>/semence
 
 export const TRIAL_HEADERS=['Culture','Variété','Campagne','Parcelle','Date de semis','Surface (ha)','Origine','Lot','Rendement (t/ha)','Coût semence (€/ha)'];
 export function trialsCsv(t){
-  const cell=x=>{const s=typeof x==='number'?String(x).replace('.',','):String(x??'');return/[;"\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
+  const cell=x=>{const s=typeof x==='number'?String(x).replace('.',','):csvFormulaSafe(x);return/[;"\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
   return'﻿'+[TRIAL_HEADERS,...t.rows.map(r=>[r.culture,r.variety,r.campaign,r.parcel?.nom||'',r.date,r.area??'',r.origin,r.lot,r.yieldTHa??'',r.seedCostHa??''])].map(r=>r.map(cell).join(';')).join('\r\n');
 }

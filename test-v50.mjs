@@ -58,6 +58,8 @@ assistantState.assistantMessages.push({id:'m1',role:'user',text:'Surface LAURENC
 const context=buildAssistantContext(assistantState);
 assert.equal(context.parcels[0].name,'LAURENCIN');
 assert.equal(context.conversation.length,1);
+// Une vraie requête porte toujours une question : l'historique doit l'accompagner.
+assert.equal(buildAssistantContext(assistantState,{question:'Et sa culture ?'}).conversation.length,1);
 
 const root=path.dirname(fileURLToPath(import.meta.url));
 const app=fs.readFileSync(path.join(root,'app.js'),'utf8');

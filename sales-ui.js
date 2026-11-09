@@ -82,7 +82,7 @@ export function createSalesUI(host){
   function openContract(campaign=current,{id=null,culture=''}={}){
     current=campaign;const state=data(),existing=id?contracts(state).find(c=>c.id===id):null;if(id&&!existing){toast('Contrat introuvable.','error');return back(campaign);}
     const c=existing||{campaign,culture,type:'ferme'},camp=c.campaign||campaign,campaigns=[...new Set([prevCampaign(campaignFor()),campaignFor(),nextCampaign(campaignFor()),camp])].sort(),type=c.type||'ferme';
-    const buyers=[...new Set([...contracts(state).map(x=>x.buyer),...active(state,'clients').map(x=>x.nom)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
+    const buyers=[...new Set([...contracts(state).map(x=>x.buyer),...active(state,'clients').filter(x=>!x.archived).map(x=>x.name||x.nom)].filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
     const chips=(name,list,value)=>`<input type="hidden" name="${name}" value="${e(value)}"><div class="chip-choices" data-chip-target="${name}" role="group">${list.map(([v,l])=>`<button type="button" class="choice-chip${v===value?' is-on':''}" data-value="${e(v)}" data-sales="chip" aria-pressed="${v===value}">${e(l)}</button>`).join('')}</div>`;
     const val=v=>v===null||v===undefined?'':e(String(v));
     const body=`<form id="sales-contract-form" class="form-grid" novalidate>${existing?`<input type="hidden" name="version" value="${e(String(existing.version??''))}">`:''}

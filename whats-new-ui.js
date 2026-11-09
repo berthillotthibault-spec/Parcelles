@@ -1,5 +1,5 @@
 // n° 128 : feuille « Nouveautés » après une mise à jour, et mise à jour sans perte de saisie.
-import {entriesSince, whatsNewDecision, resumeTarget, versionFromBuild} from './whats-new.js';
+import {entriesSince, whatsNewDecision, resumeTarget, versionFromBuild, parseDraftKey} from './whats-new.js';
 import {DRAFT_PREFIX, readDraft} from './form-drafts.js';
 import {escapeHtml as e} from './utils.js';
 
@@ -62,6 +62,8 @@ export function createWhatsNewUI({store, modal, closeModal, toast, buildId, open
       const storage = win.localStorage;
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i); if (!key?.startsWith(DRAFT_PREFIX)) continue;
+        // Brouillon d’une autre exploitation : jamais rouvert ici.
+        if ((parseDraftKey(key)?.workspace || 'local') !== String(store.workspaceId || 'local')) continue;
         const draft = readDraft(key); if (draft && draft.savedAt >= since && (!best || draft.savedAt > best.savedAt)) best = {key, savedAt: draft.savedAt};
       }
     } catch {}

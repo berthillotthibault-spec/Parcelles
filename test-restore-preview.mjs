@@ -1,7 +1,7 @@
 // n° 133 : aperçu de restauration, restauration sélective et cohérence avec le cloud (logique pure).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {diffBackup, prepareCloudRestore, previewSentence, restorableItems, selectiveEntities} from './restore-preview.js';
+import {diffBackup, prepareCloudRestore, previewSentence, RESTORABLE_TYPES, restorableItems, selectiveEntities, typeName} from './restore-preview.js';
 
 const e = (id, updatedAt, extra = {}) => ({id, createdAt: 1, updatedAt, version: 1, deletedAt: null, ...extra});
 const backup = {
@@ -11,7 +11,7 @@ const backup = {
 };
 const current = {
   parcelles: [e('p1', 10, {nom: 'Les Noues'}), e('p3', 20, {nom: 'Le Pré', notes: 'drainé'}), e('p4', 30, {nom: 'Nouvelle'}), e('pOld', 5, {nom: 'Ancienne', deletedAt: 4})],
-  interventions: [e('w1', 12, {type: 'Semis'}), e('w2', 10, {type: 'Labour', deletedAt: 15})],
+  interventions: [e('w1', 12, {type: 'Semis', dose: 2}), e('w2', 10, {type: 'Labour', deletedAt: 15})],
   queue: [{id: 'op1', entity: 'tasks', entityId: 't1', status: 'pending'}],
   preferences: {syncEnabled: true, workspaceId: 'ws1', cloudRole: 'owner'},
   metadata: {syncCursors: {ws1: 99}, lastSyncAt: 98}
@@ -28,7 +28,7 @@ test('diff par type, sur id et updatedAt', () => {
 
 test('phrase d’aperçu en français', () => {
   const createdAt = new Date(2026, 8, 28, 9).getTime();
-  assert.equal(previewSentence(diffBackup(current, backup), createdAt), 'Cette sauvegarde du 28/09 : +1 parcelle, 1 parcelle différente, 1 travail différent, 1 supprimé depuis, 1 créé ou rétabli depuis.');
+  assert.equal(previewSentence(diffBackup(current, backup), createdAt), 'Cette sauvegarde du 28/09 : +1 parcelle, 1 parcelle différente, 1 parcelle créée ou rétablie depuis, 1 travail différent, 1 travail supprimé depuis.');
   assert.equal(previewSentence(diffBackup(current, current), createdAt), 'Cette sauvegarde du 28/09 est identique à vos données actuelles.');
 });
 
@@ -56,4 +56,23 @@ test('restauration complète dans un espace cloud : réglages de synchro gardés
   assert.equal(byId.w2.action, 'update');assert.equal(data.interventions.find(w => w.id === 'w2').deletedAt, null);
   assert.equal(byId.p1, undefined, 'identique : rien à envoyer');assert.equal(byId.pOld, undefined);
   assert.ok(ops.every(op => op.payload.version > 1));
+});
+
+test('après une restauration sélective, la même sauvegarde est identique malgré updatedAt et version réécrits', () => {
+  const local = structuredClone(current);
+  for (const {type, entities} of selectiveEntities(local, backup, [{type: 'parcelles', id: 'p3'}, {type: 'interventions', id: 'w1'}, {type: 'interventions', id: 'w2'}])) {
+    // Comme normalizeEntity dans store._upsertMany : fusion, updatedAt à maintenant, version + 1.
+    for (const entity of entities) {const i = local[type].findIndex(x => x.id === entity.id);local[type][i] = {...local[type][i], ...entity, updatedAt: 999, version: (local[type][i].version || 0) + 1};}
+  }
+  const diff = diffBackup(local, backup);
+  assert.equal(diff.byType.interventions, undefined);
+  assert.deepEqual(diff.byType.parcelles, {added: ['p2'], changed: [], deletedSince: [], newer: ['p4']});
+  local.parcelles = local.parcelles.filter(p => p.id !== 'p4');local.parcelles.push(structuredClone(backup.parcelles[1]));
+  assert.equal(diffBackup(local, backup).identical, true);
+});
+
+test('noms des collections en français', () => {
+  const same = new Set(['parcelles', 'rotations', 'clients', 'documents', 'photos', 'points', 'observations', 'chantiers']);
+  for (const type of RESTORABLE_TYPES) if (!same.has(type)) assert.notEqual(typeName(type), type, type);
+  assert.equal(previewSentence(diffBackup({}, {animals: [e('a1', 1), e('a2', 1)], animalEvents: [e('v1', 1)], parcelComments: [e('c1', 1)]})), 'Cette sauvegarde : +2 animaux, +1 événement d’élevage, +1 commentaire de parcelle.');
 });

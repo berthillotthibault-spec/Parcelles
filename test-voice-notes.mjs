@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {audioExtension, confirmationSentence, convertQuantity, formatClock, isVoiceMemo, levenshtein, matchParcels, memoDocument, memoSummaryLabel, parseRelativeDate, parseVoiceEntry, pendingMemos, pickAudioMime, voiceNormalize, loadVoiceGrammar, workDraftsFromEntry} from './voice-notes.js';
+import {audioExtension, confirmationSentence, convertQuantity, formatClock, isVoiceMemo, levenshtein, matchParcels, memoDocument, memoSummaryLabel, parseRelativeDate, parseVoiceEntry, pendingMemos, pickAudioMime, voiceNormalize, loadVoiceGrammar, workDraftsFromEntry, plannedMatchFor, completePlannedWork} from './voice-notes.js';
+import {unitLabel} from './voice-grammar.js';
 
 // n° 13 : la grammaire enrichie (voice-grammar.js) se charge à la demande, avant la première analyse.
 await loadVoiceGrammar();
@@ -120,4 +121,29 @@ test('« Compléter le formulaire » attend le formulaire Travail chargé à la 
   // openWorkForm passe par lazy.run : au premier usage, le formulaire n'existe pas encore au retour de l'appel.
   const ui=fs.readFileSync(new URL('./voice-notes-ui.js',import.meta.url),'utf8');
   assert.match(ui,/Promise\.resolve\(host\.openWorkForm\([^;]*\)\)\.then\(\(\)=>\{\s*const details=document\.querySelector\('#work-form details'\)/);
+});
+
+test('Un travail fait dicté termine le travail prévu correspondant au lieu d’en créer un doublon',()=>{
+  const state={interventions:[
+    {id:'w2',parcelId:'p1',type:'Semis blé',status:'À faire',date:'2026-11-08',plannedDate:'2026-11-08',dose:'',culture:'Blé',note:'Prévu'},
+    {id:'w3',parcelId:'p1',type:'Semis blé',status:'À faire',date:'2026-11-20',plannedDate:'2026-11-20'},
+    {id:'w4',parcelId:'p2',type:'Semis blé',status:'À faire',date:'2026-11-08',plannedDate:'2026-11-08'},
+    {id:'w5',parcelId:'p1',type:'Semis blé',status:'Terminé',date:'2026-11-07'}
+  ]};
+  assert.equal(plannedMatchFor(state,'p1','semis ble','2026-11-08')?.id,'w2');
+  assert.equal(plannedMatchFor(state,'p1','Semis blé','2026-11-18')?.id,'w3');
+  assert.equal(plannedMatchFor(state,'p1','Semis blé','2026-10-20'),null);
+  assert.equal(plannedMatchFor(state,'p1','Fauche','2026-11-08'),null);
+  const done=completePlannedWork(state.interventions[0],{parcelId:'p1',type:'Semis blé',status:'Terminé',date:'2026-11-08',plannedDate:'',culture:'',dose:180,doseUnit:'kg/ha',product:'',note:'Dicté : « semé »'},'2026-11-08');
+  assert.deepEqual([done.id,done.status,done.date,done.plannedDate,done.culture,done.dose,done.doseUnit],['w2','Terminé','2026-11-08','2026-11-08','Blé',180,'kg/ha']);
+  assert.equal(done.note,'Prévu\nDicté : « semé »');
+});
+test('Unités accordées au pluriel dans les brouillons vocaux de stock',()=>{
+  assert.equal(unitLabel(3,'sac'),'sacs');
+  assert.equal(unitLabel(1,'sac'),'sac');
+  assert.equal(unitLabel(1.5,'sac'),'sac');
+  assert.equal(unitLabel(2,'big bag'),'big bags');
+  assert.equal(unitLabel(50,'L'),'L');
+  assert.equal(unitLabel(10,'kg'),'kg');
+  assert.equal(unitLabel(4,'bidons'),'bidons');
 });

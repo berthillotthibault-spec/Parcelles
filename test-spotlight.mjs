@@ -59,3 +59,11 @@ test('une période dans un nom de lieu garde les résultats non datés', () => {
   assert.deepEqual(withUndatedMatches([{type: 'work', id: 'w1'}], all).map(r => r.id), ['w1', 'p1', 'c1']);
   assert.deepEqual(withUndatedMatches([], [{type: 'parcel', id: 'p1'}]).map(r => r.id), ['p1']);
 });
+
+test('index : mode gants, Plein champ, notifications et nouveautés sont trouvables', () => {
+  const index = buildCommandIndex({});
+  assert.equal(matchCommands('gants', index)[0].action, 'personalize');
+  assert.equal(matchCommands('plein champ', index)[0].action, 'personalize');
+  assert.equal(matchCommands('notifications', index)[0].action, 'open-notifications');
+  assert.equal(matchCommands('nouveautés', index)[0].action, 'open-whats-new');
+});

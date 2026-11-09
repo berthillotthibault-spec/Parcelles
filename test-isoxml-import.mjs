@@ -25,8 +25,8 @@ export const TASKDATA = `<?xml version="1.0" encoding="UTF-8"?>
   </PFD>
   <TSK A="TSK1" B="Traitement fongicide" E="PFD1" F="WKR1" G="4">
     <OTP A="CPC1" B="OTQ1"/>
-    <TZN A="1"><PDV A="0001" B="12000" C="PDT1"/></TZN>
-    <TIM A="2026-04-12T08:30:00" B="2026-04-12T10:00:00" D="4"><DLV A="0002" B="11500"/></TIM>
+    <TZN A="1"><PDV A="0001" B="1200000" C="PDT1"/></TZN>
+    <TIM A="2026-04-12T08:30:00" B="2026-04-12T10:00:00" D="4"><DLV A="0002" B="1150000"/></TIM>
   </TSK>
   <TSK A="TSK2" B="Apport azote" E="PFD2" G="4">
     <TZN A="1"><PDV A="0006" B="15000" C="PDT2"/></TZN>
@@ -78,7 +78,7 @@ test('TSK : date, horaires, durée, dose relevée prioritaire, produit, opérate
   const {tasks} = parseTaskData(TASKDATA, {parseXml: parseXmlLite});
   const [t1, t2, t3] = tasks;
   assert.deepEqual({date: t1.date, start: t1.startTime, end: t1.endTime, h: t1.durationHours, done: t1.done}, {date: '2026-04-12', start: '08:30', end: '10:00', h: 1.5, done: true});
-  assert.equal(t1.dose, 115); // 11500 mm³/m² relevés = 115 L/ha (plutôt que la consigne 120)
+  assert.equal(t1.dose, 115); // 1 150 000 × 0,01 mm³/m² relevés = 115 L/ha (plutôt que la consigne 120)
   assert.equal(t1.doseUnit, 'L/ha');
   assert.equal(t1.product, 'Fongicide Fictif & Co');
   assert.equal(t1.operator, 'Paul Martin');
@@ -252,4 +252,15 @@ test('contour invalide : parcelle proposée sans contour, travaux conservés', (
   assert.equal(rows.parcelRows[0].geometry, null);
   assert.equal(rows.workRows.length, 1);
   assert.ok(rows.warnings.some(w => /contour de « Bancale » invalide/.test(w)));
+});
+
+test('aller-retour ISOXML : la dose exportée par missionIsoxml est relue à l’identique', async () => {
+  const {missionIsoxml} = await import('./machine-export.js');
+  const p = {id: 'p1', nom: 'Les Noues', geometry: {type: 'Polygon', coordinates: [[[4, 46], [4.002, 46], [4.002, 46.002], [4, 46.002], [4, 46]]]}};
+  for (const unit of ['kg/ha', 'L/ha']) {
+    const {xml} = missionIsoxml({parcels: [p], operation: 'Traitement', product: 'X', dose: 120, unit});
+    const [t] = parseTaskData(xml, {parseXml: parseXmlLite}).tasks;
+    assert.equal(t.dose, 120, unit);
+    assert.equal(t.doseUnit, unit);
+  }
 });

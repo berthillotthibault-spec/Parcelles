@@ -53,7 +53,7 @@ test('le mode terrain est une fenêtre modale nommée, fermée par Échap, avec 
   assert.match(app, /<h1 id="field-mode-title">/);
   assert.match(app, /if\(event\.key==='Escape'\)\{[^\n]*if\(fieldModeOpen\)\{?closeFieldMode\(\)/, 'Échap ferme le mode terrain');
   assert.match(app, /fieldReturnFocus\.focus/);
-  assert.match(app, /const trapRoot=!modalOpen&&fieldModeOpen\?\$\('#field-mode'\):null/, 'piège du focus du mode terrain (la fenêtre <dialog> contient le focus d’elle-même)');
+  assert.match(app, /const trapRoot=modalOpen\?null:fieldModeOpen\?\$\('#field-mode'\):dayRouteUIInstance\?\.isOpen\(\)\?\$\('#day-route'\):null;/, 'piège du focus du mode terrain (la fenêtre <dialog> contient le focus d’elle-même)');
   assert.match(app, /function closeModal\(\)\{[^\n]*lendModalGuests\(root,false\);root\.innerHTML='';[^\n]*if\(root\.open\)root\.close\(\)/, 'fermeture : toasts rendus à la page, <dialog> refermé');
 });
 

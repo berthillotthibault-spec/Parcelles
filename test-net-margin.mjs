@@ -56,3 +56,17 @@ test('fiche : validation, valeur absente = null, reprise de campagne', () => {
   assert.equal(copySheet(s, '2025/26').items.social.amount, 2800);
   assert.equal(copySheet(s, '2024/25'), null);
 });
+
+test('produit connu sur une partie des parcelles : marge nette en euros sur la seule surface avec produit', () => {
+  const s = farm();
+  delete s.parcelles[1].economicsByCampaign;
+  const n = netMargin(s, {campaign: C}), cm = cropMargins(s, {campaign: C});
+  const pa = cm.model.total.productArea;
+  assert.equal(pa, 10);
+  // Sans fermage, structure ni aide, la marge nette égale la marge directe réellement connue.
+  delete s.parcelles[0].lease;
+  const z = netMargin(s, {campaign: C});
+  assert.ok(Math.abs(z.total.net - cm.total.directHa * pa) < 0.01);
+  assert.ok(Math.abs(z.total.netHa - cm.total.directHa * pa / 15) < 0.01);
+  assert.ok(n.total.net <= z.total.net);
+});

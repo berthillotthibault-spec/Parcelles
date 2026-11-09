@@ -80,3 +80,8 @@ test('PDF du dossier', () => {
   const bytes = flowPdf(blocks, {title: 'Dossier sinistre'});
   assert.equal(new TextDecoder().decode(bytes.slice(0, 5)), '%PDF-');
 });
+
+test('date du sinistre dans le futur refusée', () => {
+  assert.match(validateClaim({cause: 'grele', date: '2027-03-01'}, {today: '2026-11-08'}).error, /futur/);
+  assert.ok(!validateClaim({cause: 'grele', date: '2026-11-08'}, {today: '2026-11-08'}).error);
+});

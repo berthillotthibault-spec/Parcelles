@@ -4,6 +4,7 @@
 // - mémos audio hors ligne, rangés dans « documents » (champ facultatif voiceMemo).
 // Rien n'est écrit ici : l'interface présente un brouillon et attend une validation.
 import {grazingDate, grazingStatus, grazingTotal, grazingType} from './grazing.js';
+import {isPending} from './home-priorities.js';
 // n° 13 : nombres en lettres, surnoms, engins tolérants, entretien, observation, sortie de stock, heures TP.
 // voice-grammar.js (grammaire enrichie) est chargé à la demande : attendre loadVoiceGrammar() avant
 // la première analyse pour un résultat complet. Sans lui (échec hors connexion), l'analyse de base
@@ -321,6 +322,24 @@ export function workDraftsFromEntry(entry,{parcelIds=null,type=null,status=null,
     equipmentId:entry.equipmentId||'',startTime:entry.startTime||'',endTime:entry.endTime||'',
     note:`Dicté : « ${entry.text} »`
   }));
+}
+
+// Travail prévu que la dictée d'un travail fait vient terminer : même parcelle, même type, encore à faire,
+// échéance (plannedDate||date) à 7 jours au plus de la date dictée ; la plus proche l'emporte.
+export function plannedMatchFor(state,parcelId,type,date){
+  const key=voiceNormalize(type),day=Date.parse(date);if(!parcelId||!key||!Number.isFinite(day))return null;
+  let best=null,bestGap=Infinity;
+  for(const work of active(state,'interventions')){
+    if(work.parcelId!==parcelId||!isPending(work)||voiceNormalize(work.type)!==key)continue;
+    const due=Date.parse(work.plannedDate||work.date);if(!Number.isFinite(due))continue;
+    const gap=Math.abs(due-day)/864e5;if(gap<=7&&gap<bestGap){best=work;bestGap=gap;}
+  }
+  return best;
+}
+// Termine le travail prévu avec les détails dictés ; un champ vide du brouillon garde la valeur prévue.
+export function completePlannedWork(planned,work,date){
+  const filled=Object.fromEntries(Object.entries(work).filter(([key,value])=>key!=='id'&&key!=='note'&&value!==''&&value!==null&&value!==undefined));
+  return {...planned,...filled,id:planned.id,status:'Terminé',date,plannedDate:planned.plannedDate||planned.date||date,note:[planned.note,work.note].filter(Boolean).join('\n')};
 }
 
 const joinNames=names=>names.length<=1?(names[0]||''):`${names.slice(0,-1).join(', ')} et ${names[names.length-1]}`;

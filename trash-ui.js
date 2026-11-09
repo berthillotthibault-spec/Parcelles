@@ -62,13 +62,18 @@ export function createTrashUI({store, state, modal, closeModal, toast, entityTyp
 
   async function purge(type, id) {
     if (!canPurge()) return toast('Seule la personne propriétaire peut supprimer définitivement.', 'error');
-    await store.purge(type, id); open(); toast('Élément supprimé définitivement.');
+    const item = store.get(type, id, {includeDeleted: true}); if (!item) return open();
+    modal('Supprimer définitivement', `« ${titleOf(type, item)} » ne pourra plus être restauré.`,
+      html`<div class="notice warning">Action irréversible : l’élément et ses photos ou documents seront effacés.</div>`,
+      html`<button class="button secondary" data-action="open-trash">Annuler</button><button class="button danger" id="trash-purge-ok">Supprimer définitivement</button>`, 'small');
+    const ok = $('#trash-purge-ok');
+    ok?.addEventListener('click', async () => { if (ok.disabled) return; ok.disabled = true; await store.purge(type, id); open(); toast('Élément supprimé définitivement.'); });
   }
 
   function empty() {
     if (!canPurge()) return toast('Seule la personne propriétaire peut vider la corbeille.', 'error');
     const all = rows(); if (!all.length) return;
-    modal('Vider la corbeille', `${all.length} élément${all.length > 1 ? 's' : ''} seront supprimés définitivement.`,
+    modal('Vider la corbeille', `${all.length} élément${all.length > 1 ? 's seront supprimés' : ' sera supprimé'} définitivement.`,
       html`<div class="notice warning">Action irréversible. Avant de vider, gardez une sauvegarde complète ZIP (données, photos et documents) hors de l’appareil.</div>
         <p><button type="button" class="button secondary" data-action="export-complete-backup">Télécharger la sauvegarde ZIP</button></p>
         <form id="trash-empty-form" class="form-grid"><label class="span-2">Pour confirmer, saisissez le nombre d’éléments (${all.length})<input name="count" inputmode="numeric" autocomplete="off" required></label><p class="span-2 form-error" id="trash-empty-error" role="alert" hidden></p></form>`,

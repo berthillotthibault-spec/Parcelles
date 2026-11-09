@@ -5,8 +5,8 @@ import {geometryAreaHa, geometryCentroid, pointInGeometry} from './utils.js';
 import {rpgCultureLabel} from './rpg-onboarding.js';
 
 export const TELEPAC_STEPS=Object.freeze([
-  {title:'Déclaration',detail:'Sur telepac, ouvrez la déclaration PAC de la campagne (menu « Téléprocédures › Dossier PAC »).'},
-  {title:'Téléchargements',detail:'Dans le dossier, ouvrez l’onglet « Téléchargements » (ou « Export des données »).'},
+  {title:'Déclaration',detail:'Sur telepac, ouvrez la déclaration PAC de la campagne (menu « Téléprocédures › Dossier PAC »).'},
+  {title:'Téléchargements',detail:'Dans le dossier, ouvrez l’onglet « Téléchargements » (ou « Export des données »).'},
   {title:'Parcelles graphiques (SHP)',detail:'Choisissez « Parcelles graphiques » au format SHP : vous obtenez un fichier ZIP à importer tel quel.'}
 ]);
 export const TELEPAC_NOTICE='Aide à l’import : le fichier telepac reste la référence officielle. Le numéro PACAGE n’est jamais enregistré dans Parcelles.';

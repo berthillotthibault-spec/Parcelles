@@ -119,3 +119,11 @@ test('écran « Et si… » : marge nette, trésorerie selon le rôle et compara
   assert.match(ui, /pas une prévision/);
   assert.match(app, /createSimulatorUI\(\{modal,state,role:cloudRole\}\)/);
 });
+
+test('produit connu sur une seule culture : marge nette ≤ marge simulée et €/ha sur la surface avec produit', () => {
+  const s = farm();delete s.parcelles[1].economicsByCampaign;
+  const b = simulationBase(s, {campaign: C}), r = simulate(b);
+  assert.equal(b.productArea, 10);assert.equal(b.margin, 14000);
+  assert.ok(r.net <= r.margin + 0.01, `${r.net} > ${r.margin}`);
+  assert.equal(r.marginHa, 1400);
+});

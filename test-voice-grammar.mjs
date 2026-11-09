@@ -183,7 +183,7 @@ test(`${PHRASES.length} phrases réelles : intention et champs reconnus`,()=>{
 test('phrases de confirmation des nouvelles intentions',()=>{
   assert.equal(say(parse('Vidange du Fendt à 4 520 heures')),'Vidange du Fendt 724 à 4 520 h, je l’enregistre ?');
   assert.equal(say(parse('Chardons sur le Champ du Moulin hier')),'Observation « Chardons » sur Champ du Moulin, hier, je l’enregistre ?');
-  assert.equal(say(parse('J’ai pris trois sacs de semences maïs')),'Sortie de 3 sac de Semences maïs, je l’enregistre ?');
+  assert.equal(say(parse('J’ai pris trois sacs de semences maïs')),'Sortie de 3 sacs de Semences maïs, je l’enregistre ?');
   assert.equal(say(parse('Six heures de pelle sur le chantier Dupont')),'6 h sur le chantier « Terrassement maison Dupont », je l’enregistre ?');
   assert.match(say(parse('Plein du gros, deux cents litres de GNR')),/^Plein de 200 L du Fendt 724/);
 });

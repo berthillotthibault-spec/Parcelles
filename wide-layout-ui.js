@@ -30,6 +30,8 @@ export function createWideLayoutUI({doc=globalThis.document,win=globalThis.windo
     if(!wrap)return;
     for(const el of todaySnapshot)if(el.isConnected)page.append(el);
     if(originalGrid)for(const id of orderCards(cards().map(c=>c.dataset.homeCard),order)){const c=doc.querySelector(`#view-today [data-home-card="${id}"]`);if(c)originalGrid.append(c);}
+    // Comme renderToday : bandeau En retard après la météo, carte animaux après « Aujourd’hui » (sinon ils restent en tête de grille).
+    if(originalGrid){const w=originalGrid.querySelector(':scope > [data-home-card="weather"]'),t=originalGrid.querySelector(':scope > [data-home-card="today"]'),late=doc.getElementById('home-late'),herd=doc.getElementById('home-animals');if(late&&w)w.after(late);if(herd&&t)t.after(herd);}
     // Éléments ajoutés par d’autres modules pendant l’affichage en colonnes (ex. signaux satellite) : remis avant le bilan.
     const review=doc.getElementById('day-review');
     for(const el of Array.from(wrap.querySelectorAll(':scope > div > *')))if(!el.classList.contains('wide-minimap')){if(review&&page.contains(review))review.before(el);else page.append(el);}

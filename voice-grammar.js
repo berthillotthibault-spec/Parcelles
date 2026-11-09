@@ -113,6 +113,8 @@ export function matchEquipment(text,state){
 
 // ---------- Entretien et compteur ----------
 // Types du formulaire d'entretien de Matériel (app.js) : un brouillon vocal n'enregistre que ceux-là.
+// Unité accordée au pluriel (2 et plus, comme en français) : « 3 sacs » ; les symboles (L, t, kg, ha…) restent invariables.
+export const unitLabel=(n,unit='')=>{const u=String(unit||'');return Math.abs(Number(n))>=2&&/^[a-zà-ÿ][a-zà-ÿ ]*[^sxz]$/i.test(u)&&!/^(l|t|h|ha|kg|g|m3|min|q)$/i.test(u)?`${u}s`:u;};
 export const MAINTENANCE_TYPES=['Vidange','Graissage','Pneus','Contrôle technique','Réparation','Autre'];
 // Plein, panne ou entretien général : type « Autre », l'opération dictée est reprise dans la note.
 export const maintenanceRecordType=opType=>MAINTENANCE_TYPES.includes(opType)?opType:'Autre';
@@ -229,7 +231,7 @@ export function grammarSentence(entry,{when='',parcels=null}={}){
     return `${what}${entry.equipment?of(entry.equipment.nom):''}${entry.meter!==null&&entry.meter!==undefined?` à ${fmt(entry.meter)} h`:''}${when}, je l’enregistre ?`;
   }
   if(entry.intent==='observation')return `Observation « ${entry.title} »${on}${when}, je l’enregistre ?`;
-  if(entry.intent==='stock-out'){const name=entry.product?.name||'ce produit';return `Sortie de ${fmt(entry.quantity)} ${entry.unit} ${/^[aeiouyhéè]/i.test(name)?`d’${name}`:`de ${name}`}${when}, je l’enregistre ?`;}
+  if(entry.intent==='stock-out'){const name=entry.product?.name||'ce produit';return `Sortie de ${fmt(entry.quantity)} ${unitLabel(entry.quantity,entry.unit)} ${/^[aeiouyhéè]/i.test(name)?`d’${name}`:`de ${name}`}${when}, je l’enregistre ?`;}
   if(entry.intent==='pw-hours'){
     const parts=[entry.hours!==null?`${fmt(entry.hours)} h`:'',entry.volumeM3!==null?`${fmt(entry.volumeM3)} m³`:'',entry.tonnage!==null?`${fmt(entry.tonnage)} t`:''].filter(Boolean);
     return `${parts.join(', ')||'Journal'} sur le chantier${entry.project?` « ${entry.project.type} »`:''}${when}, je l’enregistre ?`;

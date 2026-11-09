@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Store} from './state.js';
 import {canMutate} from './permissions.js';
 import {limitedCloudPayload} from './sync.js';
-import {TP_DAY_METER_OPERATION,keypadInput,parseDecimal,planTpDay,saveTpDay,tpDayAllowed,tpDayEquipment,tpDaySaveOperations,tpDayShareText,tpDayUndoScope,tpDayWriteCount,undoTpDay} from './public-works-day.js';
+import {TP_DAY_METER_OPERATION,keypadInput,parseDecimal,planTpDay,saveTpDay,tpDayAllowed,tpDayEquipment,tpDaySaveOperations,tpDayShareText,tpDayUndoScope,tpDayWriteCount,undoTpDay,undoTpDayLog} from './public-works-day.js';
 
 class MemoryStorage{
   constructor(){this.value=null;}
@@ -114,6 +114,27 @@ test('écriture groupée puis annulation complète', async ()=>{
   assert.equal(store.get('documents','doc_bon'),undefined,'photo du bon à la corbeille');
   assert.ok(store.get('documents','doc_bon',{includeDeleted:true}).deletedAt);
   await assert.rejects(()=>undoTpDay(store,'c1',result.dayId),/déjà été annulée/);
+});
+
+test('suppression d’une seule ligne de fin de journée : plein retiré et compteur rétabli', async ()=>{
+  const store=new Store(new MemoryStorage());await store.init();await store.setPreferences({autoBackup:false});
+  const seed=base();
+  await store.mutate('Préparation',state=>{state.chantiers.push(...seed.chantiers);state.materiels.push(...seed.materiels);state.preferences.fuelPrice=1.5;},{queue:false});
+  const doc={id:'doc_bon2',name:'bon.jpg',mimeType:'image/jpeg',size:10};
+  const {dayId}=await saveTpDay(store,'c1',{date:'2026-10-15',rows:[{equipmentId:'m1',meter:'1208',quantity:'30',fuel:'50'},{equipmentId:'m2',hours:'7'}]},{document:doc});
+  const lines=store.get('chantiers','c1').tpLogs.filter(l=>l.dayId===dayId);
+  const first=lines.find(l=>l.equipmentId==='m1'),second=lines.find(l=>l.equipmentId==='m2');
+  assert.equal(store.get('materiels','m1').currentMeter,1208);
+  const res=await undoTpDayLog(store,'c1',first.id);
+  assert.deepEqual(res,{fuels:1,documents:0,meters:1});
+  assert.equal(store.get('materiels','m1').currentMeter,1200);
+  assert.ok(store.state.integrationImports.find(r=>r.tpDayId===dayId).deletedAt,'plein à la corbeille');
+  assert.equal(store.get('chantiers','c1').tpLogs.find(l=>l.id===first.id).deletedAt>0,true);
+  assert.ok(store.get('documents','doc_bon2'),'photo gardée tant qu’une ligne de la journée reste');
+  assert.equal(tpDayUndoScope(store.state,'c1',dayId).logs.length,1);
+  await assert.rejects(()=>undoTpDayLog(store,'c1',first.id),/introuvable/);
+  assert.deepEqual(await undoTpDayLog(store,'c1',second.id),{fuels:0,documents:1,meters:0});
+  assert.equal(store.get('documents','doc_bon2'),undefined,'dernière ligne : photo du bon à la corbeille');
 });
 
 test('ligne sans heures ni quantité : note de relevé pour rester modifiable', async ()=>{

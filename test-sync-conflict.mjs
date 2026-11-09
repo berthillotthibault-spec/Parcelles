@@ -80,3 +80,11 @@ test('métadonnées distantes conservées sans uid ni jeton', () => {
   assert.deepEqual(meta, {modifiedEmail: 'paul@exemple.fr', deviceId: 'd1', updatedAt: 5, serverUpdatedAt: 2000});
   assert.equal(conflictRemoteMeta(null), null);
 });
+
+test('suppression : « Fiche conservée » face à « Supprimée à » ou « Supprimée le »', () => {
+  assert.equal(formatFieldValue('deletedAt', null), 'Fiche conservée');
+  assert.equal(formatFieldValue('deletedAt', undefined), 'Fiche conservée');
+  const today = new Date(); today.setHours(1, 32, 0, 0);
+  assert.equal(formatFieldValue('deletedAt', today.getTime()), 'Supprimée à 1 h 32');
+  assert.equal(formatFieldValue('deletedAt', new Date(2020, 10, 5, 1, 32).getTime()), 'Supprimée le 05/11/2020 à 1 h 32');
+});

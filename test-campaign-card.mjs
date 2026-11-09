@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {campaignCardModel,previousCampaignId} from './campaign-card.js';
-import {HOME_CARDS,normalizePersonalization} from './personalization.js';
+import {HOME_CARDS,HOME_PRESETS,normalizePersonalization,mergeFormHomeCards} from './personalization.js';
 import {emptyState} from './state.js';
 
 const C = '2026/27', P = '2025/26';
@@ -50,4 +50,18 @@ test('point bas de trésorerie : affiché au gérant, masqué au lecteur et au c
   assert.ok(campaignTreasuryModel(low, {role: 'editor'}));
   for (const role of ['viewer', 'advisor']) assert.equal(campaignTreasuryModel(low, {role}), null, role);
   assert.equal(campaignTreasuryModel(null, {role: 'owner'}), null);
+});
+
+test('un profil d’accueil ne recoche pas « Ma campagne »', () => {
+  for (const id of ['essential', 'field', 'management'])
+    assert.ok(!normalizePersonalization({homeCards: ['weather'], ...HOME_PRESETS[id]}).homeCards.includes('campaign'), id);
+});
+
+test('enregistrer les Paramètres sans toucher aux cartes conserve campaign et calvings', () => {
+  const form = ['weather', 'today', 'tasks', 'alerts', 'recent'];
+  const prefs = normalizePersonalization({});
+  const cards = mergeFormHomeCards(prefs, form, form.filter(id => prefs.homeCards.includes(id)));
+  assert.ok(cards.includes('campaign')); assert.ok(cards.includes('calvings'));
+  // une case décochée reste décochée
+  assert.ok(!mergeFormHomeCards(prefs, form, ['today']).includes('weather'));
 });

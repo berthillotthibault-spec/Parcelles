@@ -77,6 +77,16 @@ test('BCAE 7 : même culture 3 campagnes en rouge, part de changement', ()=>{
   assert.equal(bcae7Summary(s,C,{today:TODAY}).status,'warn');
 });
 
+test('hors campagne en cours sans rotation : la prairie permanente garde sa catégorie, la terre arable reste inconnue', ()=>{
+  const s=farm();s.rotations=[];
+  const rows=declarationRows(s,'2025/26',{today:TODAY});
+  assert.equal(rows.find(r=>r.parcel.id==='p3').kind,'PP');
+  assert.equal(rows.find(r=>r.parcel.id==='p1').culture,'');
+  const sum=bcae7Summary(s,'2027/28',{today:TODAY});
+  assert.equal(sum.rows.find(r=>r.parcel.id==='p3').status,'na');
+  assert.equal(sum.area,25);assert.equal(sum.unknownArea,25);
+});
+
 test('BCAE 6 : terres arables couvertes en période sensible', ()=>{
   const b=bcae6Summary(farm(),C,{today:TODAY});
   assert.equal(b.area,25);assert.equal(b.coveredArea,15);

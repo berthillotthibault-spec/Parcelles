@@ -1,7 +1,7 @@
 // n° 67 — Interface semences : section « Semence » du formulaire de travail (affichée pour un semis),
 // ligne de semis dans la fiche parcelle et écran « Mes variétés » (essai variétal maison, semences
 // de ferme pour la CVO, export CSV).
-import {escapeHtml as e,download,localDate,campaignFor} from './utils.js';
+import {escapeHtml as e,download,localDate,campaignFor,localIso} from './utils.js';
 import {DENSITY_UNITS,SEED_ORIGINS,CVO_NOTE,isSowingWork,normalizeSeed,seedKgPerHa,seedLabel,parcelSowing,varietyNames,varietyTrials,farmSavedSeed,seedStockItems,trialsCsv} from './seeds.js';
 import {itemLots} from './stock-lots.js';
 
@@ -71,7 +71,7 @@ ${t.rows.length?`<h3>Détail des semis</h3><div class="stack-list">${t.rows.slic
   async function action(name,control){
     if(name==='open')return open();
     if(name==='filter'){filter=control.dataset.culture||'';return open();}
-    if(name==='csv'){download(`varietes-${new Date().toISOString().slice(0,10)}.csv`,trialsCsv(varietyTrials(data(),{culture:filter})),'text/csv;charset=utf-8');}
+    if(name==='csv'){download(`varietes-${localIso()}.csv`,trialsCsv(varietyTrials(data(),{culture:filter})),'text/csv;charset=utf-8');}
   }
   document.addEventListener('click',ev=>{const c=ev.target.closest('[data-seeds]');if(!c||c.disabled)return;action(c.dataset.seeds,c).catch(error=>toast(error.message,'error'));});
   return{open,enhanceWorkForm,applyToWork,parcelHtml};

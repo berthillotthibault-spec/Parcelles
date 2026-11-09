@@ -7,16 +7,21 @@ import {
   normalizeName, isoDay
 } from './team-work.js';
 import {escapeHtml as e, downloadBlob} from './utils.js';
+import {isTreatment} from './phyto.js';
 
 const CLOSED = new Set(['Terminé', 'Terminée', 'Annulé', 'Annulée']);
+// Une durée pointée n’est mentionnée que si elle s’affiche en au moins une minute (pas de « 0 min »).
+const shown = h => Math.round(h * 60) > 0;
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+// Même message que le formulaire Travail (work-form-ui.js), sans charger ce module ici.
+const TREATMENT_PRODUCT_MESSAGE = 'Indiquez le produit : un traitement terminé va au registre phytosanitaire.';
 const clock = ms => new Date(ms).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}).replace(':', ' h ');
 const dayLabel = iso => {const d = new Date(`${iso}T12:00:00`); return `${d.toLocaleDateString('fr-FR', {weekday: 'short'})}<br>${d.getDate()}`;};
 const shortDate = iso => new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'});
 const decimal = h => (Math.round(h * 100) / 100).toLocaleString('fr-FR', {maximumFractionDigits: 2});
 const euro = v => Number(v).toLocaleString('fr-FR', {style: 'currency', currency: 'EUR'});
 
-export function createTeamWorkUI({store, state, modal, closeModal, toast, bindChipChoices = () => {}, sync = null, canWrite = () => true, doc = globalThis.document, now = () => Date.now()} = {}) {
+export function createTeamWorkUI({store, state, modal, closeModal, toast, bindChipChoices = () => {}, sync = null, canWrite = () => true, openWorkForm = null, doc = globalThis.document, now = () => Date.now()} = {}) {
   let members = [];
   let sheetWeek = null;
   const data = () => state() || {};
@@ -44,7 +49,7 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
     let action = '';
     if (st === 'todo') action = `<button type="button" class="button primary team-act" data-team="start" data-kind="${kind}" data-id="${e(item.id)}">Démarrer</button>`;
     else if (st === 'running') action = `<span class="team-since">${running ? `Depuis ${clock(running.start)}` : 'En cours'}</span><button type="button" class="button primary team-act" data-team="finish" data-kind="${kind}" data-id="${e(item.id)}">Terminer</button>`;
-    else action = `<span class="team-done">Terminé${punchedHours(item) > 0 ? ` · ${formatHours(punchedHours(item))}` : ''}</span>`;
+    else action = `<span class="team-done">Terminé${shown(punchedHours(item)) ? ` · ${formatHours(punchedHours(item))}` : ''}</span>`;
     return `<li class="team-row is-${st}"><div class="team-row-main"><strong>${e(itemTitle(item, kind))}</strong>${meta ? `<small>${e(meta)}</small>` : ''}${item.instructions ? `<p class="team-instructions"><span class="sr-only">Consigne : </span>${e(item.instructions)}</p>` : ''}</div><div class="team-row-actions">${canWrite() ? action : ''}</div></li>`;
   }
 
@@ -122,8 +127,16 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
         toast(`Démarré : ${itemTitle(item, kind)} à ${clock(now())}.`);
       } else {
         const {item: done, hours} = finishPunch(item, me(), {kind, now: now(), today: today()});
+        // Même règle que « Terminer » : un traitement sans produit ne se clôt pas ici. Le pointage est
+        // arrêté (statut « En cours ») et le formulaire s’ouvre prérempli pour saisir le produit.
+        if (kind === 'work' && isTreatment(done) && !String(done.product || '').trim()) {
+          await store.upsert(collection(kind), {...item, timeLog: done.timeLog}, {label: `Pointage arrêté : ${itemTitle(item, kind)}`});
+          if (openWorkForm) {closeModal?.(); openWorkForm(done);}
+          toast(TREATMENT_PRODUCT_MESSAGE, 'error');
+          return;
+        }
         await store.upsert(collection(kind), done, {label: `Terminé : ${itemTitle(item, kind)}`});
-        toast(`Terminé : ${itemTitle(item, kind)}${hours > 0 ? ` · ${formatHours(hours)} pointées` : ''}.`, 'success', {label: 'Annuler', run: () => store.upsert(collection(kind), item, {label: 'Pointage restauré'})});
+        toast(`Terminé : ${itemTitle(item, kind)}${shown(hours) ? ` · ${formatHours(hours)} pointées` : ''}.`, 'success', {label: 'Annuler', run: () => store.upsert(collection(kind), item, {label: 'Pointage restauré'})});
       }
     } catch (error) {toast(error?.message || 'Pointage impossible.', 'error');}
   }
@@ -158,7 +171,7 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
     if (!groups.size) return '<p class="team-empty">Aucun travail confié pour aujourd’hui.</p>';
     return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr')).map(g => `<section class="team-person"><div class="team-person-head"><h3>${e(g.name)}</h3>${canWrite() && g.rows.some(r => !r.closed) ? `<button type="button" class="text-button" data-msg="plan" data-date="${t}" data-name="${e(g.name)}">Envoyer son planning</button>` : ''}</div><ul class="team-list">${g.rows.map(({kind, item, closed}) => {
       const run = runningEntry(item);
-      const status = closed ? `Terminé${kind === 'work' && punchedHours(item) > 0 ? ` · ${formatHours(punchedHours(item))}` : ''}` : run ? `En cours depuis ${clock(run.start)}` : 'À faire';
+      const status = closed ? `Terminé${kind === 'work' && shown(punchedHours(item)) ? ` · ${formatHours(punchedHours(item))}` : ''}` : run ? `En cours depuis ${clock(run.start)}` : 'À faire';
       return `<li><button type="button" class="team-line" data-action="${kind === 'task' ? 'edit-task' : 'edit-work'}" data-id="${e(item.id)}"><span><strong>${e(itemTitle(item, kind))}</strong><small>${e([parcelName(item.parcelId), item.instructions ? `« ${item.instructions.slice(0, 60)}${item.instructions.length > 60 ? '…' : ''} »` : ''].filter(Boolean).join(' · '))}</small></span><span class="team-status is-${closed ? 'done' : run ? 'running' : 'todo'}">${e(status)}</span></button>${canWrite() && !closed ? `<button type="button" class="text-button team-line-msg" data-msg="${kind}" data-id="${e(item.id)}">Envoyer la consigne<span class="sr-only"> : ${e(itemTitle(item, kind))}</span></button>` : ''}</li>`;
     }).join('')}</ul></section>`).join('');
   }
@@ -222,7 +235,14 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
     const form = doc.getElementById('team-assign-form');
     bindChipChoices(form);
     const toggleNew = () => {doc.getElementById('team-new').hidden = form.elements.target.value !== 'new';};
-    form.elements.target.addEventListener('change', toggleNew);
+    // Choisir un travail charge sa consigne et son matériel actuels (sinon Confier les écraserait).
+    form.elements.target.addEventListener('change', () => {
+      toggleNew();
+      const [k, tid] = form.elements.target.value.split(':');
+      const it = form.elements.target.value === 'new' ? null : getItem(k, tid);
+      form.elements.instructions.value = it?.instructions || '';
+      if (form.elements.equipmentId) form.elements.equipmentId.value = it?.equipmentId || '';
+    });
     form.addEventListener('click', event => {if (event.target.closest('.choice-chip')) {form.elements.whoOther.value = ''; doc.getElementById('team-assign-error').classList.add('hidden');}});
   }
 
@@ -251,7 +271,7 @@ export function createTeamWorkUI({store, state, modal, closeModal, toast, bindCh
     }
     try {
       const patched = assignPatch(item, {name, id: uid, instructions, by: identity(), now: now()});
-      if (equipmentId) patched.equipmentId = equipmentId;
+      if (form.elements.equipmentId) patched.equipmentId = equipmentId;
       await store.upsert(collection(kind), patched, {label: `Confié à ${patched.assigneeName} : ${itemTitle(patched, kind)}`});
       closeModal();
       toast(`Confié à ${patched.assigneeName} : ${itemTitle(patched, kind)}.`);

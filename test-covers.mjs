@@ -60,6 +60,13 @@ test('alertes : culture de printemps en zone vulnérable sans couvert, destructi
   assert.equal(rows.find(r=>r.parcel.id==='p1').interculture.especes,'Moutarde');
 });
 
+test('culture d’hiver : couvert court détruit avant le semis, sans alerte', ()=>{
+  const s=farm();
+  s.rotations=[rot('p2',C,'Blé tendre',{interculture:{especes:'Moutarde',semisDate:'2026-09-01',destructionDate:'2026-10-01'}})];
+  assert.deepEqual(coverRows(s,C,{today:TODAY}).find(r=>r.parcel.id==='p2').issues,[]);
+  assert.equal(coverAlerts(s,{today:TODAY}).some(a=>a.parcel.id==='p2'),false);
+});
+
 test('conformité : entrée CIPAN ajoutée', ()=>{
   const s=farm();
   assert.equal(coverComplianceChecks(s,{today:TODAY})[0].status,'warn');

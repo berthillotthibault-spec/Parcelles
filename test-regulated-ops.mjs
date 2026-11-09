@@ -72,3 +72,13 @@ test('rappels sur l’accueil (notifications) et voyant de conformité', ()=>{
   assert.ok(complianceChecks(farm(),{today:TODAY}).some(c=>c.id==='admin-deadlines'));
   assert.equal(adminDeadlinesCheck(emptyState(),{today:TODAY}).status,'na');
 });
+
+test('échéances administratives : conseil stratégique sans date « à renseigner », pas « suivie »', ()=>{
+  const s=emptyState();
+  s.interventions=[{id:'w1',type:'Traitement phyto',isPhytosanitary:true,date:'2026-05-02'}];
+  const check=adminDeadlinesCheck(s,{today:'2026-11-08'});
+  assert.equal(check.status,'unknown');
+  assert.equal(check.detail,'1 échéance à renseigner (assurances, conseil stratégique phytosanitaire).');
+  s.materiels=[{id:'m2',nom:'Tracteur',insuranceDue:'2027-06-01'}];
+  assert.equal(adminDeadlinesCheck(s,{today:'2026-11-08'}).detail,'1 échéance suivie, 1 échéance à renseigner (assurances, conseil stratégique phytosanitaire).');
+});

@@ -311,7 +311,7 @@ export class StorageService{
   }
 
 
-  async pruneBackups(policy={daily:7,weekly:4,monthly:3}){
+  async pruneBackups(policy={daily:7,weekly:4,monthly:3,preimport:5}){
     const all=await this.backupList();
     const workspaces=[...new Set(all.map(item=>String(item.workspaceId||'local')))];
     for(const workspaceId of workspaces){

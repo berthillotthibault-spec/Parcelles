@@ -1,4 +1,4 @@
-import {campaignFor, localDate, normalize, toNumber} from './utils.js';
+import {campaignFor, csvFormulaSafe, localDate, normalize, toNumber} from './utils.js';
 
 export const DOCUMENT_CATEGORIES=[
   'Analyse de sol','Facture','Bon / justificatif','Plan / carte','Matériel','Client / prestation','Réglementaire','Photo / constat','Autre'
@@ -72,7 +72,7 @@ export function traceabilitySummary(state,{campaign=campaignFor()}={}){
   return{campaign,total:rows.length,withProduct,withOperator,withAttachment,incomplete};
 }
 
-function csvCell(value){const text=String(value??'').replaceAll('"','""');return `"${text}"`;}
+function csvCell(value){const text=csvFormulaSafe(value).replaceAll('"','""');return `"${text}"`;}
 export function traceabilityCsv(state,{campaign=campaignFor()}={}){
   const rows=traceabilityRows(state,{campaign});
   const header=['Campagne','Date','Parcelle','Travail','Produit','Dose','Unité','Opérateur','Matériel','Statut','Documents','Photos','Note'];

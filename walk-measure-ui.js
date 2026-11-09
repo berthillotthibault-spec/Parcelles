@@ -78,33 +78,44 @@ export function createWalkMeasureUI({getMap,store,toast,modal,closeModal,mapMode
     modal('Mesure terminée',walkSummary(stats),`<div class="walk-result-choices"><button class="menu-row" data-walk-choice="parcel"><span>◇</span><span><strong>Créer une parcelle</strong><small>Nouvelle fiche avec ce contour (${formatNumber(area)} ha)</small></span><b>›</b></button><button class="menu-row" data-walk-choice="replace"><span>◈</span><span><strong>Remplacer le contour de…</strong><small>Une parcelle existante, la plus proche en premier</small></span><b>›</b></button><button class="menu-row" data-walk-choice="zone"><span>▱</span><span><strong>Enregistrer comme zone</strong><small>Repère avec contour : zone humide, mouillère, dégât…</small></span><b>›</b></button></div>`,'<button class="button secondary" data-action="close-modal">Fermer sans enregistrer</button>','small');
     const root=document.querySelector('.walk-result-choices');
     root?.querySelector('[data-walk-choice="parcel"]')?.addEventListener('click',()=>{closeModal();createParcel?.(geometry,area);});
-    root?.querySelector('[data-walk-choice="replace"]')?.addEventListener('click',()=>openReplace(geometry));
+    root?.querySelector('[data-walk-choice="replace"]')?.addEventListener('click',()=>openReplace(geometry,stats));
     root?.querySelector('[data-walk-choice="zone"]')?.addEventListener('click',()=>openZone(geometry,stats));
   }
 
-  function openReplace(geometry){
+  function openReplace(geometry,stats){
     const rows=nearestParcels(geometry,(getState()?.parcelles||[]).filter(p=>!p.archived));
+    const dist=r=>r.distance<1000?`${Math.round(r.distance)} m`:`${formatNumber(r.distance/1000)} km`;
     if(!rows.length){toast?.('Aucune parcelle avec contour à remplacer.','error');return;}
-    modal('Remplacer le contour','Choisissez la parcelle dont le contour sera remplacé par la mesure.',`<form id="walk-replace-form"><label>Parcelle<select name="parcelId" required><option value="">Choisir…</option>${rows.map(r=>`<option value="${escapeHtml(r.parcel.id)}">${escapeHtml(r.parcel.nom)} · ${r.distance<1000?`${Math.round(r.distance)} m`:`${formatNumber(r.distance/1000)} km`}</option>`).join('')}</select></label></form>`,'<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="walk-replace-save">Remplacer</button>','small');
+    modal('Remplacer le contour','Choisissez la parcelle dont le contour sera remplacé par la mesure.',`<form id="walk-replace-form"><label>Parcelle<select name="parcelId" required><option value="">Choisir…</option>${rows.map(r=>`<option value="${escapeHtml(r.parcel.id)}">${escapeHtml(r.parcel.nom)} · ${dist(r)}</option>`).join('')}</select></label></form>`,'<button class="button secondary" id="walk-back">Retour</button><button class="button primary" id="walk-replace-save">Remplacer</button>','small');
+    document.getElementById('walk-back').onclick=()=>openResult(geometry,stats); // revenir au choix sans perdre la mesure
     const form=document.getElementById('walk-replace-form'),select=form.elements.parcelId;
-    chipify(select,{options:rows.map(r=>({value:r.parcel.id,label:r.parcel.nom})),other:null,ariaLabel:'Parcelle'});
-    document.getElementById('walk-replace-save').onclick=async()=>{
+    chipify(select,{options:rows.map(r=>({value:r.parcel.id,label:`${r.parcel.nom} · ${dist(r)}`})),other:null,ariaLabel:'Parcelle'});
+    document.getElementById('walk-replace-save').onclick=async(event)=>{
+      const btn=event.currentTarget;if(btn.disabled)return;
       if(!validateForm(form))return;
       const parcel=(getState()?.parcelles||[]).find(p=>p.id===select.value);if(!parcel)return;
-      const before=geometryAreaHa(parcel.geometry),after=geometryAreaHa(geometry);
-      await store.upsert('parcelles',{...parcel,geometry,surfaceHa:nextSurfaceHa(parcel.surfaceHa,before,after)},{label:`Contour remplacé par une mesure à pied : ${parcel.nom}`});
-      closeModal();toast?.(`Contour de ${parcel.nom} remplacé (${formatNumber(after)} ha).`,'success');onSaved?.('parcelles',parcel.id);
+      btn.disabled=true; // un double clic n'écrit qu'une fois
+      try{
+        const before=geometryAreaHa(parcel.geometry),after=geometryAreaHa(geometry);
+        await store.upsert('parcelles',{...parcel,geometry,surfaceHa:nextSurfaceHa(parcel.surfaceHa,before,after)},{label:`Contour remplacé par une mesure à pied : ${parcel.nom}`});
+        closeModal();toast?.(`Contour de ${parcel.nom} remplacé (${formatNumber(after)} ha).`,'success');onSaved?.('parcelles',parcel.id);
+      }catch(error){btn.disabled=false;throw error;}
     };
   }
 
   function openZone(geometry,stats){
-    modal('Enregistrer comme zone','La zone apparaît sur la carte comme un repère avec son contour.',`<form id="walk-zone-form"><label>Nom<input name="nom" required maxlength="80" value="Zone mesurée du ${escapeHtml(new Date().toLocaleDateString('fr-FR'))}"></label><label>Note<textarea name="note" rows="2" placeholder="Ex. zone humide à contourner"></textarea></label></form>`,'<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="walk-zone-save">Enregistrer</button>','small');
+    modal('Enregistrer comme zone','La zone apparaît sur la carte comme un repère avec son contour.',`<form id="walk-zone-form"><label>Nom<input name="nom" required maxlength="80" value="Zone mesurée du ${escapeHtml(new Date().toLocaleDateString('fr-FR'))}"></label><label>Note<textarea name="note" rows="2" placeholder="Ex. zone humide à contourner"></textarea></label></form>`,'<button class="button secondary" id="walk-back">Retour</button><button class="button primary" id="walk-zone-save">Enregistrer</button>','small');
+    document.getElementById('walk-back').onclick=()=>openResult(geometry,stats); // revenir au choix sans perdre la mesure
     const form=document.getElementById('walk-zone-form');
-    document.getElementById('walk-zone-save').onclick=async()=>{
+    document.getElementById('walk-zone-save').onclick=async(event)=>{
+      const btn=event.currentTarget;if(btn.disabled)return;
       if(!validateForm(form))return;
+      btn.disabled=true; // un double clic ne crée qu'une zone
+      try{
       const c=geometryCentroid(geometry),area=geometryAreaHa(geometry);
       const saved=await store.upsert('points',{nom:form.elements.nom.value.trim(),type:'Zone',note:form.elements.note.value.trim(),latitude:c.latitude,longitude:c.longitude,geometry,areaHa:Number(area.toFixed(4)),perimeterM:Math.round(stats.perimeterM),source:'local'},{label:`Zone enregistrée : ${form.elements.nom.value.trim()}`});
       closeModal();toast?.(`Zone enregistrée (${formatNumber(area)} ha).`,'success');onSaved?.('points',saved?.id);
+      }catch(error){btn.disabled=false;throw error;}
     };
   }
 

@@ -77,7 +77,7 @@ function essentialFields(item, {parcels, templates, data}) {
     `<label>Date<input name="date" type="date" required value="${isoDate(item.date)}"></label>`,
     `<label>Statut<select name="status">${options(STATUSES, item.status)}</select></label>`,
     '<label>Surface travaillée (ha)',
-    `<input name="surfaceWorked" inputmode="decimal" type="number" min="0" step="any" value="${item.surfaceWorked ?? ''}"></label>`,
+    `<input name="surfaceWorked" type="text" inputmode="decimal" autocomplete="off" value="${item.surfaceWorked ?? ''}"></label>`,
     // Parcelle ou travail d'un client : « non facturable » (choisi au « + ») reste réversible ici.
     parcels.find(p => p.id === item.parcelId)?.clientId || item.clientId
       ? `<label><input type="checkbox" name="billable" ${item.billable === false ? '' : 'checked'}> Facturable</label>` : '',
@@ -98,8 +98,8 @@ function detailFields(item, machines) {
     `<label><input type="checkbox" name="isPhytosanitary" ${item.isPhytosanitary || item.kind === 'spray' ? 'checked' : ''}>`
       + ' Intervention phytosanitaire</label>',
     money('Prix produit / unité (€)', 'productUnitPrice'),
-    `<label>Durée (h)<input name="duration" type="number" min="0" step="any" value="${item.duration ?? ''}"></label>`,
-    `<label>Carburant (L)<input name="fuel" type="number" min="0" step="0.1" value="${item.fuel ?? ''}"></label>`,
+    `<label>Durée (h)<input name="duration" type="text" inputmode="decimal" autocomplete="off" value="${item.duration ?? ''}"></label>`,
+    `<label>Carburant (L)<input name="fuel" type="text" inputmode="decimal" autocomplete="off" value="${item.fuel ?? ''}"></label>`,
     `<label>Opérateur<input name="operator" list="recent-operators" value="${escapeHtml(item.operator)}"></label>`,
     `<label>Matériel<select name="equipmentId"><option value="">Non renseigné</option>${machineOptions(machines, item.equipmentId)}</select></label>`,
     money('Coût machine (€)', 'machineCost', 'auto si vide'), money('Coût carburant (€)', 'fuelCost', 'auto si vide'),
@@ -113,13 +113,33 @@ function detailFields(item, machines) {
 }
 
 // Durée déduite des heures de début et de fin (passage de minuit compris) quand elle n'est pas saisie.
+// Une durée déjà calculée ici (autoDuration) suit les heures corrigées ; une durée saisie à la main reste.
 function recalcDuration(form) {
   const a = form.elements.startTime.value, b = form.elements.endTime.value;
-  if (!a || !b || String(form.elements.duration.value).trim()) return;
+  const cur = String(form.elements.duration.value).trim();
+  if (!a || !b || (cur && cur !== form.dataset.autoDuration)) return;
   const [ah, am] = a.split(':').map(Number), [bh, bm] = b.split(':').map(Number);
   let minutes = (bh * 60 + bm) - (ah * 60 + am);
   if (minutes < 0) minutes += 1440;
-  if (minutes >= 0) form.elements.duration.value = (minutes / 60).toFixed(2);
+  if (minutes >= 0) { form.elements.duration.value = (minutes / 60).toFixed(2); form.dataset.autoDuration = form.elements.duration.value; }
+}
+
+// Nombres saisis en texte (inputmode decimal) : la virgule passe quelle que soit la langue du navigateur,
+// alors qu'un type="number" hors français la supprime (« 3,5 » devenait 35). Vide ou nombre positif seulement.
+const DECIMAL_FIELDS = ['surfaceWorked', 'dose', 'duration', 'fuel', 'productUnitPrice', 'machineCost', 'fuelCost', 'inputCost',
+  'operatorCost', 'otherCost', 'cost', 'batchCost'];
+export const isPositiveDecimal = value => {
+  const s = String(value ?? '').replace(/\s/g, '');
+  return s === '' || /^(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(s);
+};
+// Erreur sous le champ par validateForm (« Valeur invalide : … ») ; effacée dès la saisie suivante.
+function checkDecimalFields(form) {
+  for (const name of DECIMAL_FIELDS) {
+    const el = form.elements[name];
+    if (!el?.setCustomValidity) continue;
+    el.setCustomValidity(isPositiveDecimal(el.value) ? '' : 'Nombre positif attendu, ex. 3,5');
+    if (!el.dataset.decimalCheck) { el.dataset.decimalCheck = '1'; el.addEventListener('input', () => el.setCustomValidity('')); }
+  }
 }
 
 export function createWorkFormUI(ctx) {
@@ -199,9 +219,15 @@ export function createWorkFormUI(ctx) {
   }
 
   async function save({form, item, source, duplicate, machines, data, draft, onSaved = null}) {
+    checkDecimalFields(form);
     if (!validateForm(form)) return;
     recalcDuration(form);
     const v = Object.fromEntries(new FormData(form));
+    if (v.status === 'Terminé' && v.date > ctx.todayIso()) {
+      ctx.toast('Date future : un travail terminé ne peut pas être daté après aujourd’hui. Choisissez « À faire » ou corrigez la date.', 'error');
+      form.elements.date?.focus();
+      return;
+    }
     const {duration, fuel, machineCost, fuelCost, inputCost, operatorCost, otherCost, total} = workCosts(v, {machines, data});
     const weather = ctx.weatherCache, weatherSnapshot = form.elements.weatherSnapshot.checked && weather ? weatherSnapshotOf(weather) : item.weatherSnapshot;
     const entity = {...item, ...v, isPhytosanitary: form.elements.isPhytosanitary.checked, costReviewRequired: false, id: item.id, cost: total,
@@ -218,6 +244,8 @@ export function createWorkFormUI(ctx) {
       if (!stored || stored.status !== 'Terminé') { ctx.toast(TREATMENT_PRODUCT_MESSAGE, 'error'); form.elements.product?.focus(); return; }
       ctx.toast('Produit non renseigné : ce traitement reste incomplet au registre phytosanitaire.', 'warning');
     }
+    // Création ou fiche non planifiée : l'échéance est la date saisie ; une date posée par la Semaine reste si la date ne change pas.
+    if (v.status !== 'Terminé' && !item.plannedDate) entity.plannedDate = v.date;
     if (v.status !== 'Terminé' && item.plannedDate && v.date !== item.date) entity.plannedDate = v.date;
     if (!entity.productLot && !item.productLot) delete entity.productLot; // n° 73 : lot du produit, seulement s'il est choisi
     if (ctx.phytoUI && !(await ctx.phytoUI.guardWork(form, entity))) return;
@@ -264,7 +292,7 @@ export function createWorkFormUI(ctx) {
       '<label>Heure début<input name="startTime" type="time"></label><label>Heure fin<input name="endTime" type="time"></label>',
       '<label>Matériel<select name="equipmentId"><option value="">Non renseigné</option>',
       `${machines.map(m => `<option value="${m.id}">${escapeHtml(m.nom)}</option>`).join('')}</select></label>`,
-      '<label>Coût total du lot (€)<input name="batchCost" inputmode="decimal" type="number" min="0" step=".01"></label>',
+      '<label>Coût total du lot (€)<input name="batchCost" type="text" inputmode="decimal" autocomplete="off"></label>',
       '<label class="span-2">Note<textarea name="note"></textarea></label></div></form>'].join('');
     ctx.modal('Travail groupé', 'Une seule saisie crée un travail relié pour chaque parcelle sélectionnée.', body,
       '<button class="button secondary" data-action="close-modal">Annuler</button>'
@@ -282,6 +310,7 @@ export function createWorkFormUI(ctx) {
     $('#batch-clear').onclick = () => boxes().forEach(x => x.checked = false);
     $('#save-batch-work').onclick = async () => {
       const form = $('#batch-work-form');
+      checkDecimalFields(form);
       if (!validateForm(form)) return;
       const ids = $$('#batch-work-form input[name="parcelIds"]:checked').map(x => x.value);
       if (!ids.length) return ctx.toast('Sélectionnez au moins une parcelle.', 'error');
@@ -289,7 +318,8 @@ export function createWorkFormUI(ctx) {
       const totalSurface = chosen.reduce((sum, p) => sum + toNumber(p.surfaceHa), 0), batchCost = toNumber(v.batchCost);
       // Seul le motif saisi dans l'encadré visible compte : jamais un motif caché repris d'ailleurs.
       const carriedReason = String(v.phytoOverrideReason || '').trim();
-      const entities = chosen.map(p => ({batchId, parcelId: p.id, type: v.type, date: v.date, status: v.status, product: v.product,
+      const entities = chosen.map(p => ({batchId, parcelId: p.id, type: v.type, date: v.date, plannedDate: v.status !== 'Terminé' ? v.date : '',
+        status: v.status, product: v.product,
         amm: v.amm, target: v.target, stage: v.stage, startTime: v.startTime || '', endTime: v.endTime || '',
         ...batchKindFields(prefill, v), ...(carriedReason ? {phytoOverrideReason: carriedReason} : {}),
         dose: toNullableNumber(v.dose) ?? v.dose, doseUnit: v.doseUnit, equipmentId: v.equipmentId, note: v.note, surfaceWorked: toNumber(p.surfaceHa),

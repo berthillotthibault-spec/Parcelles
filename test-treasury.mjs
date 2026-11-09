@@ -206,7 +206,7 @@ test('point bas : prochain encaissement attendu, et scénario de décalage sans 
   assert.equal(f.low.key, '2026-11');
   assert.deepEqual([f.low.nextIncome.key, f.low.nextIncome.amount, f.low.nextIncome.source], ['2027-01', 2000, 'contrat']);
   const {lowPointText, scenarioText} = await import('./treasury-ui.js');
-  assert.match(lowPointText(f.low), /Prochain encaissement attendu : Contrat « Contrat Blé · Coop », 2[\s ]000 € en janv\. 27/);
+  assert.match(lowPointText(f.low), /Prochain encaissement attendu : Contrat « Blé · Coop », 2[\s ]000 € en janv\. 27/);
   const before = JSON.stringify(s);
   const moved = treasuryForecast(s, {...opts, shifts: {'contrat:c1': 3}});
   assert.equal(moved.months.find(m => m.key === '2027-04').income, 2000);
@@ -215,6 +215,7 @@ test('point bas : prochain encaissement attendu, et scénario de décalage sans 
   assert.equal(treasuryForecast(s, {...opts, shifts: {'contrat:c1': 12}}).totals.income, 0, 'au-delà de l’horizon : sort du calcul');
   assert.equal(JSON.stringify(s), before, 'simulation sans écriture');
   assert.match(scenarioText(f, moved, f.lines.find(l => l.id === 'contrat:c1'), 3), /arrive en avr\. 27 au lieu de janv\. 27 : point bas −2[\s ]000 € fin nov\. 26 \(inchangé\)/);
+  assert.match(scenarioText(f, moved, f.lines.find(l => l.id === 'contrat:c1'), 3), /^Si « Contrat · Blé · Coop » /, 'source rappelée une seule fois');
 });
 
 test('appro et GNR à venir : part intrants et carburant des travaux prévus estimés non recomptée (n° 86)', () => {

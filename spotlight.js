@@ -28,7 +28,10 @@ export const SPOTLIGHT_ACTIONS = [
   ['terrain gps', 'Mode terrain', 'open-field-mode', 'GPS et actions rapides'],
   ['meteo pluie vent', 'Météo', 'open-weather', 'Prévisions et seuils'],
   ['facturation factures devis relances impayes retard catalogue tarifs', 'Facturation', 'open-invoices', 'Suivi, relances, catalogue et réglages'],
-  ['nouvelle facture facturer client', 'Nouvelle facture', 'new-invoice', 'Facturer un client']
+  ['nouvelle facture facturer client', 'Nouvelle facture', 'new-invoice', 'Facturer un client'],
+  ['personnaliser accueil raccourcis mode gants plein champ grands boutons texte agrandi contraste soleil', 'Personnaliser', 'personalize', 'Accueil, raccourcis, mode gants et Plein champ'],
+  ['notifications alertes rappels cloche', 'Notifications', 'open-notifications', 'Alertes à surveiller'],
+  ['nouveautes mise a jour quoi de neuf version', 'Nouveautés', 'open-whats-new', 'Ce qui a changé dans Parcelles']
 ];
 
 function levenshtein(a, b) {

@@ -112,12 +112,13 @@ test('alertes rangées par appli (lignes de computeNotifications)', () => {
     {id: 'deadline-certiphyto-x', level: 'warning', entity: 'regulated'},
     {id: 'grazing-open-g1', level: 'warning', entity: 'grazingSessions'},
     {id: 'backup-old', level: 'warning'},
-    {id: 'task-overdue-t1', level: 'urgent', entity: 'tasks'}
+    {id: 'task-overdue-t1', level: 'urgent', entity: 'tasks'},
+    {id: 'task-remind-t2', level: 'warning', entity: 'tasks', kind: 'bdni'}
   ];
   assert.deepEqual(appAlerts('materiel', rows).map(r => r.id), ['maintenance-m1']);
   assert.deepEqual(appAlerts('gestion', rows).map(r => r.id), ['stock-s1']);
   assert.deepEqual(appAlerts('reglementaire', rows).map(r => r.id), ['deadline-certiphyto-x']);
-  assert.deepEqual(appAlerts('troupeau', rows).map(r => r.id), ['grazing-open-g1']);
+  assert.deepEqual(appAlerts('troupeau', rows).map(r => r.id), ['grazing-open-g1', 'task-remind-t2'], 'Les rappels BDNI relèvent du troupeau');
   assert.deepEqual(appAlerts('reglages', rows).map(r => r.id), ['backup-old']);
   assert.deepEqual(appAlerts('champs', rows), [], 'Champs a son propre accueil');
   assert.deepEqual(appAlerts('materiel', [null, {}]), []);

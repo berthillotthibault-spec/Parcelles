@@ -45,9 +45,11 @@ test('décision : premier lancement silencieux, utilisateur existant informé, m
 });
 
 test('le brouillon à rouvrir après mise à jour est retrouvé depuis sa clé', () => {
-  assert.deepEqual(parseDraftKey(draftKey('interventions', 'w1')), {type: 'interventions', id: 'w1'});
-  assert.deepEqual(parseDraftKey(draftKey('tasks', null)), {type: 'tasks', id: null});
+  assert.deepEqual(parseDraftKey(draftKey('interventions', 'w1')), {type: 'interventions', id: 'w1', workspace: 'local'});
+  assert.deepEqual(parseDraftKey(draftKey('tasks', null)), {type: 'tasks', id: null, workspace: 'local'});
+  assert.deepEqual(parseDraftKey(draftKey('tasks', null, 'demo')), {type: 'tasks', id: null, workspace: 'demo'});
+  assert.deepEqual(parseDraftKey(draftKey('interventions', 'w1', 'ferme_a')), {type: 'interventions', id: 'w1', workspace: 'ferme_a'});
   assert.equal(parseDraftKey('autre:clé'), null);
-  assert.deepEqual(resumeTarget(['parcelles:draft:materiels:m1', draftKey('grazingSessions', 'g1')]), {type: 'grazingSessions', id: 'g1', key: 'parcelles:draft:grazingSessions:g1'});
+  assert.deepEqual(resumeTarget(['parcelles:draft:materiels:m1', draftKey('grazingSessions', 'g1')]), {type: 'grazingSessions', id: 'g1', workspace: 'local', key: 'parcelles:draft:grazingSessions:g1'});
   assert.equal(resumeTarget(['parcelles:draft:materiels:m1']), null);
 });

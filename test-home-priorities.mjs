@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {getHomeAgenda,getParcelWorkContext,matchesWorkTab,agendaDate,localDay} from './home-priorities.js';
+import {getHomeAgenda,getParcelWorkContext,matchesWorkTab,agendaDate,localDay,dailySituation} from './home-priorities.js';
 import {filterMapParcels} from './personalization.js';
 import {computeNotifications} from './notifications.js';
 const today='2026-10-04';
@@ -25,6 +25,11 @@ test('unfinished past work belongs to overdue, not to completed history',()=>{
   const work={id:'w',status:'À faire',date:'2026-10-01'};
   assert.equal(matchesWorkTab(work,'overdue',today),true);assert.equal(matchesWorkTab(work,'history',today),false);
   assert.equal(matchesWorkTab({...work,status:'Terminé'},'overdue',today),false);assert.equal(matchesWorkTab({...work,status:'Terminé'},'history',today),true);
+});
+test('a work cancelled today is listed in history, a work finished today stays in today',()=>{
+  assert.equal(matchesWorkTab({status:'Annulé',date:today},'history',today),true);
+  assert.equal(matchesWorkTab({status:'Terminé',date:today},'history',today),false);
+  assert.equal(matchesWorkTab({status:'Terminé',date:today},'today',today),true);
 });
 test('planned date controls priority and date-less planned work stays reachable',()=>{
   const work={status:'Planifié',date:'2026-10-01',plannedDate:'2026-10-07T09:00:00'};
@@ -74,4 +79,15 @@ test('notifications use the same calendar date as the home and respect planned d
   const rows=computeNotifications(state);
   assert.equal(rows.length,2);assert.ok(rows.every(row=>row.date===date&&!row.title.includes('retard')));
   assert.equal(getHomeAgenda(state,date).overdueCount,0);assert.equal(matchesWorkTab(state.interventions[0],'today',date),true);
+});
+test('le bilan du jour reprend la surface de la parcelle quand surfaceWorked est vide',()=>{
+  const data={parcelles:[{id:'p1',surfaceHa:8.2},{id:'p2',surfaceHa:11.3}],interventions:[{id:'w1',parcelId:'p1',status:'Terminé',date:today},{id:'w2',parcelId:'p2',status:'Terminé',date:today,surfaceWorked:5}]};
+  assert.equal(dailySituation(data,today).doneArea,13.2);
+});
+test('les alertes de synchronisation et de sauvegarde ouvrent un écran ; pas d’alerte de sauvegarde si elle est désactivée',()=>{
+  const base={queue:Array.from({length:25},()=>({status:'pending'})),metadata:{lastAutoBackupDay:'2026-01-01'}};
+  const on=computeNotifications({...base,preferences:{syncEnabled:true,autoBackup:true}});
+  assert.equal(on.find(r=>r.id==='sync-queue')?.entity,'sync');assert.equal(on.find(r=>r.id==='backup-old')?.entity,'backup');
+  const off=computeNotifications({...base,preferences:{syncEnabled:true,autoBackup:false}});
+  assert.equal(off.some(r=>r.id==='backup-old'),false);
 });

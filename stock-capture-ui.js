@@ -18,7 +18,7 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
   function open({file: received = null} = {}) {
     file = received; lines = [];
     const ep = endpoint();
-    let host = '';
+    let host;
     try {host = ep ? new URL(ep).host : '';} catch {host = ep;}
     modal('Photo d’étiquette ou de facture', 'Rien n’est ajouté au stock avant votre validation, ligne par ligne.',
       `<form id="stock-capture-form" class="form-grid" novalidate>
@@ -117,7 +117,7 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
       const line = {...lines[Number(tr.dataset.line)]}, price = tr.querySelector('.sc-price').value;
       line.quantity = Number(tr.querySelector('.sc-qty').value); line.unitPrice = price === '' ? null : Number(price);
       let id = tr.querySelector('.sc-item').value;
-      if (id === '__new') id = (await store.upsert('stockItems', {id: uid('stock'), name: line.product, unit: line.unit || 'unité', quantity: 0, amm: line.amm || '', category: line.amm ? 'Phytosanitaire' : ''}, {label: `Article créé : ${line.product}`})).id;
+      if (id === '__new') id = (await store.upsert('stockItems', {id: uid('stock'), name: line.product, unit: line.unit || 'unités', quantity: 0, amm: line.amm || '', category: line.amm ? 'Phytosanitaire' : ''}, {label: `Article créé : ${line.product}`})).id;
       await store.recordStockMovement(entryMovement(line, id, {date: isoToday(), source: 'Facture'}));
       count++;
     }

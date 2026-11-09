@@ -96,7 +96,7 @@ export function treasuryFlows(state,{start=monthKey(),today=`${start}-01`,horizo
     const day=String(c.paymentDate||c.deliveryDate||'');if(DATE_RE.test(day)&&day.slice(0,10)<today)continue; // déjà encaissé
     const price=contractPrice(c),tonnes=num(c.tonnes);
     if(price===null||!tonnes){missing.contracts+=1;continue;}
-    push(month,tonnes*price,`Contrat ${text(c.culture)} · ${text(c.buyer)}`,'contrat',false,`contrat:${c.id}`);
+    push(month,tonnes*price,`${text(c.culture)} · ${text(c.buyer)}`,'contrat',false,`contrat:${c.id}`);
   }
   // Ventes déclarées hors contrat (lots de récolte) datées dans l'horizon.
   for(const lot of farmRecords(state,'harvest')){
@@ -104,7 +104,7 @@ export function treasuryFlows(state,{start=monthKey(),today=`${start}-01`,horizo
       if(sale.contractId)continue;const month=monthOf(sale.paymentDate)||monthOf(sale.date);if(!inRange(month))continue;
       const day=String(sale.paymentDate||sale.date||'');if(DATE_RE.test(day)&&day.slice(0,10)<today)continue; // déjà encaissé
       const t=toTonnes(sale.quantity,lot.unit),p=pricePerTonne(sale.price,lot.unit);if(t===null||p===null)continue;
-      push(month,t*p,`Vente ${text(lot.crop||lot.code||lot.name)}`,'vente',false,`vente:${lot.id}:${sale.id||index}`);
+      push(month,t*p,`${text(lot.crop||lot.code||lot.name)}`,'vente',false,`vente:${lot.id}:${sale.id||index}`);
     }
   }
   // Factures émises non soldées : reste dû (avoirs et paiements partiels déduits), échéance par échéance.

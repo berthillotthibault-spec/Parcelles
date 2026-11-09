@@ -265,6 +265,19 @@ test('travaux : terminer puis rouvrir rétablit le statut d’avant ; filtres é
   }
 });
 
+test('travaux : terminer un traitement sans produit ouvre le formulaire, sans enregistrer', async () => {
+  const {workActions} = await import('./work-actions.js');
+  const saved = [], opened = [];
+  const w3 = {id: 'w3', type: 'Désherbage', status: 'À faire', date: '2026-04-20', plannedDate: '2026-05-01', product: ''};
+  initContext({
+    store: {get: () => w3, upsert: async (type, entity) => { saved.push(entity); return entity; }},
+    todayIso: () => '2026-05-12', closeModal: () => {}, openWorkForm: item => opened.push(item), toast: () => {}
+  });
+  await workActions['finish-work']({id: 'w3', control: {dataset: {id: 'w3'}}});
+  assert.equal(saved.length, 0);
+  assert.deepEqual([opened[0].status, opened[0].date, opened[0].plannedDate], ['Terminé', '2026-05-12', '2026-05-01']);
+});
+
 test('parcelles : la transition partagée ne part que d’une liste, l’archivage bascule et prévient', async () => {
   const {parcelActions} = await import('./parcel-actions.js');
   const calls = [], parcels = {p1: {id: 'p1', nom: 'Les Noues', archived: false}};

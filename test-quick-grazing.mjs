@@ -5,7 +5,7 @@ import {Store} from './state.js';
 import {canMutate, roleScope} from './permissions.js';
 import {farmGrazingBalance, grazingNitrogen, longOpenLots, stockingRate} from './grazing.js';
 import {herdHeadline, herdLots, animalsInside, moveDestinations} from './herd-home.js';
-import {exitedInLot, lotsListing} from './herd.js';
+import {animalLot, exitedInLot, lotsListing} from './herd.js';
 import {moveGrazingLot, removeAnimalFromLot, saveGrazingEntries} from './grazing-records.js';
 import {readableTables} from './open-export.js';
 import {encodeCloudPayload} from './sync.js';
@@ -282,8 +282,10 @@ test('alertes à la date : occupation, repos, non fourrager, sortie le jour de l
     interventions: [{id: 'w', parcelId: 'ble', type: 'Traitement', product: 'X', status: 'Terminé', date: TODAY, isPhytosanitary: true}]});
   const kinds = grazingEntryAlerts(data, {parcelIds: ['pre1', 'pre2', 'ble'], date: TODAY, endDate: TODAY}).map(a => `${a.parcelId}:${a.kind}`);
   assert.ok(kinds.includes('pre1:occupied') && kinds.includes('pre2:rest') && kinds.includes('ble:forage') && kinds.includes(':oneday'), kinds.join());
-  // Avant l'entrée du lot A, le pré n'était pas occupé : le contrôle suit la date saisie.
-  assert.ok(!grazingEntryAlerts(data, {parcelIds: ['pre1'], date: shift(-10)}).some(a => a.kind === 'occupied'));
+  // Avant l'entrée du lot A, le pré n'était pas occupé : le contrôle suit la date saisie et la sortie.
+  assert.ok(!grazingEntryAlerts(data, {parcelIds: ['pre1'], date: shift(-10), endDate: shift(-5)}).some(a => a.kind === 'occupied'));
+  // Sortie le jour où le lot A entre : simple rotation, pas d'occupation.
+  assert.ok(!grazingEntryAlerts(data, {parcelIds: ['pre1'], date: shift(-10), endDate: shift(-3)}).some(a => a.kind === 'occupied'));
   assert.ok(!grazingEntryAlerts(data, {parcelIds: ['pre1'], date: TODAY, ignoreId: 'L1'}).some(a => a.kind === 'occupied'));
   // Heure fixée : traitement fini à 00 h 01, délai minimal de 6 h, entrée à 1 h.
   const treated = farm({interventions: [{id: 'w', parcelId: 'pre1', type: 'Traitement', status: 'Terminé', date: TODAY, endTime: '00:01', product: 'Fongi', isPhytosanitary: true}]}), now = new Date(`${TODAY}T01:00:00`).getTime();
@@ -444,4 +446,53 @@ test('export : la catégorie figure en fin de colonnes de paturage.csv', () => {
   const last = table.columns.at(-1);
   assert.equal(last[0], 'Catégorie');
   assert.equal(last[1](table.rows[0]), 'Veau (moins de 1 an)');
+});
+
+test('entrée rétroactive qui recouvre un passage plus récent du même pré : occupation signalée', () => {
+  const data = farm({grazingSessions: [{id: 'g0', parcelId: 'pre1', note: 'Génisses', startDate: '2026-08-27', endDate: '2026-09-26', additionalAnimalsCount: 5, animalsCount: 5}]});
+  const now = new Date('2026-11-05T12:00:00').getTime();
+  const open = grazingEntryAlerts(data, {parcelIds: ['pre1'], date: '2026-08-01', now}).filter(a => a.kind === 'occupied');
+  assert.equal(open.length, 1);
+  assert.match(open[0].message, /déjà occupé du 27\/08\/2026 au 26\/09\/2026 par Génisses/);
+  assert.ok(grazingEntryAlerts(data, {parcelIds: ['pre1'], date: '2026-08-01', endDate: '2026-09-01', now}).some(a => a.kind === 'occupied'));
+  assert.ok(!grazingEntryAlerts(data, {parcelIds: ['pre1'], date: '2026-08-01', endDate: '2026-08-20', now}).some(a => a.kind === 'occupied'));
+  assert.ok(grazingEntryAlerts(data, {parcelIds: ['pre1'], date: '2026-09-01', now}).some(a => a.kind === 'occupied'));
+});
+
+test('animal rattaché par sa fiche à un lot sans liste : mis au pré ailleurs, le lot d’origine perd une tête (n° 160)', () => {
+  const J = shift(0), lot = {id: 'g1', parcelId: 'pre1', animalType: 'Vaches', startDate: shift(-30), endDate: null, animals: [], additionalAnimalsCount: 0, animalsCount: 24};
+  const animals = [{id: 'm', nationalId: 'FR1234567890', name: 'Marguerite', sex: 'F', sessionId: 'g1'}, {id: 'b', nationalId: 'FR1234567891', name: 'Bella', sex: 'F', sessionId: 'g1'}];
+  const data = farm({animals, grazingSessions: [lot]});
+  const item = {number: 'FR1234567890', name: 'Marguerite', animalId: 'm', gestation: false};
+  const plan = planLotMoves(data, [item], {date: J, today: J});
+  assert.deepEqual(plan.updates.map(r => [r.id, r.endDate]), [['g1', J]]);
+  assert.deepEqual(plan.creates.map(r => [r.additionalAnimalsCount, r.animalsCount]), [[23, 23]]);
+  // Deux animaux notés : deux têtes en moins, jamais une seule.
+  const two = planLotMoves(data, [item, {number: 'FR1234567891', name: 'Bella', animalId: 'b', gestation: false}], {date: J, today: J});
+  assert.equal(two.creates[0].animalsCount, 22);
+  // Lot ouvert le jour même : effectif corrigé, sans nouveau passage.
+  const same = planLotMoves(farm({animals, grazingSessions: [{...lot, startDate: J}]}), [item], {date: J, today: J});
+  assert.deepEqual(same.updates.map(r => [r.id, r.animalsCount, r.endDate]), [['g1', 23, null]]);
+  assert.deepEqual(same.creates, []);
+});
+
+test('lot sans liste déplacé ou fractionné : l’animal rattaché par sa fiche suit le passage actuel (n° 160)', async () => {
+  const lot = {id: 'g1', parcelId: 'pre1', animalType: 'Vaches', note: '', startDate: shift(-30), endDate: null, animals: [], additionalAnimalsCount: 0, animalsCount: 24};
+  const animal = {id: 'm', nationalId: 'FR1234567890', name: 'Marguerite', sex: 'F', sessionId: 'g1'};
+  const store = await storeWith(farm({animals: [animal], grazingSessions: [lot]}));
+  const moved = await moveGrazingLot(store, store.get('grazingSessions', 'g1'), 'pre2', {date: TODAY});
+  assert.equal(animalLot(store.state, animal, {today: TODAY})?.id, moved.id);
+  assert.deepEqual(animalsInside(store.state, {today: TODAY}).map(a => a.id), []);
+  // Lot fractionné sur le même pré (effectif changé) : suivi aussi.
+  const split = farm({animals: [animal], grazingSessions: [{...lot, endDate: shift(-1)}, {...lot, id: 'g2', startDate: shift(-1), additionalAnimalsCount: 23, animalsCount: 23}]});
+  assert.equal(animalLot(split, animal, {today: TODAY})?.id, 'g2');
+});
+
+test('lot fractionné sur le même pré : présence continue depuis la première entrée ; déplacé ailleurs, Jour 1', () => {
+  const a = {id: 'a', parcelId: 'pre1', note: 'Taries', animalType: 'Bovins', startDate: shift(-1), endDate: TODAY, animals: [{number: 'FR1', animalId: 'x'}, {number: 'FR2', animalId: 'y'}], additionalAnimalsCount: 0, animalsCount: 2};
+  const b = {...a, id: 'b2', startDate: TODAY, endDate: null, animals: [{number: 'FR2', animalId: 'y'}], animalsCount: 1};
+  const lots = herdLots(farm({grazingSessions: [a, b]}), {today: TODAY});
+  assert.deepEqual(lots.map(l => [l.id, l.startDate, l.days]), [['b2', shift(-1), 2]]);
+  const ailleurs = herdLots(farm({grazingSessions: [a, {...b, parcelId: 'pre2'}]}), {today: TODAY});
+  assert.deepEqual(ailleurs.map(l => [l.startDate, l.days]), [[TODAY, 1]]);
 });

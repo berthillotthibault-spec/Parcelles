@@ -3,7 +3,7 @@
 // des parcelles et des engins). Chargé à la demande (lazy-modules.js) par voice-notes-ui.js.
 // Rien n'est enregistré sans validation explicite ; aucune donnée ne quitte l'appareil.
 import {escapeHtml, formatNumber, toNullableNumber, uid} from './utils.js';
-import {MAINTENANCE_TYPES, OBSERVATION_TYPES, formatAliases, maintenanceRecordType, parseAliases} from './voice-grammar.js';
+import {MAINTENANCE_TYPES, OBSERVATION_TYPES, formatAliases, maintenanceRecordType, parseAliases, unitLabel} from './voice-grammar.js';
 import {convertQuantity} from './voice-notes.js';
 import {deletePublicWorksLog, savePublicWorksLog} from './public-works.js';
 
@@ -102,7 +102,7 @@ export function createVoiceIntentsUI(kit){
     const picker=choices.length>1?`<div class="field-label"><span>Produit *</span><input type="hidden" name="stockItemId" value="">${kit.chips('stockItemId',choices.map(c=>[c.id,c.name]),'',{label:'Produits'})}<p class="form-note">Plusieurs produits correspondent : touchez le bon.</p></div>`
       :item?`<div class="field-label vn-hit"><span>Produit</span><strong>${escapeHtml(item.name)}</strong><input type="hidden" name="stockItemId" value="${escapeHtml(item.id)}"></div>`
       :`<div class="notice warning">« ${escapeHtml(entry.product?.name||'Ce produit')} » n’a pas de fiche de stock. Créez-la depuis Stock, puis dictez à nouveau.</div>`;
-    const qty=item&&entry.unitOk?`<p class="vn-stock-line vn-hit">− ${formatNumber(entry.stockQuantity)} ${escapeHtml(item.unit||'')} <small>(dit : ${formatNumber(entry.quantity)} ${escapeHtml(entry.unit)} · stock actuel ${formatNumber(item.quantity)} ${escapeHtml(item.unit||'')})</small></p>${entry.stockQuantity>Number(item.quantity||0)?'<div class="notice warning">Stock insuffisant pour cette sortie : vérifiez la quantité ou enregistrez d’abord l’entrée manquante.</div>':''}`
+    const qty=item&&entry.unitOk?`<p class="vn-stock-line vn-hit">− ${formatNumber(entry.stockQuantity)} ${escapeHtml(unitLabel(entry.stockQuantity,item.unit))} <small>(dit : ${formatNumber(entry.quantity)} ${escapeHtml(unitLabel(entry.quantity,entry.unit))} · stock actuel ${formatNumber(item.quantity)} ${escapeHtml(unitLabel(item.quantity,item.unit))})</small></p>${entry.stockQuantity>Number(item.quantity||0)?'<div class="notice warning">Stock insuffisant pour cette sortie : vérifiez la quantité ou enregistrez d’abord l’entrée manquante.</div>':''}`
       :item?`<div class="notice warning">Unité à vérifier : vous avez dit « ${escapeHtml(entry.unit)} », le stock est suivi en « ${escapeHtml(item.unit||'?')} ». Utilisez « Compléter le formulaire ».</div>`:'';
     const canSave=Boolean((item&&entry.unitOk)||choices.length>1);
     const form=kit.draftModal(`${readOnly('stockMovements')}${picker}${qty}${kit.dateField(entry,{max:kit.todayIso()})}${kit.quote(entry)}`,kit.footer(canSave?'Enregistrer la sortie de stock':'Ouvrir le stock',{complete:Boolean(item||choices.length>1)}));
@@ -117,7 +117,7 @@ export function createVoiceIntentsUI(kit){
       const button=$('#vn-save');button.disabled=true;
       try{await store.recordStockMovement({stockItemId:id,type:'Sortie',quantity,date,note:note(entry)});}
       catch(error){button.disabled=false;return kit.draftError(error.message);}
-      kit.finish(`Sortie de stock enregistrée : − ${formatNumber(quantity)} ${stock.unit||''} de ${stock.name}.`);
+      kit.finish(`Sortie de stock enregistrée : − ${formatNumber(quantity)} ${unitLabel(quantity,stock.unit)} de ${stock.name}.`,()=>store.recordStockMovement({stockItemId:id,type:'Entrée',quantity,date,note:'Annulation d’une saisie vocale'}));
     };
   }
 

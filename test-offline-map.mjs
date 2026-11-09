@@ -66,6 +66,8 @@ test('indicateur « à jour le … » et métadonnées tolérantes',()=>{
   assert.equal(offlineSummary(null),'Pas encore téléchargée');
   const meta=normalizeMeta({at:new Date('2026-10-07T09:00:00').getTime(),layer:'ign-photo',cadastre:true,tiles:154,bytes:4.5*1024*1024});
   assert.equal(offlineSummary(meta),'À jour le 07/10 · Photo IGN + cadastre · 4,5 Mo');
+  assert.equal(offlineSummary({...meta,complete:false,tiles:64,total:318}),'Incomplète (64 / 318 tuiles) le 07/10 · Photo IGN + cadastre · 4,5 Mo');
+  assert.equal(offlineSummary(normalizeMeta({at:meta.at,layer:'ign-photo',tiles:64,bytes:2048,complete:false})),'Incomplète (64 tuiles) le 07/10 · Photo IGN · 2 Ko');
   assert.equal(normalizeMeta({at:1,layer:'osm'}),null);assert.equal(normalizeMeta('x'),null);
   assert.equal(formatBytes(2048),'2 Ko');assert.equal(formatBytes(160*1024*1024),'160 Mo');
 });

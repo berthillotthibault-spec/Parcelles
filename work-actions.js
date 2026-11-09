@@ -3,6 +3,7 @@
 import {ctx} from './app-context.js';
 import {isPending} from './home-priorities.js';
 import {isGrazingType} from './quick-work.js';
+import {isTreatment} from './phyto.js';
 import {armCelebration} from './celebration-ui.js';
 
 // Statut d’avant « fait », connu pendant la session, pour qu’une réouverture le rétablisse.
@@ -18,9 +19,28 @@ const restore = (type, entity) => () => {
   return ctx.store.upsert(type, entity, {label: 'Statut restauré'});
 };
 // Fête la fin (n° 22) et prépare le glissement vers la prochaine action (n° 104).
+// Clavier et lecteur d'écran : le rendu remplace la ligne cochée ; le focus revient sur la nouvelle ligne (même data-id).
+function keepFocus(control, id) {
+  if (typeof document === 'undefined' || !control || document.activeElement !== control) return () => {};
+  return () => requestAnimationFrame(() => {
+    const key = CSS.escape(id);
+    (document.querySelector(`.home-row-main[data-id="${key}"]`) || document.querySelector(`[data-action][data-id="${key}"]`))
+      ?.focus?.({preventScroll: true});
+  });
+}
+
+// Même règle que la saisie rapide et le formulaire : un traitement sans produit passe par la saisie des détails.
+function finishToForm(w) {
+  if (!isTreatment(w) || String(w.product || '').trim()) return false;
+  ctx.closeModal?.();
+  ctx.openWorkForm({...w, status: 'Terminé', plannedDate: w.plannedDate || w.date || '', date: ctx.todayIso()});
+  return true;
+}
+
 function armDone(control, id, kind) {
   armCelebration(control, {id, kind, preferences: ctx.state().preferences, native: ctx.nativeBridge});
   ctx.nextAction().armFlip(control, id);
+  return keepFocus(control, id);
 }
 
 // Pâturage prévu : la clôture met d'abord les animaux au pré (saisie préremplie), avec possibilité de terminer sans animaux.
@@ -68,26 +88,29 @@ export const workActions = {
   async 'finish-work'({id, control}) {
     const w = work(id);
     if (!w || !isPending(w) || finishing.has(`work:${id}`)) return; // double appui : déjà terminé ou en cours
-    if (finishToGrazing(w, control)) return;
+    if (finishToGrazing(w, control) || finishToForm(w)) return;
     finishing.add(`work:${id}`);
-    let doneWork;
+    let doneWork, refocus;
     try {
-      armDone(control, id, 'work');
+      refocus = armDone(control, id, 'work');
       statusBeforeDone.set(`work:${id}`, w.status);
       doneWork = await ctx.store.upsert('interventions', {...w, status: 'Terminé', plannedDate: w.plannedDate || w.date || '', date: ctx.todayIso()},
         {label: `Travail terminé : ${w.type}`});
     } finally { finishing.delete(`work:${id}`); }
     ctx.toast('Travail marqué terminé.', 'success', {label: 'Annuler', run: restore('interventions', w)});
+    refocus();
     ctx.lazy.need('habits', {silent: true}).then(ok => ok && ctx.habitsUI.afterFinish(doneWork));
   },
-  async 'reopen-work'({id}) {
+  async 'reopen-work'({id, control}) {
     const w = work(id);
     if (!w) return;
+    const refocus = keepFocus(control, id);
     const previous = statusBeforeDone.get(`work:${id}`);
     statusBeforeDone.delete(`work:${id}`);
     await ctx.store.upsert('interventions', {...w, status: previous && isPending({status: previous}) ? previous : 'À faire', date: w.plannedDate || w.date},
       {label: `Travail rouvert : ${w.type}`});
     ctx.toast('Travail rouvert.', 'success', {label: 'Annuler', run: restore('interventions', w)});
+    refocus();
   },
   'add-photo'({id}) { ctx.closeModal(); ctx.photoGeo().open(id); },
   'attach-file'({id}) { ctx.closeModal(); ctx.openAttachmentForm(id); },
@@ -100,22 +123,26 @@ export const workActions = {
     const t = task(id);
     if (!t || !isPending(t, 'task') || finishing.has(`task:${id}`)) return; // double appui : déjà terminée ou en cours
     finishing.add(`task:${id}`);
+    let refocus;
     try {
-      armDone(control, id, 'task');
+      refocus = armDone(control, id, 'task');
       statusBeforeDone.set(`task:${id}`, t.status);
       await ctx.store.upsert('tasks', {...t, status: 'Terminé'}, {label: `Tâche terminée : ${t.title}`});
     } finally { finishing.delete(`task:${id}`); }
     if (ctx.$('#modal-root').classList.contains('has-modal')) ctx.openTasks(); else ctx.renderToday(ctx.state());
     ctx.toast('Tâche terminée.', 'success', {label: 'Annuler', run: restore('tasks', t)});
+    refocus();
   },
-  async 'reopen-task'({id}) {
+  async 'reopen-task'({id, control}) {
     const t = task(id);
     if (!t) return;
+    const refocus = keepFocus(control, id);
     const previous = statusBeforeDone.get(`task:${id}`);
     statusBeforeDone.delete(`task:${id}`);
     await ctx.store.upsert('tasks', {...t, status: previous && isPending({status: previous}, 'task') ? previous : 'À faire'},
       {label: `Tâche rouverte : ${t.title}`});
     ctx.toast('Tâche rouverte.', 'success', {label: 'Annuler', run: restore('tasks', t)});
+    refocus();
   },
   // Agenda
   'open-calendar'() { ctx.openCalendar(); },

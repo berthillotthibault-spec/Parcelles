@@ -46,11 +46,13 @@ export function createWeekPlannerUI({doc = globalThis.document, store, getState 
   // puis garde sa position de défilement d'un rendu à l'autre (déplacement d'une carte).
   let shownWeek = '';
   function keepScroll() {
-    const old = doc.querySelector?.('#work-panel-sub .week-grid'), prev = old && shownWeek === start ? old.scrollLeft : null;
+    const old = doc.querySelector?.('#work-panel-sub .week-grid'), prev = old?.dataset?.placed && shownWeek === start ? old.scrollLeft : null;
     shownWeek = start;
     setTimeout(() => {
       const grid = doc.querySelector?.('#work-panel-sub .week-grid');
       if (!grid) return;
+      // Grille placée : les rendus suivants gardent sa position ; un double rendu avant ce placement ne la remet pas à 0.
+      grid.dataset.placed = '1';
       if (prev !== null) { grid.scrollLeft = prev; return; }
       const col = grid.querySelector('.week-col:not(.is-past)');
       if (col) grid.scrollLeft = Math.max(0, col.offsetLeft - grid.offsetLeft - 4);

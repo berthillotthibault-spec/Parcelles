@@ -150,6 +150,16 @@ test('alertes : épandage prévu en période d’interdiction et plafond de 170 
   assert.ok(nitrogenAlerts(s,{today:TODAY,campaign:C}).alerts.some(a=>a.kind==='cap'));
 });
 
+test('alertes : épandage réalisé en période d’interdiction, campagne affichée seulement', ()=>{
+  const s=farm({interventions:[
+    {id:'w1',parcelId:'p1',type:'Fertilisation',product:'Ammonitrate',dose:150,doseUnit:'kg/ha',date:'2026-10-15',status:'Terminé'},
+    {id:'w2',parcelId:'p1',type:'Fertilisation',product:'Ammonitrate',dose:150,doseUnit:'kg/ha',date:'2025-10-15',status:'Terminé'}
+  ]});
+  const ban=nitrogenAlerts(s,{today:'2026-10-20',campaign:C}).alerts.filter(a=>a.kind==='ban');
+  assert.deepEqual(ban.map(a=>a.workId),['w1']);
+  assert.match(ban[0].label,/réalisé le/);
+});
+
 test('conformité : entrée azote ajoutée au tableau et PPF calculé reconnu', ()=>{
   const s=farm({rotations:[{id:'r1',parcelId:'p1',campaignId:C,culture:'Blé tendre',ppf:{rsh:20}}]});
   const checks=complianceChecks(s,{today:TODAY});

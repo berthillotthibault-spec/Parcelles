@@ -80,3 +80,19 @@ test('pâturage : libellé de la catégorie animale, pas son identifiant', () =>
   const col = table.columns.find(([label]) => label === 'Catégorie')[1];
   assert.deepEqual(table.rows.map(col), ['Vache laitière', 'inconnue']);
 });
+
+test('parcelles archivées (découpées ou fusionnées) absentes du CSV et du GeoJSON', () => {
+  const geometry = {type: 'Polygon', coordinates: [[[5, 46], [5.01, 46], [5.01, 46.01], [5, 46]]]};
+  const s = {parcelles: [{id: 'a', nom: 'Les Noues', archived: true, splitInto: ['b'], geometry}, {id: 'b', nom: 'Les Noues A', geometry}],
+    interventions: [{id: 'w', parcelId: 'a', type: 'Semis', date: '2026-10-08'}]};
+  const tables = readableTables(s), parcels = tables.find(t => t.file === 'parcelles.csv');
+  assert.deepEqual(parcels.rows.map(p => p.nom), ['Les Noues A']);
+  assert.deepEqual(JSON.parse(parcelsGeoJson(s)).features.map(f => f.properties.nom), ['Les Noues A']);
+  const works = tables.find(t => t.file === 'travaux.csv');
+  assert.ok(toCsv(works.columns, works.rows).includes('Les Noues'), 'les travaux historiques gardent le nom de la parcelle d’origine');
+});
+
+test('CSV : formules neutralisées, nombres négatifs intacts', () => {
+  const lines = toCsv([['A', r => r.a]], [{a: '=1+1'}, {a: '@SUM(1)'}, {a: frNumber(-12.5)}, {a: 'Mi-temps'}, {a: '+33 6'}]).replace(/^﻿/, '').split(/\r?\n/);
+  assert.deepEqual(lines.slice(1, 6), ["'=1+1", "'@SUM(1)", '-12,5', 'Mi-temps', "'+33 6"]);
+});

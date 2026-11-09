@@ -81,3 +81,11 @@ test('calendrier de coupe selon les sommes de températures', () => {
   assert.equal(p2.next, 2); assert.equal(p2.target, 550); assert.equal(p2.status, 'growing');
   assert.equal(cutCalendar(s, {today: '2026-05-01'})[0].status, 'unknown');
 });
+
+test('calendrier de coupe : après octobre, saison de fauche passée, sans repère ni date', () => {
+  const days = [];for (let d = new Date('2026-02-01T12:00:00Z'); d <= new Date('2026-11-05T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) days.push({date: d.toISOString().slice(0, 10), tmin: 4, tmax: 12});
+  const s = farm([], {}, {parcelles: [{id: 'p1', nom: 'Pré', culture: 'Prairie permanente'}]});
+  const [row] = cutCalendar(s, {today: '2026-11-05', days});
+  assert.equal(row.status, 'over'); assert.equal(row.eta, null);
+  assert.equal(cutCalendar(s, {today: '2026-10-31', days})[0].status, 'ready');
+});

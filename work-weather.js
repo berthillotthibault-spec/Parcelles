@@ -22,8 +22,10 @@ function dayLabel(ms, now) {
 // « demain 6 h–11 h », « jusqu’à 11 h » si le créneau est en cours, « demain dès 22 h » s’il déborde sur la nuit.
 export function slotSpan(start, end, now = Date.now()) {
   const from = Math.max(start, now), sameDay = dayStart(from) === dayStart(end - 1);
-  if (start <= now) return sameDay ? `maintenant jusqu’à ${frenchClock(end)}` : `maintenant jusqu’à ${dayLabel(end - 1, now)} ${frenchClock(end)}`;
-  return sameDay ? `${dayLabel(from, now)} ${frenchClock(from)}–${frenchClock(end)}` : `${dayLabel(from, now)} dès ${frenchClock(from)}`;
+  // Une fin à minuit se lit « 24 h » : « 12 h–0 h » semblerait finir avant de commencer.
+  const endClock = sameDay && end === dayStart(end) ? '24 h' : frenchClock(end);
+  if (start <= now) return sameDay ? `maintenant jusqu’à ${endClock}` : `maintenant jusqu’à ${dayLabel(end - 1, now)} ${frenchClock(end)}`;
+  return sameDay ? `${dayLabel(from, now)} ${frenchClock(from)}–${endClock}` : `${dayLabel(from, now)} dès ${frenchClock(from)}`;
 }
 
 function pick(windows, level, now) {
@@ -55,7 +57,7 @@ export function workWeatherSlot(work, weather, {now = Date.now(), rules = null} 
     tone: stale ? 'none' : good ? 'good' : 'watch', stale, rule, start: chosen.start, end: chosen.end,
     text: `${good ? 'Créneau' : 'Créneau à surveiller'} : ${slotSpan(chosen.start, chosen.end, now)}${suffix}`,
     title: `${whyText ? `${whyText}. ` : ''}${base}`,
-    why: [...why, `Créneau retenu : ${slotSpan(chosen.start, chosen.end, now)} (${good ? 'favorable' : 'à surveiller'}). Première heure :`, ...facts.map(f => `– ${f}`), ...(rule === 'Pulvérisation' ? ['Limite légale : 19 km/h (3 Beaufort).'] : [])],
+    why: [...why, `Créneau retenu : ${slotSpan(chosen.start, chosen.end, now)} (${good ? 'favorable' : 'à surveiller'}). Première heure :`, ...facts, ...(rule === 'Pulvérisation' ? ['Limite légale : 19 km/h (3 Beaufort).'] : [])],
     missing
   };
 }

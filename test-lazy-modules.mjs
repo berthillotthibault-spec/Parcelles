@@ -372,7 +372,7 @@ test('paramètres différés : formulaire échappé, recherche et enregistrement
   assert.equal(sections[0].classList.hidden, true);
   await nodes['#save-settings'].onclick();
   assert.deepEqual(calls[0], ['farm', {nom: 'Mon exploitation', commune: 'Brou', latitude: 46.1, longitude: null}]);
-  assert.deepEqual([calls[1][1].weatherDays, calls[1][1].syncRetryMax, calls[1][1].syncRetryBaseSeconds, calls[1][1].homeCards, calls[1][1].remoteAiEndpoint], [14, 12, 5, ['weather'], 'https://x.test']);
+  assert.deepEqual([calls[1][1].weatherDays, calls[1][1].syncRetryMax, calls[1][1].syncRetryBaseSeconds, calls[1][1].homeCards, calls[1][1].remoteAiEndpoint], [14, 12, 5, ['today', 'tasks', 'alerts', 'recent', 'campaign', 'calvings', 'weather'], 'https://x.test']); // les cartes absentes du formulaire restent affichées
   assert.deepEqual(calls.slice(2), ['sync', 'close', 'render', 'Paramètres enregistrés.']);
   delete globalThis.FormData;
 });

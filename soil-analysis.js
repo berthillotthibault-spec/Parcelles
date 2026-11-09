@@ -3,7 +3,7 @@
 // « soilGrid ») sont des enregistrements d'exploitation : pas de nouvelle collection. Les seuils et
 // besoins de chaulage sont des ordres de grandeur datés, présentés comme indicatifs : la décision
 // reste celle de l'exploitant et de son conseiller.
-import {geometryAreaHa,geometryBbox,pointInGeometry,haversineMeters} from './utils.js';
+import {geometryAreaHa,geometryBbox,pointInGeometry,haversineMeters,localIso} from './utils.js';
 import {farmRecords} from './farm-records.js';
 import {active} from './farm-memory.js';
 
@@ -68,7 +68,7 @@ const PH_CLASSES=[[5.5,'pH très acide (< 5,5)','#b5452b'],[6.2,'pH acide (5,5 �
 export function phClass(ph){const n=num(ph);if(n===null)return null;const c=PH_CLASSES.find(([max])=>n<max);return{label:c[1],color:c[2]};}
 
 /** Couleur de parcelle pour la carte (mode « pH du sol »). */
-export function soilColorInfo(state,parcel,{today=new Date().toISOString().slice(0,10)}={}){
+export function soilColorInfo(state,parcel,{today=localIso()}={}){
   const a=analyses(state,parcel?.id).filter(r=>num(r.ph)!==null).at(-1);
   if(!a)return{label:'Pas d’analyse de pH',color:'#9aa29d'};
   const c=phClass(a.ph);
