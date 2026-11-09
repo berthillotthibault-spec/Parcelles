@@ -2,7 +2,7 @@
 // Logique pure. C'est une aide à la saisie, pas une écriture comptable certifiée ni un FEC :
 // aucun rapprochement par pièce, comptes indicatifs, taux de TVA jamais devinés (saisis par
 // catégorie dans preferences.accountingPlan ; seules les factures émises portent leur propre TVA).
-import {campaignFor,normalize} from './utils.js';
+import {campaignFor,normalize,formatNumber} from './utils.js';
 import {active} from './farm-memory.js';
 import {farmRecords} from './farm-records.js';
 import {DOC_LABELS,docTypeOf,invoices,invoiceTotals} from './invoices.js';
@@ -83,7 +83,7 @@ export function accountingRows(state,{from='',to=''}={}){
   for(const c of campaigns)for(const s of campaignSales(state,c)){
     const date=day(s.sale.date||s.lot.date);if(!inPeriod(date,from,to))continue;
     if(s.price===null){warnings.push(`Vente ${s.culture} du ${date} sans prix : non exportée.`);continue;}
-    rows.push(line(plan,{date,piece:s.sale.code||'',label:`Vente ${s.culture}${s.sale.buyer?` · ${s.sale.buyer}`:''} (${r2(s.tonnes)} t)`,category:'ventes-vegetales',parcel:parcels.get(s.lot.parcelId),culture:s.culture,ht:s.tonnes*s.price,source:s.priceSource==='contract'?'Vente (prix du contrat)':'Vente de récolte'}));
+    rows.push(line(plan,{date,piece:s.sale.code||'',label:`Vente ${s.culture}${s.sale.buyer?` · ${s.sale.buyer}`:''} (${formatNumber(s.tonnes)} t)`,category:'ventes-vegetales',parcel:parcels.get(s.lot.parcelId),culture:s.culture,ht:s.tonnes*s.price,source:s.priceSource==='contract'?'Vente (prix du contrat)':'Vente de récolte'}));
   }
   // Ventes et achats d'animaux (atelier bovin).
   for(const [kind,cat,word] of [['animalSale','ventes-animaux','Vente'],['animalPurchase','animaux-achats','Achat']])
@@ -103,7 +103,7 @@ export function accountingRows(state,{from='',to=''}={}){
   if(skippedFuel)warnings.push(`${skippedFuel} entrée(s) de stock « Carburant » ignorée(s) : le carburant vient des pleins GNR, pour ne pas le compter deux fois.`);
   // Carburant : livraisons en cuve et pleins hors cuve (n° 95).
   for(const r of fuel){const amount=num(r.amount);if(amount===null){warnings.push(`Plein du ${day(r.date)} sans montant : non exporté.`);continue;}
-    rows.push(line(plan,{date:day(r.date),piece:r.invoiceRef||'',label:`GNR ${r.litres} L${r.supplier?` · ${r.supplier}`:''}`,category:'carburant',ht:amount,source:r.entry==='tank'?'Plein de cuve':'Plein hors cuve'}));}
+    rows.push(line(plan,{date:day(r.date),piece:r.invoiceRef||'',label:`GNR ${formatNumber(r.litres)} L${r.supplier?` · ${r.supplier}`:''}`,category:'carburant',ht:amount,source:r.entry==='tank'?'Plein de cuve':'Plein hors cuve'}));}
   // Entretiens du matériel.
   const machines=new Map(active(state,'materiels').map(m=>[m.id,m]));
   for(const r of active(state,'maintenanceRecords').filter(r=>inPeriod(day(r.date),from,to)&&num(r.cost)!==null&&num(r.cost)>0))

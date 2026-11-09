@@ -4,10 +4,13 @@
 export const ENTITY_LABELS = {
   parcelles: 'Parcelle', interventions: 'Travail', tasks: 'Tâche', grazingSessions: 'Pâturage', materiels: 'Matériel',
   stockItems: 'Stock', stockMovements: 'Mouvement de stock', observations: 'Observation', photos: 'Photo', documents: 'Document',
-  harvests: 'Récolte', vetTreatments: 'Soin', animals: 'Animal', animalEvents: 'Événement d’élevage', parcelComments: 'Commentaire', clients: 'Client', invoices: 'Facture', sales: 'Vente', rotations: 'Rotation'
+  harvests: 'Récolte', vetTreatments: 'Soin', animals: 'Animal', animalEvents: 'Événement d’élevage', parcelComments: 'Commentaire', clients: 'Client', invoices: 'Facture', sales: 'Vente', rotations: 'Rotation',
+  integrationImports: 'Fiche de module', importSessions: 'Import', fieldSessions: 'Session terrain', routeSessions: 'Tournée', gpsTracks: 'Trace GPS', chantiers: 'Chantier', points: 'Point',
+  products: 'Produit', templates: 'Modèle', maintenanceRecords: 'Entretien', automationRules: 'Automatisation', automationRuns: 'Exécution d’automatisation', weatherStations: 'Station météo',
+  notifications: 'Notification', members: 'Membre', devices: 'Appareil', assistantMessages: 'Message de l’assistant', syncConflicts: 'Conflit de synchronisation', platformJobs: 'Tâche de fond', platformEvents: 'Événement de la plateforme'
 };
 const ACTION_LABELS = {create: 'Création', update: 'Modification', delete: 'Mise à la corbeille', purge: 'Suppression définitive', remote: 'Reçu du cloud', restore: 'Restauration'};
-export const entityLabel = type => ENTITY_LABELS[type] || (type ? String(type) : 'Autre');
+export const entityLabel = type => ENTITY_LABELS[type] || 'Autre';
 export const actionLabel = action => ACTION_LABELS[action] || 'Événement';
 
 // Entrée du journal local → ligne de frise.

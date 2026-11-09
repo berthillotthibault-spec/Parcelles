@@ -50,7 +50,12 @@ export const dataActions = {
     await ctx.openAutoBackups();
   },
   async 'export-auto-backup'({id}) { await ctx.exportAutoBackup(id); },
-  async 'delete-auto-backup'({id}) { await ctx.store.storage.backupDelete(id); await ctx.openAutoBackups(); },
+  async 'delete-auto-backup'({id}) {
+    if (!globalThis.confirm?.('Supprimer définitivement cette sauvegarde automatique ? Elle ne pourra pas être récupérée.')) return;
+    try { await ctx.store.storage.backupDelete(id); ctx.toast('Sauvegarde automatique supprimée.'); }
+    catch (error) { ctx.toast(error?.message || 'Suppression impossible.', 'error'); }
+    await ctx.openAutoBackups();
+  },
   'open-log'() { ctx.openLog(); },
   'open-app-lock'() { ctx.appLockUI.openSettings().catch(error=>ctx.toast(error?.message||'Verrouillage indisponible.','error')); },
   async 'open-sync'() { await ctx.openSync(); },

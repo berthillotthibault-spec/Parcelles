@@ -71,7 +71,9 @@ export function createDayRouteUI(deps) {
     if (!overlay) return;
     window.removeEventListener('parcelles:gps', onGps);
     overlay.remove(); overlay = null;
-    if (returnFocus?.isConnected) returnFocus.focus({preventScroll: true});
+    // L'accueil a pu être reconstruit (save() avant show()) : repli sur le bouton « Démarrer ma journée ».
+    const back = returnFocus?.isConnected ? returnFocus : document.querySelector('.day-route-entry[data-action="open-day-route"]');
+    back?.focus({preventScroll: true});
     returnFocus = null;
   }
   let gpsTimer = null;
@@ -79,11 +81,13 @@ export function createDayRouteUI(deps) {
 
   function render() {
     if (!overlay) return;
+    // innerHTML remplace tout : on retient le bouton qui avait le focus pour le rendre après.
+    const had = overlay.contains(document.activeElement) ? document.activeElement.dataset?.dr || null : null;
     const {stops, done, current, start} = compute(), total = stops.length, count = stops.filter(s => done.has(s.key)).length;
     const pct = total ? Math.round(count / total * 100) : 0;
     const step = current ? `<article class="day-route-step" aria-live="polite">
         <p class="eyebrow">${e(KIND_LABEL[current.kind] || 'Étape')}</p>
-        <h3 id="day-route-step-title">${e(stepTitle(current, total))}</h3>
+        <h3 id="day-route-step-title" tabindex="-1">${e(stepTitle(current, total))}</h3>
         <p class="day-route-meta">${e([current.detail, current.point?.source, current.surfaceHa ? `${nf.format(current.surfaceHa)} ha` : ''].filter(Boolean).join(' · ') || 'Sans lieu précis')}</p>
         <div class="day-route-actions">
           <button class="button secondary" data-dr="go" ${current.point ? '' : 'disabled aria-disabled="true"'}>Y aller</button>
@@ -101,6 +105,8 @@ export function createDayRouteUI(deps) {
       <div class="day-route-foot"><button class="button secondary" data-dr="locate">Recalculer depuis ma position</button><button class="button secondary" data-dr="recap">Terminer la journée</button></div>
     </div>`;
     overlay.querySelector('.day-route-order')?.addEventListener('toggle', event => { orderOpen = event.target.open; });
+    if (had === 'done' || had === 'later') (overlay.querySelector('#day-route-step-title') || overlay.querySelector('[data-dr="recap"]'))?.focus({preventScroll: true});
+    else if (had && had !== 'up' && had !== 'down') overlay.querySelector(`[data-dr="${had}"]:not([disabled])`)?.focus({preventScroll: true});
   }
 
   async function onClick(event) {

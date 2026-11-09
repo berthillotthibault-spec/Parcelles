@@ -19,7 +19,7 @@ import {
 const FOLDER_KEY = 'backup-folder'; // même clé qu'app.js (chooseBackupFolder)
 const RESUME_THROTTLE_MS = 30 * 60 * 1000;
 
-export function createBackupVaultUI({restoreFile = null, recordExternalBackup = null} = {}) {
+export function createBackupVaultUI({restoreFile = null, recordExternalBackup = null, folderSupported = () => true} = {}) {
   let running = false, lastRunAt = 0, remindedEncrypted = false;
   const storage = () => ctx.store.storage;
   const $ = id => /** @type {any} */(document.getElementById(id));
@@ -139,12 +139,14 @@ export function createBackupVaultUI({restoreFile = null, recordExternalBackup = 
     const settings = await loadSettings(), handle = await folderHandle(), owner = cloudReady();
     const cloud = owner ? cloudSettings(settings, ctx.sync.workspaceId) : null;
     const option = (value, label) => `<option value="${value}"${cloud?.mode === value ? ' selected' : ''}>${label}</option>`;
-    ctx.modal('Sauvegardes automatiques', 'Une copie hors du navigateur, sans y penser.', `<form id="backup-vault-form" class="form-grid">
-      <h3 class="span-2">Dossier de l’ordinateur</h3>
+    // Téléphone ou navigateur sans choix de dossier : la section dossier est remplacée par une explication.
+    const folderOk = folderSupported();
+    ctx.modal('Copie hors de l’appareil', 'Une copie hors du navigateur, sans y penser.', `<form id="backup-vault-form" class="form-grid">
+      ${folderOk ? `<h3 class="span-2">Dossier de l’ordinateur</h3>
       <p class="span-2 form-note">${handle ? `Dossier choisi : « ${escapeHtml(handle.name)} ».` : 'Aucun dossier choisi : choisissez-le dans Mes données › Dossier de sauvegarde.'} Au démarrage ou à la reprise de Parcelles, une sauvegarde complète y est écrite si la dernière a plus de 7 jours et que l’accès au dossier est encore accordé ; sinon, un simple rappel s’affiche.</p>
       <label class="span-2 check-row"><input type="checkbox" name="autoFolder"${settings.autoFolder ? ' checked' : ''}> Écrire automatiquement chaque semaine</label>
-      <label class="span-2">Garder les N dernières sauvegardes<input name="keep" type="number" min="1" max="${MAX_KEEP}" step="1" value="${settings.keep}" inputmode="numeric"></label>
-      <p class="span-2 form-note">Seuls les fichiers « ${BACKUP_FILE_PREFIX}….zip » créés par Parcelles sont supprimés.</p>
+      <label class="span-2">Nombre de sauvegardes à garder<input name="keep" type="number" min="1" max="${MAX_KEEP}" step="1" value="${settings.keep}" inputmode="numeric"></label>
+      <p class="span-2 form-note">Seuls les fichiers « ${BACKUP_FILE_PREFIX}….zip » créés par Parcelles sont supprimés.</p>` : '<p class="span-2 form-note">Sur cet appareil, choisir un dossier est impossible : utilisez Mes données › Sauvegarde complète pour la partager ou la télécharger.</p>'}
       <h3 class="span-2">Instantané cloud mensuel</h3>
       ${owner ? `<label class="span-2">Instantané mensuel<select name="mode">${option('off', 'Désactivé')}${option('encrypted', 'Chiffré par une phrase secrète (recommandé)')}${option('plain', 'Non chiffré, automatique')}</select></label>
       <div class="span-2 notice warning" id="backup-vault-rgpd"${cloud.mode === 'plain' ? '' : ' hidden'}><strong>Données personnelles en clair dans le cloud.</strong> Sans chiffrement, l’instantané contient en clair vos clients, contacts et données d’exploitation (RGPD) ; il n’est lisible que par le propriétaire.<label class="check-row"><input type="checkbox" name="ack"${cloud.warned ? ' checked' : ''}> J’ai compris et j’accepte</label></div>
@@ -156,11 +158,11 @@ export function createBackupVaultUI({restoreFile = null, recordExternalBackup = 
     form?.elements.mode?.addEventListener('change', () => { $('backup-vault-rgpd').hidden = form.elements.mode.value !== 'plain'; });
     $('backup-vault-snapshot')?.addEventListener('click', () => openSnapshotForm());
     $('backup-vault-save')?.addEventListener('click', async () => {
-      const keep = Number(form.elements.keep.value);
+      const keep = folderOk ? Number(form.elements.keep.value) : settings.keep;
       if (!Number.isInteger(keep) || keep < 1 || keep > MAX_KEEP) return formError('backup-vault-error', `Nombre de sauvegardes à garder : entre 1 et ${MAX_KEEP}.`);
       const mode = form.elements.mode?.value || 'off', ack = Boolean(form.elements.ack?.checked);
       if (owner && mode === 'plain' && !ack) return formError('backup-vault-error', 'Cochez l’avertissement pour un instantané non chiffré, ou choisissez le chiffrement.');
-      const previous = await loadSettings(), next = normalizeVaultSettings({...previous, keep: normalizeKeep(keep), autoFolder: form.elements.autoFolder.checked});
+      const previous = await loadSettings(), next = normalizeVaultSettings({...previous, keep: normalizeKeep(keep), autoFolder: folderOk ? form.elements.autoFolder.checked : previous.autoFolder});
       if (owner) next.cloud[ctx.sync.workspaceId] = {...cloudSettings(previous, ctx.sync.workspaceId), mode, warned: mode === 'plain' ? ack : cloudSettings(previous, ctx.sync.workspaceId).warned};
       try { await saveSettings(next); } catch (error) { return formError('backup-vault-error', `Réglage non enregistré : ${error?.message || error}`); }
       ctx.closeModal();

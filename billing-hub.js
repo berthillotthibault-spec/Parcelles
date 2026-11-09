@@ -66,12 +66,14 @@ export function hubDashboard(state,{today=isoDay(),period='12m',clientId=''}={})
 // Histogramme groupé : facturé HT et encaissé par mois. Couleurs par classes (jetons CSS, clair et sombre).
 export function revenueChartSvg(series,{width=640,height=210}={}){
   const left=46,right=8,top=10,bottom=24,plotW=width-left-right,plotH=height-top-bottom,n=Math.max(1,series.length);
-  const max=Math.max(1,...series.flatMap(r=>[r.invoicedHt,r.collected])),step=10**Math.floor(Math.log10(max)),ceil=Math.ceil(max/step)*step;
-  const y=v=>round2(top+plotH-(v/ceil)*plotH),slot=plotW/n,bw=Math.max(3,Math.min(18,slot*0.34));
-  const ticks=[0,ceil/2,ceil].map(v=>`<line class="chart-grid" x1="${left}" x2="${width-right}" y1="${y(v)}" y2="${y(v)}"/><text class="chart-axis" x="${left-6}" y="${y(v)+3}" text-anchor="end">${esc(compact(v))}</text>`).join('');
+  // Un mois net négatif (avoir seul) descend sous la ligne du zéro ; sans donnée, l’axe n’affiche que 0 €.
+  const vals=series.flatMap(r=>[r.invoicedHt,r.collected]),hasData=vals.some(v=>v!==0),max=Math.max(1,...vals),lo=Math.min(0,...vals),step=10**Math.floor(Math.log10(max)),ceil=Math.ceil(max/step)*step;
+  const floor=lo<0?-Math.ceil(-lo/step)*step:0,y=v=>round2(top+plotH-((v-floor)/(ceil-floor))*plotH),y0=y(0),slot=plotW/n,bw=Math.max(3,Math.min(18,slot*0.34));
+  const tickVals=hasData?[...(floor<0?[floor]:[]),0,ceil/2,ceil]:[0];
+  const ticks=tickVals.map(v=>`<line class="chart-grid" x1="${left}" x2="${width-right}" y1="${y(v)}" y2="${y(v)}"/><text class="chart-axis" x="${left-6}" y="${y(v)+3}" text-anchor="end">${esc(compact(v))}</text>`).join('');
   const bars=series.map((r,i)=>{const cx=left+slot*i+slot/2,lbl=monthLabel(r.month);
-    return`<rect class="bh-bar is-invoiced" x="${round2(cx-bw-1)}" y="${y(r.invoicedHt)}" width="${round2(bw)}" height="${round2(top+plotH-y(r.invoicedHt))}" rx="2"><title>${esc(`${lbl} : facturé ${money(r.invoicedHt)} HT`)}</title></rect>`
-      +`<rect class="bh-bar is-collected" x="${round2(cx+1)}" y="${y(r.collected)}" width="${round2(bw)}" height="${round2(top+plotH-y(r.collected))}" rx="2"><title>${esc(`${lbl} : encaissé ${money(r.collected)}`)}</title></rect>`
+    return`<rect class="bh-bar is-invoiced" x="${round2(cx-bw-1)}" y="${Math.min(y(r.invoicedHt),y0)}" width="${round2(bw)}" height="${round2(Math.abs(y(r.invoicedHt)-y0))}" rx="2"><title>${esc(`${lbl} : facturé ${money(r.invoicedHt)} HT`)}</title></rect>`
+      +`<rect class="bh-bar is-collected" x="${round2(cx+1)}" y="${Math.min(y(r.collected),y0)}" width="${round2(bw)}" height="${round2(Math.abs(y(r.collected)-y0))}" rx="2"><title>${esc(`${lbl} : encaissé ${money(r.collected)}`)}</title></rect>`
       +(n<=12||i%2===0?`<text class="chart-axis" x="${round2(cx)}" y="${height-8}" text-anchor="middle">${esc(MONTHS[Number(r.month.slice(5,7))-1])}</text>`:'');}).join('');
   const total=k=>round2(series.reduce((s,r)=>s+r[k],0)),best=[...series].sort((a,b)=>b.invoicedHt-a.invoicedHt)[0];
   const label=`Chiffre d’affaires par mois, ${series.length?`${monthLabel(series[0].month)} à ${monthLabel(series[series.length-1].month)}`:'aucune donnée'} : facturé ${money(total('invoicedHt'))} HT, encaissé ${money(total('collected'))}.${best&&best.invoicedHt>0?` Meilleur mois : ${monthLabel(best.month)} (${money(best.invoicedHt)} HT).`:''}`;
@@ -82,7 +84,7 @@ export function forecastChartSvg(weeks,{width=640,height=170}={}){
   const left=46,right=8,top=10,bottom=24,plotW=width-left-right,plotH=height-top-bottom,n=Math.max(1,weeks.length);
   const max=Math.max(1,...weeks.map(w=>w.amount)),step=10**Math.floor(Math.log10(max)),ceil=Math.ceil(max/step)*step;
   const y=v=>round2(top+plotH-(v/ceil)*plotH),slot=plotW/n,bw=Math.max(4,Math.min(26,slot*0.6));
-  const ticks=[0,ceil].map(v=>`<line class="chart-grid" x1="${left}" x2="${width-right}" y1="${y(v)}" y2="${y(v)}"/><text class="chart-axis" x="${left-6}" y="${y(v)+3}" text-anchor="end">${esc(compact(v))}</text>`).join('');
+  const ticks=(weeks.some(w=>w.amount!==0)?[0,ceil]:[0]).map(v=>`<line class="chart-grid" x1="${left}" x2="${width-right}" y1="${y(v)}" y2="${y(v)}"/><text class="chart-axis" x="${left-6}" y="${y(v)+3}" text-anchor="end">${esc(compact(v))}</text>`).join('');
   const bars=weeks.map((w,i)=>{const x=round2(left+slot*i+(slot-bw)/2),onTime=round2(w.amount-w.late);
     return(onTime>0?`<rect class="bh-bar is-forecast" x="${x}" y="${y(onTime)}" width="${round2(bw)}" height="${round2(top+plotH-y(onTime))}" rx="2"><title>${esc(`Semaine du ${dateFr(w.week)} : ${money(onTime)} attendus`)}</title></rect>`:'')
       +(w.late>0?`<rect class="bh-bar is-late" x="${x}" y="${y(w.amount)}" width="${round2(bw)}" height="${round2(y(onTime)-y(w.amount))}" rx="2"><title>${esc(`En retard, à relancer : ${money(w.late)}`)}</title></rect>`:'')

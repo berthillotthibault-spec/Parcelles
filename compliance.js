@@ -1,14 +1,14 @@
 // n° 55 — « Prêt pour un contrôle ? » : état indicatif des obligations et dossier imprimable.
 // Logique pure (testable sous Node). Rien n’est inventé : un point qui ne peut pas être
 // évalué avec les données saisies est marqué « Non suivi », jamais « À jour ».
-import {campaignFor,escapeHtml,formatNumber,isoDate,localDate,normalize,toNumber} from './utils.js';
+import {campaignFor,escapeHtml,formatNumber,isoDate,localDate,normalize,toNumber,localIso} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {phytosanitaryRegister} from './advanced-economics.js';
 import {parcelFollowupScore} from './harvest-traceability.js';
 import {hasInAppPlan,nitrogenComplianceChecks} from './nitrogen.js';
 import {herdHealthComplianceChecks} from './herd-health.js';
 import {pendingBdni,animalLabel} from './home-priorities.js'; // n° 79
-import {pacComplianceChecks} from './pac.js';
+import {pacComplianceChecks,bcae7Parcel} from './pac.js';
 import {coverComplianceChecks} from './covers.js';
 import {phytoComplianceCheck} from './phyto.js';
 import {adminDeadlinesCheck} from './regulated-ops.js'; // v8a n° 72
@@ -74,7 +74,7 @@ export function addYears(date,years){
 
 function phytoCheck(state,campaign){
   const rows=phytosanitaryRegister(state).filter(r=>completed(r.work)&&workCampaign(r.work)===campaign);
-  if(!rows.length)return check('phyto','Registre phytosanitaire','ok',`Aucun traitement enregistré pour la campagne ${campaign}.`);
+  if(!rows.length)return check('phyto','Registre phytosanitaire','na',`Aucun traitement enregistré pour la campagne ${campaign}.`);
   const incomplete=rows.filter(r=>r.missing.length);
   const core=incomplete.filter(r=>r.missing.some(m=>CORE_PHYTO_FIELDS.includes(m)));
   const status=core.length?'ko':incomplete.length?'warn':'ok';
@@ -156,8 +156,8 @@ function bdniCheck(state,today){
   const births=active(state,'animalEvents').filter(e=>e.kind==='calving');
   if(births.length){
     const pending=pendingBdni(state,today),late=pending.filter(p=>p.status==='late'),fr=d=>`${d.slice(8,10)}/${d.slice(5,7)}`;
-    const items=pending.map(p=>({label:p.calf?animalLabel(p.calf):`Veau de ${animalLabel(p.mother)}`,note:`Né le ${fr(p.event.date)} · à notifier avant le ${fr(p.deadline)}${p.status==='late'?' (délai dépassé)':''}`,status:p.status==='late'?'ko':'warn'}));
-    return check('bdni','Notifications des mouvements d’animaux (BDNI)',pending.length?'warn':'unknown',pending.length?`${plural(pending.length,'naissance non notée comme notifiée','naissances non notées comme notifiées')}${late.length?`, dont ${late.length} hors délai de 7 jours`:''}. Parcelles ne notifie pas la BDNI.`:`${plural(births.length,'naissance notée comme notifiée','naissances notées comme notifiées')}. Entrées et sorties à vérifier dans votre outil de notification.`,{items,action:{type:'herd',label:'Troupeau'}});
+    const items=pending.map(p=>({label:p.calf?animalLabel(p.calf):`Veau de ${animalLabel(p.mother)}`,note:`${p.calf?.sex==='F'?'Née':'Né'} le ${fr(p.event.date)} · à notifier avant le ${fr(p.deadline)}${p.status==='late'?' (délai dépassé)':''}`,status:p.status==='late'?'ko':'warn'}));
+    return check('bdni','Notifications des mouvements d’animaux (BDNI)',late.length?'ko':pending.length?'warn':'unknown',pending.length?`${plural(pending.length,'naissance non notée comme notifiée','naissances non notées comme notifiées')}${late.length?`, dont ${late.length} hors délai de 7 jours`:''}. Parcelles ne notifie pas la BDNI.`:`${plural(births.length,'naissance notée comme notifiée','naissances notées comme notifiées')}. Entrées et sorties à vérifier dans votre outil de notification.`,{items,action:{type:'herd',label:'Troupeau'}});
   }
   return check('bdni','Notifications des mouvements d’animaux (BDNI)',grazing?'unknown':'na',grazing?'Les entrées, sorties et naissances (à notifier sous 7 jours) ne sont pas suivies dans Parcelles : vérifiez dans votre outil de notification.':'Aucun animal suivi dans Parcelles.');
 }
@@ -175,13 +175,15 @@ export function sameCultureStreak(history,campaign){
   return{streak,known:history.size,culture:current};
 }
 
-function rotationCheck(state,settings,campaign){
+function rotationCheck(state,settings,campaign,today){
   const max=settings.rotationMaxSame,items=[];let evaluated=0;
   for(const p of ownParcels(state)){
     const history=cultureHistory(state,p,campaign),{streak,known,culture}=sameCultureStreak(history,campaign);
     if(!culture||NON_ROTATING.test(normalize(culture))||known<2)continue;
     evaluated++;
-    if(streak>=max)items.push({label:p.nom,note:`${culture} : ${plural(streak,'campagne consécutive','campagnes consécutives')}${streak>max?' (au-delà du seuil)':', changer à la prochaine campagne'}`,status:streak>max?'ko':'warn',action:'open-parcel',id:p.id});
+    // Même verdict que l’Assistant PAC (pac.js) : une parcelle non conforme BCAE 7 est à corriger, quel que soit le seuil.
+    const bcae=bcae7Parcel(state,p,campaign,{today}).status==='ko';
+    if(streak>=max||bcae){const ko=streak>max||bcae;items.push({label:p.nom,note:`${culture} : ${plural(streak,'campagne consécutive','campagnes consécutives')}${ko?(bcae&&streak<=max?' (non conforme BCAE 7)':' (au-delà du seuil)'):', changer à la prochaine campagne'}`,status:ko?'ko':'warn',action:'open-parcel',id:p.id});}
   }
   if(!evaluated)return check('rotation','Rotation des cultures (BCAE 7)','unknown','Historique insuffisant : saisissez les cultures des campagnes précédentes dans l’assolement.',{action:{type:'rotations',label:'Assolement'}});
   const status=worst(items.map(i=>i.status));
@@ -192,14 +194,14 @@ function followupCheck(state){
   const scores=ownParcels(state).map(p=>({p,s:parcelFollowupScore(state,p)})).filter(x=>x.s);
   if(!scores.length)return check('followup','Complétude du suivi des travaux','unknown','Aucun travail terminé enregistré.');
   const average=Math.round(scores.reduce((sum,x)=>sum+x.s.score,0)/scores.length),low=scores.filter(x=>x.s.score<80).sort((a,b)=>a.s.score-b.s.score);
-  return check('followup','Complétude du suivi des travaux',average>=80&&!low.length?'ok':'warn',`Complétude moyenne ${formatNumber(average)} % (dates, coûts, surfaces, opérateurs) : ce n’est pas une note réglementaire.`,{items:low.map(x=>({label:x.p.nom,note:`${formatNumber(x.s.score)} % · ${x.s.criteria.filter(c=>c.known<c.total).map(c=>c.label.toLowerCase()).join(', ')}`,action:'open-parcel',id:x.p.id}))});
+  return check('followup','Complétude du suivi des travaux',average>=80&&!low.length?'ok':'warn',`Complétude moyenne ${formatNumber(average)} % (dates, coûts, surfaces, opérateurs) : ce n’est pas une note réglementaire.`,{items:low.map(x=>({label:x.p.nom,note:`${formatNumber(x.s.score)} % · à compléter : ${x.s.criteria.filter(c=>c.known<c.total).map(c=>c.label.replace(/^Travaux datés$/,'Dates').replace(/ renseignée?s$/,'').toLowerCase()).join(', ')}`,action:'open-parcel',id:x.p.id}))});
 }
 
 // n° 62 — contrôles des traitements (dose, applications, DAR, AMM retirée) d’après les fiches produit.
 function phytoControlsCheck(state,today){const c=phytoComplianceCheck(state,{today});return{...c,statusLabel:STATUS_LABELS[c.status]};}
 
 /** Liste [{id,label,status,statusLabel,detail,items,action}] ; status ∈ ko, warn, unknown, ok, na. */
-export function complianceChecks(state,{today=isoDate(new Date())}={}){
+export function complianceChecks(state,{today=localIso()}={}){
   const settings=complianceSettings(state),campaign=campaignFor(today);
   const hasPhyto=phytosanitaryRegister(state).some(r=>completed(r.work));
   return[
@@ -214,7 +216,7 @@ export function complianceChecks(state,{today=isoDate(new Date())}={}){
     ...coverComplianceChecks(state,{today}), // v5b n° 74
     bdniCheck(state,today),
     ...herdHealthComplianceChecks(state,{today}), // v6b n° 76
-    rotationCheck(state,settings,campaign),
+    rotationCheck(state,settings,campaign,today),
     ...pacComplianceChecks(state,{today,campaign}), // v5b n° 58
     followupCheck(state)
   ];
@@ -244,7 +246,7 @@ export function parcelsPlanSvg(parcels,{width=640,height=420}={}){
 }
 
 /** Dossier de contrôle imprimable (Imprimer / PDF depuis le navigateur). */
-export function controlDossierHtml(state,{today=isoDate(new Date())}={}){
+export function controlDossierHtml(state,{today=localIso()}={}){
   const e=escapeHtml,campaign=campaignFor(today),checks=complianceChecks(state,{today}),summary=complianceSummary(checks),settings=complianceSettings(state);
   const farm=state?.exploitation||{},parcels=ownParcels(state),area=parcels.reduce((s,p)=>s+toNumber(p.surfaceHa),0);
   const phyto=phytosanitaryRegister(state).filter(r=>completed(r.work)&&workCampaign(r.work)===campaign).sort((a,b)=>String(a.work.date).localeCompare(String(b.work.date)));
@@ -252,6 +254,8 @@ export function controlDossierHtml(state,{today=isoDate(new Date())}={}){
   const parcelName=id=>active(state,'parcelles').find(p=>p.id===id)?.nom||'—';
   const docs=active(state,'documents').slice().sort((a,b)=>String(b.documentDate||'').localeCompare(String(a.documentDate||'')));
   const machines=sprayers(state);
+  // Tous les opérateurs phyto des 12 derniers mois, même sans Certiphyto saisi, plus les certificats enregistrés.
+  const certKnown=new Map(settings.certiphytos.map(c=>[normalize(c.nom),c])),certNames=[...phytoOperators(state,today),...settings.certiphytos.map(c=>c.nom)].filter((n,i,all)=>all.findIndex(x=>normalize(x)===normalize(n))===i);
   const section=(id,n,title,body)=>`<section id="${id}"><h2>${n}. ${e(title)}</h2>${body}</section>`;
   const table=(head,rows,empty)=>rows.length?`<table><thead><tr>${head.map(h=>`<th>${e(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`:`<p class="muted">${e(empty)}</p>`;
   const toc=[['etat','État des obligations'],['phyto','Registre phytosanitaire'],['azote','Fertilisation azotée'],['plans','Parcellaire et plans'],['materiel','Pulvérisateurs et Certiphyto'],['pieces','Pièces jointes']];
@@ -261,7 +265,7 @@ ${section('etat',1,'État des obligations',`<p><strong>${e(summary.headline)}.</
 ${section('phyto',2,'Registre phytosanitaire',table(['Date','Parcelle','Culture','Produit','AMM','Dose','Opérateur','Manquants'],phyto.map(r=>[e(localDate(r.work.date)),e(r.parcel?.nom||'—'),e(r.work.culture||r.parcel?.culture||'—'),e(r.work.product||'—'),e(r.work.amm||'—'),r.work.dose!==null&&r.work.dose!==undefined&&r.work.dose!==''?`${e(formatNumber(r.work.dose))} ${e(r.work.doseUnit||'')}`:'—',e(r.work.operator||'—'),e(r.missing.join(', ')||'—')]),`Aucun traitement enregistré pour la campagne ${campaign}.`))}
 ${section('azote',3,'Fertilisation azotée',table(['Date','Parcelle','Apport','Produit','Dose'],ferti.map(w=>[e(localDate(w.date)),e(parcelName(w.parcelId)),e(w.type||'—'),e(w.product||'—'),w.dose!==null&&w.dose!==undefined&&w.dose!==''?`${e(formatNumber(w.dose))} ${e(w.doseUnit||'')}`:'—']),`Aucun apport enregistré pour la campagne ${campaign}.`))}
 ${section('plans',4,'Parcellaire et plans',`<p>${e(plural(parcels.length,'parcelle','parcelles'))} · ${e(formatNumber(Math.round(area*100)/100))} ha déclarés dans Parcelles.</p>${parcelsPlanSvg(parcels)}`+table(['Parcelle','Culture','Surface','Commune','Îlot','Contour'],parcels.map(p=>[e(p.nom),e(p.culture||'—'),`${e(formatNumber(p.surfaceHa))} ha`,e(p.commune||'—'),e(p.ilot||'—'),p.geometry?'oui':'non']),'Aucune parcelle.'))}
-${section('materiel',5,'Pulvérisateurs et Certiphyto',table(['Pulvérisateur','Dernier contrôle','Valable jusqu’au'],machines.map(m=>[e(m.nom||'—'),m.controleDate?e(localDate(m.controleDate)):'non renseigné',m.controleDate?e(localDate(addYears(m.controleDate,settings.sprayerControlYears))):'—']),'Aucun pulvérisateur identifié.')+table(['Opérateur','Certiphyto valable jusqu’au'],settings.certiphytos.map(c=>[e(c.nom),c.expiresAt?e(localDate(c.expiresAt)):'non renseigné']),'Aucun Certiphyto renseigné.'))}
+${section('materiel',5,'Pulvérisateurs et Certiphyto',table(['Pulvérisateur','Dernier contrôle','Valable jusqu’au'],machines.map(m=>[e(m.nom||'—'),m.controleDate?e(localDate(m.controleDate)):'non renseigné',m.controleDate?e(localDate(addYears(m.controleDate,settings.sprayerControlYears))):'—']),'Aucun pulvérisateur identifié.')+table(['Opérateur','Certiphyto valable jusqu’au'],certNames.map(n=>{const c=certKnown.get(normalize(n));return[e(n),c?.expiresAt?e(localDate(c.expiresAt)):'non renseigné'];}),'Aucun Certiphyto renseigné.'))}
 ${section('pieces',6,'Pièces jointes',`<p class="muted">Liste des documents classés dans Parcelles (les fichiers eux-mêmes restent dans l’application ou la sauvegarde complète).</p>`+table(['Date','Catégorie','Document','Tags'],docs.map(d=>[e(localDate(d.documentDate||d.createdAt)),e(d.category||'Autre'),e(d.name||'Document'),e((d.tags||[]).join(', ')||'—')]),'Aucun document enregistré.'))}
 <button id="print">Imprimer / PDF</button>`;
   return`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${e(`Dossier de contrôle ${farm.nom||''}`.trim())}</title><style>body{font-family:system-ui,-apple-system,sans-serif;margin:32px;color:#13251c;line-height:1.45}h1,h2{color:#155c3a}h2{margin-top:28px;break-after:avoid}section{break-inside:auto}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}th,td{padding:6px 8px;border-bottom:1px solid #ddd;text-align:left;vertical-align:top}.muted{color:#55605a}.warning{padding:10px 12px;border-radius:10px;background:#f8eedb;color:#3d2a06}.st{font-weight:700}.st-ko{color:#a83c26}.st-warn{color:#7a4f0e}.st-unknown{color:#4c544f}.st-ok{color:#1d5a3c}.st-na{color:#55605a}.plan{width:100%;max-width:640px;height:auto;border:1px solid #ddd;border-radius:10px;background:#f7f5f0}@media print{button{display:none}body{margin:12mm}a{color:inherit;text-decoration:none}}</style></head><body>${body}<script>window.addEventListener('load',()=>document.getElementById('print')?.addEventListener('click',()=>print()))<\/script></body></html>`;

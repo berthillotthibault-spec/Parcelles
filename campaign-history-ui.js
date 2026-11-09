@@ -42,6 +42,8 @@ ${h.rows.map(r=>`<tr><th scope="row">${e(r.label)}</th>${r.cells.map((c,i)=>cell
 <h3>${h.metric==='costHa'?'Charges régulièrement au-dessus de la moyenne':'Régulièrement sous la moyenne'}</h3>
 ${weak.length?`<ul class="stock-alerts">${weak.map(w=>`<li class="is-warning">${e(w.text)}</li>`).join('')}</ul>`:'<p class="form-note">Aucune ligne n’est sous la moyenne de l’exploitation plus d’une année sur deux.</p>'}`,
     '<button type="button" class="button primary" data-action="close-modal">Fermer</button>','large');
+    // Sur téléphone, le tableau s’ouvre sur les campagnes récentes, la moyenne et la tendance.
+    const wrap=document.querySelector('.ch-table')?.closest('.econ-table-wrap');if(wrap){const th=wrap.querySelectorAll('thead th');if(th.length>3)wrap.scrollLeft+=th[th.length-3].getBoundingClientRect().left-th[0].getBoundingClientRect().right;}
   }
 
   document.addEventListener('click',ev=>{const c=ev.target.closest('[data-ch]');if(!c)return;const v=c.dataset.value;open({[c.dataset.ch]:c.dataset.ch==='years'?Number(v):v});});

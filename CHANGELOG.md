@@ -1,5 +1,23 @@
 # Changelog
 
+## 10.28.2 · débogage complet : 338 défauts corrigés — 2026-11-09
+
+Audit de toute l’application (16 domaines, code et navigateur, téléphone et bureau, clair et sombre), chaque défaut reproduit avant d’être corrigé. Pas de changement de schéma (version 18). **Règles Firebase modifiées : redéployer `firestore.rules` et `storage.rules`.**
+
+- **sécurité** : une pièce jointe « .pdf » qui contient du HTML n’exécute plus rien (affichée en PDF, et Storage refuse HTML, XML, SVG et JavaScript) ; les identifiants sont échappés dans les attributs et un identifiant contenant `< > " ' \`` est refusé (saisie, import, synchronisation, règles Firestore ; une sauvegarde piégée est écartée à l’ouverture) ; tous les exports CSV neutralisent les formules (`=`, `+`, `-`, `@`) ;
+- **données** : un import (SHP, XLSX, historique, RPG) part en synchronisation ; « Sauvegarder puis tout restaurer » s’arrête si la sauvegarde de sécurité échoue ; les brouillons sont séparés par exploitation ; points de restauration « Avant un import » (5 gardés) ; « Définitif » de la corbeille et la suppression des sauvegardes demandent confirmation ;
+- **carte** : un double clic sur Découper ou Fusionner ne crée plus de doublons, et lots, tâches et travaux à faire suivent les nouvelles parcelles ; un contour qui se croise est refusé ; annuler la fiche après un dessin demande confirmation ; mesure à pied et couche RPG corrigées ;
+- **travaux** : un travail « À faire » a toujours sa date prévue ; un travail terminé ne peut pas être daté dans le futur ; la tournée clôt le travail prévu au lieu d’en créer un second ; « 3,5 » est bien lu 3,5 quel que soit le navigateur ; dose ou prix négatif refusés ; la durée suit l’heure de fin ;
+- **troupeau** : un animal n’est plus compté deux fois, un veau né au pré est compté, dates de sortie incohérentes refusées, « Sortir du pré » propose Annuler ;
+- **calculs** : économie de la parcelle limitée à la campagne et aux travaux faits ; marges par culture en q/ha, simulateur, ISOXML L/ha, azote (interdictions), IFT, BCAE 7, PAC hors campagne en cours, prix unitaires des factures, milliers dans la saisie rapide ;
+- **dates** : « aujourd’hui » est la date locale partout (plus de veille entre minuit et 2 h) ;
+- **matériel** : QR « Plein » enregistre un plein de GNR, « En panne » se lève depuis la fiche, compteur à 2 décimales accepté ;
+- **assistant et messages** : questions courantes reconnues, Annuler ramène au fil, conversation envoyée au service distant, SMS « Préparer » débloqué, consigne d’un travail confié conservée ;
+- **accessibilité** : focus rendu après chaque fenêtre et enregistrement, raccourcis clavier inactifs quand une fenêtre est ouverte, recherches au clavier (Entrée, flèches) annoncées, contrastes corrigés, cibles de 44 px, titre d’onglet par écran ;
+- **affichage** : en-tête et barre latérale, mode sombre, mode gants, mode compact, feuilles sur téléphone (pâturage, nouveau travail, trésorerie, restauration), calendrier, toasts limités et jamais sur les boutons ;
+- **textes** : accords et pluriels, plus de termes techniques ni d’anglais, dates en français (« 1er janvier ») ;
+- outils : `tools/offline-check.mjs` lit la bonne clé ; typecheck sans erreur ; nouveaux tests (`test-intelligence.mjs`, règles, identifiants, factures, imports).
+
 ## 10.28.1 · aide « Mes applis » et chantiers TP — 2026-11-03
 
 Compléments du n° 161. Pas de changement de schéma (version 18), aucune migration, règles Firebase inchangées.

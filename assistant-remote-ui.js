@@ -17,7 +17,7 @@ export function draftRowsHtml(draft) {
 
 export function requestJson(request) { return JSON.stringify(request.body, null, 2); }
 
-export function createAssistantRemoteUI({store, state, modal, closeModal, toast, role = () => 'owner', today, saveMessage = async () => {}} = {}) {
+export function createAssistantRemoteUI({store, state, modal, closeModal, toast, role = () => 'owner', today, saveMessage = async () => {}, onCancel = null} = {}) {
   async function write(action, draft) {
     if (action.type === 'create_observation') {
       const saved = await store.upsert('observations', {...draft.writes[0].after, observedAt: new Date().toISOString()}, {label: `Observation : ${draft.writes[0].after.title}`});
@@ -48,15 +48,18 @@ export function createAssistantRemoteUI({store, state, modal, closeModal, toast,
     if (!draft.ok) { toast(draft.error, 'error'); return false; }
     modal('Confirmer l’action', 'L’assistant ne modifie jamais vos données sans confirmation. Voici exactement ce qui sera écrit.',
       `<p><strong>${e(draft.title)}</strong></p>${draftRowsHtml(draft)}<p class="form-error" id="assistant-write-error" role="alert" hidden></p>`,
-      `<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="assistant-confirm-write">Confirmer</button>`, 'small');
+      `<button class="button secondary" id="assistant-cancel-write">Annuler</button><button class="button primary" id="assistant-confirm-write">Confirmer</button>`, 'small');
+    // « Annuler » ramène au fil de l'assistant (action reprenable) ; ✕, fond et Échap ferment tout.
+    const cancel = document.getElementById('assistant-cancel-write');
+    if (cancel) cancel.onclick = () => (onCancel ? onCancel(action) : closeModal());
     const button = document.getElementById('assistant-confirm-write');
     button.onclick = async () => {
       button.disabled = true;
       try {
         const undo = await write(action, draft);
-        await saveMessage(`${draft.title} : enregistré avec confirmation.`);
+        await saveMessage(`Enregistré avec confirmation : ${draft.title}.`);
         closeModal();
-        toast(`${draft.title} : enregistré.`, 'success', {label: 'Annuler', run: undo});
+        toast(`Enregistré : ${draft.title}.`, 'success', {label: 'Annuler', run: undo});
       } catch (error) {
         button.disabled = false;
         const box = document.getElementById('assistant-write-error');

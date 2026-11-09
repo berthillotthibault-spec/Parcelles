@@ -101,8 +101,17 @@ export function createAppsUI({doc = document, catalog, isVisible, livestock, swi
     const target = switchTarget({action, view}, current, {visibleIds: visibleIds()});
     if (!target) return false;
     const from = routeHash();
+    const hist = doc.defaultView?.history, len = hist?.length;
     setApp(target, {from});
     if (action && !view) switchView(homeView(target));
+    // Une fois le clic traité (la vue y est ouverte par le délégué d'app.js), marque l'entrée d'historique créée
+    // juste après « from » : goBack pourra y revenir par history.back() au lieu de dupliquer l'entrée.
+    const mark = back;
+    if (hist && mark) queueMicrotask(() => {
+      if (back !== mark || hist.length !== len + 1 || routeHash() === from) return;
+      mark.token = `apps-back-${Date.now()}`;
+      try { hist.replaceState({...(hist.state || {}), appsBack: mark.token}, '', doc.defaultView.location.href); } catch { mark.token = null; }
+    });
     return true;
   }
 
@@ -116,15 +125,19 @@ export function createAppsUI({doc = document, catalog, isVisible, livestock, swi
     if (view === 'space') renderSpace();
   }
 
-  /** Pastille « Retour à … » : revient à l'appli et à l'écran quittés, en remplaçant l'entrée d'historique
-   *  (le retour arrière du navigateur ne rouvre pas l'appli quittée). */
+  /** Pastille « Retour à … » : revient à l'appli et à l'écran quittés, en reculant d'une entrée d'historique
+   *  quand c'est possible, sinon en remplaçant l'entrée (le retour arrière du navigateur ne rouvre pas l'appli quittée). */
   function goBack() {
     if (!back) return;
-    const {app: id, hash} = back;
+    const {app: id, hash, token} = back;
     back = null;
     closeModal();
     if (!visibleIds().includes(id)) { setApp(DEFAULT_APP); switchView(homeView(DEFAULT_APP)); return; }
     setApp(id);
+    // Toujours sur l'entrée ouverte par la bascule : on recule d'un pas (popstate affiche l'écran quitté),
+    // sinon l'entrée remplacée laisserait un doublon qui rendrait le retour arrière suivant sans effet.
+    const hist = doc.defaultView?.history;
+    if (token && hist?.state?.appsBack === token && routeHash() !== hash) { hist.back(); return; }
     goRoute(hash);
   }
 

@@ -14,12 +14,14 @@ export function createAccountingExportUI({store,modal,toast}){
   const now=new Date();
   let period={from:`${now.getFullYear()}-01-01`,to:iso(now)};
 
-  function planForm(plan){
-    return`<details class="ae-plan"><summary>Plan de catégories (comptes et TVA)</summary><form id="ae-plan-form" class="form-grid">${ACCOUNT_CATEGORIES.map(c=>`<label>${e(c.label)}<span class="nm-field"><input name="account_${c.key}" inputmode="numeric" pattern="[0-9]{3,10}" value="${e(plan[c.key].account)}" aria-label="Compte ${e(c.label)}"><select name="vat_${c.key}" aria-label="TVA ${e(c.label)}"><option value="">TVA à saisir</option>${VAT_CHOICES.map(v=>`<option value="${v}"${plan[c.key].vatRate===v?' selected':''}>${String(v).replace('.',',')} %</option>`).join('')}</select></span></label>`).join('')}<p class="form-error span-2" id="ae-plan-error" role="alert" hidden></p></form>
+  function planForm(plan,isOpen){
+    return`<details class="ae-plan"${isOpen?' open':''}><summary>Plan de catégories (comptes et TVA)</summary><form id="ae-plan-form" class="form-grid">${ACCOUNT_CATEGORIES.map(c=>`<label>${e(c.label)}<span class="nm-field"><input name="account_${c.key}" inputmode="numeric" pattern="[0-9]{3,10}" value="${e(plan[c.key].account)}" aria-label="Compte ${e(c.label)}"><select name="vat_${c.key}" aria-label="TVA ${e(c.label)}"><option value="">TVA à saisir</option>${VAT_CHOICES.map(v=>`<option value="${v}"${plan[c.key].vatRate===v?' selected':''}>${String(v).replace('.',',')} %</option>`).join('')}</select></span></label>`).join('')}<p class="form-error span-2" id="ae-plan-error" role="alert" hidden></p></form>
 <p class="form-note">Comptes indicatifs du plan comptable agricole, à faire valider par votre comptable. Les taux de TVA ne sont jamais devinés : saisissez celui de chaque catégorie (les factures émises gardent la TVA du document).</p><button type="button" class="button secondary" data-ae="save-plan">Enregistrer le plan</button></details>`;
   }
 
-  function open(){
+  // Redessine la fenêtre en gardant le défilement et en rendant le focus (n° 160).
+  const rerender=(focusSel,opts)=>{const top=document.querySelector('#modal-root .modal-body')?.scrollTop||0;open(opts);const body=document.querySelector('#modal-root .modal-body');if(body)body.scrollTop=top;document.querySelector(focusSel)?.focus({preventScroll:true});};
+  function open({planOpen=false}={}){
     const d=data(),res=accountingRows(d,period),sum=accountSummary(res.rows),plan=accountingPlan(d);
     const tot=side=>sum.filter(g=>g.side===side).reduce((s,g)=>s+g.ht,0);
     modal('Pour mon comptable','Export CSV ou Excel ventilé par compte et par taux de TVA',`
@@ -28,8 +30,8 @@ export function createAccountingExportUI({store,modal,toast}){
 <div class="mc-actions"><button type="button" class="button secondary" data-ae="refresh">Mettre à jour l’aperçu</button></div>
 <div class="preview-summary"><div class="preview-stat"><strong>${res.rows.length}</strong><small>opérations chiffrées</small></div><div class="preview-stat"><strong>${eur(tot('vente'))}</strong><small>produits HT</small></div><div class="preview-stat"><strong>${eur(tot('achat'))}</strong><small>charges HT</small></div></div>
 ${res.warnings.length?`<ul class="stock-alerts">${res.warnings.map(w=>`<li class="is-warning">${e(w)}</li>`).join('')}</ul>`:''}
-<h3>Synthèse par compte</h3><div class="econ-table-wrap"><table class="econ-table"><thead><tr><th>Compte</th><th>TVA</th><th>HT</th><th>TVA</th><th>Lignes</th></tr></thead><tbody>${sum.map(g=>`<tr><th scope="row">${e(g.account)} <small>${e(g.label)}</small></th><td>${g.vatRate===null?'à saisir':`${String(g.vatRate).replace('.',',')} %`}</td><td>${eur(g.ht)}</td><td>${g.tvaUnknown?'—':eur(g.tva)}</td><td>${g.count}</td></tr>`).join('')||'<tr><td colspan="5">Aucune opération chiffrée sur la période.</td></tr>'}</tbody></table></div>
-${planForm(plan)}`,
+<h3>Synthèse par compte</h3><div class="econ-table-wrap"><table class="econ-table"><thead><tr><th>Compte</th><th>Taux TVA</th><th>Montant HT</th><th>TVA</th><th>Lignes</th></tr></thead><tbody>${sum.map(g=>`<tr><th scope="row">${e(g.account)} <small>${e(g.label)}</small></th><td>${g.vatRate===null?'à saisir':`${String(g.vatRate).replace('.',',')} %`}</td><td>${eur(g.ht)}</td><td>${g.tvaUnknown?'—':eur(g.tva)}</td><td>${g.count}</td></tr>`).join('')||'<tr><td colspan="5">Aucune opération chiffrée sur la période.</td></tr>'}</tbody></table></div>
+${planForm(plan,planOpen)}`,
     `<button type="button" class="button secondary" data-ae="csv">CSV opérations</button><button type="button" class="button secondary" data-ae="csv-stocks">CSV stocks</button><button type="button" class="button primary" data-ae="xlsx">Classeur Excel</button>`,'large');
   }
 
@@ -42,11 +44,11 @@ ${planForm(plan)}`,
   const name=ext=>`comptable-${period.from}_${period.to}.${ext}`;
 
   async function action(kind){
-    if(kind==='refresh'){if(readPeriod())open();return;}
+    if(kind==='refresh'){if(readPeriod())rerender('[data-ae="refresh"]',{planOpen:!!document.querySelector('.ae-plan')?.open});return;}
     if(kind==='save-plan'){
       const form=document.querySelector('#ae-plan-form'),err=document.querySelector('#ae-plan-error');if(!form||!validateForm(form))return;
       const r=validatePlan(Object.fromEntries(new FormData(form)));if(r.error){err.textContent=r.error;err.hidden=false;return;}
-      readPeriod();await store.setPreferences({accountingPlan:r.value});toast('Plan de catégories enregistré.','success');return open();
+      readPeriod();await store.setPreferences({accountingPlan:r.value});toast('Plan de catégories enregistré.','success');return rerender('[data-ae="save-plan"]',{planOpen:true});
     }
     if(!readPeriod())return;const d=data(),res=accountingRows(d,period);
     if(kind==='csv'){download(name('csv'),operationsCsv(res),'text/csv;charset=utf-8');return toast(`${res.rows.length} opération(s) exportée(s).`,'success');}

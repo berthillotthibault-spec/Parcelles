@@ -3,6 +3,7 @@
 import {escapeHtml, formatNumber} from './utils.js';
 import {buildInterventionFromSession, chantierProgress} from './field-ops.js';
 import {localDay} from './home-priorities.js';
+import {isTreatment} from './phyto.js';
 import {FieldTracker, TRACKING_LIMITS, chantierForParcel, clockTime, defaultsForType, finishPlannedFromProposal, FINISH_KEYS, formatPresence, gpsQuality, suggestWorkTypes, visitToProposal, workFromProposal} from './field-tracker.js';
 
 const MAX_PROPOSALS=12,FORWARD_MS=15000;
@@ -141,13 +142,16 @@ export function createFieldTrackerUI(host){
     busy=true;
     try{
       const planned=workId?store.get('interventions',workId):null;
+      const entity=planned&&!planned.deletedAt?finishPlannedFromProposal(planned,proposal,parcel):workFromProposal(proposal,parcel,type,defaultsForType(data,type));
+      // Même règle que « Terminer » : un traitement sans produit passe par le formulaire (la présence reste proposée).
+      if(isTreatment(entity)&&!String(entity.product||'').trim()){host.closeFieldMode?.();openWorkForm(entity);toast('Indiquez le produit : un traitement terminé va au registre phytosanitaire.','error');return;}
       let undo;
       if(planned&&!planned.deletedAt){
         const before=Object.fromEntries(FINISH_KEYS.map(k=>[k,planned[k]??null]));
-        await store.upsert('interventions',finishPlannedFromProposal(planned,proposal,parcel),{label:`Travail terminé (suivi GPS) : ${planned.type} · ${parcel.nom}`});
+        await store.upsert('interventions',entity,{label:`Travail terminé (suivi GPS) : ${planned.type} · ${parcel.nom}`});
         undo=()=>store.upsert('interventions',{id:planned.id,...before},{label:`Clôture annulée : ${planned.type}`});
       }else{
-        const work=await store.upsert('interventions',workFromProposal(proposal,parcel,type,defaultsForType(data,type)),{label:`Travail enregistré (suivi GPS) : ${type} · ${parcel.nom}`});
+        const work=await store.upsert('interventions',entity,{label:`Travail enregistré (suivi GPS) : ${type} · ${parcel.nom}`});
         undo=()=>store.remove('interventions',work.id);
       }
       proposals=proposals.filter(p=>p.id!==id);persist();render();

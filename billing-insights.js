@@ -161,7 +161,7 @@ const UNIT_WORDS=[[/^(h|hr?s?|heures?)$/,'h'],[/^(ha|hectares?)$/,'ha'],[/^(t|to
 const unitOf=w=>{const n=normalize(w).replace(/ /g,'');if(w==='m³')return'm³';if(w==='m²')return'm²';const hit=UNIT_WORDS.find(([re])=>re.test(n));return hit?hit[1]:null;};
 const DOC_WORDS=[[/^devis$/,'devis'],[/^(facture|fact)$/,'facture'],[/^avoir$/,'avoir'],[/^acompte$/,'acompte'],[/^(proforma|pro-forma)$/,'proforma']];
 const numberOf=s=>{const n=Number(String(s).replace(/\s/g,'').replace(',','.'));return Number.isFinite(n)?n:null;};
-const PRICE_RE=/(?:^|\s)(?:à|a|@|pour|x|:)?\s*(\d+(?:[.,]\d+)?)\s*(?:€|euros?|eur)\s*(?:\/\s*([a-zA-Zéèêàâîôûç³²]+))?\s*(ht|ttc)?\s*$/i;
+const PRICE_RE=/(?:^|\s)(?:à|a|@|pour|x|:)?\s*(\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(?:€|euros?|eur)\s*(?:\/\s*([a-zA-Zéèêàâîôûç³²]+))?\s*(ht|ttc)?\s*$/i;
 const VAT_RE=/\b(?:tva\s*(?:à\s*)?(\d+(?:[.,]\d+)?)\s*%?|(\d+(?:[.,]\d+)?)\s*%\s*(?:de\s*)?tva\b)/i;
 // « devis Dupont 3 h de pelle à 65 € et 12 t de cailloux à 18 € HT » → brouillon de lignes à valider.
 export function parseQuickEntry(input,state=null){

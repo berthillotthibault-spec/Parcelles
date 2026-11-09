@@ -20,9 +20,9 @@ const PAY_METHODS = PAYMENT_METHODS.filter(([k]) => !['compensation', 'rembourse
 const REMINDER_LABELS = {1: 'Rappel courtois', 2: 'Deuxième relance', 3: 'Dernière relance'};
 const WIDE = '(min-width: 1180px)';
 const wide = () => { try { return globalThis.matchMedia?.(WIDE).matches || false; } catch { return false; } };
-const noToolbar = doc => String(doc).replace('</head>', '<style>.dz-toolbar,#print{display:none!important}body{margin:0}</style></head>');
+const noToolbar = doc => String(doc).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace('</head>', '<style>.dz-toolbar,#print{display:none!important}body{margin:0}</style></head>');
 const $ = sel => globalThis.document?.querySelector(sel) || null;
-const qty = v => v === null || v === undefined || v === '' ? '—' : new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 3}).format(Number(v));
+const qty = v => v === null || v === undefined || v === '' ? '—' : new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 3}).format(Number(v)).replace(/^-/, '−');
 const TL_ICON = {create: '○', emit: '●', send: '→', remind: '!', pay: '€', refund: '€', accept: '✓', refuse: '×', convert: '↳', credit: '−', link: '↔'};
 
 // Logo des paramètres converti une fois en JPEG sur fond blanc (insertion directe dans le PDF).
@@ -95,7 +95,7 @@ export function createDocsActions(ui) {
       <div class="bd-doc-head">${ui.statusPill(s)}<strong class="bd-doc-total">${money(totals.ttc)} <small>TTC</small></strong>${b && b.due > 0.005 && b.due < b.net - 0.005 ? html`<span class="bd-doc-due">reste ${money(b.due)}</span>` : ''}</div>
       ${b && b.net > 0 ? html`<div class="bd-progress"><progress max="${b.net}" value="${Math.min(b.paid, b.net)}" aria-label="${`Encaissé : ${money(b.paid)} sur ${money(b.net)}`}"></progress><small>Encaissé ${money(b.paid)} sur ${money(b.net)}${b.credited ? ` (avoirs déduits : ${money(b.credited)})` : ''}${b.overpaid > 0.005 ? ` · trop-perçu ${money(b.overpaid)}` : ''}</small></div>` : ''}
       ${prog ? html`<div class="bd-progress"><progress max="${prog.total}" value="${Math.max(0, prog.total - prog.remaining)}" aria-label="${`Facturé en acomptes : ${money(prog.total - prog.remaining)} sur ${money(prog.total)}`}"></progress><small>Acomptes : ${money(prog.deposited)} émis${prog.draftDeposits ? `, ${money(prog.draftDeposits)} en brouillon` : ''} · reste ${money(prog.remaining)}</small></div>` : ''}
-      ${advice ? html`<div class="notice info bd-advice"><p>${advice.text}</p>${advice.action && acts.includes(advice.action) ? html`<button type="button" class="small-button" data-bdoc="act" data-act="${advice.action}" data-id="${d.id}">${actionLabel(advice.action, d, data)}</button>` : ''}</div>` : ''}
+      ${advice ? html`<div class="notice info bd-advice"><p>${advice.text}</p>${advice.action && more.includes(advice.action) ? html`<button type="button" class="small-button" data-bdoc="act" data-act="${advice.action}" data-id="${d.id}">${actionLabel(advice.action, d, data)}</button>` : ''}</div>` : ''}
       ${!draft && fingerprintOk(d) === false ? html`<p class="notice danger" role="alert">Ce document a été modifié depuis son émission (empreinte différente : synchronisation, import ou correction directe). Vérifiez-le avant de le réimprimer ou de l’exporter.</p>` : ''}
       ${main.length ? html`<div class="bd-actions" role="group" aria-label="Actions sur le document">${main.map((k, i) => html`<button type="button" class="button ${i === 0 ? 'primary' : 'secondary'}${k === 'delete' ? ' danger' : ''}" data-bdoc="act" data-act="${k}" data-id="${d.id}">${actionLabel(k, d, data)}</button>`)}
         ${more.length ? html`<details class="bd-more"><summary>Plus d’actions</summary><div class="bd-more-list">${more.map(k => html`<button type="button" class="small-button" data-bdoc="act" data-act="${k}" data-id="${d.id}">${actionLabel(k, d, data)}</button>`)}</div></details>` : ''}</div>` : ''}

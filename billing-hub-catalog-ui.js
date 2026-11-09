@@ -19,8 +19,17 @@ export function createHubCatalogUI(ctx) {
   const back = () => { setView(null); refresh(); };
   const fail = (form, message, field = null) => {
     const box = form?.querySelector('.form-error');
+    form?.querySelectorAll('[aria-invalid="true"]').forEach(el => el.removeAttribute('aria-invalid'));
     if (box) { box.textContent = message; box.classList.remove('hidden'); }
-    (field && form?.elements[field])?.focus?.();
+    const el = field ? form?.elements[field] : null;
+    if (!el?.focus) { box?.scrollIntoView?.({block: 'nearest'}); return; }
+    // Message posé juste sous le champ en cause, sinon il reste sous le pli en bas du formulaire.
+    el.setAttribute('aria-invalid', 'true');
+    const host = el.closest?.('label, .bd-field, .field-label') || el;
+    if (box) { host.after(box); box.style.gridColumn = '1 / -1'; el.setAttribute('aria-describedby', box.id || (box.id = `${form.id || 'bh-form'}-err`)); }
+    el.focus({preventScroll: true});
+    host.scrollIntoView?.({block: 'nearest'});
+    box?.scrollIntoView?.({block: 'nearest'});
   };
   // Écriture en cours : bouton d'envoi désactivé et second envoi ignoré (double clic, Entrée répétée).
   const busy = (form, on) => {
@@ -285,7 +294,7 @@ export function createHubCatalogUI(ctx) {
     else if (action === 'rec-toggle') {
       const s = schedules(data()).find(x => x.id === id); if (!s) return;
       await store.upsert('integrationImports', {...s, active: !s.active}, {label: s.active ? `Récurrence suspendue : ${s.label}` : `Récurrence reprise : ${s.label}`});
-      toast(s.active ? 'Récurrence suspendue.' : 'Récurrence reprise.', 'success', {label: 'Annuler', run: async () => { await store.upsert('integrationImports', {...store.get('integrationImports', id), active: s.active}); if (doc.getElementById('bh-panel')) refresh(); }});
+      toast(s.active ? 'Récurrence suspendue.' : 'Récurrence reprise.', 'success', {label: 'Annuler', run: async () => { await store.upsert('integrationImports', {...store.get('integrationImports', id), active: s.active}, {label: s.active ? `Récurrence reprise : ${s.label}` : `Récurrence suspendue : ${s.label}`}); if (doc.getElementById('bh-panel')) refresh(); }});
       refresh();
     } else if (action === 'rec-generate') await generate(id);
     else if (action === 'rec-emit') {

@@ -216,7 +216,9 @@ service cloud.firestore {
           && (!('serverUpdatedAt' in d) || d.serverUpdatedAt == request.time)
           && d.entityType is string && d.entityType.size() > 0 && d.entityType.size() <= 64
           && (d.entityId is string || d.entityId is number)
+          // Même règle que SAFE_ID (state.js) : un id ne contient jamais de quoi sortir d'un attribut HTML.
           && string(d.entityId).size() > 0 && string(d.entityId).size() <= 256
+          && !string(d.entityId).matches(".*[<>\"'`].*")
           && docId == d.entityType + '__' + string(d.entityId)
           && (d.payload == null || (d.payload is map && d.payload.keys().size() <= 500))
           // La racine du payload n'est jamais échappée par encodeCloudPayload (sync.js) : un payload racine

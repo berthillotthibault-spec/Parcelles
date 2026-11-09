@@ -3,6 +3,8 @@ import {html, raw} from './safe-html.js';
 import {emptyState} from './ui.js';
 import {buildTimeline, filterTimeline, facets, timelineCsv, registerBlocks, entityLabel, actionLabel} from './activity.js';
 import {flowPdf, pdfFile, sharePdf} from './pdf-lite.js';
+import {EVENT_KINDS} from './herd.js';
+import {localDay} from './home-priorities.js';
 
 const fmt = at => new Date(at).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'});
 
@@ -47,8 +49,10 @@ export function createActivityLogUI({store, state, sync, modal, toast, openParce
     const r = rows.find(x => x.id === id); if (!r?.entityType || !r.entityId) return;
     if (r.entityType === 'parcelles' && store.get('parcelles', r.entityId)) { openParcel(r.entityId, 'history'); return; }
     const entity = lookup(r.entityType, r.entityId);
-    const title = entity?.nom || entity?.title || entity?.type || entity?.name || entityLabel(r.entityType);
-    modal(`${entityLabel(r.entityType)} · ${title}`, `${actionLabel(r.action)} le ${fmt(r.at)}`,
+    // Fiche sans nom (événement d'élevage : seul « kind ») : libellé du kind, ou le type seul, jamais deux fois.
+    const label = entityLabel(r.entityType);
+    const title = entity?.nom || entity?.title || entity?.type || entity?.name || EVENT_KINDS[entity?.kind] || entity?.kind || '';
+    modal(title && title !== label ? `${label} · ${title}` : label, `${actionLabel(r.action)} le ${fmt(r.at)}`,
       `${entity?.deletedAt ? '<p class="notice warning">Cet élément est dans la corbeille.</p>' : ''}<div id="activity-history" class="history-panel"></div>`,
       `<button class="button secondary" data-action="open-log">Retour à l’activité</button>${r.parcelId && store.get('parcelles', r.parcelId) ? `<button class="button primary" id="activity-open-parcel">Ouvrir la parcelle</button>` : ''}`);
     historyUI?.mount($('#activity-history'), r.entityType, r.entityId);
@@ -58,7 +62,7 @@ export function createActivityLogUI({store, state, sync, modal, toast, openParce
   async function exportPdf() {
     const name = 'Registre des modifications';
     try {
-      const file = pdfFile(flowPdf(registerBlocks(current(), {farm: state().preferences?.farmName || '', filters: filterText(), parcelName}), {title: name, footer: name}), name);
+      const file = pdfFile(flowPdf(registerBlocks(current(), {farm: state().exploitation?.nom || state().exploitation?.name || '', filters: filterText(), parcelName}), {title: name, footer: name}), name);
       const result = await sharePdf(file, {title: name});
       if (result !== 'cancelled') toast(result === 'shared' ? 'PDF partagé.' : 'PDF téléchargé.');
     } catch (error) { toast(`PDF impossible : ${error.message}`, 'error'); }
@@ -74,7 +78,7 @@ export function createActivityLogUI({store, state, sync, modal, toast, openParce
     $('#activity-filters')?.addEventListener('input', event => { const f = event.currentTarget; filters = Object.fromEntries(new FormData(f)); refreshList(); });
     $('#activity-filters')?.addEventListener('submit', event => event.preventDefault());
     $('#activity-list')?.addEventListener('click', event => { const b = event.target.closest('[data-activity-id]'); if (b && !b.disabled) openEntry(b.dataset.activityId); });
-    $('#activity-csv')?.addEventListener('click', () => download(`parcelles-activite-${new Date().toISOString().slice(0, 10)}.csv`, timelineCsv(current(), {parcelName}), 'text/csv;charset=utf-8'));
+    $('#activity-csv')?.addEventListener('click', () => download(`parcelles-activite-${localDay()}.csv`, timelineCsv(current(), {parcelName}), 'text/csv;charset=utf-8'));
     $('#activity-pdf')?.addEventListener('click', exportPdf);
   }
   return {open, openEntry, get rows() { return rows; }};

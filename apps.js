@@ -184,10 +184,10 @@ export function startScreen(lastApp, visibleIds = APP_IDS) {
 /**
  * Alertes d'une appli (n° 161, étape 3) : tri des lignes de computeNotifications (notifications.js) selon
  * l'appli qu'elles concernent. Champs a déjà son accueil ; la facturation a son propre résumé (hubTodo).
- * @type {Record<string, (row: {id: string, entity?: string}) => boolean>}
+ * @type {Record<string, (row: {id: string, entity?: string, kind?: string}) => boolean>}
  */
 export const ALERT_RULES = {
-  troupeau: row => row.entity === 'grazingSessions' || row.id.startsWith('grazing'),
+  troupeau: row => row.entity === 'grazingSessions' || row.id.startsWith('grazing') || (row.entity === 'tasks' && row.kind === 'bdni'),
   materiel: row => row.entity === 'materiels',
   gestion: row => row.entity === 'stockItems',
   reglementaire: row => row.id.startsWith('deadline-'),

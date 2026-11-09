@@ -5,10 +5,18 @@ import {appBaseUrl, labelSheetPdf, qrLink} from './qr-labels.js';
 import {pdfFile, sharePdf} from './pdf-lite.js';
 import {routeUrl} from './utils.js';
 import {icon} from './ui.js';
+import {FUEL_KIND, validateFill} from './fuel.js';
+import {saveFarmRecord} from './farm-records.js';
 
 const LABEL_POINT_TYPES = /entree|eau|abreuv|portail|regard|equipement|autre/;
 const fold = v => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const num = v => v === null || v === undefined || String(v).trim() === '' ? null : Number.isFinite(Number(String(v).replace(',', '.'))) ? Number(String(v).replace(',', '.')) : NaN;
+
+// Plein scanné : même enregistrement qu’un plein d’engin de l’écran Carburant GNR (farmKind « fuel »).
+export function qrFuelFill(m, {liters, meter = null, cost = null, fromTank = true}, today) {
+  const current = num(m.currentMeter);
+  return validateFill({date: today, litres: liters, meter, amount: cost, equipmentId: m.id, fromTank}, {entry: 'machine', currentMeter: current !== null && Number.isFinite(current) ? current : null, today});
+}
 
 export function createEquipmentQrUI(deps) {
   const {store, state, active, modal, closeModal, toast, escapeHtml: e, todayIso, formatNumber, openMaintenanceForm, openEquipmentDetail, openAttachmentForm, openObservationForm, openMapPointEditor, showPoint} = deps;
@@ -67,14 +75,16 @@ export function createEquipmentQrUI(deps) {
 
   function openFuel(id) {
     const m = store.get('materiels', id);
-    modal('Plein', m.nom, `<form id="qr-fuel-form" class="form-grid"><label>Litres *<input name="liters" inputmode="decimal" autocomplete="off" required></label><label>Compteur (h)<input name="meter" inputmode="decimal" autocomplete="off" value="${e(m.currentMeter ?? '')}"></label><label class="span-2">Coût (€)<input name="cost" inputmode="decimal" autocomplete="off"></label><p class="form-error span-2 hidden" id="qr-fuel-error" role="alert"></p></form>`,
+    modal('Plein', m.nom, `<form id="qr-fuel-form" class="form-grid"><label>Litres *<input name="liters" inputmode="decimal" autocomplete="off" required></label><label>Compteur (h)<input name="meter" inputmode="decimal" autocomplete="off" value="${e(m.currentMeter ?? '')}"></label><label class="span-2">Coût (€)<input name="cost" inputmode="decimal" autocomplete="off"></label><label class="span-2"><input type="checkbox" name="fromTank" checked> Pris à la cuve</label><p class="form-error span-2 hidden" id="qr-fuel-error" role="alert"></p></form>`,
       `<button class="button secondary" id="qr-cancel">Annuler</button><button class="button primary" id="qr-save">Enregistrer</button>`, 'small');
     $('qr-cancel').onclick = () => openSheet(id);
     $('qr-save').onclick = guard(async () => {
       const v = Object.fromEntries(new FormData($('qr-fuel-form'))), liters = num(v.liters), meter = num(v.meter), cost = num(v.cost);
       if (liters === null) return fail('qr-fuel-error', 'Champ obligatoire : Litres');
       if (Number.isNaN(liters) || liters <= 0 || Number.isNaN(meter) || Number.isNaN(cost)) return fail('qr-fuel-error', 'Valeur invalide : saisissez des nombres positifs.');
-      await store.upsert('maintenanceRecords', {equipmentId: id, date: todayIso(), type: 'Plein', liters, meter, cost: cost ?? 0, note: `${formatNumber(liters)} L`, nextDue: null}, {label: `Plein enregistré : ${m.nom}`});
+      const res = qrFuelFill(store.get('materiels', id), {liters, meter, cost, fromTank: $('qr-fuel-form').elements.fromTank.checked}, todayIso());
+      if (res.error) return fail('qr-fuel-error', res.error);
+      await saveFarmRecord(store, FUEL_KIND, {...res.value, name: `Plein ${m.nom || 'engin'} ${res.value.date}`});
       await raiseMeter(store.get('materiels', id), meter);
       back(id, `Plein enregistré : ${formatNumber(liters)} L.`);
     });

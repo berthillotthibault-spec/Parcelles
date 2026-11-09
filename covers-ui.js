@@ -1,6 +1,7 @@
 // n° 74 — Couverts et intercultures (CIPAN) : champs facultatifs du formulaire de rotation,
 // écran de suivi par campagne avec alertes et réglages des dates.
-import {campaignFor,escapeHtml,isoDate,localDate} from './utils.js';
+import {campaignFor,escapeHtml,localDate} from './utils.js';
+import {localDay} from './home-priorities.js';
 import {validateForm} from './form-chips-ui.js';
 import {COVER_DEFAULTS,COVER_SOURCE,COVER_VERIFY,DESTRUCTION_MODES,coverRows,coverSettings,intercultureError,minDestructionDate,normalizeInterculture} from './covers.js';
 import {rotationFor} from './nitrogen.js';
@@ -10,7 +11,7 @@ const shift=(c,d)=>{const y=Number(String(c).slice(0,4))+d;return`${y}/${String(
 
 export function createCoversUI({store,modal,toast,bindChipChoices}){
   const $=selector=>document.querySelector(selector);
-  const today=()=>isoDate(new Date());
+  const today=()=>localDay();
   let campaign=campaignFor();
 
   // Champs du formulaire de rotation (préfixe ic_), repliés tant qu’aucun couvert n’est saisi.

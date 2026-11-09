@@ -12,7 +12,7 @@ const LEVEL = {risque: 'Risque', surveiller: 'À surveiller'};
 const FIELDS = [
   ['septoria', 'rainMm', 'Septoriose : pluie contaminatrice (mm)', 1], ['septoria', 'riskEvents', 'Septoriose : pluies pour « risque »', 1],
   ['maizeLeaf', 'rhMin', 'Maïs : humidité d’humectation (%)', 1], ['maizeLeaf', 'watchHours', 'Maïs : heures pour « surveiller »', 1], ['maizeLeaf', 'riskHours', 'Maïs : heures pour « risque »', 1],
-  ['sclerotinia', 'rhMin', 'Colza : humidité moyenne (%)', 1], ['sclerotinia', 'riskDays', 'Colza : jours humides pour « risque »', 1],
+  ['sclerotinia', 'rhMin', 'Colza : humidité moyenne (%)', 1], ['sclerotinia', 'watchDays', 'Colza : jours humides pour « surveiller »', 1], ['sclerotinia', 'riskDays', 'Colza : jours humides pour « risque »', 1],
   ['thi', 'watch', 'Bovins : THI « surveiller »', 1], ['thi', 'risk', 'Bovins : THI « risque »', 1]
 ];
 
@@ -72,6 +72,16 @@ export function createAgroRiskUI({store, state, modal, closeModal, toast, agro, 
       if (!validateForm(form)) return;
       const out = {};
       for (const [k, f] of FIELDS) (out[k] ||= {})[f] = Number(form.elements[`${k}.${f}`].value);
+      // Le seuil « surveiller » ne doit pas dépasser le seuil « risque », sinon des alertes disparaissent.
+      const bad = [['maizeLeaf', 'watchHours', 'riskHours', 'Maïs'], ['sclerotinia', 'watchDays', 'riskDays', 'Colza'], ['thi', 'watch', 'risk', 'THI']].find(([k, w, r]) => out[k][w] > out[k][r]);
+      let err = form.querySelector('.form-error');
+      if (bad) {
+        if (!err) {err = doc.createElement('p'); err.className = 'form-error'; err.setAttribute('role', 'alert'); form.append(err);}
+        err.textContent = `${bad[3]} : le seuil « surveiller » doit être inférieur ou égal au seuil « risque ».`;
+        form.elements[`${bad[0]}.${bad[1]}`].focus();
+        return;
+      }
+      err?.remove();
       await store.setPreferences({agroRiskThresholds: out});
       closeModal(); toast('Seuils des alertes enregistrés.', 'success'); renderHome();
     };

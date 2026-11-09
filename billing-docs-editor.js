@@ -22,7 +22,7 @@ const prefPreview = () => { try { return globalThis.localStorage?.getItem(PREVIE
 const setPrefPreview = on => { try { globalThis.localStorage?.setItem(PREVIEW_PREF, on ? 'on' : 'off'); } catch { /* préférence non gardée */ } };
 const wide = () => { try { return globalThis.matchMedia?.(WIDE).matches || false; } catch { return false; } };
 const hhmm = at => { const d = new Date(at), p = n => String(n).padStart(2, '0'); return `${p(d.getHours())}:${p(d.getMinutes())}`; };
-const noToolbar = doc => String(doc).replace('</head>', '<style>.dz-toolbar,#print{display:none!important}body{margin:0}</style></head>');
+const noToolbar = doc => String(doc).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '').replace('</head>', '<style>.dz-toolbar,#print{display:none!important}body{margin:0}</style></head>');
 const $ = (sel, root = globalThis.document) => root?.querySelector(sel) || null;
 
 export function createDocsEditor(ui) {
@@ -200,6 +200,8 @@ export function createDocsEditor(ui) {
       <button type="button" class="icon-button bd-tool" data-bdoc="line-move" data-dir="1" aria-label="${`Descendre la ligne ${n}`}"${raw(i === count - 1 ? ' disabled' : '')}>&#8595;</button>
       ${locked ? '' : html`<button type="button" class="icon-button bd-tool" data-bdoc="line-dup" aria-label="${`Dupliquer la ligne ${n}`}">&#10697;</button><button type="button" class="icon-button bd-tool bd-tool-del" data-bdoc="line-del" aria-label="${`Supprimer la ligne ${n}`}">&#10005;</button>`}</div>`;
   }
+  // Nombre repris (catalogue, travaux, brouillon) affiché à la française dans un champ : 2.5 → 2,5.
+  const decIn = v => (v === null || v === undefined || v === '') ? '' : String(v).replace('.', ',');
   function lineHtml(l, i, subtotals, count) {
     const k = lineKind(l), n = i + 1, drag = html`<span class="bd-drag" draggable="true" title="Glisser pour déplacer" aria-hidden="true">&#10303;</span>`;
     if (k === 'section') return html`<li class="bd-line is-section" data-line="${l.id}"><div class="bd-line-head">${drag}<strong class="bd-line-no">Section</strong>${toolsHtml(i, count, n)}</div><label>Titre de section<input data-f="label" value="${l.label || ''}" maxlength="200" placeholder="Ex. Terrassement"></label></li>`;
@@ -211,10 +213,10 @@ export function createDocsEditor(ui) {
     return html`<li class="bd-line" data-line="${l.id}"><div class="bd-line-head">${drag}<strong class="bd-line-no">Ligne ${n}</strong>${l.basis ? html`<small class="bd-basis">${l.basis}</small>` : ''}<span class="bd-line-amount" data-amount>${money(lineAmount(l))} HT</span>${toolsHtml(i, count, n)}</div>
       <div class="bd-line-grid">
         <label class="bd-f-label">Désignation *<input data-f="label" value="${l.label || ''}" maxlength="200"></label>
-        <label class="bd-f-qty">Quantité<input data-f="quantity" inputmode="decimal" value="${l.quantity ?? ''}"></label>
+        <label class="bd-f-qty">Quantité<input data-f="quantity" inputmode="decimal" value="${decIn(l.quantity)}"></label>
         <label class="bd-f-unit">Unité<select data-f="unit">${unitOptions(l.unit)}</select></label>
-        <label class="bd-f-price">Prix unitaire HT<input data-f="unitPrice" inputmode="decimal" value="${l.unitPrice ?? ''}" placeholder="À saisir"></label>
-        <label class="bd-f-disc">Remise %<input data-f="discountPct" inputmode="decimal" value="${l.discountPct ?? ''}" aria-invalid="${String(discountInvalid(l.discountPct))}"></label>
+        <label class="bd-f-price">Prix unitaire HT<input data-f="unitPrice" inputmode="decimal" value="${decIn(l.unitPrice)}" placeholder="À saisir"></label>
+        <label class="bd-f-disc">Remise %<input data-f="discountPct" inputmode="decimal" value="${decIn(l.discountPct)}" aria-invalid="${String(discountInvalid(l.discountPct))}"></label>
         <label class="bd-f-vat">TVA<select data-f="vatRate">${vatOptions(l.vatRate)}</select></label>
         <label class="bd-f-exo"${raw(zero ? '' : ' hidden')}>Motif du taux 0 %<select data-f="vatExemption">${exemptionOptions(l.vatExemption)}</select></label>
       </div>
@@ -497,10 +499,10 @@ export function createDocsEditor(ui) {
       rerenderLines(ed.lines[Math.min(i, ed.lines.length - 1)] ? `[data-line="${ed.lines[Math.min(i, ed.lines.length - 1)].id}"] [data-f]` : '[data-bdoc="line-add"]');
       ui.toast(`Ligne supprimée${removed.label ? ` : ${removed.label}` : ''}.`, 'success', {label: 'Annuler', run: () => { if (!ed || !isOpen()) return; const at = Math.min(i, ed.lines.length); ed.lines = [...ed.lines.slice(0, at), removed, ...ed.lines.slice(at)]; rerenderLines(`[data-line="${removed.id}"] [data-f]`); }});
     },
-    'price-apply': c => { const li = c.closest('[data-line]'), l = ed.lines.find(x => x.id === li?.dataset.line); if (!l) return; l.unitPrice = c.dataset.price; const input = li.querySelector('[data-f="unitPrice"]'); if (input) { input.value = c.dataset.price; input.focus(); } refreshHint(li, l); touch(); },
+    'price-apply': c => { const li = c.closest('[data-line]'), l = ed.lines.find(x => x.id === li?.dataset.line); if (!l) return; l.unitPrice = c.dataset.price; const input = li.querySelector('[data-f="unitPrice"]'); if (input) { input.value = decIn(c.dataset.price); input.focus(); } refreshHint(li, l); touch(); },
     panel: c => { panel = panel === c.dataset.panel ? '' : c.dataset.panel || ''; const box = $('#bd-panel'); if (box) box.innerHTML = String(panelHtml()); const bar = $('#bd-addbar'); if (bar) bar.innerHTML = String(addBarHtml()); if (panel) ui.focusSoon(panel === 'catalog' ? '[name="catalogQuery"], #bd-panel [data-bdoc="hub"]' : '#bd-panel [name="billPick"]'); else ui.focusSoon('[data-bdoc="panel"]'); },
     'catalog-pick': c => { const item = catalogItems(ui.state()).find(i => i.id === c.dataset.item); if (!item) return; addLines([catalogLine(item, {clientId: ed.clientId || null})]); ui.toast(`Ajouté : ${item.label}.`, 'success'); },
-    'billable-add': () => { const keys = new Set([...globalThis.document.querySelectorAll('[name="billPick"]:checked')].map(i => i.value)); const lines = billablePicks(ui.state(), ed).filter(it => keys.has(it.key)).map(it => it.line); if (!lines.length) { ui.toast('Cochez au moins une prestation.', 'info'); return; } panel = ''; const box = $('#bd-panel'); if (box) box.innerHTML = ''; addLines(lines, {focusFirst: false}); ui.toast(`${plural(lines.length, 'prestation ajoutée', 'prestations ajoutées')}.`, 'success'); },
+    'billable-add': () => { const keys = new Set([...globalThis.document.querySelectorAll('[name="billPick"]:checked')].map(i => i.value)); const lines = billablePicks(ui.state(), ed).filter(it => keys.has(it.key)).map(it => it.line); if (!lines.length) { ui.toast('Cochez au moins une prestation.', 'info'); return; } panel = ''; const box = $('#bd-panel'); if (box) box.innerHTML = ''; addLines(lines); ui.toast(`${plural(lines.length, 'prestation ajoutée', 'prestations ajoutées')}.`, 'success'); },
     quick: () => {
       const text = String($('[name="quickText"]')?.value || '').trim();
       if (!text) { ui.toast('Écrivez par exemple « 3 h de pelle à 65 € ».', 'info'); $('[name="quickText"]')?.focus(); return; }

@@ -1,5 +1,6 @@
 // n° 55 — Plus › Conformité : voyants par obligation, action corrective et dossier de contrôle.
-import {escapeHtml,isoDate,normalize} from './utils.js';
+import {escapeHtml,normalize} from './utils.js';
+import {localDay} from './home-priorities.js';
 import {
   COMPLIANCE_DISCLAIMER,complianceChecks,complianceSettings,complianceSummary,controlDossierHtml,phytoOperators,sprayers
 } from './compliance.js';
@@ -12,7 +13,7 @@ const ITEMS_SHOWN=5;
 
 export function createComplianceUI({store,modal,closeModal,toast,bindChipChoices,openPrintableReport}){
   const $=selector=>document.querySelector(selector);
-  const today=()=>isoDate(new Date());
+  const today=()=>localDay();
 
   function actionButton(check){
     const a=check.action;if(!a)return'';

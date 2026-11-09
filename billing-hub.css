@@ -5,6 +5,8 @@
 .bh{display:grid;gap:14px;min-width:0}
 .bh-tabs{position:relative;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px;margin:-2px;border-bottom:1px solid var(--line)}
 .bh-tabs::-webkit-scrollbar{display:none}
+/* Téléphone : fondu à droite pour signaler les onglets hors écran (même motif que #today-quick-actions). */
+@media (max-width:599px){.bh-tabs{-webkit-mask-image:linear-gradient(90deg,black calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,black calc(100% - 36px),transparent);scroll-padding-inline:16px;padding-inline-end:36px}}
 .bh-tab{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:8px 14px;border:0;border-bottom:3px solid transparent;background:none;color:var(--text-secondary);font:inherit;font-weight:650;cursor:pointer;border-radius:10px 10px 0 0}
 .bh-tab:hover{color:var(--text-primary);background:var(--tile)}
 .bh-tab.is-on{color:var(--text-primary);border-bottom-color:var(--brand)}

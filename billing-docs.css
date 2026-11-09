@@ -110,9 +110,10 @@
 .bd-tool{width:36px;height:36px;min-width:36px;display:inline-grid;place-items:center;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);color:var(--text-primary);font-size:16px}
 .bd-tool:disabled{opacity:.35;cursor:default}
 .bd-tool-del{color:var(--danger)}
-.bd-line-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px 10px}
+.bd-line-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px 10px;align-items:end}
 .bd-f-label{grid-column:1/-1}
 .bd-f-exo{grid-column:span 2}
+.bd-f-unit{grid-column:span 2}
 .bd-line-more summary{cursor:pointer;font-size:13px;color:var(--text-secondary);min-height:32px;display:flex;align-items:center}
 .bd-hint{margin:0;font-size:13px;color:var(--text-secondary)}
 .bd-hint:empty{display:none}
@@ -196,6 +197,7 @@
   .bd-quick{grid-template-columns:1fr}
   .bd-line-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .bd-f-exo{grid-column:1/-1}
+  .bd-f-unit{grid-column:auto}
   .bd-sec{padding:12px}
   .bd-row-actions{justify-content:flex-start}
   .bd-row-actions .small-button{flex:1 1 auto}

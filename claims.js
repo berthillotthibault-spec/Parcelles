@@ -46,9 +46,10 @@ export function estimateLoss({areaHa,expectedYield,yieldUnit='t/ha',lossPct,pric
   return{tonnes,euros:perT===null?null:r2(tonnes*perT)};
 }
 
-export function validateClaim(v){
+export function validateClaim(v,{today}={}){
   if(!CLAIM_CAUSES.some(c=>c[0]===v.cause))return{error:'Choisissez la nature du sinistre.'};
   if(!/^\d{4}-\d{2}-\d{2}$/.test(String(v.date||'')))return{error:'Date du sinistre invalide.'};
+  if(today&&String(v.date)>String(today))return{error:'La date du sinistre ne peut pas être dans le futur.'};
   const loss=num(v.lossPct);if(loss!==null&&(loss<0||loss>100))return{error:'Taux de perte entre 0 et 100 %.'};
   for(const k of ['areaHa','expectedYield','price','areaPct','indemnity'])if(num(v[k])!==null&&num(v[k])<0)return{error:'Valeurs négatives impossibles.'};
   if(v.areaMode==='parcelle'&&num(v.areaPct)!==null&&num(v.areaPct)>100)return{error:'Part de la parcelle entre 0 et 100 %.'};

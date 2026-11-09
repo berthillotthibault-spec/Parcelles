@@ -19,9 +19,9 @@ const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}),n1=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:1}),n2=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2});
 const nbsp=s=>s.replace(/[\u00a0 ]/g,NB);
 const minus=s=>s.replace(/^-/,'\u2212');
-export const eur=v=>num(v)===null?'—':`${minus(nbsp(n0.format(Math.round(v))))}${NB}€`;
-const perT=v=>num(v)===null?'—':`${minus(nbsp(n0.format(v)))}${NB}€/t`;
-const perHa=v=>num(v)===null?'—':`${minus(nbsp(n0.format(v)))}${NB}€/ha`;
+export const eur=v=>num(v)===null?'—':`${minus(nbsp(n0.format(Math.round(v)||0)))}${NB}€`;
+const perT=v=>num(v)===null?'—':`${minus(nbsp(n0.format(Math.round(v)||0)))}${NB}€/t`;
+const perHa=v=>num(v)===null?'—':`${minus(nbsp(n0.format(Math.round(v)||0)))}${NB}€/ha`;
 const ha=v=>`${nbsp(n2.format(v||0))}${NB}ha`;
 const tonnes=v=>`${nbsp(n1.format(v||0))}${NB}t`;
 const pct=v=>`${n0.format(Math.round((v||0)*100))}${NB}%`;
@@ -74,6 +74,8 @@ export function assolement(state,campaign){
 export function cascade(pilotage,costs){
   // n° 85 : marginModel exclut de la marge les parcelles sans produit ; la cascade reste additive.
   const structure=costs.rows.reduce((s,r)=>s+(r.structure||0),0),margin=pilotage.grossProduct-pilotage.charges;
+  // Aucun produit connu : marge inconnue, pas de cascade chiffrée (un montant inconnu n’est jamais 0 €).
+  if(pilotage.margin===null)return{steps:[],structure,net:null,unknown:true};
   const steps=[
     {id:'product',label:'Produit brut estimé',value:pilotage.grossProduct,kind:'total'},
     {id:'charges',label:'Charges opérationnelles',value:-pilotage.charges,kind:'delta'},
@@ -143,7 +145,7 @@ export function expectedReceipts(state,campaign){
 export function dossierModel(state,{campaign=campaignFor(),preset='banque',sections=null,today=new Date()}={}){
   const p=presetById(preset),list=(sections||p.sections).filter(id=>DOSSIER_SECTIONS.some(s=>s.id===id));
   const pilotage=buildPilotage(state,{campaign}),costs=costPriceByCulture(state,{campaign}),parcels=ownParcels(state);
-  const history=[campaignShift(campaign,-2),campaignShift(campaign,-1),campaign].map(c=>{const b=buildPilotage(state,{campaign:c});const hasData=b.charges>0||b.grossProduct>0;return{campaign:c,grossProduct:b.grossProduct,charges:b.charges,margin:b.grossProduct-b.charges,area:b.area,hasData};});
+  const history=[campaignShift(campaign,-2),campaignShift(campaign,-1),campaign].map(c=>{const b=buildPilotage(state,{campaign:c});const hasData=b.charges>0||b.grossProduct>0;return{campaign:c,grossProduct:b.grossProduct,charges:b.charges,margin:b.margin??null,area:b.area,hasData};});
   const charges=chargesDetail(state,campaign);
   return{
     farm:{name:String(state.exploitation?.nom||'').trim()||'Mon exploitation',commune:String(state.exploitation?.commune||'').trim()},
@@ -184,9 +186,9 @@ export function cascadeSvg(steps,{width=560,height=230}={}){
 }
 
 function historySvg(history,{width=560,height=220}={}){
-  const series=[['grossProduct','Produit','#2f6b4a'],['charges','Charges','#c99a5b'],['margin','Marge','#4f7fa8']],vals=history.flatMap(h=>h.hasData?series.map(([k])=>h[k]):[0]);
+  const series=[['grossProduct','Produit','#2f6b4a'],['charges','Charges','#c99a5b'],['margin','Marge','#4f7fa8']],vals=history.flatMap(h=>h.hasData?series.map(([k])=>h[k]??0):[0]);
   const lo=Math.min(0,...vals),hi=Math.max(1,...vals),top=18,bottom=34,plot=height-top-bottom,y=v=>top+(hi-v)/(hi-lo)*plot,colW=width/history.length,bw=colW/5;
-  const groups=history.map((h,i)=>{const x0=i*colW+colW/2-bw*1.5;return(h.hasData?series.map(([k,,c],j)=>{const v=h[k],y1=y(Math.max(0,v)),y2=y(Math.min(0,v));return`<rect x="${(x0+j*bw).toFixed(1)}" y="${y1.toFixed(1)}" width="${(bw-3).toFixed(1)}" height="${Math.max(1,y2-y1).toFixed(1)}" rx="2" fill="${c}"/>`;}).join(''):`<text x="${(i*colW+colW/2).toFixed(1)}" y="${(y(0)-8).toFixed(1)}" text-anchor="middle" class="dz-t dz-small">Aucune donnée</text>`)+`<text x="${(i*colW+colW/2).toFixed(1)}" y="${height-12}" text-anchor="middle" class="dz-t">${esc(h.campaign)}</text>`;}).join('');
+  const groups=history.map((h,i)=>{const x0=i*colW+colW/2-bw*1.5;return(h.hasData?series.map(([k,,c],j)=>{const v=h[k];if(v===null||v===undefined)return'';const y1=y(Math.max(0,v)),y2=y(Math.min(0,v));return`<rect x="${(x0+j*bw).toFixed(1)}" y="${y1.toFixed(1)}" width="${(bw-3).toFixed(1)}" height="${Math.max(1,y2-y1).toFixed(1)}" rx="2" fill="${c}"/>`;}).join(''):`<text x="${(i*colW+colW/2).toFixed(1)}" y="${(y(0)-8).toFixed(1)}" text-anchor="middle" class="dz-t dz-small">Aucune donnée</text>`)+`<text x="${(i*colW+colW/2).toFixed(1)}" y="${height-12}" text-anchor="middle" class="dz-t">${esc(h.campaign)}</text>`;}).join('');
   const legend=series.map(([,l,c],j)=>`<rect x="${j*110}" y="0" width="10" height="10" rx="2" fill="${c}"/><text x="${j*110+15}" y="9" class="dz-t dz-small">${l}</text>`).join('');
   return`<svg class="dz-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(history.map(h=>h.hasData?`${h.campaign} : produit ${eur(h.grossProduct)}, charges ${eur(h.charges)}, marge ${eur(h.margin)}`:`${h.campaign} : aucune donnée`).join(' ; '))}"><g>${legend}</g><line x1="0" x2="${width}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" stroke="#8a8f88"/>${groups}</svg>`;
 }
@@ -255,7 +257,7 @@ const SECTION_RENDER={
   synthese(m){
     const p=m.pilotage,c=m.completeness,area=m.assolement.total;
     const parts=[];if(c.unknown)parts.push(`${plural(c.unknown,'travail réalisé','travaux réalisés')} sans coût`);if(c.estimatedCount)parts.push(`${plural(c.estimatedCount,'coût estimé','coûts estimés')} (${eur(c.estimated)})`);if(c.withoutYield)parts.push(`${plural(c.withoutYield,'parcelle','parcelles')} sans rendement prévu`);
-    return`<p>Campagne ${esc(m.campaign)} : ${esc(plural(m.parcels.length,'parcelle','parcelles'))} pour ${esc(ha(area))}, ${esc(plural(m.assolement.rows.length,'culture','cultures'))}.</p><div class="dz-kpis">${kpi(ha(area),'surface exploitée')}${kpi(eur(p.grossProduct),'produit brut estimé')}${kpi(eur(p.charges),'charges opérationnelles')}${kpi(eur(p.margin),'marge brute estimée',p.margin<0)}${kpi(perHa(p.marginHa),'marge brute par hectare',p.marginHa<0)}${kpi(eur(m.cascade.net),'marge après structure (indicative)',m.cascade.net<0)}</div>
+    return`<p>Campagne ${esc(m.campaign)} : ${esc(plural(m.parcels.length,'parcelle','parcelles'))} pour ${esc(ha(area))}, ${esc(plural(m.assolement.rows.length,'culture','cultures'))}.</p><div class="dz-kpis">${kpi(ha(area),'surface exploitée')}${kpi(eur(p.grossProduct),'produit brut estimé')}${kpi(eur(p.charges),'charges opérationnelles')}${kpi(eur(p.margin),'marge brute estimée',p.margin<0)}${kpi(perHa(p.marginHa),'marge brute par hectare',p.marginHa<0)}${kpi(eur(m.cascade.net===null?null:m.cascade.net),'marge après structure (indicative)',m.cascade.net<0)}</div>
 ${parts.length?`<p class="dz-note"><strong>Données incomplètes.</strong> ${esc(parts.join(' · '))}. Les montants correspondants sont sous-estimés ou estimés.</p>`:'<p class="dz-note">Tous les travaux réalisés de la campagne ont un coût renseigné.</p>'}`;
   },
   assolement(m){
@@ -266,6 +268,7 @@ ${parts.length?`<p class="dz-note"><strong>Données incomplètes.</strong> ${esc
   },
   cascade(m){
     const s=m.cascade,c=m.costs;
+    if(s.unknown)return'<p class="dz-note">Produit brut inconnu (aucun rendement ni prix saisi) : la cascade n’est pas calculée.</p>';
     return`<figure>${cascadeSvg(s.steps)}<figcaption>Cascade indicative de la campagne ${esc(m.campaign)}.</figcaption></figure>${table(['Poste','n:Montant','n:Par hectare'],s.steps.map(x=>tr([x.kind==='total'?`<strong>${esc(x.label)}</strong>`:esc(x.label),[esc(eur(x.value))],[esc(perHa(m.assolement.total?x.value/m.assolement.total:null))]])))}
 <p class="dz-note">Charges de structure : amortissements et assurances du matériel (${esc(eur(c.machineFixed.total))} par an, ${esc(plural(c.machineFixed.count,'matériel','matériels'))})${c.structureCostHa?` et ${esc(perHa(c.structureCostHa))} saisis dans « Charges de structure »`:''}, répartis au prorata des surfaces. Fermages, main-d’œuvre permanente et frais financiers ne sont comptés que s’ils ont été saisis.</p>`;
   },
@@ -323,7 +326,7 @@ export function dossierHtml(state,{campaign=campaignFor(),preset='banque',sectio
   const foot=i=>`<footer class="dz-foot"><span>${esc(footer)}</span><span>page ${i}/${total}</span></footer>`;
   const cover=`<section class="page dz-cover" aria-label="Couverture"><div class="dz-body"><p class="dz-eyebrow">Dossier de campagne · ${esc(m.preset.label)}</p><h1>${esc(m.farm.name)}</h1><p class="dz-sub">Campagne ${esc(m.campaign)}${m.farm.commune?` · ${esc(m.farm.commune)}`:''}</p>
 ${map?`<figure>${map}<ul class="dz-legend">${legend}</ul><figcaption>Parcellaire de l’exploitation, coloré par culture.</figcaption></figure>`:'<p class="dz-note">Aucune parcelle dessinée : la carte miniature n’est pas disponible.</p>'}
-<div class="dz-kpis">${kpi(ha(m.assolement.total),plural(m.parcels.length,'parcelle','parcelles'))}${kpi(eur(m.pilotage.grossProduct),'produit brut estimé')}${kpi(eur(m.cascade.net+m.cascade.structure),'marge brute estimée',m.cascade.net+m.cascade.structure<0)}</div>
+<div class="dz-kpis">${kpi(ha(m.assolement.total),plural(m.parcels.length,'parcelle','parcelles'))}${kpi(eur(m.pilotage.grossProduct),'produit brut estimé')}${kpi(eur(m.pilotage.margin),'marge brute estimée',m.pilotage.margin<0)}</div>
 <h3>Sommaire</h3><ol class="dz-toc">${m.sections.map(id=>`<li>${esc(sectionLabel(id))}</li>`).join('')}</ol>
 <p class="muted"><small>Généré le ${esc(longDate(m.generatedAt))} par Parcelles, hors connexion, à partir des données saisies. Montants indicatifs.</small></p></div>${foot(1)}</section>`;
   const pages=m.sections.map((id,i)=>`<section class="page" id="dz-${id}" aria-labelledby="dz-h-${id}"><div class="dz-body"><h2 id="dz-h-${id}">${i+1}. ${esc(sectionLabel(id))}</h2>${SECTION_RENDER[id](m)}</div>${foot(i+2)}</section>`).join('');

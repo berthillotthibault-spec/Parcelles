@@ -5,7 +5,10 @@
 import {canMutate, roleLabel} from './permissions.js';
 import {grazingDate, grazingStatus, grazingTotal, grazingType} from './grazing.js';
 import {OBSERVATION_TYPES} from './voice-grammar.js';
-import {campaignFor, normalize, toNumber} from './utils.js';
+import {campaignFor, localDate, normalize, toNumber} from './utils.js';
+
+// Date lisible ; midi local pour éviter le décalage UTC de new Date('AAAA-MM-JJ').
+const dayLabel = day => localDate(`${day}T12:00:00`);
 
 export const NEW_WRITE_ACTIONS = Object.freeze(['create_observation', 'stock_movement', 'grazing_exit', 'plan_works']);
 export const SEVERITIES = Object.freeze({info: 'Information', warning: 'À surveiller', urgent: 'Urgent'});
@@ -53,7 +56,7 @@ function observationDraft(state, payload, {today}) {
   const type = OBSERVATION_TYPES.includes(payload.type) ? payload.type : 'Observation';
   const after = {parcelId: parcel?.id || '', date, type, title, note: text(payload.note, 1000), severity, status: 'À surveiller', latitude: null, longitude: null, accuracy: null, resolvedAt: null, source: 'assistant-remote'};
   return {ok: true, title: 'Nouvelle observation', writes: [{entity: 'observations', action: 'create', before: null, after}],
-    rows: [row('Parcelle', '', parcel?.nom || 'Aucune'), row('Titre', '', title), row('Type', '', type), row('Niveau', '', SEVERITIES[severity]), row('Date', '', date), ...(after.note ? [row('Note', '', after.note)] : [])]};
+    rows: [row('Parcelle', '', parcel?.nom || 'Aucune'), row('Titre', '', title), row('Type', '', type), row('Niveau', '', SEVERITIES[severity]), row('Date', '', dayLabel(date)), ...(after.note ? [row('Note', '', after.note)] : [])]};
 }
 
 function stockDraft(state, payload, {today}) {
@@ -106,7 +109,7 @@ function planDraft(state, payload, {today}) {
     if (!isDay(day) || day < today) return fail(`Travail ${index + 1} : date prévue invalide (aujourd’hui ou plus tard).`);
     const after = {parcelId: parcel.id, type, date: day, plannedDate: day, status: 'À faire', surfaceWorked: toNumber(parcel.surfaceHa), cost: 0, campaignId: campaignFor(day), note: text(entry.note, 500), source: 'assistant-remote'};
     writes.push({entity: 'interventions', action: 'create', before: null, after});
-    rows.push(row(`${type} · ${parcel.nom}`, '', `à faire le ${day}`));
+    rows.push(row(`${type} · ${parcel.nom}`, '', `à faire le ${dayLabel(day)}`));
   }
   return {ok: true, title: `${writes.length} ${writes.length > 1 ? 'travaux' : 'travail'} à planifier`, writes, rows};
 }

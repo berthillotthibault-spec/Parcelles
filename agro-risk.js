@@ -44,6 +44,8 @@ const pad = n => String(n).padStart(2, '0');
 export const localHour = ms => {const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;};
 const addDays = (iso, n) => {const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10);};
 const short = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const monthName = n => MONTHS[n - 1] || String(n);
 const fr = v => formatNumber(Math.round(v * 10) / 10);
 
 function hoursBetween(hourly, from, to) {
@@ -84,8 +86,8 @@ export function evaluateAgroRisks(state = {}, agro = null, {now = Date.now(), th
       const level = events.length >= s.riskEvents ? 'risque' : 'surveiller';
       const data = events.map(d => `${short(d.date)} : ${fr(d.rain)} mm${d.date > today ? ' (prévue)' : ''}`).join(', ');
       for (const p of wheat) alerts.push(base('septoria', level, {id: `septoria:${p.id}:${today}`, parcelId: p.id,
-        title: `${p.nom} · septoriose à surveiller`, message: `${events.length} pluie${events.length > 1 ? 's' : ''} d’au moins ${s.rainMm} mm sur ${p.nom} : conditions favorables à la septoriose. Observez les feuilles du bas.`,
-        rule: `Pluie journalière ≥ ${s.rainMm} mm entre J-${s.lookbackDays} et J+${s.aheadDays}, de ${s.months[0]} à ${s.months.at(-1)} ; ${s.riskEvents} pluies ou plus = risque.`, data}));
+        title: `${p.nom} · ${level === 'risque' ? 'risque de septoriose' : 'septoriose à surveiller'}`, message: `${events.length} pluie${events.length > 1 ? 's' : ''} d’au moins ${s.rainMm} mm sur ${p.nom} : conditions favorables à la septoriose. Observez les feuilles du bas.`,
+        rule: `Pluie journalière ≥ ${s.rainMm} mm entre J-${s.lookbackDays} et J+${s.aheadDays}, de ${monthName(s.months[0])} à ${monthName(s.months.at(-1))} ; ${s.riskEvents} pluies ou plus = risque.`, data}));
     }
   }
   // Maïs : helminthosporiose et rouille.
@@ -93,7 +95,7 @@ export function evaluateAgroRisks(state = {}, agro = null, {now = Date.now(), th
   const maize = parcelsOf(state, p => profileKey(p.culture) === 'mais');
   if (maize.length && m.months.includes(month) && agro.hourly?.time?.length) {
     const spell = longestWetSpell(hoursBetween(agro.hourly, `${addDays(today, -3)}T00:00`, `${addDays(today, 3)}T00:00`), m);
-    if (spell.hours >= m.watchHours) {
+    if (spell.hours >= Math.min(m.watchHours, m.riskHours)) {
       const level = spell.hours >= m.riskHours ? 'risque' : 'surveiller';
       for (const p of maize) alerts.push(base('maizeLeaf', level, {id: `maizeLeaf:${p.id}:${today}`, parcelId: p.id,
         title: `${p.nom} · maladies foliaires du maïs`, message: `${spell.hours} h d’humectation entre ${m.tMin} et ${m.tMax} °C : conditions favorables à l’helminthosporiose et à la rouille sur ${p.nom}. Observez les feuilles.`,
@@ -114,11 +116,11 @@ export function evaluateAgroRisks(state = {}, agro = null, {now = Date.now(), th
       run = humid ? run + 1 : 0;
       if (run > best) {best = run; bestEnd = d.date;}
     }
-    if (best >= c.watchDays) {
+    if (best >= Math.min(c.watchDays, c.riskDays)) {
       const level = best >= c.riskDays ? 'risque' : 'surveiller';
       for (const p of rape) alerts.push(base('sclerotinia', level, {id: `sclerotinia:${p.id}:${today}`, parcelId: p.id,
-        title: `${p.nom} · sclérotinia à surveiller`, message: `${best} jours humides et doux d’affilée pendant la floraison du colza sur ${p.nom}. Vérifiez le stade et l’état des pétales.`,
-        rule: `En floraison (mois ${c.months.join(', ')}), jours consécutifs avec humidité moyenne ≥ ${c.rhMin} % et maximale de ${c.tMin} à ${c.tMax} °C : ${c.watchDays} = surveiller, ${c.riskDays} = risque.`,
+        title: `${p.nom} · ${level === 'risque' ? 'risque de sclérotinia' : 'sclérotinia à surveiller'}`, message: `${best} jours humides et doux d’affilée pendant la floraison du colza sur ${p.nom}. Vérifiez le stade et l’état des pétales.`,
+        rule: `En floraison (de ${monthName(c.months[0])} à ${monthName(c.months.at(-1))}), jours consécutifs avec humidité moyenne ≥ ${c.rhMin} % et maximale de ${c.tMin} à ${c.tMax} °C : ${c.watchDays} = surveiller, ${c.riskDays} = risque.`,
         data: `${best} jours jusqu’au ${short(bestEnd)} (J-5 à J+3)`}));
     }
   }
@@ -129,7 +131,7 @@ export function evaluateAgroRisks(state = {}, agro = null, {now = Date.now(), th
     const ahead = hoursBetween(agro.hourly, nowHour, localHour(now + tconf.aheadHours * 3600000));
     let peak = null;
     for (const h of ahead) {const v = thi(h.temp, h.rh); if (v !== null && (!peak || v > peak.v)) peak = {v, t: h.t, temp: h.temp, rh: h.rh};}
-    if (peak && peak.v >= tconf.watch) {
+    if (peak && peak.v >= Math.min(tconf.watch, tconf.risk)) {
       const level = peak.v >= tconf.risk ? 'risque' : 'surveiller';
       for (const lot of lots) {
         const parcel = (state.parcelles || []).find(p => p.id === lot.parcelId), n = grazingTotal(lot), type = grazingType(lot).toLowerCase();

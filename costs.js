@@ -5,6 +5,7 @@ import {campaignFor,normalize,toNullableNumber,toNumber} from './utils.js';
 import {active,completed,isObservationWork} from './farm-memory.js';
 import {economicSituation} from './advanced-economics.js';
 import {requiredStock} from './work-effects.js';
+import {harvestCampaign} from './harvest-traceability.js';
 
 export const COST_SOURCE_ESTIMATED='estimé';
 export const COST_SOURCE_MANUAL='saisi';
@@ -138,7 +139,7 @@ const pricePerTonne=(price,unit)=>{const p=positive(price);if(p===null)return nu
 export function salesByCulture(state,campaign){
   const result=new Map(),parcels=new Map(active(state,'parcelles').map(p=>[p.id,p]));
   for(const lot of (state.integrationImports||[]).filter(r=>!r.deletedAt&&r.farmKind==='harvest')){
-    if(!lot.date||campaignFor(lot.date)!==campaign)continue;const parcel=parcels.get(lot.parcelId),culture=String(lot.crop||'').trim()||(parcel?cultureFor(state,parcel,campaign):'');if(!culture)continue;
+    if(!lot.date||harvestCampaign(state,lot)!==campaign)continue;const parcel=parcels.get(lot.parcelId),culture=String(lot.crop||'').trim()||(parcel?cultureFor(state,parcel,campaign):'');if(!culture)continue;
     for(const sale of lot.sales||[]){const t=lotTonnes(sale.quantity,lot.unit),price=pricePerTonne(sale.price,lot.unit);if(t===null||price===null)continue;const key=normalize(culture),r=result.get(key)||{tonnes:0,amount:0,count:0};r.tonnes+=t;r.amount+=t*price;r.count+=1;result.set(key,r);}
   }
   return new Map([...result].map(([k,r])=>[k,{...r,price:r.tonnes>0?r.amount/r.tonnes:null}]));

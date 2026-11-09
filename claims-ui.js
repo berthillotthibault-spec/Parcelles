@@ -27,7 +27,7 @@ export function createClaimsUI({store,modal,closeModal,toast}){
     const d=data(),parcel=active(d,'parcelles').find(p=>p.id===c.parcelId),zones=active(d,'points').filter(p=>p.type==='Zone'&&Number(p.areaHa)>0).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     modal(existing?'Modifier le dossier sinistre':'Ouvrir un dossier sinistre',`${parcel?e(parcel.nom):'Sans parcelle'}${parcel?.surfaceHa?` · ${n2.format(parcel.surfaceHa)} ha`:''}`,`<form id="claim-form" class="form-grid">
 <label>Nature<select name="cause">${CLAIM_CAUSES.map(([k,v])=>`<option value="${k}" ${c.cause===k?'selected':''}>${e(v)}</option>`).join('')}</select></label>
-<label>Date du sinistre<input type="date" name="date" value="${e(c.date||todayIso())}"></label>
+<label>Date du sinistre<input type="date" name="date" max="${todayIso()}" value="${e(c.date||todayIso())}"></label>
 <label>Culture<input name="culture" maxlength="80" value="${e(c.culture||'')}"></label>
 <label>Variété<input name="variety" maxlength="80" value="${e(c.variety||'')}"></label>
 <label>Rendement attendu<input name="expectedYield" type="number" min="0" step="any" inputmode="decimal" value="${e(c.expectedYield??'')}"></label>
@@ -51,7 +51,7 @@ export function createClaimsUI({store,modal,closeModal,toast}){
 
   async function saveForm(id){
     const form=$('#claim-form');if(!form)return;const existing=id?byId(id):null,base=existing||draftFor||{};
-    const r=validateClaim({...base,...Object.fromEntries(new FormData(form))});
+    const r=validateClaim({...base,...Object.fromEntries(new FormData(form))},{today:todayIso()});
     if(r.error){const err=$('#claim-error');err.textContent=r.error;err.hidden=false;return;}
     const saved=await save({...r.value,zoneId:r.value.zoneId||null},existing);
     toast(existing?'Dossier sinistre enregistré.':'Dossier sinistre ouvert.','success');openClaim(saved.id);

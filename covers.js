@@ -1,7 +1,8 @@
 // n° 74 — Couverts et intercultures en zone vulnérable (CIPAN). Logique pure (testable sous Node).
 // Une rotation peut porter une interculture (champ facultatif interculture) : le couvert implanté
 // AVANT la culture de cette campagne (entre la récolte précédente et le semis).
-import {campaignFor,isoDate,localDate,normalize} from './utils.js';
+import {campaignFor,localDate,normalize} from './utils.js';
+import {localDay} from './home-priorities.js';
 import {active} from './farm-memory.js';
 import {cultureFor,cultureSeason,nitrogenReferences,parcelInZone} from './nitrogen.js';
 
@@ -39,7 +40,7 @@ export function intercultureError(ic){
 }
 export const hasCover=rotation=>Boolean(normalizeInterculture(rotation?.interculture)?.especes);
 
-/** Date minimale de destruction pour une campagne (automne qui précède la culture). */
+/** Date minimale de destruction pour une campagne (automne qui précède la culture). @param {string} campaign @param {{minDestruction: string, minDays?: number}} [settings] */
 export function minDestructionDate(campaign,settings=COVER_DEFAULTS){
   const year=Number(String(campaign).slice(0,4)),month=Number(settings.minDestruction.slice(0,2));
   return`${month<8?year+1:year}-${settings.minDestruction}`;
@@ -49,13 +50,14 @@ const ownParcels=state=>active(state,'parcelles').filter(p=>(p.ownershipType||'o
 const nextCampaign=c=>{const y=Number(String(c).slice(0,4))+1;return`${y}/${String(y+1).slice(-2)}`;};
 
 /** État des couverts d’une campagne : une ligne par parcelle de terre arable. */
-export function coverRows(state,campaign,{today=isoDate(new Date())}={}){
+export function coverRows(state,campaign,{today=localDay()}={}){
   const refs=nitrogenReferences(state),settings=coverSettings(state),rotations=active(state,'rotations');
   return ownParcels(state).map(p=>{
     const culture=cultureFor(state,p,campaign,today),season=cultureSeason(culture,refs),rotation=rotations.find(r=>r.parcelId===p.id&&r.campaignId===campaign)||null;
     const ic=normalizeInterculture(rotation?.interculture),zone=parcelInZone(state,p),issues=[];
     if(zone&&season==='printemps'&&!ic?.especes)issues.push({kind:'missing',text:`Culture de printemps (${culture}) sans couvert prévu.`});
-    if(ic?.destructionDate){
+    // Date minimale et durée minimale : interculture longue, seulement avant une culture de printemps.
+    if(ic?.destructionDate&&season==='printemps'){
       const min=minDestructionDate(campaign,settings);
       if(ic.destructionDate<min)issues.push({kind:'early',text:`Destruction prévue le ${localDate(ic.destructionDate)}, avant la date minimale du ${localDate(min)}.`});
       else if(ic.semisDate&&days(ic.semisDate,ic.destructionDate)<settings.minDays)issues.push({kind:'early',text:`Couvert maintenu ${days(ic.semisDate,ic.destructionDate)} jours, moins que les ${settings.minDays} jours retenus.`});
@@ -65,7 +67,7 @@ export function coverRows(state,campaign,{today=isoDate(new Date())}={}){
 }
 
 /** Alertes des campagnes en cours et suivante (planification). */
-export function coverAlerts(state,{today=isoDate(new Date())}={}){
+export function coverAlerts(state,{today=localDay()}={}){
   const current=campaignFor(today),out=[];
   for(const c of [current,nextCampaign(current)])
     for(const r of coverRows(state,c,{today}))
@@ -79,7 +81,7 @@ export function coveredParcelIds(state,campaign){
 }
 
 /** Entrée pour le tableau de conformité (n° 55). */
-export function coverComplianceChecks(state,{today=isoDate(new Date())}={}){
+export function coverComplianceChecks(state,{today=localDay()}={}){
   const labels={ko:'À corriger',warn:'À vérifier',unknown:'Non suivi',ok:'À jour',na:'Non concerné'};
   const anyZone=ownParcels(state).some(p=>parcelInZone(state,p));
   if(!anyZone)return[{id:'cipan',label:'Intercultures prévues avant les cultures de printemps (CIPAN)',status:'na',statusLabel:labels.na,detail:'Aucune parcelle en zone vulnérable.',items:[],action:{type:'covers',label:'Couverts'},hint:''}];

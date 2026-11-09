@@ -52,7 +52,15 @@ export function showFormError(form, message, field = null) {
   form?.querySelectorAll('[aria-invalid="true"]').forEach(el => el.removeAttribute('aria-invalid'));
   if (box) { box.textContent = message; box.classList.remove('hidden'); }
   const el = typeof field === 'string' ? form?.querySelector(`[name="${field}"]`) : field;
-  if (el) { el.setAttribute('aria-invalid', 'true'); el.focus?.({preventScroll: false}); }
+  if (el) {
+    el.setAttribute('aria-invalid', 'true');
+    // Message posé juste sous le champ en cause : champ focalisé et message visibles ensemble.
+    const host = box ? el.closest?.('label, .bd-field, .field-label') || el : null;
+    if (host && box) { host.after(box); box.style.gridColumn = '1 / -1'; el.setAttribute('aria-describedby', box.id || (box.id = `${form.id || 'form'}-err`)); }
+    el.focus?.({preventScroll: true});
+    (host || el).scrollIntoView?.({block: 'nearest'});
+    box?.scrollIntoView?.({block: 'nearest'});
+  }
   else box?.scrollIntoView?.({block: 'nearest'});
   return null;
 }

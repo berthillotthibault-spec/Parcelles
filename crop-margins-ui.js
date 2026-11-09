@@ -17,13 +17,14 @@ export function createCropMarginsUI({store,modal,toast}){
   function cell(label,value,cls=''){return`<div class="cm-cell ${cls}"><small>${e(label)}</small><strong>${e(value)}</strong></div>`;}
 
   function cultureCard(r){
-    const eqUnit=r.yieldUnit==='q/ha'?'€/q':'€/t';
+    // Les valeurs de costPriceByCulture sont en €/t et t/ha : conversion en €/q et q/ha si besoin.
+    const q=r.yieldUnit==='q/ha',eqUnit=q?'€/q':'€/t',px=v=>q?n1.format(v/10):n0.format(v),yv=v=>n1.format(q?v*10:v);
     const prev=r.previous.map(p=>`<span>${e(p.campaign)} : ${e(ha(p.directHa))}</span>`).join('');
     return`<article class="cm-card${r.key===selected?' is-open':''}" data-cm-culture="${e(r.key)}">
 <header><div><h3>${e(r.culture)}</h3><small>${formatNumber(r.area)} ha · fiable à ${r.reliability} %${r.partial?` · <span class="cm-partial">${e(partialLabel(r.missing)||`${r.withoutProduct} parcelle(s) sans rendement ni prix`)}</span>`:''}</small></div><strong class="${r.directHa!==null&&r.directHa<0?'negative':''}">${e(ha(r.directHa))}</strong></header>
 <div class="cm-grid">${cell('Produit',ha(r.productHa))}${cell('Charges opérationnelles',ha(r.operationalHa))}${cell('Marge brute',ha(r.grossHa),'is-key')}${cell('Mécanisation',ha(r.mechanizationHa))}${cell('Marge directe',ha(r.directHa),'is-key')}${cell('Avec aides PAC',ha(r.withAidsHa))}</div>
 <p class="cm-history">Marge directe ${prev}</p>
-<p class="form-note">Prix d’équilibre : ${r.breakEven===null?'— (rendement inconnu)':`${e(n0.format(r.breakEven))} ${eqUnit}`}${r.currentPrice!==null?` · prix retenu ${e(n0.format(r.currentPrice))} ${eqUnit}`:''} · rendement d’équilibre : ${r.breakEvenYield===null?'— (prix inconnu)':`${e(n1.format(r.breakEvenYield))} ${e(r.yieldUnit)}`}</p>
+<p class="form-note">Prix d’équilibre : ${r.breakEven===null?'— (rendement inconnu)':`${e(px(r.breakEven))} ${eqUnit}`}${r.currentPrice!==null?` · prix retenu ${e(px(r.currentPrice))} ${eqUnit}`:''} · rendement d’équilibre : ${r.breakEvenYield===null?'— (prix inconnu)':`${e(yv(r.breakEvenYield))} ${e(r.yieldUnit)}`}</p>
 <div class="cm-chart">${waterfallChart(waterfallSteps(r),{caption:`Cascade de marge ${r.culture}`})||'<p class="form-note">Cascade indisponible : produit inconnu (rendement ou prix absent).</p>'}</div></article>`;
   }
 
