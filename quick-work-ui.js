@@ -974,11 +974,11 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
   }
 
   // Mettre au pré direct : parcelle, date et travail à clore préremplis (recherche, finish-work, assistant, dictée…).
-  function openGrazing({parcelIds = [], date = '', workId = '', finishPlain = null, note = '', type = 'Pâturage', screen = ''} = {}) {
+  function openGrazing({parcelIds = [], date = '', workId = '', finishPlain = null, note = '', type = 'Pâturage', screen = '', exitIds = []} = {}) {
     if (tabBlocked()) return;
     s = fresh({parcelIds});
     if (!mount()) return;
-    grazing.start({type, parcelIds, date, workId, finishPlain, note, screen});
+    grazing.start({type, parcelIds, date, workId, finishPlain, note, screen, exitIds});
   }
 
   // Retour matériel (Android) : recule d'une étape au lieu de fermer la feuille ; false si rien à reculer (PF-21).

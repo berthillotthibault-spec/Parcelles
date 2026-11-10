@@ -27,18 +27,18 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
   const entryDate = () => draftDate(g.entry.dateChoice, todayIso(), g.entry.customDate);
 
   /** Ouvre le parcours ; options : parcelIds, entry (reprise du brouillon), workId et finishPlain (finish-work), date, note. */
-  function start({type = 'Pâturage', parcelIds = [], entry = null, screen = '', workId = '', finishPlain = null, date = '', note = ''} = {}) {
+  function start({type = 'Pâturage', parcelIds = [], entry = null, screen = '', workId = '', finishPlain = null, date = '', note = '', exitIds = []} = {}) {
     const data = state(), today = todayIso();
     const fresh = entry || freshEntry(data, {parcelIds});
     if (!entry && date && date !== today) { fresh.dateChoice = 'custom'; fresh.customDate = date; }
     const plan = !entry && workId ? store.get('interventions', workId)?.grazingPlan : null;
     if (plan) Object.assign(fresh, plannedEntry(plan));
     if (entry) fresh.picks = presentPicks(data, fresh.picks, draftDate(fresh.dateChoice, today, fresh.customDate)); // animal sorti depuis le brouillon
-    const ways = grazingGestures(data, {today, parcelIds});
+    const ways = grazingGestures(data, {today, parcelIds, exitIds});
     const first = !can('create') ? 'denied' : screen || (workId || entry ? (fresh.parcelIds.length ? 'details' : 'parcels')
       : ways.skipToEntry ? (parcelIds.length ? 'details' : 'parcels') : 'gesture');
     g = {screen: first, type, entry: fresh, filter: defaultGrazingFilter(data), query: '', herdQuery: '', herdFilter: 'all', error: '', workId, finishPlain, workNote: note,
-      exit: {ids: ways.hereIds.length ? ways.hereIds : (ways.lots.length === 1 ? [ways.lots[0].id] : []), date: today}, move: {lotId: ways.hereIds[0] || (ways.lots.length === 1 ? ways.lots[0].id : ''), dest: '', date: today, ack: '', all: false}, retry: null};
+      exit: {ids: ways.exitIds, date: today}, move: {lotId: ways.hereIds[0] || (ways.lots.length === 1 ? ways.lots[0].id : ''), dest: '', date: today, ack: '', all: false}, retry: null};
     render();
   }
 

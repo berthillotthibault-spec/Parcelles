@@ -22,11 +22,17 @@ export function freshEntry(data, {parcelIds = []} = {}) {
     lotName: '', numbers: '', lines: [{category: last?.animalCategory || '', count: ''}], picks: {}, alloc: {}, rotate: false, entryParcelId: parcelIds[0] || '', skip: [], reentryAck: ''};
 }
 
-/** Gestes proposés : sans lot au pré, on passe directement à la mise au pré ; le lot du pré choisi vient d'abord. @param {any} data @param {{today: string, parcelIds?: string[]}} options */
-export function grazingGestures(data, {today, parcelIds = []}) {
+/**
+ * Gestes proposés : sans lot au pré, on passe directement à la mise au pré ; le lot du pré choisi vient d'abord.
+ * exitIds : lots demandés pour l'écran de sortie (« Autre date… »), gardés seulement s'ils sont encore au pré ; sinon ceux du pré, ou le seul lot si aucun lot n'était demandé.
+ * @param {any} data @param {{today: string, parcelIds?: string[], exitIds?: string[]}} options
+ */
+export function grazingGestures(data, {today, parcelIds = [], exitIds = []}) {
   const lots = herdLots(data, {today});
   const here = lots.filter(l => parcelIds.includes(l.parcelId)), others = lots.filter(l => !parcelIds.includes(l.parcelId));
-  return {lots: [...here, ...others], hereIds: here.map(l => l.id), skipToEntry: !lots.length};
+  const asked = lots.filter(l => exitIds.includes(l.id)).map(l => l.id), hereIds = here.map(l => l.id);
+  return {lots: [...here, ...others], hereIds, skipToEntry: !lots.length,
+    exitIds: asked.length ? asked : hereIds.length ? hereIds : (!exitIds.length && lots.length === 1 ? [lots[0].id] : [])};
 }
 
 /**

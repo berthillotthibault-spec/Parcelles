@@ -32,7 +32,7 @@ ${t.reorder?`<div class="notice warning">Cuve sous le seuil de commande (${n0.fo
     modal('Carburant GNR','Cuve, pleins d’engins, consommation et remboursement TICPE.',`${tankHtml(t)}
 ${alerts.length?`<ul class="stock-alerts">${alerts.map(a=>`<li class="is-warning">${e(a.machine.nom)} : ${n2.format(a.c.last.lph)} l/h au dernier plein, +${a.c.drift} % par rapport à sa moyenne (${n2.format(a.c.reference)} l/h).</li>`).join('')}</ul>`:''}
 <h3>Consommation par engin</h3><div class="stack-list">${rows.length?rows.map(({m,c})=>`<div class="list-row"><div><strong>${e(m.nom)}</strong><small>${c.average!==null?`${n2.format(c.average)} l/h en moyenne`:'l/h : deux pleins avec compteur nécessaires'} · ${n0.format(c.litres)} L</small></div>${c.alert?`<strong class="is-warning">+${c.drift} %</strong>`:''}</div>`).join(''):'<div class="empty-state">Aucun plein d’engin enregistré.</div>'}</div>
-<h3>Derniers pleins</h3><div class="stack-list">${recent.length?recent.map(r=>`<div class="list-row"><div><strong>${r.entry==='tank'?'Plein de cuve':e(names.get(r.equipmentId)||'Engin')}</strong><small>${e(localDate(r.date))} · ${n2.format(r.litres)} L${r.unitPrice!==null&&r.unitPrice!==undefined?` · ${n2.format(r.unitPrice)} €/L`:''}${r.meter!==null&&r.meter!==undefined?` · ${n2.format(r.meter)} h`:''}${r.entry==='machine'&&r.fromTank===false?' · hors cuve':''}${r.invoiceRef?` · facture ${e(r.invoiceRef)}`:''}</small></div><button class="small-button" data-fuel="edit" data-id="${e(r.id)}">Modifier</button></div>`).join(''):'<div class="empty-state">Aucun plein.</div>'}</div>
+<h3>Derniers pleins</h3><div class="stack-list">${recent.length?recent.map(r=>`<div class="list-row"><div><strong>${r.entry==='tank'?'Plein de cuve':e(names.get(r.equipmentId)||'Engin')}</strong><small>${e(localDate(r.date))} · ${n2.format(r.litres)} L${r.unitPrice!==null&&r.unitPrice!==undefined?` · ${n2.format(r.unitPrice)} €/L`:''}${r.meter!==null&&r.meter!==undefined?` · ${n2.format(r.meter)} h`:''}${r.entry==='machine'&&r.fromTank===false?' · hors cuve':''}${r.invoiceRef?` · facture ${e(r.invoiceRef)}`:''}${r.legacy?' · ancien plein, à modifier dans l’entretien de l’engin':''}</small></div>${r.legacy?'':`<button class="small-button" data-fuel="edit" data-id="${e(r.id)}">Modifier</button>`}</div>`).join(''):'<div class="empty-state">Aucun plein.</div>'}</div>
 <p class="form-note">Le niveau de cuve est une estimation : faites une jauge de temps en temps et corrigez le niveau dans « Cuve ». Alerte de consommation à +${DRIFT_PCT} % de la moyenne de l’engin.</p>`,
     `<button class="button secondary" data-fuel="tank-settings">Cuve</button><button class="button secondary" data-fuel="ticpe">Remboursement TICPE</button><button class="button secondary" data-fuel="new-tank">Plein de cuve</button><button class="button primary" data-fuel="new-machine">Plein d’engin</button>`,'large');
   }
@@ -64,7 +64,7 @@ ${entry==='machine'?`<label>Compteur horaire (h)<input name="meter" type="number
   }
 
   async function saveFill(){
-    const form=$('#fuel-form');if(!form)return;const entry=form.dataset.entry,existing=form.dataset.id?fuelEntries(data()).find(r=>r.id===form.dataset.id):null;
+    const form=$('#fuel-form');if(!form)return;const entry=form.dataset.entry,existing=form.dataset.id?fuelEntries(data()).find(r=>r.id===form.dataset.id&&!r.legacy)||null:null;
     const v=Object.fromEntries(new FormData(form));v.fromTank=entry==='machine'?form.elements.fromTank.checked:null;
     const machine=entry==='machine'?active(data(),'materiels').find(m=>m.id===v.equipmentId):null,cur=machine&&machine.currentMeter!==''&&machine.currentMeter!==null&&machine.currentMeter!==undefined?Number(machine.currentMeter):null;
     const res=validateFill({...v,allowLowerMeter:!!existing},{entry,currentMeter:Number.isFinite(cur)?cur:null,today:todayIso()});if(res.error)return err('#fuel-error',res.error);
@@ -115,8 +115,8 @@ ${r.missingInvoice?`<p class="form-note">${r.missingInvoice} achat${r.missingInv
     if(name==='back')return open();
     if(name==='new-tank')return openFill('tank');
     if(name==='new-machine')return openFill('machine');
-    if(name==='edit'){const r=fuelEntries(data()).find(x=>x.id===id);if(r)openFill(r.entry,r);return;}
-    if(name==='delete'){const r=fuelEntries(data()).find(x=>x.id===id);if(!r)return;await store.remove('integrationImports',r.id);toast('Plein placé dans la corbeille.','success',{label:'Annuler',run:()=>store.restore('integrationImports',r.id).then(()=>open())});return open();}
+    if(name==='edit'){const r=fuelEntries(data()).find(x=>x.id===id);if(r&&!r.legacy)openFill(r.entry,r);return;}
+    if(name==='delete'){const r=fuelEntries(data()).find(x=>x.id===id);if(!r||r.legacy)return;await store.remove('integrationImports',r.id);toast('Plein placé dans la corbeille.','success',{label:'Annuler',run:()=>store.restore('integrationImports',r.id).then(()=>open())});return open();}
     if(name==='save-fill')return saveFill();
     if(name==='tank-settings')return openTankSettings();
     if(name==='save-tank')return saveTank();

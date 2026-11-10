@@ -14,7 +14,15 @@ const num=v=>{if(v===null||v===undefined||String(v).trim()==='')return null;cons
 const r2=v=>Math.round(v*100)/100,r3=v=>Math.round(v*1000)/1000;
 const byDate=(a,b)=>String(a.date).localeCompare(String(b.date))||(a.createdAt||0)-(b.createdAt||0);
 
-export const fuelEntries=(state,entry)=>farmRecords(state,FUEL_KIND).filter(r=>!entry||r.entry===entry).sort(byDate);
+// Avant la 10.28.2, le QR « Plein » créait un entretien {type:'Plein', liters, meter, cost}. Lus ici comme
+// pleins d'engin pris à la cuve (sans migration), marqués legacy : ni modifiables ni supprimables comme un plein.
+export const isLegacyFill=r=>Boolean(r)&&!r.deletedAt&&r.type==='Plein'&&Boolean(r.equipmentId)&&(num(r.liters)??0)>0;
+export const legacyFills=state=>(state?.maintenanceRecords||[]).filter(isLegacyFill).map(r=>{
+  const litres=num(r.liters),cost=num(r.cost),amount=cost!==null&&cost>0?cost:null;
+  return{id:`legacy-fill-${r.id}`,maintenanceId:r.id,legacy:true,farmKind:FUEL_KIND,entry:'machine',date:r.date,litres,unitPrice:amount!==null?r3(amount/litres):null,amount,
+    meter:num(r.meter),equipmentId:r.equipmentId,fromTank:true,supplier:'',invoiceRef:'',documentId:null,note:String(r.note||''),createdAt:r.createdAt||0};
+});
+export const fuelEntries=(state,entry)=>[...farmRecords(state,FUEL_KIND),...legacyFills(state)].filter(r=>!entry||r.entry===entry).sort(byDate);
 export const tankFills=state=>fuelEntries(state,'tank');
 export const machineFills=(state,equipmentId)=>fuelEntries(state,'machine').filter(r=>!equipmentId||r.equipmentId===equipmentId);
 

@@ -6,7 +6,7 @@
 import {campaignFor,normalize} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {workArea,workCampaign} from './costs.js';
-import {machineFills,averagePrice} from './fuel.js';
+import {machineFills,averagePrice,isLegacyFill} from './fuel.js';
 
 const num=v=>{if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(String(v).replace(/\s/g,'').replace(',','.'));return Number.isFinite(n)?n:null;};
 const pos=v=>{const n=num(v);return n!==null&&n>0?n:null;};
@@ -76,7 +76,8 @@ export function machineCost(state,machine,{campaign=campaignFor(),rates=machineR
   for(const l of tp){const h=pos(l.hours);if(h!==null){hours+=h;withHours+=1;}}
   const entries=works.length+tp.length,completeness=entries?Math.round(withHours/entries*100):null;
   const amortization=pos(machine.amortization),insurance=pos(machine.insurance);
-  const maintenanceRows=active(state,'maintenanceRecords').filter(r=>r.equipmentId===id&&inCampaign(r.date,campaign));
+  // Un ancien « Plein » enregistré comme entretien est compté une fois, en carburant (fuel.js).
+  const maintenanceRows=active(state,'maintenanceRecords').filter(r=>r.equipmentId===id&&inCampaign(r.date,campaign)&&!isLegacyFill(r));
   const maintenance=maintenanceRows.reduce((s,r)=>s+(pos(r.cost)||0),0);
   // Carburant : pleins de l'engin (n° 95), sinon carburant des travaux, sinon estimation l/h × heures.
   const fills=machineFills(state,id).filter(r=>inCampaign(r.date,campaign)),avg=averagePrice(state);
