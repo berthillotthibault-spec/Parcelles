@@ -93,3 +93,12 @@ test('accord du nombre de travaux sans heures', () => {
   const r = machineCost(s, s.materiels[0], {campaign: C});
   assert.ok(r.missing.includes('2 travaux sans heures'));
 });
+
+test('ancien plein QR (entretien « Plein ») compté une seule fois, en carburant', () => {
+  const base = farm();
+  const s = farm({}, {maintenanceRecords: [...base.maintenanceRecords, {id: 'mr9', equipmentId: 'm1', date: '2026-10-25', type: 'Plein', liters: 100, meter: 2440, cost: 150}]});
+  const r = machineCost(s, s.materiels[0], {campaign: C});
+  assert.equal(r.maintenance, 1000); assert.equal(r.maintenanceCount, 1);
+  assert.equal(r.fuel, 650); assert.equal(r.fuelLitres, 600);
+  assert.equal(r.total, 8650);
+});

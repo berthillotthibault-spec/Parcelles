@@ -310,6 +310,19 @@ test('gestes : sans lot, directement la mise au pré ; le lot du pré choisi vie
   assert.equal(ways.lots[0].id, 'L2');
 });
 
+test('sortie à une autre date : le lot demandé est présélectionné, un lot déjà sorti est ignoré', () => {
+  const data = farm({grazingSessions: [{id: 'L1', parcelId: 'pre1', startDate: shift(-9), additionalAnimalsCount: 1, animalsCount: 1}, {id: 'L2', parcelId: 'pre2', startDate: shift(-1), additionalAnimalsCount: 1, animalsCount: 1},
+    {id: 'L3', parcelId: 'pre1', startDate: shift(-20), endDate: shift(-5), additionalAnimalsCount: 1, animalsCount: 1}]});
+  assert.deepEqual(grazingGestures(data, {today: TODAY, exitIds: ['L1']}).exitIds, ['L1']);
+  assert.deepEqual(grazingGestures(data, {today: TODAY, parcelIds: ['pre2'], exitIds: ['L3']}).exitIds, ['L2']);
+  assert.deepEqual(grazingGestures(data, {today: TODAY, exitIds: ['L3']}).exitIds, []);
+  assert.deepEqual(grazingGestures(data, {today: TODAY, parcelIds: ['pre1']}).exitIds, ['L1']);
+  // Lot demandé déjà sorti : on ne coche pas à sa place le seul autre lot au pré.
+  const one = farm({grazingSessions: [{id: 'L1', parcelId: 'pre1', startDate: shift(-9), additionalAnimalsCount: 1, animalsCount: 1}]});
+  assert.deepEqual(grazingGestures(one, {today: TODAY, exitIds: ['L9']}).exitIds, []);
+  assert.deepEqual(grazingGestures(one, {today: TODAY}).exitIds, ['L1']);
+});
+
 test('date future : travail à faire avec l’effectif en note, aucun passage', () => {
   const works = plannedGrazingWorks(entry({lotName: 'Lot 1'}), farm(), {type: 'Pâturage', date: shift(3), today: TODAY});
   assert.equal(works.length, 1);

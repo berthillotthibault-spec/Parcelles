@@ -134,6 +134,8 @@ const PHRASES=[
   ['J’ai changé les pneus du Manitou',{intent:'maintenance',opType:'Pneus',equipment:'m4'}],
   ['Plein de GNR du gros, deux cents litres',{intent:'maintenance',opType:'Plein',equipment:'m1',liters:200}],
   ['Fait le plein de la petite pelle, quarante litres',{intent:'maintenance',opType:'Plein',equipment:'m3',liters:40}],
+  ['Plein du tracteur 80 litres',{intent:'maintenance',opType:'Plein',liters:80}],
+  ['Un plein de quatre-vingts litres pour le Fendt',{intent:'maintenance',opType:'Plein',equipment:'m1',liters:80}],
   ['Le John Deere est en panne, compteur à 2 150',{intent:'maintenance',opType:'Panne',equipment:'m2',meter:2150}],
   ['Contrôle technique du Fendt hier, trois cents euros',{intent:'maintenance',opType:'Contrôle technique',equipment:'m1',cost:300,date:'2026-10-06'}],
   ['Changé les filtres du Kubota à huit cent cinquante heures',{intent:'maintenance',equipment:'m3',meter:850}],
@@ -238,4 +240,23 @@ test('branchements : module différé, service worker, test listé',()=>{
   assert.match(ui,/loadVoiceGrammar\(\)\.then/,'l’analyse attend la grammaire');
   assert.match(ui,/if\(pending!==analyzeSeq\|\|\(sheet&&!sheet\.isConnected\)\)return;/,'une analyse différée est ignorée si une autre a suivi ou si la saisie est fermée');
   assert.match(ui,/async function openMemo\(id\)\{\s*stopPlayback\(\);loadVoiceGrammar\(\);/,'le mémo précharge la grammaire');
+});
+
+test('plein dicté : enregistré comme plein d’engin (même chemin que le QR « Plein »), litres obligatoires',()=>{
+  const ui=fs.readFileSync(new URL('./voice-intents-ui.js',import.meta.url),'utf8');
+  assert.match(ui,/import \{FUEL_KIND, validateFill\} from '\.\/fuel\.js';/);assert.match(ui,/import \{saveFarmRecord\} from '\.\/farm-records\.js';/);
+  assert.match(ui,/if\(entry\.opType==='Plein'\)return renderFuel\(entry,machines\);/,'un plein ne passe plus par l’entretien « Autre »');
+  const fuel=ui.slice(ui.indexOf('function renderFuel'),ui.indexOf('// ---------- Observation'));
+  assert.match(fuel,/if\(liters===null\)return kit\.draftError\('Champ obligatoire : litres\.'\);/);
+  assert.match(fuel,/validateFill\(\{[^}]*\},\{entry:'machine',currentMeter:current,today:kit\.todayIso\(\)\}\)/);
+  assert.match(fuel,/saveFarmRecord\(store,FUEL_KIND,/);assert.ok(!/maintenanceRecords'/.test(fuel.replace("readOnly('integrationImports')",'')),'aucun entretien créé');
+  assert.match(fuel,/store\.remove\('integrationImports',id\)/,'Annuler retire le plein');assert.match(fuel,/currentMeter:previousMeter/,'et rétablit le compteur');
+  // Compteur refusé (opérateur) après le plein : pas de retour au brouillon, sinon un second essai doublerait le plein.
+  const saveAt=fuel.indexOf('saveFarmRecord(store,FUEL_KIND'),meterAt=fuel.indexOf("store.upsert('materiels'");
+  assert.ok(saveAt>0&&meterAt>saveAt&&!fuel.slice(saveAt,meterAt).includes("store.upsert('materiels'"));
+  assert.match(fuel,/try\{await store\.upsert\('materiels',[^\n]*raised=true;\}catch\{\}/,'mise à jour du compteur hors du try du plein');
+  assert.match(fuel,/compteur non mis à jour/);
+  // Panne et entretien restent des entretiens.
+  assert.equal(parse('Le John Deere est en panne').opType,'Panne');assert.equal(maintenanceRecordType('Panne'),'Autre');
+  assert.equal(parse('Il y a plein de limaces dans la Garenne').intent,'observation');
 });

@@ -6,6 +6,8 @@ import {escapeHtml, formatNumber, toNullableNumber, uid} from './utils.js';
 import {MAINTENANCE_TYPES, OBSERVATION_TYPES, formatAliases, maintenanceRecordType, parseAliases, unitLabel} from './voice-grammar.js';
 import {convertQuantity} from './voice-notes.js';
 import {deletePublicWorksLog, savePublicWorksLog} from './public-works.js';
+import {FUEL_KIND, validateFill} from './fuel.js';
+import {saveFarmRecord} from './farm-records.js';
 
 const SEVERITIES=[['info','Information'],['warning','À surveiller'],['urgent','Urgent']];
 
@@ -36,6 +38,7 @@ export function createVoiceIntentsUI(kit){
       kit.draftModal(`<div class="notice warning">Aucun matériel n’est enregistré. Ajoutez vos engins depuis Menu › Matériel, puis dictez à nouveau.</div>${kit.quote(entry)}`,kit.footer('Fermer',{complete:false}));
       $('#vn-save').onclick=()=>{kit.markHandled();closeModal();};return;
     }
+    if(entry.opType==='Plein')return renderFuel(entry,machines);
     const body=`${readOnly('maintenanceRecords')}${machineField(entry)}
       <div class="field-label vn-hit"><span>Opération *</span><input type="hidden" name="opType" value="${escapeHtml(entry.opType?maintenanceRecordType(entry.opType):'')}">${kit.chips('opType',MAINTENANCE_TYPES.map(t=>[t,t]),entry.opType?maintenanceRecordType(entry.opType):'',{label:'Opération'})}</div>
       ${numberField('meter','Compteur',entry.meter,{step:'0.1',recognized:entry.meter!==null,unit:'h'})}<p class="form-note hidden" id="vi-meter-note" role="status"></p>
@@ -56,7 +59,7 @@ export function createVoiceIntentsUI(kit){
       if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return kit.draftError('Champ obligatoire : date.');
       if(date>kit.todayIso())return kit.draftError('Un entretien enregistré est déjà fait : la date ne peut pas être dans le futur.');
       const meter=number(v.meter.value),liters=number(v.liters.value),cost=number(v.cost.value);
-      // Plein, panne ou entretien général : enregistré en « Autre », l'opération dictée en tête de note.
+      // Panne ou entretien général : enregistré en « Autre », l’opération dictée en tête de note (le plein a son propre brouillon).
       const detail=type==='Autre'&&entry.opType&&entry.opType!=='Autre'&&maintenanceRecordType(entry.opType)==='Autre'?`${entry.opType} · `:'';
       const record={id:uid('maintenance'),equipmentId,date,type,meter,cost:cost??0,note:`${detail}${note(entry)}`,nextDue:null};
       if(liters!==null)record.liters=liters;
@@ -69,6 +72,39 @@ export function createVoiceIntentsUI(kit){
       kit.finish(`Entretien enregistré : ${type} · ${m.nom}${raise?` · compteur ${formatNumber(meter)} h`:''}.`,async()=>{
         await store.remove('maintenanceRecords',record.id);
         if(raise){const now=store.get('materiels',equipmentId);if(now&&now.currentMeter===meter)await store.upsert('materiels',{...now,currentMeter:previousMeter},{label:`Compteur rétabli : ${m.nom}`});}
+      });
+    };
+  }
+
+  // ---------- Plein d'engin ----------
+  // Même enregistrement que le QR « Plein » (equipment-qr-ui.js) : plein d'engin de l'écran Carburant GNR.
+  function renderFuel(entry,machines){
+    const body=`${readOnly('integrationImports')}${machineField(entry)}
+      ${numberField('liters','Litres (L) *',entry.liters,{recognized:entry.liters!==null})}
+      ${numberField('meter','Compteur',entry.meter,{step:'0.1',recognized:entry.meter!==null,unit:'h'})}
+      ${numberField('cost','Coût',entry.cost,{step:'0.01',recognized:entry.cost!==null,unit:'€'})}
+      <div class="field-label"><span>Origine</span><input type="hidden" name="fromTank" value="1">${kit.chips('fromTank',[['1','Pris à la cuve'],['0','Hors cuve']],'1',{label:'Origine du carburant'})}</div>
+      ${kit.dateField(entry,{max:kit.todayIso()})}${kit.quote(entry)}`;
+    const form=kit.draftModal(body,kit.footer('Enregistrer le plein',{complete:false}));
+    $('#vn-save').onclick=async()=>{
+      const v=form.elements,equipmentId=v.equipmentId.value,date=v.date.value,m=machines.find(x=>x.id===equipmentId);
+      if(!m)return kit.draftError('Champ obligatoire : engin.');
+      const liters=number(v.liters.value),meter=number(v.meter.value),cost=number(v.cost.value);
+      if(liters===null)return kit.draftError('Champ obligatoire : litres.');
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return kit.draftError('Champ obligatoire : date.');
+      const current=number(m.currentMeter);
+      const res=validateFill({date,litres:liters,meter,amount:cost,equipmentId,fromTank:v.fromTank.value!=='0',note:note(entry)},{entry:'machine',currentMeter:current,today:kit.todayIso()});
+      if(res.error)return kit.draftError(res.error);
+      const button=$('#vn-save');button.disabled=true;
+      const id=uid(FUEL_KIND),previousMeter=m.currentMeter??null,raise=meter!==null&&(current===null||meter>current);
+      try{await saveFarmRecord(store,FUEL_KIND,{...res.value,name:`Plein ${m.nom||'engin'} ${res.value.date}`},{id});}
+      catch(error){button.disabled=false;return kit.draftError(error.message||'Enregistrement impossible.');}
+      // Plein déjà enregistré : un compteur refusé (rôle opérateur, par exemple) ne doit pas rouvrir le brouillon, sinon un nouvel essai compterait le plein deux fois.
+      let raised=false;
+      if(raise){try{await store.upsert('materiels',{...store.get('materiels',equipmentId),currentMeter:meter},{label:`Compteur mis à jour : ${m.nom}`});raised=true;}catch{}}
+      kit.finish(`Plein enregistré : ${formatNumber(liters)} L · ${m.nom}${raised?` · compteur ${formatNumber(meter)} h`:raise?' (compteur non mis à jour)':''}.`,async()=>{
+        await store.remove('integrationImports',id);
+        if(raised){const now=store.get('materiels',equipmentId);if(now&&now.currentMeter===meter)await store.upsert('materiels',{...now,currentMeter:previousMeter},{label:`Compteur rétabli : ${m.nom}`});}
       });
     };
   }

@@ -116,14 +116,14 @@ export function matchEquipment(text,state){
 // Unité accordée au pluriel (2 et plus, comme en français) : « 3 sacs » ; les symboles (L, t, kg, ha…) restent invariables.
 export const unitLabel=(n,unit='')=>{const u=String(unit||'');return Math.abs(Number(n))>=2&&/^[a-zà-ÿ][a-zà-ÿ ]*[^sxz]$/i.test(u)&&!/^(l|t|h|ha|kg|g|m3|min|q)$/i.test(u)?`${u}s`:u;};
 export const MAINTENANCE_TYPES=['Vidange','Graissage','Pneus','Contrôle technique','Réparation','Autre'];
-// Plein, panne ou entretien général : type « Autre », l'opération dictée est reprise dans la note.
+// Panne ou entretien général : type « Autre », l’opération dictée est reprise dans la note ; un plein est enregistré comme plein d’engin (Carburant GNR).
 export const maintenanceRecordType=opType=>MAINTENANCE_TYPES.includes(opType)?opType:'Autre';
 const MAINTENANCE=[
   ['Contrôle technique',/\b(controle technique|ct)\b/],
   ['Vidange',/\b(vidang\w*)\b/],
   ['Graissage',/\b(graiss\w*)\b/],
   ['Pneus',/\b(pneu\w*|crevaison|creve\w*)\b/],
-  ['Plein',/\b((?:fait|faire|fais)\s+le\s+plein|gasoil|gazole|gnr|fioul|carburant|adblue)\b/],
+  ['Plein',/\b((?:fait|faire|fais)\s+le\s+plein|(?:un|le)\s+plein|plein\s+(?:du|de la|de l|d un)|gasoil|gazole|gnr|fioul|carburant|adblue)\b/],
   ['Panne',/\b(en panne|panne|en rade|tombe\w* en panne|fuit|fuite d huile)\b/],
   ['Réparation',/\b(repar\w*|soude\w*|remplace\w*|change\w*)\b/],
   ['Entretien',/\b(entretien|revision|filtres?|courroies?|compteur|niveaux?)\b/]

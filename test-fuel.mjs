@@ -1,7 +1,7 @@
 // n° 95 — carburant GNR : pleins, niveau de cuve, consommation l/h, dérive et TICPE.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateFill,tankLevel,averagePrice,consumption,consumptionAlerts,ticpeRate,validateRate,ticpeRefund,TICPE_REFERENCE,FUEL_KIND} from './fuel.js';
+import {validateFill,tankLevel,averagePrice,consumption,consumptionAlerts,ticpeRate,validateRate,ticpeRefund,TICPE_REFERENCE,FUEL_KIND,machineFills,isLegacyFill} from './fuel.js';
 
 let n = 0;
 const rec = x => ({id: `f${++n}`, farmKind: FUEL_KIND, createdAt: n, ...x});
@@ -54,4 +54,25 @@ test('remboursement TICPE annuel : litres facturés × taux, factures listées',
   const r = ticpeRefund(s, 2025, {value: 15});
   assert.equal(r.litres, 3200); assert.equal(r.amount, 480); assert.equal(r.invoices.length, 3); assert.equal(r.missingInvoice, 1);
   assert.equal(r.spent, 2400 + 1300 + 300);
+});
+
+test('anciens pleins QR enregistrés comme entretien : lus comme pleins d’engin (sans migration)', () => {
+  const old = [{id: 'mr1', equipmentId: 't1', date: '2026-02-15', type: 'Plein', liters: 200, meter: 1030, cost: 300, createdAt: 5},
+    {id: 'mr2', equipmentId: 't1', date: '2026-02-20', type: 'Plein', liters: 100, meter: 1040, cost: 0, deletedAt: 9},
+    {id: 'mr3', equipmentId: 't1', date: '2026-02-21', type: 'Vidange', cost: 80}];
+  const s = {...farm([tank('2026-01-10', 2000, 1.1), fill('t1', '2026-02-01', 150, 1010)], {fuelTank: {capacity: 3000, initialLevel: 0, initialDate: '2026-01-01'}}), maintenanceRecords: old};
+  const before = JSON.stringify(s);
+  const fills = machineFills(s, 't1');
+  assert.equal(fills.length, 2);
+  const legacy = fills.find(r => r.legacy);
+  assert.equal(legacy.id, 'legacy-fill-mr1'); assert.equal(legacy.maintenanceId, 'mr1'); assert.equal(legacy.entry, 'machine');
+  assert.equal(legacy.litres, 200); assert.equal(legacy.amount, 300); assert.equal(legacy.unitPrice, 1.5); assert.equal(legacy.fromTank, true);
+  assert.equal(machineFills(s, 't1').find(r => r.legacy).id, legacy.id); // identifiant stable
+  assert.equal(tankLevel(s).level, 2000 - 150 - 200); // débit de la cuve
+  const c = consumption(s, 't1');
+  assert.equal(c.litres, 350); assert.equal(c.intervals.length, 1); assert.equal(c.intervals[0].lph, 10);
+  assert.equal(averagePrice(s), 1.1); // seuls les pleins de cuve font le prix moyen
+  assert.equal(ticpeRefund(s, 2026, {value: 15}).litres, 2000); // pris à la cuve : pas un achat
+  assert.equal(JSON.stringify(s), before); // aucune écriture
+  assert.equal(isLegacyFill(old[1]), false); assert.equal(isLegacyFill(old[2]), false);
 });
