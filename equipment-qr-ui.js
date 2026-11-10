@@ -85,8 +85,10 @@ export function createEquipmentQrUI(deps) {
       const res = qrFuelFill(store.get('materiels', id), {liters, meter, cost, fromTank: $('qr-fuel-form').elements.fromTank.checked}, todayIso());
       if (res.error) return fail('qr-fuel-error', res.error);
       await saveFarmRecord(store, FUEL_KIND, {...res.value, name: `Plein ${m.nom || 'engin'} ${res.value.date}`});
-      await raiseMeter(store.get('materiels', id), meter);
-      back(id, `Plein enregistré : ${formatNumber(liters)} L.`);
+      // Le plein est écrit : un refus du compteur (rôle opérateur) ne doit pas inviter à le ressaisir (doublon).
+      let meterNote = '';
+      try { await raiseMeter(store.get('materiels', id), meter); } catch { meterNote = ' (compteur non mis à jour)'; }
+      back(id, `Plein enregistré : ${formatNumber(liters)} L${meterNote}.`);
     });
   }
 
