@@ -7,7 +7,7 @@ import {Store,emptyState} from './state.js';
 import {canMutate} from './permissions.js';
 import {INVOICE_KIND,QUOTE_KIND,addMonths,allocateNumber,compileNumbering,complianceReport,createCreditNote,createDraft,deleteDraft,documentTotals,emitDocument,emissionProblems,expectedReceipts,fingerprintOk,ibanValid,invoiceBalance,invoiceHtml,invoiceStatus,invoiceTotals,invoices,isoDay,fingerprint,invoiceView,legalMentions,luhnValid,nextNumber,numberingIssues,addPayment,removePayment,markPaid,patchEmitted,quotes,receivable,saveDraft,saveSettings,validateDraft,validateSettings} from './invoices.js';
 import {CATALOG_KIND,SCHEDULE_KIND,acceptQuote,catalogItems,catalogLine,convertQuote,createDepositInvoice,dueSchedules,duplicateDocument,generateAndIssue,generateFromSchedule,logSent,quoteProgress,recordReminder,refuseQuote,saveCatalogItem,saveSchedule,schedules,transferOverpayment} from './billing.js';
-import {agedBalance,billingDashboard,clientRisk,dso,forecastByWeek,parseQuickEntry,paymentDelays,probableDuplicates,quoteStats,quotesToFollow,remindersDue,revenueByClient,revenueByMonth,suggestPrice,unbilledAlerts} from './billing-insights.js';
+import {suggestVatRate,agedBalance,billingDashboard,clientRisk,dso,forecastByWeek,parseQuickEntry,paymentDelays,probableDuplicates,quoteStats,quotesToFollow,remindersDue,revenueByClient,revenueByMonth,suggestPrice,unbilledAlerts} from './billing-insights.js';
 import {billingFecText,billingJournal,billingLinesCsv,epcPayload,epcQrSvg,facturXProblems,facturXml,invoiceHtmlWithQr,parseXml,splitAddress,validateFacturX} from './billing-export.js';
 import {documentMessage,fillTemplate} from './billing-messages.js';
 import {treasuryFlows} from './treasury.js';
@@ -547,4 +547,27 @@ test('acompte de 30 % sur un devis remisé à deux taux : solde = TTC du devis, 
   assert.deepEqual(j.warnings,[]);
   assert.equal(bal['4191'],0);
   assert.equal(round(bal['7060']+(bal['709']||0)),round(dd.totals.ht+sd.totals.ht));
+});
+
+test('saisie rapide v2 : client n’importe où, nombres en lettres, prix « de l’heure » / « la tonne », TVA proposée',()=>{
+  const state=emptyState();state.clients=[{id:'c1',name:'Jean Dupont'},{id:'c2',name:'GAEC des Prés'},{id:'c4',name:'Martin Paul'}];
+  const rows=t=>{const r=parseQuickEntry(t,state);return[r.client?.id||null,r.lines.map(l=>[l.label,l.quantity,l.unit,l.unitPrice,l.vatRate])];};
+  assert.deepEqual(rows('facture martin 3 heures de taille de haie 55 euros de l\'heure'),['c4',[['Taille de haie',3,'h',55,20]]]);
+  assert.deepEqual(rows('5 tonnes de paille à 80 € la tonne pour Martin'),['c4',[['Paille',5,'t',80,10]]]);
+  assert.deepEqual(rows('fact Dupont fauchage 10ha 35€ l\'ha tva 10%'),['c1',[['Fauchage',10,'ha',35,10]]]);
+  assert.deepEqual(rows('facture dupont deux heures de pelle à 60€'),['c1',[['Pelle',2,'h',60,20]]]);
+  assert.deepEqual(rows('devis Prés : déplacement 50€ + 4h débroussaillage 45€/h'),['c2',[['Déplacement',1,'forfait',50,20],['Débroussaillage',4,'h',45,20]]]);
+  assert.deepEqual(rows('devis pour GAEC des Prés, broyage 12 ha à 45€/ha'),['c2',[['Broyage',12,'ha',45,20]]]);
+  assert.deepEqual(rows('Dupont une demi-journée de tracteur 200 €'),['c1',[['Tracteur',0.5,'j',200,20]]]);
+});
+
+test('TVA proposée : franchise, catalogue, habitude puis règle usuelle',()=>{
+  const state=emptyState();
+  assert.equal(suggestVatRate('Foin en bottes',{state}).rate,10);
+  assert.equal(suggestVatRate('Bûches de chêne',{state}).rate,10);
+  assert.equal(suggestVatRate('Pommes de terre',{state}).rate,5.5);
+  assert.equal(suggestVatRate('Terrassement',{state}).rate,20);
+  assert.equal(suggestVatRate('Truc inconnu',{state}),null);
+  state.exploitation={...(state.exploitation||{}),invoicing:{vatRegime:'franchise'}};
+  assert.equal(suggestVatRate('Foin',{state}).rate,0);
 });

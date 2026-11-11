@@ -28,6 +28,10 @@ export const mapActions = {
     if(point){ctx.parcelMap.cancelPointPlacement();ctx.parcelMap.map?.closePopup();
       ctx.confirmDelete('points',id,point.nom||point.name||point.type||'ce point');}
   },
+  'delete-infra'({id}) {
+    const item=ctx.store.get('integrationImports',id);
+    if(item){ctx.parcelMap.map?.closePopup();ctx.confirmDelete('integrationImports',id,item.label||'cet élément');}
+  },
   'cancel-map-point'() { ctx.mapModes.exit({name:'point'}); ctx.parcelMap.cancelPointPlacement(); ctx.$('#map-point-panel').classList.add('hidden'); },
   'edit-contour'({id}) { ctx.closeModal(); ctx.contourEditUI().start(id); },
   async 'map-snap-toggle'() { await ctx.snapUI().toggle(); },

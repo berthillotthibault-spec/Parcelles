@@ -45,7 +45,7 @@ test('effacement : seules les clés de Parcelles sont visées', () => {
 test('textes fidèles au code : hôtes réellement appelés', () => {
   const read = f => readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
   assert.match(read('app.js'), /api\.open-meteo\.com/);
-  assert.match(read('rpg.js'), /apicarto\.ign\.fr/);
+  assert.match(read('rpg.js'), /data\.geopf\.fr\/wfs/);
   assert.match(read('satellite.js'), /operation:'series',geometry:parcel\.geometry/);
   assert.match(read('sync.js'), /if\(!prefs\.syncEnabled\)/);
   assert.match(read('app.js'), /weatherAutoRefresh!==false&&refreshWeather/);

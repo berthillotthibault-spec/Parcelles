@@ -96,7 +96,7 @@ export const LAZY_MODULES = Object.freeze({
 const actions = (keys, ...names) => names.map(name => [name, [].concat(keys)]);
 export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('herdEconomics', 'open-herd-economics'),
-  ...actions('herd', 'open-herd', 'open-herd-animal'),
+  ...actions('herd', 'open-herd', 'open-herd-animal', 'open-herd-import'),
   ...actions('netMargin', 'open-net-margin'),
   ...actions('treasury', 'open-treasury'),
   ...actions('cropMargins', 'open-crop-margins'),

@@ -34,8 +34,8 @@ test('culture lisible depuis le code PAC, code inconnu conservé', ()=>{
 });
 
 test('millésime N-1 d’abord, puis 2024 en secours', ()=>{
-  assert.deepEqual(onboardingRpgYears(new Date('2026-10-07T08:00:00')),[2025,2024]);
-  assert.deepEqual(onboardingRpgYears(new Date('2025-03-01T08:00:00')),[2024]);
+  assert.deepEqual(onboardingRpgYears(new Date('2026-10-07T08:00:00')),[2026,2025,2024]);
+  assert.deepEqual(onboardingRpgYears(new Date('2025-03-01T08:00:00')),[2025,2024]);
 });
 
 test('géocodage de la commune : URL bornée et réponse filtrée', ()=>{

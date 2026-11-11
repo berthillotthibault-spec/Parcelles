@@ -207,4 +207,11 @@
 /* Mode gants : outils de ligne aux cibles agrandies */
 body.gloves .bd-tool{width:var(--a11y-hit);height:var(--a11y-hit);min-width:var(--a11y-hit)}
 body.gloves .bd-drag{display:none}
+/* Annuaire des entreprises dans la fiche client */
+.bd-co-lookup{display:grid;gap:6px;padding:12px;border:1px solid var(--border-subtle);border-radius:12px;background:var(--surface-secondary)}
+.bd-co-row{display:flex;gap:8px;min-width:0}.bd-co-row input{flex:1 1 auto;min-width:0}.bd-co-row .button{flex:0 0 auto}
+.bd-co-list[hidden]{display:none}
+.bd-co-list{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:280px;overflow:auto}
+.bd-co-opt{display:grid;gap:2px;width:100%;text-align:start;padding:10px 12px;min-height:48px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);color:inherit;font:inherit;cursor:pointer}
+.bd-co-opt small{color:var(--text-secondary);overflow-wrap:anywhere}.bd-co-opt:hover,.bd-co-opt:focus-visible{border-color:var(--brand)}
 }

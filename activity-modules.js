@@ -30,6 +30,7 @@ export const TOOL_MODULES = Object.freeze({
   'open-herd-health': ['livestock'],
   'open-herd-economics': ['livestock'], // v7b n° 80
   'open-herd': ['livestock'], // n° 79 : troupeau bovin
+  'open-herd-import': ['livestock'],
   'open-herd-animal': ['livestock'],
   'open-forage': ['livestock'], // v8b n° 75
   'open-seeds': ['crops'], // v8b n° 67

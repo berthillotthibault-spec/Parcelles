@@ -24,7 +24,7 @@ const REQUIRED_ASSETS = [
   ,/* release */'./measured-yield-ui.js','./measured-yield.js','./day-review.js','./day-review-ui.js','./demo-farm.js','./ndvi-map.js'
   ,/* release */'./treasury-ui.js','./treasury.js','./isoxml-import.js','./settings-ui.js','./automations-ui.js','./tech-centers-ui.js','./map-layers-ui.js','./share-ui.js','./share-text.js','./explain-ui.js','./explain-model.js','./here-ui.js','./gloves.js','./gloves-ui.js','./here-context.js'
   ,/* release */'./green-indicators-ui.js','./green-indicators.js','./farm-plan-ui.js','./map-render.js','./farm-plan.js','./voice-intents-ui.js','./voice-grammar.js'
-  ,'./billing-docs-ui.js','./billing-docs-view.js','./billing-docs-editor.js','./billing-docs-actions.js','./billing-docs.css' // v13 : documents de facturation (chantier A)
+  ,'./billing-docs-ui.js','./billing-docs-view.js','./company-lookup.js','./billing-docs-editor.js','./billing-docs-actions.js','./billing-docs.css' // v13 : documents de facturation (chantier A)
  ,'./billing-hub.js','./billing-hub-ui.js','./billing-hub-catalog-ui.js','./billing-hub-settings-ui.js','./billing-hub.css','./lazy-styles.js' // v13 : centre Facturation, feuilles des écrans différés
 ];
 

@@ -7,7 +7,7 @@ import {html, raw} from './safe-html.js';
 import {DOC_LABELS, UNITS, MORE_UNITS, VAT_EXEMPTIONS, OPERATION_NATURES, vatRatesOf, addDays, daysBetween, validDay, createDraft, saveDraft, deleteDraft,
   runningSubtotals, lineKind} from './invoices.js';
 import {catalogItems, catalogLine, convertQuote, createDepositInvoice} from './billing.js';
-import {parseQuickEntry} from './billing-insights.js';
+import {parseQuickEntry, suggestVatRate} from './billing-insights.js';
 import {invoiceHtmlWithQr} from './billing-export.js';
 import {draftKey, readDraft, writeDraft, removeDraft, draftTimeLabel} from './form-drafts.js';
 import {showPrintable, assetBase} from './dossier-ui.js';
@@ -313,6 +313,16 @@ export function createDocsEditor(ui) {
     const li = el.closest?.('[data-line]');
     if (li && event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) { event.preventDefault(); moveBy(li.dataset.line, event.key === 'ArrowUp' ? -1 : 1, `[data-line="${li.dataset.line}"] [data-f="${el.dataset.f || 'label'}"]`); }
   }
+  // TVA proposée d’après la désignation (catalogue, habitude, règle usuelle) tant que le taux n’a pas été choisi à la main.
+  const vatManual = new Set();
+  function proposeVat(li, l) {
+    if (vatManual.has(l.id)) return;
+    const sug = suggestVatRate(l.label, {state: ui.state()}), select = li.querySelector('[data-f="vatRate"]');
+    if (!sug || !select || ![...select.options].some(o => Number(o.value) === sug.rate) || Number(l.vatRate) === sug.rate) return;
+    l.vatRate = sug.rate; select.value = [...select.options].find(o => Number(o.value) === sug.rate).value;
+    const exo = li.querySelector('.bd-f-exo'); if (exo) exo.hidden = sug.rate !== 0;
+    ui.toast(`TVA proposée : ${String(sug.rate).replace('.', ',')} % (${sug.basis}). Modifiable sur la ligne.`, 'info');
+  }
   function onField(el, committed) {
     if (!ed || !el) return;
     // Liste des clients : seulement à la frappe (le « change » du départ du champ la redessinerait sous le clic).
@@ -325,8 +335,8 @@ export function createDocsEditor(ui) {
       const fkey = el.dataset.f;
       l[fkey] = el.value;
       if (fkey === 'discountPct') el.setAttribute('aria-invalid', String(discountInvalid(el.value)));
-      if (fkey === 'vatRate') { const exo = li.querySelector('.bd-f-exo'); if (exo) exo.hidden = Number(el.value) !== 0; }
-      if (fkey === 'label' && committed) refreshHint(li, l);
+      if (fkey === 'vatRate') { vatManual.add(l.id); const exo = li.querySelector('.bd-f-exo'); if (exo) exo.hidden = Number(el.value) !== 0; }
+      if (fkey === 'label' && committed) { proposeVat(li, l); refreshHint(li, l); }
       if (fkey === 'unitPrice' || fkey === 'unit') refreshHint(li, l);
     } else if (el.name === 'goodForAgreement') ed.goodForAgreement = el.checked;
     else if (TOP_FIELDS.has(el.name)) {

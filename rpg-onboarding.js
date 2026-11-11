@@ -3,7 +3,7 @@
 // le RPG publié par l’IGN est anonyme, c’est l’utilisateur qui désigne ses îlots.
 import {clone,formatNumber,uid,validateParcel} from './utils.js';
 import {normalizeEntity} from './state.js';
-import {rpgFeatureId,rpgFeatureToParcel,rpgCultureLabel} from './rpg.js';
+import {rpgFeatureId,rpgFeatureToParcel,rpgCultureLabel,isRpgYearUnavailable} from './rpg.js';
 
 export const GEOCODE_URL='https://data.geopf.fr/geocodage/search';
 export const RPG_FALLBACK_YEAR=2024;
@@ -13,10 +13,11 @@ export const BATCH_LIMIT=300;
 // Nomenclature des cultures PAC déplacée dans rpg.js (réexportée ici pour telepac.js et les tests).
 export {RPG_CULTURE_LABELS,rpgCultureLabel} from './rpg.js';
 
-// Millésime N-1 d’abord (dernière déclaration connue), puis 2024, déjà éprouvé par la carte.
 export function onboardingRpgYears(now=new Date()){
-  const previous=now.getFullYear()-1;
-  return [...new Set([previous,RPG_FALLBACK_YEAR])].filter(year=>Number.isSafeInteger(year)&&year>=2015&&year<=previous);
+  // Mise à jour automatique : l’année en cours d’abord, puis les précédentes jusqu’à 2024.
+  // Un millésime pas encore publié (réponse « inconnu » du WFS) est écarté pour la session.
+  const out=[];for(let year=now.getFullYear();year>=RPG_FALLBACK_YEAR;year--)if(!isRpgYearUnavailable(year))out.push(year);
+  return out.length?out:[RPG_FALLBACK_YEAR];
 }
 
 export function geocodeUrl(commune){

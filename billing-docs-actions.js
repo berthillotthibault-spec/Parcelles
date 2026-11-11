@@ -4,6 +4,7 @@
 // devis, acompte et facture de solde, dupliquer, Factur-X contrôlé, écritures comptables, frise de l'historique.
 // Toute écriture passe par le moteur (invoices.js, billing.js) ; une action réversible propose « Annuler ».
 import {html, raw} from './safe-html.js';
+import {searchCompanies} from './company-lookup.js';
 import {download} from './utils.js';
 import {DOC_LABELS, PAYMENT_METHODS, VAT_EXEMPTIONS, ACCOUNTING_TYPES, docTypeOf, documentTotals, invoiceBalance, invoiceStatus, paymentsOf, methodLabel, fingerprintOk,
   isoDay, dateFr, lineKind, amountLine, runningSubtotals, emitDocument, addPayment, removePayment, createCreditNote, patchEmitted, deleteDraft, invoiceFileName} from './invoices.js';
@@ -406,6 +407,7 @@ export function createDocsActions(ui) {
     clientCtx = {id: c?.id || null, onSaved, onCancel};
     const terms = [['', 'Selon les paramètres'], ['0', 'À réception'], ['15', '15 jours'], ['30', '30 jours'], ['45', '45 jours'], ['60', '60 jours']];
     const body = html`<form id="bd-client-form" class="form-grid bd-form" novalidate>
+      <div class="span-2 bd-co-lookup"><label for="bd-co-q">Retrouver l’entreprise dans l’annuaire officiel</label><div class="bd-co-row"><input id="bd-co-q" name="coQuery" value="${c ? '' : name || ''}" placeholder="Nom, SIREN, SIRET, commune ou code postal" autocomplete="off" enterkeyhint="search"><button type="button" class="button secondary" data-bdoc="company-search">Rechercher</button></div><p class="bd-note">Remplit raison sociale, SIREN, n° de TVA et adresse du siège (annuaire des entreprises de l’État). Relisez avant d’enregistrer.</p><ul id="bd-co-list" class="bd-co-list" hidden></ul></div>
       <label class="span-2">Nom ou raison sociale *<input name="name" maxlength="120" value="${v.name || ''}" autocomplete="off" data-autofocus></label>
       <div class="bd-field span-2"><span class="bd-label">Type de client</span>${ui.chipGroup('kind', [['pro', 'Professionnel'], ['particulier', 'Particulier']], v.kind || '', 'Type de client')}</div>
       <label>Contact<input name="contact" maxlength="120" value="${v.contact || ''}" autocomplete="off"></label><label>Téléphone<input name="phone" inputmode="tel" maxlength="30" value="${v.phone || ''}" autocomplete="off"></label>
@@ -419,7 +421,28 @@ export function createDocsActions(ui) {
       <p class="span-2 form-error hidden" role="alert"></p></form>`;
     ui.modal(c ? `Facturation : ${c.name}` : 'Nouveau client', 'Coordonnées reprises sur les devis et les factures', String(body), String(html`<button type="button" class="button secondary" data-bdoc="client-cancel">Annuler</button><button type="button" class="button primary" data-bdoc="client-save">Enregistrer</button>`), 'small');
     ui.bindChips($('#bd-client-form'));
+    $('#bd-co-q')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); companySearch(); } });
   }
+  // ---------- Annuaire des entreprises ----------
+  let companyResults = [];
+  async function companySearch() {
+    const input = $('#bd-co-q'), list = $('#bd-co-list'); if (!input || !list) return;
+    const q = input.value.trim() || $('#bd-client-form')?.elements.name?.value || '';
+    list.hidden = false; list.innerHTML = '<li class="bd-note">Recherche…</li>';
+    try { companyResults = await searchCompanies(q); }
+    catch (error) { list.innerHTML = String(html`<li class="form-error">${error.message}</li>`); return; }
+    list.innerHTML = companyResults.length ? String(html`${companyResults.map((r, i) => html`<li><button type="button" class="bd-co-opt" data-bdoc="company-pick" data-i="${i}"><strong>${r.displayName}</strong><small>${[`SIREN ${r.siren}`, [r.postalCode, r.city].filter(Boolean).join(' '), r.closed ? 'entreprise fermée' : ''].filter(Boolean).join(' · ')}</small></button></li>`)}`) : '<li class="bd-note">Aucune entreprise trouvée : essayez le SIREN ou ajoutez la commune.</li>';
+  }
+  function companyPick(control) {
+    const r = companyResults[Number(control.dataset.i)], f = $('#bd-client-form'); if (!r || !f) return;
+    const set = (k, v, {onlyEmpty = false} = {}) => { const el = f.elements[k]; if (el && v && (!onlyEmpty || !el.value.trim())) el.value = v; };
+    set('name', r.name); set('siren', r.siret || r.siren); set('vatNumber', r.vatNumber); set('billingAddress', r.billingAddress); set('contact', r.contact, {onlyEmpty: true});
+    if (f.elements.kind) { f.elements.kind.value = 'pro'; f.querySelectorAll('[data-chip-target="kind"] .choice-chip').forEach(b => { const on = b.dataset.value === 'pro'; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); }); }
+    const list = $('#bd-co-list'); if (list) { list.hidden = true; list.innerHTML = ''; }
+    ui.toast(r.closed ? `Fiche préremplie : ${r.displayName}. Attention, l’annuaire indique cette entreprise comme fermée.` : `Fiche préremplie : ${r.displayName}. Relisez puis enregistrez.`, r.closed ? 'info' : 'success');
+    f.elements.name?.focus();
+  }
+
   async function clientSave() {
     const f = $('#bd-client-form'); if (!f || !clientCtx) return;
     ui.clearFormError(f);
@@ -455,7 +478,7 @@ export function createDocsActions(ui) {
     'emit-confirm': exclusive(emitConfirmed), 'pay-save': exclusive(paySave), 'payment-remove': exclusive(paymentRemove), 'over-save': exclusive(overSave),
     'remind-go': remindGo, 'remind-log': exclusive(remindLog), 'credit-go': exclusive(creditGo), 'accept-save': exclusive(acceptSave), 'refuse-save': exclusive(refuseSave),
     'deposit-go': exclusive(depositGo), 'dup-go': exclusive(dupGo), 'xml-download': xmlDownload, 'journal-download': journalDownload,
-    'client-save': exclusive(clientSave), 'client-cancel': () => { const ctx0 = clientCtx; clientCtx = null; ctx0?.onCancel ? ctx0.onCancel() : ui.closeModal(); }
+    'company-search': exclusive(companySearch), 'company-pick': companyPick, 'client-save': exclusive(clientSave), 'client-cancel': () => { const ctx0 = clientCtx; clientCtx = null; ctx0?.onCancel ? ctx0.onCancel() : ui.closeModal(); }
   });
   return {view, run, confirmEmit, send, clientForm, pdfOptions, totalsHtml, statusOpen: s => OPEN_STATUSES.has(s)};
 }

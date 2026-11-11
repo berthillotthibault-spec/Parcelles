@@ -1,5 +1,16 @@
 # Changelog
 
+## 10.29.0 · PAC/RPG et nitrates rétablis, suppressions, import du troupeau, facturation plus intelligente — 2026-11-11
+
+- **PAC/RPG** : API Carto (apicarto.ign.fr) a fermé ; les parcelles RPG sont lues sur le WFS de la Géoplateforme (`RPG.<année>:parcelles_graphiques`). Le millésime le plus récent est choisi tout seul : l'année en cours d'abord, puis les précédentes ; un millésime pas encore publié est écarté pour la session (le RPG 2025, puis 2026, sera pris dès sa mise en ligne) ;
+- **Cadastre** : la parcelle cadastrale touchée sur la carte est lue sur le WFS « Parcellaire Express » de la Géoplateforme (mêmes champs qu'avant) ;
+- **Zones vulnérables nitrates** : le service Sandre `zon_FXX` ne dessine plus la couche ; passage au service `zon` (`ZoneVuln_designation_FXX`) ;
+- **Suppressions** : bouton « Supprimer » dans « Modifier le point » ; points de carte plus faciles à toucher ; haies, mares et autres éléments importés (IAE) ont une bulle avec « Supprimer » ; « Supprimer ce client » sur la fiche client de la facturation (corbeille, avec Annuler) ;
+- **Import du troupeau** : fichiers Excel/ODS en plus du CSV, ligne de titre au-dessus des en-têtes acceptée, dates d'entrée et de sortie et motif de sortie reconnus, option « inventaire complet » qui marque comme sortis les animaux absents de la liste ; l'import général reconnaît une liste d'animaux et propose « Importer dans le troupeau » ;
+- **Facturation, saisie rapide** : client reconnu n'importe où dans la phrase, nombres en lettres (« deux heures », « une demi-journée »), prix unitaires (« 55 € de l'heure », « 80 € la tonne », « 45 €/ha », « 4,5 € pièce »), quantité après la désignation (« fauchage 10 ha ») ;
+- **Facturation, TVA proposée** : taux proposé selon la désignation (catalogue, habitude de l'exploitation, puis règle usuelle : 5,5 % alimentaire, 10 % paille, foin, bois de chauffage, animaux vivants, 20 % prestations), dans la saisie rapide et à la saisie d'une ligne ; franchise en base respectée ;
+- **Facturation, clients** : recherche dans l'annuaire officiel des entreprises (nom, SIREN, SIRET, commune ou code postal) qui préremplit raison sociale, SIRET, n° de TVA et adresse ; la recherche des clients existants accepte aussi téléphone, n° de TVA et SIREN tapé avec espaces.
+
 ## 10.28.4 · champs qui dépassaient sur iPhone — 2026-11-11
 
 - **Safari iOS** : les champs date et heure ne dépassent plus de leur bloc (Dates et conditions des factures et devis, travaux, tâches…) ; valeur alignée à gauche comme les autres champs ; les blocs de formulaire (fieldset) ne s'élargissent plus à leur contenu ;

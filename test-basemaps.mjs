@@ -43,10 +43,11 @@ test('opacité du cadastre bornée entre 20 et 100 %', ()=>{
   assert.equal(normalizeCadastreOpacity(0.55),0.55);
 });
 
-test('requête API Carto cadastre au point touché', ()=>{
+test('requête WFS Géoplateforme cadastre au point touché', ()=>{
   const url=new URL(cadastreQueryUrl(46.2005,5.2005));
-  assert.equal(url.origin+url.pathname,'https://apicarto.ign.fr/api/cadastre/parcelle');
-  assert.deepEqual(JSON.parse(url.searchParams.get('geom')),{type:'Point',coordinates:[5.2005,46.2005]});
+  assert.equal(url.origin+url.pathname,'https://data.geopf.fr/wfs/ows');
+  assert.equal(url.searchParams.get('TYPENAMES'),'CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle');
+  assert.equal(url.searchParams.get('CQL_FILTER'),'INTERSECTS(geom,POINT(46.2005 5.2005))');
   assert.throws(()=>cadastreQueryUrl(120,5),/Position invalide/);
   assert.throws(()=>cadastreQueryUrl('x',5),/Position invalide/);
 });

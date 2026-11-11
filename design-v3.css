@@ -2958,9 +2958,9 @@ body.gloves #work-list .work-row .row-meta{display:flex;flex-wrap:wrap;column-ga
 /* Balayage des travaux du jour (n° 31) : la consigne reste visible, les boutons restent l'alternative. */
 :root:not([data-role=viewer]) body.gloves #today-work-list:has(.work-row[data-swipe])::after{content:"Glisser à droite : Fait · à gauche : Demain";display:block;margin-top:8px;font-size:13px;color:var(--text-secondary);text-align:center}
 /* Maintien de confirmation : la jauge se remplit en 600 ms ; sans animation, la teinte est immédiate. */
-body.gloves :is(button[id^="delete-"],button[data-action="delete-parcel"],button[data-action="delete-map-point"]){position:relative;overflow:hidden;isolation:isolate;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
-body.gloves :is(button[id^="delete-"],button[data-action="delete-parcel"],button[data-action="delete-map-point"])::after{content:"Maintenir appuyé";content:"Maintenir appuyé"/"";display:block;font-size:11.5px;font-weight:600;opacity:.75;letter-spacing:.01em}
-body.gloves :is(button[id^="delete-"],button[data-action="delete-parcel"],button[data-action="delete-map-point"]):not(.icon-only):not(.menu-row){flex-direction:column;gap:0;line-height:1.15}
+body.gloves :is(button[id^="delete-"],button[data-action="delete-parcel"],button[data-action="delete-map-point"],button[data-action="delete-infra"]){position:relative;overflow:hidden;isolation:isolate;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+body.gloves :is(button[id^="delete-"],button[data-action="delete-parcel"],button[data-action="delete-map-point"],button[data-action="delete-infra"])::after{content:"Maintenir appuyé";content:"Maintenir appuyé"/"";display:block;font-size:11.5px;font-weight:600;opacity:.75;letter-spacing:.01em}
+body.gloves :is(button[id^="delete-"],button[data-action="delete-parcel"],button[data-action="delete-map-point"],button[data-action="delete-infra"]):not(.icon-only):not(.menu-row){flex-direction:column;gap:0;line-height:1.15}
 /* ligne de menu (grille icône | texte | chevron) : la mention passe sous le libellé */
 body.gloves .menu-row:is(button[id^="delete-"],[data-action="delete-parcel"],[data-action="delete-map-point"])::after{grid-column:2;margin-top:-6px}
 body.gloves .is-holding{outline:3px solid var(--danger);outline-offset:2px}

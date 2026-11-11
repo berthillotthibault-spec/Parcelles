@@ -38,6 +38,7 @@ export function createBillingHubUI(host = {}) {
   const data = () => (typeof host.state === 'function' ? host.state() : null) || store.state;
   const role = () => normalizeRole((typeof host.role === 'function' ? host.role() : host.role) || 'owner');
   const visible = () => !['viewer', 'operator'].includes(role());
+  const canWriteClient = () => !store.tabReadOnly && canMutate(role(), {entity: 'clients', action: 'delete'});
   const canWrite = (farmKind = 'invoice') => !store.tabReadOnly && canMutate(role(), {entity: 'integrationImports', action: 'update', farmKind});
   const today = () => isoDay(typeof host.now === 'function' ? new Date(host.now()) : new Date());
   const local = (() => { try { return globalThis.localStorage; } catch { return null; } })();
@@ -298,7 +299,7 @@ export function createBillingHubUI(host = {}) {
     if (!c || !visible()) return;
     if (!panel()) open('clients');
     tab = 'clients'; lastClient = clientId;
-    panelView = box => { box.innerHTML = String(html`<button type="button" class="text-button bh-back" data-bh="back">‹ Tous les clients</button><h3 class="bh-title">${c.name}</h3>${clientSheetHtml(clientId)}`); };
+    panelView = box => { box.innerHTML = String(html`<button type="button" class="text-button bh-back" data-bh="back">‹ Tous les clients</button><h3 class="bh-title">${c.name}</h3>${clientSheetHtml(clientId)}${canWriteClient() ? html`<div class="bh-danger-zone"><button type="button" class="button secondary danger" data-bh="client-delete" data-id="${c.id}">Supprimer ce client</button><p class="bh-note">Placé dans la corbeille (Mes données) : ses factures émises restent intactes.</p></div>` : ''}`); };
     paint();
     panel()?.focus();
   }
@@ -329,6 +330,14 @@ export function createBillingHubUI(host = {}) {
       else if (a === 'doc') openDocument(id);
       else if (a === 'new') openNew({docType: el.dataset.doc || 'facture', ...(el.dataset.client ? {clientId: el.dataset.client} : {})});
       else if (a === 'client') openClient(id);
+      else if (a === 'client-delete') {
+        // Deux appuis : le premier arme le bouton, le second place le client dans la corbeille.
+        if (el.dataset.armed !== '1') { el.dataset.armed = '1'; el.textContent = 'Toucher encore pour confirmer'; setTimeout(() => { if (el.isConnected) { delete el.dataset.armed; el.textContent = 'Supprimer ce client'; } }, 4000); return; }
+        const c = store.get('clients', id); if (!c) return;
+        await store.remove('clients', id);
+        panelView = null; lastClient = ''; paint();
+        toast(`Client « ${c.name} » placé dans la corbeille.`, 'success', {label: 'Annuler', run: async () => { if (store.get('clients', id, {includeDeleted: true})?.deletedAt) await store.restore('clients', id); openClient(id); }});
+      }
       else if (a === 'client-new') await withDocs(d => d.openClientForm?.({onSaved: c => { open('clients'); openClient(c.id); }, onCancel: () => open('clients')}));
       else if (a === 'open-client') open('clients') || openClient(id);
       else if (a === 'remind') await remindGroup(el.dataset.key);

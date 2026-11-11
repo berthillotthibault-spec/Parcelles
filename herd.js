@@ -289,8 +289,29 @@ export const HERD_CSV_FIELDS=Object.freeze([
   {key:'sex',label:'Sexe',aliases:[/^sexe?$/,/^sex$/,/^code sexe/]},
   {key:'breed',label:'Race',aliases:[/^race/,/^type racial/,/^breed$/]},
   {key:'birthDate',label:'Date de naissance',aliases:[/naissance/,/^ne le$/,/^date nais/,/^birth/]},
-  {key:'motherNationalId',label:'Numéro de la mère',aliases:[/mere/,/^n ?mere/,/^dam$/]}
+  {key:'motherNationalId',label:'Numéro de la mère',aliases:[/mere/,/^n ?mere/,/^dam$/]},
+  {key:'entryDate',label:'Date d’entrée',aliases:[/^date d ?entree/,/^entree/,/arrivee/,/^date d ?achat/]},
+  {key:'exitDate',label:'Date de sortie',aliases:[/^date de sortie/,/^sortie le/,/^date sortie/,/^sortie$/,/^date de (vente|mort)/]},
+  {key:'exitReason',label:'Motif de sortie',aliases:[/^(motif|cause|type) (de )?sortie/,/^motif$/]}
 ]);
+
+const isoOf=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+/**
+ * Tableau brut (lignes de cellules, ex. feuille Excel) → {headers,rows}. La ligne d'en-têtes est cherchée dans
+ * les 15 premières lignes (les exports BDNI ou du portail éleveur commencent souvent par un titre) : c'est la
+ * première qui contient une colonne de numéro national. Les dates Excel deviennent AAAA-MM-JJ.
+ */
+export function herdRowsFromTable(table){
+  const cell=v=>v instanceof Date&&!Number.isNaN(v.getTime())?isoOf(v):text(v);
+  const lines=(table||[]).map(r=>(Array.isArray(r)?r:[]).map(cell));
+  const idField=HERD_CSV_FIELDS[0];
+  let at=lines.slice(0,15).findIndex(r=>r.some(c=>c&&idField.aliases.some(re=>re.test(normalize(c)))));
+  if(at<0)at=lines.findIndex(r=>r.filter(Boolean).length>=2);
+  if(at<0)return{headers:[],rows:[]};
+  const seen=new Map(),headers=lines[at].map((h,i)=>{let name=h||`Colonne ${i+1}`;const n=(seen.get(name)||0)+1;seen.set(name,n);return n>1?`${name} (${n})`:name;});
+  const rows=lines.slice(at+1).filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??''])));
+  return{headers,rows};
+}
 
 /** Lit un CSV (séparateur ; , ou tabulation) : en-têtes et lignes. */
 export function readHerdCsv(textValue){
@@ -312,9 +333,9 @@ export function guessColumns(headers){
  * Aperçu de l'import : chaque ligne devient une création, une mise à jour (même numéro national déjà au troupeau)
  * ou une ligne ignorée (raison). Dédoublonnage par numéro dans le fichier et dans le troupeau.
  */
-export function herdImportPreview(state,rows,mapping,{today=grazingDate()}={}){
-  if(!mapping?.nationalId)return{rows:[],create:0,update:0,skip:0,error:'Choisissez la colonne du numéro national.'};
-  if((rows||[]).length>HERD_IMPORT_MAX)return{rows:[],create:0,update:0,skip:0,error:`Fichier trop long : ${HERD_IMPORT_MAX} lignes au plus.`};
+export function herdImportPreview(state,rows,mapping,{today=grazingDate(),fullInventory=false}={}){
+  if(!mapping?.nationalId)return{rows:[],create:0,update:0,skip:0,exit:0,error:'Choisissez la colonne du numéro national.'};
+  if((rows||[]).length>HERD_IMPORT_MAX)return{rows:[],create:0,update:0,skip:0,exit:0,error:`Fichier trop long : ${HERD_IMPORT_MAX} lignes au plus.`};
   const seen=new Set(),out=[];
   for(const [index,row] of (rows||[]).entries()){
     const get=key=>mapping[key]?text(row[mapping[key]]):'';
@@ -330,12 +351,21 @@ export function herdImportPreview(state,rows,mapping,{today=grazingDate()}={}){
       const birth=get('birthDate');let birthDate=null;
       if(birth){birthDate=strictDate(birth);if(!birthDate)throw new Error(`Date de naissance invalide : ${birth}`);if(birthDate>today)throw new Error('Date de naissance dans le futur');}
       const mother=normalizeNationalId(get('motherNationalId'));
-      value={nationalId,name:get('name'),sex,breed:get('breed'),birthDate,motherNationalId:isValidNationalId(mother)&&mother!==nationalId?mother:''};
+      const dateOf=(key,label)=>{const raw=get(key);if(!raw)return null;const d=strictDate(raw);if(!d)throw new Error(`${label} invalide : ${raw}`);return d;};
+      const entryDate=dateOf('entryDate','Date d’entrée'),exitDate=dateOf('exitDate','Date de sortie');
+      if(exitDate&&exitDate>today)throw new Error('Date de sortie dans le futur');
+      value={nationalId,name:get('name'),sex,breed:get('breed'),birthDate,motherNationalId:isValidNationalId(mother)&&mother!==nationalId?mother:'',entryDate,exitDate,exitReason:exitDate?get('exitReason')||'Sortie (import)':''};
       if(sexRaw&&!sex)value.sex='';
     }catch(error){out.push({line,action:'skip',reason:error.message,nationalId});continue;}
     out.push({line,action:existing?'update':'create',nationalId,value,existingId:existing?.id||null});
   }
-  return{rows:out,create:out.filter(r=>r.action==='create').length,update:out.filter(r=>r.action==='update').length,skip:out.filter(r=>r.action==='skip').length,error:''};
+  // Inventaire complet : un animal présent au troupeau mais absent du fichier est proposé en sortie.
+  if(fullInventory&&seen.size)for(const a of live(state,'animals')){
+    const id=normalizeNationalId(a.nationalId);
+    if(isPresent(a,today)&&id&&!seen.has(id))out.push({line:null,action:'exit',nationalId:id,existingId:a.id,value:{name:a.name||''}});
+  }
+  const count=action=>out.filter(r=>r.action===action).length;
+  return{rows:out,create:count('create'),update:count('update'),skip:count('skip'),exit:count('exit'),error:''};
 }
 
 /**
@@ -346,14 +376,18 @@ export function herdImportPreview(state,rows,mapping,{today=grazingDate()}={}){
 export function herdImportEntities(state,preview,{newId,sessionId=null,today=grazingDate()}){
   const byNational=new Map(live(state,'animals').filter(a=>a.nationalId).map(a=>[normalizeNationalId(a.nationalId),a]));
   const writes=[];
-  for(const row of preview.rows.filter(r=>r.action!=='skip')){
+  for(const row of preview.rows.filter(r=>r.action==='exit')){
+    const existing=byNational.get(row.nationalId);
+    if(existing){const next={...existing,exitDate:today,exitReason:'Absent de l’inventaire importé'};writes.push(next);byNational.set(row.nationalId,next);}
+  }
+  for(const row of preview.rows.filter(r=>r.action==='create'||r.action==='update')){
     const existing=row.existingId?byNational.get(row.nationalId):null;
     if(existing){
       const next={...existing};
       for(const [k,v] of Object.entries(row.value))if(v)next[k]=v;
       writes.push(next);byNational.set(row.nationalId,next);
     }else{
-      const entity={id:newId(),...row.value,motherId:null,entryDate:row.value.birthDate||today,entryReason:'Reprise d’inventaire',exitDate:null,exitReason:'',sessionId,origin:'import',note:'',source:IMPORT_SOURCE,sourceId:row.nationalId};
+      const entity={id:newId(),...row.value,motherId:null,entryDate:row.value.entryDate||row.value.birthDate||today,entryReason:'Reprise d’inventaire',exitDate:row.value.exitDate||null,exitReason:row.value.exitReason||'',sessionId,origin:'import',note:'',source:IMPORT_SOURCE,sourceId:row.nationalId};
       writes.push(entity);byNational.set(row.nationalId,entity);
     }
   }

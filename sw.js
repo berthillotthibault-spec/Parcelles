@@ -1,4 +1,4 @@
-const BUILD='2026.11.11-v10.28.4';
+const BUILD='2026.11.11-v10.29.0';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
@@ -28,7 +28,7 @@ const CORE=[
  ,'./machine-costs.js','./machine-costs-ui.js','./net-margin.js','./net-margin-ui.js','./treasury.js','./treasury-ui.js','./accounting-export.js','./accounting-export-ui.js','./campaign-history.js','./campaign-history-ui.js' // v8c
  ,'./forage.js','./forage-ui.js','./seeds.js','./seeds-ui.js','./soil-analysis.js','./soil-analysis-ui.js','./hedges.js','./hedges-ui.js' // v8b
  ,'./telepac.js','./telepac-ui.js','./parcel-check.js','./parcel-check-ui.js','./regulatory.js','./regulatory-ui.js','./regulated-ops.js','./regulated-ops-ui.js','./green-indicators.js','./green-indicators-ui.js' // v8a, v11 n° 71
- ,'./billing-docs-ui.js','./billing-docs-view.js','./billing-docs-editor.js','./billing-docs-actions.js','./billing-docs.css' // v13 : documents de facturation (chantier A)
+ ,'./billing-docs-ui.js','./billing-docs-view.js','./company-lookup.js','./billing-docs-editor.js','./billing-docs-actions.js','./billing-docs.css' // v13 : documents de facturation (chantier A)
  ,'./billing-hub.js','./billing-hub-ui.js','./billing-hub-catalog-ui.js','./billing-hub-settings-ui.js','./billing-hub.css','./lazy-styles.js' // v13 : centre Facturation, feuilles des écrans différés
 ];
 

@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.29.0",
+      "date": "2026-11-11",
+      "title": "PAC, nitrates, troupeau et factures",
+      "items": [
+        "Les parcelles PAC, le cadastre et les zones vulnérables nitrates s’affichent de nouveau, avec le RPG le plus récent choisi automatiquement.",
+        "Points de la carte, haies importées et clients se suppriment facilement.",
+        "Le troupeau s’importe depuis un fichier Excel ou CSV, sorties comprises.",
+        "Factures : saisie rapide mieux comprise, TVA proposée et recherche d’une entreprise par nom ou SIREN."
+      ]
+    },
+    {
       "version": "10.28.4",
       "date": "2026-11-11",
       "title": "Champs bien alignés sur iPhone",

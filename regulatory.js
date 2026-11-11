@@ -7,7 +7,8 @@ import {geometryBbox, geometryCentroid, pointInGeometry} from './utils.js';
 export const GEOPF_WMTS='https://data.geopf.fr/wmts';
 export const GEOPF_WMS_V='https://data.geopf.fr/wms-v/ows';
 export const GEOPF_WFS='https://data.geopf.fr/wfs/ows';
-export const SANDRE_WMS='https://services.sandre.eaufrance.fr/geo/zon_FXX';
+// Le service zon_FXX du Sandre ne dessine plus les zones vulnérables (erreur serveur, nov. 2026) : service « zon ».
+export const SANDRE_WMS='https://services.sandre.eaufrance.fr/geo/zon';
 const IGN='© IGN – Géoplateforme';
 
 function wmts(layer,{style='normal',matrixSet='PM'}={}){
@@ -20,7 +21,7 @@ export const REG_LAYERS=Object.freeze([
   {id:'hydro',label:'Hydrographie BD TOPO',hint:'Réseau hydrographique détaillé',kind:'wmts',url:wmts('HYDROGRAPHY.HYDROGRAPHY',{matrixSet:'PM_6_18'}),minZoom:6,maxNativeZoom:18,attribution:`${IGN} (BD TOPO)`,source:'IGN, BD TOPO',date:'mise à jour continue'},
   {id:'natura-sic',label:'Natura 2000 – habitats (SIC/ZSC)',hint:'Directive Habitats',kind:'wms',url:GEOPF_WMS_V,layers:'Patrinat_SIC_France',attribution:`${IGN} · PatriNat (OFB-MNHN)`,source:'PatriNat (OFB-MNHN) via Géoplateforme',date:'dernière diffusion'},
   {id:'natura-zps',label:'Natura 2000 – oiseaux (ZPS)',hint:'Directive Oiseaux',kind:'wms',url:GEOPF_WMS_V,layers:'Patrinat_ZPS_France',attribution:`${IGN} · PatriNat (OFB-MNHN)`,source:'PatriNat (OFB-MNHN) via Géoplateforme',date:'dernière diffusion'},
-  {id:'zv',label:'Zones vulnérables nitrates',hint:'Directive Nitrates (Sandre, service parfois lent)',kind:'wms',url:SANDRE_WMS,layers:'ZoneVuln',attribution:'Sandre – OFB',source:'Sandre (OFB), zonages réglementaires',date:'dernière désignation'},
+  {id:'zv',label:'Zones vulnérables nitrates',hint:'Directive Nitrates (Sandre, service parfois lent)',kind:'wms',url:SANDRE_WMS,layers:'ZoneVuln_designation_FXX',attribution:'Sandre – OFB',source:'Sandre (OFB), zonages réglementaires',date:'dernière désignation'},
   {id:'pentes',label:'Pentes agricoles',hint:'Zones de pente > 10 % (RGE ALTI)',kind:'wmts',url:wmts('GEOGRAPHICALGRIDSYSTEMS.SLOPES.PAC',{style:'GEOGRAPHICALGRIDSYSTEMS.SLOPES.PAC',matrixSet:'PM_0_15'}),minZoom:0,maxNativeZoom:15,attribution:`${IGN} (RGE ALTI 2017)`,source:'IGN, carte des pentes pour l’agriculture',date:'2017'}
 ]);
 export const REG_LAYER_IDS=REG_LAYERS.map(layer=>layer.id);

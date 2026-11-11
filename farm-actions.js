@@ -10,6 +10,7 @@ export const farmActions = {
   'open-lot-sheet'({id}) { ctx.closeModal(); ctx.grainStockUI?.sheetModal(id); },
   'open-herd'() { ctx.herdUI?.open(); },
   'open-herd-animal'({id}) { ctx.herdUI?.openAnimal(id); },
+  'open-herd-import'() { ctx.herdUI?.openImport(); },
   // n° 160 : vue Troupeau, « Déplacer le lot » et choix de l'animal pour un vêlage ou une pesée.
   'open-herd-view'() { ctx.closeModal(); ctx.switchView('herd'); },
   'open-planning'() { ctx.closeModal(); ctx.switchView('work'); },

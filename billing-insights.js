@@ -163,45 +163,154 @@ const DOC_WORDS=[[/^devis$/,'devis'],[/^(facture|fact)$/,'facture'],[/^avoir$/,'
 const numberOf=s=>{const n=Number(String(s).replace(/\s/g,'').replace(',','.'));return Number.isFinite(n)?n:null;};
 const PRICE_RE=/(?:^|\s)(?:à|a|@|pour|x|:)?\s*(\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(?:€|euros?|eur)\s*(?:\/\s*([a-zA-Zéèêàâîôûç³²]+))?\s*(ht|ttc)?\s*$/i;
 const VAT_RE=/\b(?:tva\s*(?:à\s*)?(\d+(?:[.,]\d+)?)\s*%?|(\d+(?:[.,]\d+)?)\s*%\s*(?:de\s*)?tva\b)/i;
-// « devis Dupont 3 h de pelle à 65 € et 12 t de cailloux à 18 € HT » → brouillon de lignes à valider.
+// ---------- Taux de TVA proposé ----------
+// Règles usuelles en France métropolitaine, à titre indicatif : l’utilisateur garde la main sur chaque ligne.
+const VAT_RULES=[
+  [5.5,/\b(legumes?|fruits?|pommes? de terre|oeufs?|lait|miel|farine|viande|colis de viande|volailles? pretes?|fromages?|beurre|cremes?|confitures?|ble|orge de brasserie|cereales? alimentaires?)\b/,'Produit alimentaire (5,5 %) ; céréales vendues pour l’alimentation animale : 10 %'],
+  [10,/\b(paille|foin|fourrages?|ensilage|enrubann\w*|luzerne|regain|balles?|bottes?|mais grain|orge|triticale|avoine|cereales?|semences?|aliments? du betail|tourteaux?|grains?)\b/,'Produit agricole non transformé ou alimentation animale (10 %)'],
+  [10,/\b(bois de chauffage|buches?|plaquettes?|granules?|bois energie|stere)\b/,'Bois de chauffage (10 %)'],
+  [10,/\b(bovins?|veaux?|genisses?|vaches?|taurillons?|broutards?|agneaux?|brebis|moutons?|porcs?|porcelets?|animaux vivants?)\b/,'Animaux vivants de boucherie ou d’élevage (10 %)'],
+  [10,/\b(fumier|compost|lisier|amendements? organiques?|digestat)\b/,'Matière fertilisante organique (10 % si utilisable en agriculture biologique, sinon 20 %)'],
+  [20,/\b(prestations?|travaux|pelle|mini ?pelle|tracteur|terrassement|broyage|fauchage|debroussaill\w*|taille|elagage|location|transport|deplacement|main d ?oeuvre|heures?|deneigement|curage|epandage|moisson|semis|labour|pressage|andainage|recolte|gazole|carburant|materiel|pieces?|reparation|entretien)\b/,'Prestation de services ou vente de matériel (20 %)']
+];
+/** Taux proposé pour une désignation : catalogue, puis habitude de l’exploitation, puis règle usuelle. */
+export function suggestVatRate(label,{state=null}={}){
+  const n=normalize(label);if(!n)return null;
+  const regime=state?.exploitation?.invoicing?.vatRegime;
+  if(regime==='franchise')return{rate:0,basis:'Franchise en base de TVA (paramètres)'};
+  const item=state?findCatalogItem(state,label):null;
+  if(item&&item.vatRate!==undefined&&item.vatRate!==null&&item.vatRate!=='')return{rate:Number(item.vatRate),basis:'Taux de l’article du catalogue'};
+  if(state){
+    const seen=emitted(state).slice().sort((a,b)=>String(b.issueDate||'').localeCompare(String(a.issueDate||''))).flatMap(d=>d.lines||[]).find(l=>normalize(l.label)===n&&Number.isFinite(Number(l.vatRate)));
+    if(seen)return{rate:Number(seen.vatRate),basis:'Taux déjà utilisé pour cette désignation'};
+  }
+  for(const [rate,re,basis] of VAT_RULES)if(re.test(n))return{rate,basis};
+  return null;
+}
+
+// ---------- Saisie rapide en français ----------
+const NUMBER_WORDS={deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10,onze:11,douze:12,treize:13,quatorze:14,quinze:15,seize:16,vingt:20,trente:30,quarante:40,cinquante:50,soixante:60,cent:100,mille:1000};
+const LEGAL_FORMS=new Set(['gaec','scea','earl','sarl','sas','sasu','sa','eurl','ets','etablissements','sci','cuma','eta','ste','societe','mr','mme','m','monsieur','madame','de','des','du','la','le','les','et']);
+const CLIENT_PREFIX=/^(pour|chez|client|a|à|au|aux)$/i;
+const fold=w=>normalize(w).replace(/ /g,'');
+const PRICE_ANY=/(?:(?:\bà|\ba|@|\bpour|\bx|\bau prix de|\bprix|\bsoit)\s*)?(\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(?:€|euros?\b|eur\b)\s*(ht\b|ttc\b)?/i;
+const UNIT_AFTER=/^\s*(?:\/|par\s+|la\s+|le\s+|les\s+|l['’]\s*|de\s+l['’]\s*|de\s+la\s+|du\s+)?([a-zA-Zéèêàâîôûç³²]+[23]?)/i;
+function cleanLabel(v){
+  let t=String(v||'').replace(/\s+/g,' ').trim();
+  for(let k=0;k<4;k++)t=t.replace(/^[,:;\-–—.]+\s*/,'').replace(/^(de|d['’]|du|des|pour|à|a|le|la|les|l['’]|et|avec)\s+/i,'').replace(/^d['’]/i,'').replace(/\s*[,:;\-–—.]+$/,'').replace(/\s+(à|a|@|pour|de|du|des|et|le|la|les)$/i,'').trim();
+  return t;
+}
+function wordsToNumbers(text){
+  return text
+    .replace(/\b(une?\s+)?demi[- ]journ[ée]es?\b/gi,'0,5 j').replace(/\b(une?\s+)?demi[- ]heures?\b/gi,'0,5 h')
+    .replace(/\b(une?)\s+(?=(heures?|jours?|journ[ée]es?|hectares?|tonnes?|ha|h|t|m3|m³|stères?|forfaits?|semaines?)\b)/gi,'1 ')
+    .replace(/\b([a-zA-Zéè]+)\b/g,w=>{const n=NUMBER_WORDS[normalize(w)];return n===undefined?w:String(n);});
+}
+// Client reconnu n’importe où dans la phrase (nom complet, ou mots significatifs du nom).
+function findClientInText(text,clients){
+  const tokens=text.split(' ').map(fold);
+  const scored=clients.map(c=>{
+    const all=normalize(c.name).split(' ').filter(Boolean),sig=all.filter(t=>t.length>=3&&!LEGAL_FORMS.has(t));
+    if(!sig.length)return{c,score:0};
+    const hits=sig.filter(t=>tokens.includes(t));
+    const full=normalize(text).includes(normalize(c.name));
+    const score=full?3:hits.length===sig.length?2:hits.some(t=>t.length>=4)?1:0;
+    return{c,score,hits};
+  }).filter(x=>x.score).sort((a,b)=>b.score-a.score);
+  if(!scored.length)return{client:null,candidates:[]};
+  const top=scored.filter(x=>x.score===scored[0].score);
+  return{client:top.length===1?top[0].c:null,candidates:scored.map(x=>x.c),hits:top.length===1?top[0].hits:[]};
+}
+function removeClientWords(text,client){
+  const sig=new Set(normalize(client.name).split(' ').filter(Boolean));
+  const words=text.split(' '),idx=words.map((w,i)=>sig.has(fold(w.replace(/[,:;]$/,'')))&&!LEGAL_FORMS.has(fold(w))?i:-1).filter(i=>i>=0);
+  if(!idx.length)return text;
+  let a=Math.min(...idx),b=Math.max(...idx);
+  while(a>0&&(LEGAL_FORMS.has(fold(words[a-1]))&&sig.has(fold(words[a-1]))))a--;
+  while(a>0&&CLIENT_PREFIX.test(words[a-1]))a--;
+  while(b<words.length-1&&sig.has(fold(words[b+1].replace(/[,:;]$/,''))))b++;
+  const tail=words[b].match(/[,:;]$/)?' ; ':' ';
+  return `${words.slice(0,a).join(' ')}${tail}${words.slice(b+1).join(' ')}`.replace(/\s+/g,' ').trim();
+}
+// Nom de client non reconnu : « pour X », « X : … » ou mots en tête avant le premier nombre.
+function guessClientQuery(text){
+  const m=text.match(/\b(?:pour|chez|client)\s+((?:[A-ZÉÈ][\wéèêàâîôûç'’-]*\s*){1,4})/);
+  if(m)return{query:m[1].trim(),rest:text.replace(m[0],' ').trim()};
+  const colon=text.indexOf(':');
+  if(colon>0&&text.slice(0,colon).split(' ').length<=5&&!/\d/.test(text.slice(0,colon)))return{query:text.slice(0,colon).trim(),rest:text.slice(colon+1).trim()};
+  const firstNum=text.search(/\d/);const head=(firstNum<0?'':text.slice(0,firstNum)).trim();
+  if(!head)return{query:'',rest:text};
+  const words=head.split(' ').filter(Boolean);let n=1;
+  if(/^[A-ZÉÈ]/.test(words[0]))while(n<words.length&&n<4&&(/^[A-ZÉÈ]/.test(words[n])||LEGAL_FORMS.has(fold(words[n]))&&words[n+1]&&/^[A-ZÉÈ]/.test(words[n+1])))n++;
+  const query=words.slice(0,n).join(' ').replace(/[,:;]$/,'');
+  if(unitOf(query)||words.length===1&&firstNum<0)return{query:'',rest:text};
+  return{query,rest:text.replace(words.slice(0,n).join(' '),' ').trim()};
+}
+/**
+ * « devis Dupont 3 h de pelle à 65 € et 12 t de cailloux à 18 € HT » → brouillon de lignes à valider.
+ * Comprend aussi : client n’importe où (« … pour Martin »), nombres en lettres (« deux heures »,
+ * « une demi-journée »), prix unitaires (« 55 € de l’heure », « 80 € la tonne », « 45 €/ha », « 4,5 € pièce »),
+ * quantité après la désignation (« fauchage 10 ha ») et taux de TVA proposé selon la nature de la ligne.
+ */
 export function parseQuickEntry(input,state=null){
-  const warnings=[],src=String(input||'').replace(/\s+/g,' ').trim();let rest=src,docType=null;
+  const warnings=[];let src=wordsToNumbers(String(input||'').replace(/[\r\n]+/g,' ; ').replace(/\s+/g,' ').trim());let rest=src,docType=null;
   const first=rest.split(' ')[0]||'';const dt=DOC_WORDS.find(([re])=>re.test(normalize(first)));if(dt){docType=dt[1];rest=rest.slice(first.length).trim();}
   if(/^pro forma\b/i.test(rest)){docType='proforma';rest=rest.slice(8).trim();}
+  if(!docType){const any=rest.match(/\b(devis|facture|avoir|acompte|proforma)\b/i);if(any&&any.index<=40){const d=DOC_WORDS.find(([re])=>re.test(normalize(any[1])));if(d){docType=d[1];rest=(rest.slice(0,any.index)+rest.slice(any.index+any[0].length)).replace(/\s+/g,' ').trim();}}}
   const globalTtc=/\bttc\b/i.test(src)&&!/\bht\b/i.test(src);
-  // Client : mots avant la première quantité ou le premier prix (« pour » / « à » facultatifs).
-  const firstNum=rest.search(/\d/),head=(firstNum<0?rest:rest.slice(0,firstNum)).replace(/^(pour|à|a|chez|client)\s+/i,'').trim();
-  const words=head.split(' ').filter(Boolean),labelStart=words.findIndex(w=>/^(de|d’|d'|du|des)$/i.test(w));
-  const clientQuery=(labelStart>0?words.slice(0,labelStart):words).join(' ').replace(/[,:;]$/,'').trim();
-  rest=firstNum<0?'':rest.slice(firstNum);
-  if(labelStart>0&&firstNum>=0)rest=`${words.slice(labelStart).join(' ')} ${rest}`.trim();
   const settings=state?invoiceSettings(state):{vatRate:20,customVatRates:[]};
   const clients=state?active(state,'clients').filter(c=>!c.archived):[];
-  const q=normalize(clientQuery),candidates=q?clients.map(c=>{const n=normalize(c.name),tokens=q.split(' ');const score=n===q?3:n.includes(q)?2:tokens.every(t=>n.includes(t))?1:0;return{c,score};}).filter(x=>x.score).sort((a,b)=>b.score-a.score).map(x=>x.c):[];
-  if(clientQuery&&!candidates.length)warnings.push(`Client « ${clientQuery} » introuvable : choisissez-le ou créez sa fiche.`);
-  const client=candidates.length===1||(candidates.length>1&&normalize(candidates[0].name)===q)?candidates[0]:null;
-  if(candidates.length>1&&!client)warnings.push(`Plusieurs clients correspondent à « ${clientQuery} » : précisez.`);
+  let clientQuery='',client=null,candidates=[];
+  const found=findClientInText(rest,clients);
+  if(found.client){client=found.client;candidates=[client];clientQuery=client.name;rest=removeClientWords(rest,client);}
+  else{
+    const g=guessClientQuery(rest);clientQuery=g.query;
+    if(clientQuery){
+      rest=g.rest;
+      const q=normalize(clientQuery);
+      candidates=found.candidates.length?found.candidates:clients.filter(c=>{const n=normalize(c.name);return n.includes(q)||q.split(' ').every(t=>n.includes(t));});
+      if(candidates.length===1){client=candidates[0];}
+      else if(candidates.length>1){const exact=candidates.find(c=>normalize(c.name)===q);if(exact)client=exact;else warnings.push(`Plusieurs clients correspondent à « ${clientQuery} » : précisez.`);}
+      else warnings.push(`Client « ${clientQuery} » introuvable : choisissez-le ou créez sa fiche.`);
+    }else if(found.candidates.length>1)warnings.push(`Plusieurs clients possibles (${found.candidates.slice(0,3).map(c=>c.name).join(', ')}) : précisez.`);
+  }
   const lines=[],unparsed=[];
-  for(const seg of rest.split(/\s*;\s*|\s*\+\s*|,\s+(?=\D)|\s+(?:et|puis|plus)\s+(?=\d|[a-zéè])/i).map(s=>s.trim()).filter(Boolean)){
-    let s=seg,vatRate=settings.vatRate,mode=globalTtc?'TTC':'HT';
-    const vm=s.match(VAT_RE);if(vm){const r=numberOf(vm[1]||vm[2]);if(r!==null&&(VAT_RATES_ALL.includes(r)||settings.customVatRates.includes(r)))vatRate=r;s=s.replace(vm[0],' ').replace(/\s+/g,' ').trim();}
-    const pm=s.match(PRICE_RE);let price=null,perUnit=null;
-    if(pm){price=numberOf(pm[1]);perUnit=pm[2]?unitOf(pm[2]):null;if(pm[3])mode=pm[3].toUpperCase();s=s.slice(0,pm.index).trim();}
-    const qm=s.match(/^(\d+(?:[.,]\d+)?)\s*([a-zA-Zéèêàâîôûç³²]+[23]?(?=[\s,.;:]|$))?\s*(?:de|d’|d'|du|des)?\s*(.*)$/i);
-    let quantity=1,unit=perUnit||'forfait',label=s;
-    if(qm){const u=qm[2]?unitOf(qm[2]):null;quantity=numberOf(qm[1]);if(u){unit=u;label=qm[3];}else label=`${qm[2]||''} ${qm[3]}`.replace(/^(de|d’|d'|du|des)\s+/i,'').trim();}
-    label=label.replace(/^(de|d’|d'|du|des)\s+/i,'').replace(/\s*(à|a|@|pour)$/i,'').trim();
+  for(const seg of rest.split(/\s*[;]\s*|\s*\+\s*|,\s+(?=\D)|\s+(?:et|puis|plus|ainsi que|avec)\s+(?=\d)/i).map(x=>x.trim()).filter(Boolean)){
+    let s=seg,vatRate=null,vatBasis='',mode=globalTtc?'TTC':'HT';
+    const vm=s.match(VAT_RE);if(vm){const r=numberOf(vm[1]||vm[2]);if(r!==null&&(VAT_RATES_ALL.includes(r)||settings.customVatRates.includes(r))){vatRate=r;vatBasis='Taux saisi';}s=s.replace(vm[0],' ').replace(/\s+/g,' ').trim();}
+    const sansTva=/\b(sans tva|exon[ée]r[ée]e?)\b/i.test(s);if(sansTva){vatRate=0;vatBasis='Sans TVA (saisi)';s=s.replace(/\b(sans tva|exon[ée]r[ée]e?)\b/i,' ');}
+    let price=null,perUnit=null;
+    const pm=s.match(PRICE_ANY);
+    if(pm){
+      price=numberOf(pm[1]);if(pm[2])mode=pm[2].toUpperCase();
+      let after=s.slice(pm.index+pm[0].length);
+      const um=after.match(UNIT_AFTER);
+      if(um){const u=unitOf(um[1])||(/^(piece|pieces|unite|unites|botte|bottes|balle|balles|sac|sacs)$/.test(fold(um[1]))?'u':null);if(u){perUnit=u;after=after.slice(um[0].length);}}
+      const m2=after.match(/^\s*(ht|ttc)\b/i);if(m2){mode=m2[1].toUpperCase();after=after.slice(m2[0].length);}
+      s=`${s.slice(0,pm.index)} ${after}`.replace(/\s+/g,' ').trim();
+    }
+    let quantity=1,unit=perUnit||'forfait',label=s,qtyFound=false;
+    const qm=s.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*([a-zA-Zéèêàâîôûç³²]+[23]?)?(?=[\s,.;:]|$)/);
+    if(qm){
+      quantity=numberOf(qm[1]);qtyFound=true;const u=qm[2]?unitOf(qm[2]):null;
+      const before=s.slice(0,qm.index),after=s.slice(qm.index+qm[0].length);
+      if(u){unit=u;label=`${before} ${after}`;}
+      else{unit=perUnit||(quantity!==1?'u':'forfait');label=`${before} ${qm[2]||''} ${after}`;}
+    }
+    label=cleanLabel(label);
+    if(!label&&price===null&&!qtyFound){unparsed.push(seg);continue;}
     if(!label&&price===null){unparsed.push(seg);continue;}
     if(!label)label='Prestation';
     const item=state?findCatalogItem(state,label):null;
-    if(item&&item.vatRate!==undefined&&!vm)vatRate=item.vatRate;
+    if(vatRate===null){const sug=suggestVatRate(label,{state});if(sug){vatRate=sug.rate;vatBasis=sug.basis;}}
+    if(vatRate===null||!(VAT_RATES_ALL.includes(vatRate)||settings.customVatRates.includes(vatRate))){vatRate=settings.vatRate;vatBasis='Taux par défaut (paramètres)';}
+    if(item&&unit==='forfait'&&item.unit&&!qtyFound)unit=item.unit;
     let unitPrice=price,basis='Prix saisi';
     if(price!==null&&mode==='TTC'){unitPrice=Math.round(price/(1+vatRate/100)*10000)/10000;basis='Prix TTC saisi, converti en HT';}
     if(unitPrice===null&&state){const sug=suggestPrice(state,{clientId:client?.id||null,itemId:item?.id||null,label,unit});if(sug){unitPrice=sug.price;basis=sug.source==='client'?'Dernier prix pratiqué pour ce client':sug.source==='historique'?'Prix habituel (historique)':'Prix du catalogue';}}
     if(unitPrice===null)warnings.push(`Prix à saisir : ${label}.`);
-    // Article reconnu : sa désignation du catalogue (« paillage » → « Paillage de copeaux »).
     if(item?.label)label=item.label;
-    lines.push({label:label.charAt(0).toUpperCase()+label.slice(1),quantity,unit,unitPrice,vatRate,basis,...(item?{itemId:item.id,...(item.account?{account:item.account}:{})}:{})});
+    lines.push({label:label.charAt(0).toUpperCase()+label.slice(1),quantity,unit,unitPrice,vatRate,vatBasis,basis,...(item?{itemId:item.id,...(item.account?{account:item.account}:{})}:{})});
   }
   if(!lines.length)warnings.push('Aucune ligne reconnue : écrivez par exemple « 3 h de pelle à 65 € ».');
   return{docType:docType||'facture',docTypeGuessed:!docType,clientQuery,client,candidates,lines,mode:globalTtc?'TTC':'HT',warnings,unparsed,draftOnly:true};

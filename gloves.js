@@ -11,7 +11,7 @@ export const HOLD_CONFIRM_MS = 600;
 // Un doigt ganté bouge un peu : au-delà, le geste est un défilement et le maintien est abandonné.
 export const HOLD_MOVE_TOLERANCE = 14;
 // Boutons destructeurs concernés : suppressions des fiches (placées dans la corbeille, avec Annuler).
-export const DESTRUCTIVE_SELECTOR = 'button[id^="delete-"],button[data-action="delete-parcel"],button[data-action="delete-map-point"]';
+export const DESTRUCTIVE_SELECTOR = 'button[id^="delete-"],button[data-action="delete-parcel"],button[data-action="delete-map-point"],button[data-action="delete-infra"]';
 
 export function glovesActive(mode, {fieldModeOpen = false} = {}) {
   const m = normalizeGlovesMode(mode);

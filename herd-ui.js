@@ -8,7 +8,7 @@ import {grazingStatus,grazingTotal} from './grazing.js';
 import {removeAnimalFromLot} from './grazing-records.js';
 import {SEXES,ENTRY_REASONS,EXIT_REASONS,EVENT_KINDS,BREEDS,BDNI_NOTICE,BDNI_REMINDER_DAYS,IMPORT_SOURCE,HERD_CSV_FIELDS,
   normalizeAnimal,normalizeAnimalEvent,calvingPlan,animalLot,lotLabel,lotAssignment,ageLabel,lotsListing,filterAnimals,animalTimeline,lastWeight,dailyGain,offspring,herdSummary,
-  expectedCalvings,pendingBdni,animalLabel,formatNationalId,isPresent,grazingCandidates,candidatesToAnimals,readHerdCsv,guessColumns,herdImportPreview,herdImportEntities,bdniDeadline,addIsoDays} from './herd.js';
+  expectedCalvings,pendingBdni,animalLabel,formatNationalId,isPresent,grazingCandidates,candidatesToAnimals,readHerdCsv,herdRowsFromTable,guessColumns,herdImportPreview,herdImportEntities,bdniDeadline,addIsoDays} from './herd.js';
 
 const fr=d=>d?localDate(`${d}T12:00:00`):'—';
 const ddmm=d=>`${d.slice(8,10)}/${d.slice(5,7)}`;
@@ -266,16 +266,17 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
 
   // ---------- Import CSV de l'inventaire ----------
   function openImport(){
-    modal('Importer l’inventaire','Fichier CSV exporté du portail éleveur (inventaire du cheptel).',`
-      <label class="field-label">Fichier CSV<input type="file" id="herd-csv" accept=".csv,.txt,text/csv"></label>
-      <p class="form-note">Colonnes attendues : numéro national, nom, sexe, race, date de naissance, numéro de la mère (l’ordre et les intitulés peuvent varier : vous choisirez la correspondance). Un animal déjà présent (même numéro) est complété, jamais dupliqué. L’import peut être annulé depuis Mes données › Historique des imports.</p>
+    modal('Importer l’inventaire','Liste du cheptel : export du portail éleveur, de la BDNI ou votre propre tableau.',`
+      <label class="field-label">Fichier CSV ou Excel<input type="file" id="herd-csv" accept=".csv,.txt,.xlsx,.xls,.ods,text/csv"></label>
+      <p class="form-note">Colonnes reconnues : numéro national, nom, sexe, race, date de naissance, numéro de la mère, dates d’entrée et de sortie, motif de sortie (l’ordre et les intitulés peuvent varier, une ligne de titre au-dessus des en-têtes est acceptée). Un animal déjà présent (même numéro) est mis à jour, jamais dupliqué. L’import peut être annulé depuis Mes données › Historique des imports.</p>
+      <label class="check-row"><input type="checkbox" id="herd-full"> C’est mon inventaire complet : marquer comme sortis les animaux présents qui n’y figurent pas</label>
       <div id="herd-import-step"></div>`,
       `<button type="button" class="button secondary" id="herd-cancel">Retour</button><button type="button" class="button primary" id="herd-save" disabled>Importer</button>`,'large');
     $('#herd-cancel').onclick=()=>open();
     let parsed=null,fileName='';
     $('#herd-csv').addEventListener('change',async ev=>{
       const file=ev.target.files?.[0];if(!file)return;fileName=file.name;
-      try{parsed=readHerdCsv(await file.text());if(!parsed.rows.length)throw new Error('Fichier vide ou illisible.');renderMapping(parsed,guessColumns(parsed.headers));}
+      try{parsed=await readHerdFile(file);if(!parsed.rows.length)throw new Error('Fichier vide ou illisible.');renderMapping(parsed,guessColumns(parsed.headers));}
       catch(err){$('#herd-import-step').innerHTML=`<p class="form-error" role="alert">${e(err.message)}</p>`;}
     });
     function renderMapping({headers,rows},mapping){
@@ -283,22 +284,39 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
       step.innerHTML=`<h3>Correspondance des colonnes</h3><div class="form-grid">${HERD_CSV_FIELDS.map(f=>`<label>${e(f.label)}${f.required?' *':''}<select data-herd-col="${e(f.key)}"><option value="">Ignorer</option>${headers.map(h=>`<option ${mapping[f.key]===h?'selected':''}>${e(h)}</option>`).join('')}</select></label>`).join('')}</div><div id="herd-preview"></div>`;
       const read=()=>Object.fromEntries([...step.querySelectorAll('[data-herd-col]')].map(s=>[s.dataset.herdCol,s.value]));
       const show=()=>{
-        const p=herdImportPreview(data(),rows,read(),{today:today()}),button=$('#herd-save');
-        button.disabled=Boolean(p.error)||!(p.create+p.update);button.textContent=p.create+p.update?`Importer ${p.create+p.update} animal${p.create+p.update>1?'aux':''}`:'Importer';
-        const label={create:'Nouveau',update:'Complété',skip:'Ignoré'};
-        $('#herd-preview').innerHTML=p.error?`<p class="form-error" role="alert">${e(p.error)}</p>`:`<div class="preview-summary"><div class="preview-stat"><strong>${p.create}</strong><small>nouveaux</small></div><div class="preview-stat"><strong>${p.update}</strong><small>déjà présents (complétés)</small></div><div class="preview-stat"><strong>${p.skip}</strong><small>ignorés</small></div></div>
-          <div class="table-wrap"><table><thead><tr><th>Ligne</th><th>Numéro</th><th>Nom</th><th>Sexe</th><th>Naissance</th><th>Résultat</th></tr></thead><tbody>${p.rows.slice(0,50).map(r=>`<tr><td>${r.line}</td><td>${e(r.nationalId?formatNationalId(r.nationalId):'—')}</td><td>${e(r.value?.name||'')}</td><td>${e(SEXES[r.value?.sex]||'')}</td><td>${e(r.value?.birthDate?fr(r.value.birthDate):'')}</td><td>${e(label[r.action])}${r.reason?` · ${e(r.reason)}`:''}</td></tr>`).join('')}</tbody></table></div>${p.rows.length>50?`<p class="form-note">${p.rows.length-50} autres lignes non affichées.</p>`:''}`;
+        const p=herdImportPreview(data(),rows,read(),{today:today(),fullInventory:Boolean($('#herd-full')?.checked)}),button=$('#herd-save'),n=p.create+p.update+p.exit;
+        button.disabled=Boolean(p.error)||!n;button.textContent=n?`Importer ${n} animal${n>1?'aux':''}`:'Importer';
+        const label={create:'Nouveau',update:'Mis à jour',skip:'Ignoré',exit:'Marqué sorti'};
+        $('#herd-preview').innerHTML=p.error?`<p class="form-error" role="alert">${e(p.error)}</p>`:`<div class="preview-summary"><div class="preview-stat"><strong>${p.create}</strong><small>nouveaux</small></div><div class="preview-stat"><strong>${p.update}</strong><small>déjà présents (complétés)</small></div>${p.exit?`<div class="preview-stat"><strong>${p.exit}</strong><small>absents du fichier (sortis)</small></div>`:''}<div class="preview-stat"><strong>${p.skip}</strong><small>ignorés</small></div></div>
+          <div class="table-wrap"><table><thead><tr><th>Ligne</th><th>Numéro</th><th>Nom</th><th>Sexe</th><th>Naissance</th><th>Résultat</th></tr></thead><tbody>${p.rows.slice(0,50).map(r=>`<tr><td>${r.line??"—"}</td><td>${e(r.nationalId?formatNationalId(r.nationalId):'—')}</td><td>${e(r.value?.name||'')}</td><td>${e(SEXES[r.value?.sex]||'')}</td><td>${e(r.value?.birthDate?fr(r.value.birthDate):'')}</td><td>${e(label[r.action])}${r.reason?` · ${e(r.reason)}`:''}</td></tr>`).join('')}</tbody></table></div>${p.rows.length>50?`<p class="form-note">${p.rows.length-50} autres lignes non affichées.</p>`:''}`;
         return p;
       };
-      step.querySelectorAll('[data-herd-col]').forEach(s=>s.addEventListener('change',show));show();
+      step.querySelectorAll('[data-herd-col]').forEach(s=>s.addEventListener('change',show));$('#herd-full')?.addEventListener('change',show);show();
       $('#herd-save').onclick=async()=>{
         const button=$('#herd-save'),p=show();if(button.disabled)return;button.disabled=true;
-        try{const r=await importAnimals(p,fileName);toast(`Inventaire importé : ${r.created} nouveau${r.created>1?'x':''}, ${r.updated} complété${r.updated>1?'s':''}.`,'success',{label:'Annuler',run:()=>rollbackImport?.(r.sessionId)});open();}
+        try{const r=await importAnimals(p,fileName);toast(`Inventaire importé : ${r.created} nouveau${r.created>1?'x':''}, ${r.updated} mis à jour${p.exit?` (dont ${p.exit} sorti${p.exit>1?'s':''})`:''}.`,'success',{label:'Annuler',run:()=>rollbackImport?.(r.sessionId)});open();}
         catch(err){button.disabled=false;toast(err.message,'error');}
       };
     }
   }
   // Session d'import annulable : point de restauration local, puis écriture en une mutation (comme rpg-onboarding).
+  // CSV lu en texte ; Excel/ODS par SheetJS (chargé par index.html) avec repérage de la ligne d’en-têtes.
+  async function readHerdFile(file){
+    const ext=String(file.name||'').toLowerCase().split('.').pop();
+    if(['xlsx','xls','ods'].includes(ext)){
+      const XLSX=globalThis.XLSX;if(!XLSX)throw new Error('Lecture Excel indisponible : enregistrez le fichier en CSV.');
+      const book=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+      for(const name of book.SheetNames){const r=herdRowsFromTable(XLSX.utils.sheet_to_json(book.Sheets[name],{header:1,defval:'',raw:true}));if(r.rows.length&&guessColumns(r.headers).nationalId)return r;}
+      return herdRowsFromTable(XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]],{header:1,defval:'',raw:true}));
+    }
+    const textValue=await file.text(),csv=readHerdCsv(textValue);
+    if(guessColumns(csv.headers).nationalId)return csv;
+    // Titre au-dessus des en-têtes : on redécoupe le texte et on cherche la vraie ligne d'en-têtes.
+    const sep=[';','\t',','].sort((a,b)=>textValue.split(b).length-textValue.split(a).length)[0];
+    const table=textValue.split(/\r?\n/).map(line=>line.split(sep).map(c=>c.replace(/^"|"$/g,'').trim()));
+    const found=herdRowsFromTable(table);return guessColumns(found.headers).nationalId?found:csv;
+  }
+
   function importAnimals(preview,fileName){
     return store.enqueueWrite(async()=>{
       if(!can('animals','create',{origin:'import'}))throw new Error('Votre rôle ne permet pas cette modification.');

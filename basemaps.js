@@ -1,9 +1,10 @@
 // Fonds de carte et cadastre : logique pure, sans Leaflet ni réseau, testable sous Node.
 // Les couches IGN passent par le WMTS public de la Géoplateforme (sans clé) ;
-// l'interrogation du cadastre utilise le module « cadastre » d'API Carto (IGN).
+// l'interrogation du cadastre utilise le WFS « Parcellaire Express » de la Géoplateforme (IGN).
 
 export const IGN_WMTS_URL='https://data.geopf.fr/wmts';
-export const CADASTRE_API_URL='https://apicarto.ign.fr/api/cadastre/parcelle';
+// API Carto (apicarto.ign.fr) a fermé fin 2026 : le cadastre est lu sur le WFS Géoplateforme (mêmes champs).
+export const CADASTRE_API_URL='https://data.geopf.fr/wfs/ows';
 export const IGN_ATTRIBUTION='© <a href="https://www.ign.fr/" target="_blank" rel="noopener">IGN</a> – Géoplateforme';
 
 export function ignWmtsUrl({layer,style='normal',format='image/png'}){
@@ -46,8 +47,10 @@ export function normalizeCadastreOpacity(value){
 export function cadastreQueryUrl(latitude,longitude){
   const lat=Number(latitude),lng=Number(longitude);
   if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)throw new Error('Position invalide pour interroger le cadastre.');
-  const geom=JSON.stringify({type:'Point',coordinates:[Math.round(lng*1e7)/1e7,Math.round(lat*1e7)/1e7]});
-  return `${CADASTRE_API_URL}?geom=${encodeURIComponent(geom)}&_limit=1`;
+  // EPSG:4326 en WFS 2.0 : ordre latitude longitude dans le filtre CQL.
+  const point=`POINT(${Math.round(lat*1e7)/1e7} ${Math.round(lng*1e7)/1e7})`;
+  const params=new URLSearchParams({SERVICE:'WFS',VERSION:'2.0.0',REQUEST:'GetFeature',TYPENAMES:'CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle',OUTPUTFORMAT:'application/json',SRSNAME:'CRS:84',COUNT:'1',CQL_FILTER:`INTERSECTS(geom,${point})`});
+  return `${CADASTRE_API_URL}?${params.toString()}`;
 }
 
 const text=value=>value===null||value===undefined?'':String(value).trim();

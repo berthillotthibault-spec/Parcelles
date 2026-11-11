@@ -283,7 +283,10 @@ const subsequence = (q, s) => { let i = 0; for (const ch of s) if (ch === q[i]) 
 /** Score de ressemblance (0 = aucun) entre une recherche et un client : nom, contact, SIREN, e-mail, commune. */
 export function clientScore(client, query) {
   const q = normalize(query); if (!q) return 1;
-  const name = normalize(client?.name), extra = normalize([client?.contact, client?.siren, client?.billingEmail || client?.email, client?.address, client?.billingAddress].filter(Boolean).join(' '));
+  // SIREN, SIRET, TVA ou téléphone tapés avec ou sans espaces.
+  const digits = String(query || '').replace(/[\s.\-]/g, '');
+  if (/^(fr)?\d{5,}$/i.test(digits)) { const d = digits.replace(/^fr/i, ''); if ([client?.siren, client?.vatNumber, client?.phone].some(v => String(v || '').replace(/[\s.\-]/g, '').replace(/^fr/i, '').includes(d))) return 90; }
+  const name = normalize(client?.name), extra = normalize([client?.contact, client?.siren, client?.vatNumber, client?.phone, client?.billingEmail || client?.email, client?.address, client?.billingAddress, client?.deliveryAddress].filter(Boolean).join(' '));
   if (name === q) return 100;
   if (name.startsWith(q)) return 85;
   const words = name.split(' ').filter(Boolean), tokens = q.split(' ').filter(Boolean);

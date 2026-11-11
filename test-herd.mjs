@@ -172,7 +172,7 @@ test('import CSV de l’inventaire : colonnes, aperçu, dédoublonnage par numé
   const {headers, rows} = readHerdCsv(csv);
   assert.equal(rows.length, 6);
   const map = guessColumns(headers);
-  assert.deepEqual(map, {nationalId: 'Numéro national', name: 'Nom', sex: 'Sexe', breed: 'Race', birthDate: 'Date de naissance', motherNationalId: 'N° mère'});
+  assert.deepEqual(map, {nationalId: 'Numéro national', name: 'Nom', sex: 'Sexe', breed: 'Race', birthDate: 'Date de naissance', motherNationalId: 'N° mère', entryDate: '', exitDate: '', exitReason: ''});
   const s = farm();
   const p = herdImportPreview(s, rows, map, {today: TODAY});
   assert.deepEqual([p.create, p.update, p.skip], [2, 1, 3]);
