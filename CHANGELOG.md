@@ -1,5 +1,10 @@
 # Changelog
 
+## 10.29.1 · saisie rapide : les actions ne sont plus prises pour des clients — 2026-11-12
+
+- **Facturation, saisie rapide** : « Semis de blé », « Moisson de blé », « Fauchage de ray grass », « Pressage de paille »… ne déclenchent plus « Client introuvable » ; le premier mot n'est pris pour un client que s'il s'agit d'un nom propre qui n'est ni une action ni un produit (ou avec « pour », « chez », « client », « Nom : ») ; la désignation garde l'action (« Semis de blé » au lieu de « Blé ») ; « 200 balles » sert d'unité quand la désignation est déjà écrite ;
+- **TVA proposée** : une prestation sur un produit (semis, moisson, transport de paille…) est proposée à 20 % et non au taux du produit ; « Vente de paille » reste à 10 %.
+
 ## 10.29.0 · PAC/RPG et nitrates rétablis, suppressions, import du troupeau, facturation plus intelligente — 2026-11-11
 
 - **PAC/RPG** : API Carto (apicarto.ign.fr) a fermé ; les parcelles RPG sont lues sur le WFS de la Géoplateforme (`RPG.<année>:parcelles_graphiques`). Le millésime le plus récent est choisi tout seul : l'année en cours d'abord, puis les précédentes ; un millésime pas encore publié est écarté pour la session (le RPG 2025, puis 2026, sera pris dès sa mise en ligne) ;

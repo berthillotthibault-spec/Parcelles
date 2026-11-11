@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.29.1",
+      "date": "2026-11-12",
+      "title": "Saisie rapide mieux comprise",
+      "items": [
+        "« Semis de blé », « Moisson », « Fauchage »… ne sont plus pris pour des noms de clients.",
+        "La désignation garde l’action : « Semis de blé » et non « Blé ».",
+        "Une prestation est proposée à 20 % de TVA, la vente d’un produit à son taux."
+      ]
+    },
+    {
       "version": "10.29.0",
       "date": "2026-11-11",
       "title": "PAC, nitrates, troupeau et factures",

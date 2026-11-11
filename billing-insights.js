@@ -166,12 +166,12 @@ const VAT_RE=/\b(?:tva\s*(?:à\s*)?(\d+(?:[.,]\d+)?)\s*%?|(\d+(?:[.,]\d+)?)\s*%\
 // ---------- Taux de TVA proposé ----------
 // Règles usuelles en France métropolitaine, à titre indicatif : l’utilisateur garde la main sur chaque ligne.
 const VAT_RULES=[
+  [20,/\b(prestations?|travaux|pelle|mini ?pelle|tracteur|terrassement|broyage|fauch\w*|fanage|debroussaill\w*|taille|elagage|location|transport|deplacement|livraison|main d ?oeuvre|heures?|deneigement|curage|epandage|moisson\w*|semis|semer|labour|dechaumage|hersage|roulage|binage|desherbage|traitement|pulverisation|pressage|andainage|ensilage|enrubannage|battage|sechage|arrachage|plantation|chargement|nettoyage|recolte|gazole|carburant|materiel|pieces?|reparation|entretien)\b/,'Prestation de services ou vente de matériel (20 %)'],
   [5.5,/\b(legumes?|fruits?|pommes? de terre|oeufs?|lait|miel|farine|viande|colis de viande|volailles? pretes?|fromages?|beurre|cremes?|confitures?|ble|orge de brasserie|cereales? alimentaires?)\b/,'Produit alimentaire (5,5 %) ; céréales vendues pour l’alimentation animale : 10 %'],
   [10,/\b(paille|foin|fourrages?|ensilage|enrubann\w*|luzerne|regain|balles?|bottes?|mais grain|orge|triticale|avoine|cereales?|semences?|aliments? du betail|tourteaux?|grains?)\b/,'Produit agricole non transformé ou alimentation animale (10 %)'],
   [10,/\b(bois de chauffage|buches?|plaquettes?|granules?|bois energie|stere)\b/,'Bois de chauffage (10 %)'],
   [10,/\b(bovins?|veaux?|genisses?|vaches?|taurillons?|broutards?|agneaux?|brebis|moutons?|porcs?|porcelets?|animaux vivants?)\b/,'Animaux vivants de boucherie ou d’élevage (10 %)'],
-  [10,/\b(fumier|compost|lisier|amendements? organiques?|digestat)\b/,'Matière fertilisante organique (10 % si utilisable en agriculture biologique, sinon 20 %)'],
-  [20,/\b(prestations?|travaux|pelle|mini ?pelle|tracteur|terrassement|broyage|fauchage|debroussaill\w*|taille|elagage|location|transport|deplacement|main d ?oeuvre|heures?|deneigement|curage|epandage|moisson|semis|labour|pressage|andainage|recolte|gazole|carburant|materiel|pieces?|reparation|entretien)\b/,'Prestation de services ou vente de matériel (20 %)']
+  [10,/\b(fumier|compost|lisier|amendements? organiques?|digestat)\b/,'Matière fertilisante organique (10 % si utilisable en agriculture biologique, sinon 20 %)']
 ];
 /** Taux proposé pour une désignation : catalogue, puis habitude de l’exploitation, puis règle usuelle. */
 export function suggestVatRate(label,{state=null}={}){
@@ -191,6 +191,7 @@ export function suggestVatRate(label,{state=null}={}){
 // ---------- Saisie rapide en français ----------
 const NUMBER_WORDS={deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10,onze:11,douze:12,treize:13,quatorze:14,quinze:15,seize:16,vingt:20,trente:30,quarante:40,cinquante:50,soixante:60,cent:100,mille:1000};
 const LEGAL_FORMS=new Set(['gaec','scea','earl','sarl','sas','sasu','sa','eurl','ets','etablissements','sci','cuma','eta','ste','societe','mr','mme','m','monsieur','madame','de','des','du','la','le','les','et']);
+const NOT_CLIENT=/^(semis|semer|moisson\w*|recoltes?|fauch\w*|fanage|pressage|presse|andainage|epandage|labours?|dechaumage|broyage|ensilage|enrubannage|traitements?|pulverisation|desherbage|binage|hersage|roulage|transports?|livraisons?|location|vente|achat|prestations?|travaux|travail|entretien|taille|elagage|debroussaill\w*|terrassement|curage|deneigement|nettoyage|reparations?|main|heures?|journees?|pelle|mini|tracteur|chargement|deplacement|plantation|arrachage|battage|sechage|stockage|ramassage|balles?|bottes?|ballots?|paille|foin|ble|orge|mais|colza|tournesol|luzerne|ray|herbe|fumier|lisier|compost|bois|gazole|gasoil|carburant|semences?|engrais|transport|forfait|frais|materiel|pieces?|ensemble|total)$/;
 const CLIENT_PREFIX=/^(pour|chez|client|a|à|au|aux)$/i;
 const fold=w=>normalize(w).replace(/ /g,'');
 const PRICE_ANY=/(?:(?:\bà|\ba|@|\bpour|\bx|\bau prix de|\bprix|\bsoit)\s*)?(\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(?:€|euros?\b|eur\b)\s*(ht\b|ttc\b)?/i;
@@ -235,15 +236,18 @@ function removeClientWords(text,client){
 // Nom de client non reconnu : « pour X », « X : … » ou mots en tête avant le premier nombre.
 function guessClientQuery(text){
   const m=text.match(/\b(?:pour|chez|client)\s+((?:[A-ZÉÈ][\wéèêàâîôûç'’-]*\s*){1,4})/);
-  if(m)return{query:m[1].trim(),rest:text.replace(m[0],' ').trim()};
+  if(m&&!NOT_CLIENT.test(fold(m[1].split(' ')[0])))return{query:m[1].trim(),rest:text.replace(m[0],' ').trim()};
   const colon=text.indexOf(':');
-  if(colon>0&&text.slice(0,colon).split(' ').length<=5&&!/\d/.test(text.slice(0,colon)))return{query:text.slice(0,colon).trim(),rest:text.slice(colon+1).trim()};
+  if(colon>0){const head=text.slice(0,colon).trim();if(head.split(' ').length<=5&&!/\d/.test(head)&&!NOT_CLIENT.test(fold(head.split(' ')[0])))return{query:head,rest:text.slice(colon+1).trim()};}
+  // Nom propre en tête (« Durand 3 h de pelle ») : majuscule, pas un mot d'action ou de produit,
+  // et pas suivi de « de » (« Moisson de blé », « Semis de blé » sont des désignations).
   const firstNum=text.search(/\d/);const head=(firstNum<0?'':text.slice(0,firstNum)).trim();
   if(!head)return{query:'',rest:text};
-  const words=head.split(' ').filter(Boolean);let n=1;
-  if(/^[A-ZÉÈ]/.test(words[0]))while(n<words.length&&n<4&&(/^[A-ZÉÈ]/.test(words[n])||LEGAL_FORMS.has(fold(words[n]))&&words[n+1]&&/^[A-ZÉÈ]/.test(words[n+1])))n++;
+  const words=head.split(' ').filter(Boolean);
+  if(!/^[A-ZÉÈ]/.test(words[0])||NOT_CLIENT.test(fold(words[0]))||unitOf(words[0]))return{query:'',rest:text};
+  let n=1;while(n<words.length&&n<4&&(/^[A-ZÉÈ]/.test(words[n])&&!NOT_CLIENT.test(fold(words[n]))||LEGAL_FORMS.has(fold(words[n]))&&words[n+1]&&/^[A-ZÉÈ]/.test(words[n+1])))n++;
+  if(words[n]&&/^(de|du|des|d['’].*)$/i.test(words[n]))return{query:'',rest:text};
   const query=words.slice(0,n).join(' ').replace(/[,:;]$/,'');
-  if(unitOf(query)||words.length===1&&firstNum<0)return{query:'',rest:text};
   return{query,rest:text.replace(words.slice(0,n).join(' '),' ').trim()};
 }
 /**
@@ -295,6 +299,8 @@ export function parseQuickEntry(input,state=null){
       quantity=numberOf(qm[1]);qtyFound=true;const u=qm[2]?unitOf(qm[2]):null;
       const before=s.slice(0,qm.index),after=s.slice(qm.index+qm[0].length);
       if(u){unit=u;label=`${before} ${after}`;}
+      // « pressage de paille 200 balles » : le nom compté sert d'unité quand la désignation est déjà devant.
+      else if(qm[2]&&/^(balles?|bottes?|ballots?|sacs?|round|rounds|palettes?|big ?bags?)$/.test(fold(qm[2]))&&cleanLabel(before)){unit=perUnit||'u';label=`${before} ${after}`;}
       else{unit=perUnit||(quantity!==1?'u':'forfait');label=`${before} ${qm[2]||''} ${after}`;}
     }
     label=cleanLabel(label);
