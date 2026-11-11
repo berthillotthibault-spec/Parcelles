@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.28.4 · champs qui dépassaient sur iPhone — 2026-11-11
+
+- **Safari iOS** : les champs date et heure ne dépassent plus de leur bloc (Dates et conditions des factures et devis, travaux, tâches…) ; valeur alignée à gauche comme les autres champs ; les blocs de formulaire (fieldset) ne s'élargissent plus à leur contenu ;
+- **listes déroulantes** : même hauteur, même bord et même chevron que les autres champs sur tous les navigateurs (sur iPhone, elles gardaient l'aspect natif, plus bas) ;
+- outil : `tools/scan-webkit-champs.mjs` contrôle les dépassements de champs sous WebKit.
+
 ## 10.28.3 · défauts graphiques corrigés — 2026-11-11
 
 Diagnostic visuel automatisé (`tools/scan-graphique.mjs` : débordements, textes coupés, icônes, cibles tactiles, chevauchements) sur plus de 300 écrans et fenêtres, téléphone 375 px et bureau, puis revue des captures une à une. Pas de changement de schéma (version 18).

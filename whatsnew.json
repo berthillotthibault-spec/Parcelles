@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.28.4",
+      "date": "2026-11-11",
+      "title": "Champs bien alignés sur iPhone",
+      "items": [
+        "Les champs de date ne dépassent plus de leur cadre, par exemple dans les factures.",
+        "Les listes déroulantes ont la même taille et le même style que les autres champs.",
+        "Les blocs de formulaire restent dans la largeur de l’écran."
+      ]
+    },
+    {
       "version": "10.28.3",
       "date": "2026-11-11",
       "title": "Finitions de l’affichage",
