@@ -58,7 +58,7 @@ export function createAccountUI(ctx) {
 
   function chooseWorkspace(sync, workspaces) {
     const token = ctx.pendingInviteToken;
-    const list = workspaces.length ? workspaces.map(w => `<button class="menu-row" data-workspace-id="${w.id}"><span>☁</span><span>`
+    const list = workspaces.length ? workspaces.map(w => `<button class="menu-row" data-workspace-id="${w.id}"><span>${icon('weather',{size:19})}</span><span>`
       + `<strong>${escapeHtml(w.name || 'Exploitation')}</strong><small>${escapeHtml(roleLabel(w.role || 'viewer'))}</small></span><b>›</b></button>`).join('')
       : '<div class="empty-state">Aucune exploitation cloud liée à ce compte.</div>';
     const body = [`<div class="stack-list">${list}</div><hr>`,

@@ -2,6 +2,7 @@
 import {gettingStartedSteps, gettingStartedProgress, shouldShowGettingStarted} from './getting-started.js';
 import {detectInstallState} from './runtime.js';
 import {escapeHtml as e} from './utils.js';
+import {icon as uiIcon} from './ui.js';
 
 export function createGettingStartedUI({store, toast, doc = globalThis.document}) {
   const installed = () => { try { return detectInstallState() === 'standalone'; } catch { return false; } };
@@ -18,7 +19,7 @@ export function createGettingStartedUI({store, toast, doc = globalThis.document}
     root.innerHTML = `<div class="gs-head"><div><h2 id="getting-started-title">Bien démarrer</h2><p>${p.done} sur ${p.total} étapes faites</p></div><button type="button" class="icon-button gs-hide" data-action="getting-started-hide" aria-label="Masquer la liste Bien démarrer">×</button></div>
       <div class="gs-bar" role="progressbar" aria-label="Progression" aria-valuemin="0" aria-valuemax="${p.total}" aria-valuenow="${p.done}"><span style="width:${p.percent}%"></span></div>
       <ol class="gs-steps">${steps.map(step => `<li class="${step.done ? 'is-done' : ''}">${step.done
-        ? `<span class="gs-row"><span class="gs-check" aria-hidden="true">✓</span><span><strong>${e(step.label)}</strong><small>Fait</small></span></span>`
+        ? `<span class="gs-row"><span class="gs-check" aria-hidden="true">${uiIcon('check', {size: 14})}</span><span><strong>${e(step.label)}</strong><small>Fait</small></span></span>`
         : `<button type="button" class="gs-row" data-action="${e(step.action)}" data-gs-step="${e(step.id)}"><span class="gs-check" aria-hidden="true"></span><span><strong>${e(step.label)}</strong><small>${e(step.detail)}</small></span><b aria-hidden="true">›</b></button>`}</li>`).join('')}</ol>`;
   }
   async function hide() {

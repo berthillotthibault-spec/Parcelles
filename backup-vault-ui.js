@@ -8,6 +8,7 @@
 // - liste, restauration (chemin de restauration habituel, déchiffrement compris) et suppression des instantanés.
 import {ctx} from './app-context.js';
 import {APP_VERSION, escapeHtml, isoDate, localDateTime} from './utils.js';
+import {icon as uiIcon} from './ui.js';
 import {DEFAULT_PBKDF2_ITERATIONS, encryptJsonPayload, passwordStrength} from './security.js';
 import {isDemoState} from './state.js';
 import {
@@ -177,7 +178,7 @@ export function createBackupVaultUI({restoreFile = null, recordExternalBackup = 
     let items;
     try { items = await listSnapshots(); } catch (error) { host.innerHTML = `<p class="form-note">Instantanés indisponibles : ${escapeHtml(error?.message || error)}</p>`; return; }
     if (!$('backup-vault-list')) return;
-    host.innerHTML = items.length ? items.map(item => `<div class="menu-row"><span>☁</span><span><strong>${escapeHtml(localDateTime(item.createdAt))}</strong><small>${item.encrypted ? 'Chiffré' : 'Non chiffré'}</small></span><span><button type="button" class="button small secondary" data-vault-restore="${escapeHtml(item.name)}">Restaurer</button> <button type="button" class="button small ghost" data-vault-delete="${escapeHtml(item.name)}">Supprimer</button></span></div>`).join('') : '<p class="form-note">Aucun instantané cloud pour le moment.</p>';
+    host.innerHTML = items.length ? items.map(item => `<div class="menu-row"><span>${uiIcon('weather', {size: 19})}</span><span><strong>${escapeHtml(localDateTime(item.createdAt))}</strong><small>${item.encrypted ? 'Chiffré' : 'Non chiffré'}</small></span><span><button type="button" class="button small secondary" data-vault-restore="${escapeHtml(item.name)}">Restaurer</button> <button type="button" class="button small ghost" data-vault-delete="${escapeHtml(item.name)}">Supprimer</button></span></div>`).join('') : '<p class="form-note">Aucun instantané cloud pour le moment.</p>';
     host.onclick = async event => {
       const button = event.target.closest('[data-vault-restore],[data-vault-delete]');
       if (!button) return;

@@ -58,6 +58,8 @@ export function createAppsUI({doc = document, catalog, isVisible, livestock, swi
     const apps = doc.getElementById('sidebar-apps');
     if (apps) apps.innerHTML = String(sidebarAppsHtml());
     doc.querySelectorAll('[data-app-title]').forEach(el => { el.textContent = a.id === DEFAULT_APP ? 'Parcelles' : a.title; });
+    // n° 162 : la tuile de marque reprend l’icône de l’appli affichée (carte pour Champs).
+    doc.querySelectorAll('.desktop-brand .brand-mark').forEach(el => { el.innerHTML = icon(a.id === DEFAULT_APP ? 'map' : a.icon, {size: 22}); });
     doc.querySelectorAll('[data-app-return]').forEach(el => { el.innerHTML = String(chipHtml()); el.hidden = !back; });
     markActive(currentView());
     if (currentView() === 'space') renderSpace();

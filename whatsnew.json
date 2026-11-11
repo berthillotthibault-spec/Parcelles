@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.28.3",
+      "date": "2026-11-11",
+      "title": "Finitions de l’affichage",
+      "items": [
+        "Icônes redessinées et plus nettes, sans émojis.",
+        "Textes, boutons et champs qui ne dépassent plus sur téléphone.",
+        "Pieds de fenêtre, onglets du Planning et barre du bas plus lisibles."
+      ]
+    },
+    {
       "version": "10.28.2",
       "date": "2026-11-09",
       "title": "Grand nettoyage",

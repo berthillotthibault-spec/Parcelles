@@ -2,7 +2,8 @@
 // sanitaire existants. Actions rapides, lots au pré (« Jour N »), animaux au bâtiment, « À venir » sur 14 jours,
 // et feuille « Déplacer · lot » qui passe par moveGrazingLot / endGrazingSession (grazing-records.js).
 // Module différé (clé herdHome de lazy-modules.js) ; logique dans herd-home.js.
-import {html} from './safe-html.js';
+import {html, raw} from './safe-html.js';
+import {icon} from './ui.js';
 import {herdLots, animalsInside, herdHeadline, herdUpcoming, moveDestinations} from './herd-home.js';
 import {moveGrazingLot, endGrazingSession, grazingReentryAlert} from './grazing-records.js';
 import {filterAnimals} from './herd.js';
@@ -39,9 +40,9 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
     if (summary) summary.textContent = herdHeadline(data, {today});
     root.innerHTML = String(html`
       <div class="herd-actions" role="group" aria-label="Actions rapides">
-        <button type="button" class="herd-action" data-action="herd-pick" data-kind="calving"><b>Vêlage</b><small>Naissance</small></button>
-        <button type="button" class="herd-action" data-action="open-herd-health"><b>Soin</b><small>Traitement</small></button>
-        <button type="button" class="herd-action" data-action="herd-pick" data-kind="weighing"><b>Pesée</b><small>Poids</small></button>
+        <button type="button" class="herd-action" data-action="herd-pick" data-kind="calving">${raw(icon('herd', {size: 22}))}<b>Vêlage</b><small>Naissance</small></button>
+        <button type="button" class="herd-action" data-action="open-herd-health">${raw(icon('shield', {size: 22}))}<b>Soin</b><small>Traitement</small></button>
+        <button type="button" class="herd-action" data-action="herd-pick" data-kind="weighing">${raw(icon('ruler', {size: 22}))}<b>Pesée</b><small>Poids</small></button>
       </div>
       <section class="herd-section" aria-labelledby="herd-lots-title"><h2 id="herd-lots-title" class="herd-h" tabindex="-1">Lots</h2>
         ${lots.length ? lots.map(l => html`<article class="herd-lot">

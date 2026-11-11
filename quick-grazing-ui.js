@@ -46,7 +46,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
   function headHtml() {
     const summary = ['parcels', 'details'].includes(g.screen) ? draftSummary(state(), {type: g.type, parcelIds: g.entry.parcelIds}) : '';
     return html`<div class="qw-head">
-      <div class="qw-bar"><button type="button" class="qw-back" data-qg="back">‹ Retour</button>
+      <div class="qw-bar"><button type="button" class="qw-back" data-qg="back">${raw(icon('back', {size: 18}))}Retour</button>
         <span class="qw-kicker">Pâturage</span>
         <button type="button" class="qw-close" data-action="close-modal" aria-label="Fermer">${raw(icon('close', {size: 20}))}</button></div>
       <h3 class="qw-title" id="qw-title">${TITLES[g.screen]}</h3>
@@ -70,7 +70,7 @@ export function createQuickGrazingUI({store, state, toast, closeModal, todayIso,
     const rows = grazingParcelRows(state(), {type: g.type, today: todayIso(), date: entryDate(), selected: g.entry.parcelIds, query: g.query, filter: g.filter});
     if (!rows.length) return html`<p class="qw-empty">Aucun pré ne correspond.</p>`;
     return rows.map(({parcel: p, selected: on, status, forage}) => html`<button type="button" class="qw-parcel${on ? ' is-on' : ''}" data-qg="parcel" data-id="${p.id}" role="checkbox" aria-checked="${on ? 'true' : 'false'}">
-      <span class="qw-box" aria-hidden="true">${on ? '✓' : ''}</span>
+      <span class="qw-box" aria-hidden="true">${on ? raw(icon('check', {size: 16})) : ''}</span>
       <span class="qw-parcel-text"><b>${p.nom}</b><small>${[p.culture, `${formatDose(Number(p.surfaceHa) || 0, 0)} ha`].filter(Boolean).join(' · ')}</small><small>${forage ? status : `Hors prairie · ${status}`}</small></span>
       <span class="qw-dot" style="background:${cultureColor(p.culture || '')}" aria-hidden="true"></span></button>`);
   }

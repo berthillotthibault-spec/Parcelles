@@ -583,7 +583,7 @@ html.theme-dark .small-button.danger{color:var(--danger);border-color:color-mix(
 /* ---------- Feuilles (modales) ---------- */
 .modal-backdrop{background:rgba(20,28,24,.38);backdrop-filter:none}
 .modal{border:0;border-radius:28px;box-shadow:0 -10px 40px rgba(0,0,0,.2)}
-.modal-header{padding:12px 20px 8px;border-bottom:0;align-items:center}
+.modal-header{padding:12px 20px 8px;border-bottom:0;align-items:flex-start}
 .modal-header h2{font-size:18px;font-weight:600;letter-spacing:0;margin:0}
 .modal-header p{font-size:13px;color:var(--text-secondary);margin-top:2px;line-height:1.5}
 .modal-close{width:32px;height:32px;border-radius:16px;background:var(--surface-secondary);color:var(--text-secondary);font-size:16px;display:grid;place-items:center}
@@ -682,6 +682,10 @@ html[data-view="map"] .toast-region,html[data-view="parcel"] .toast-region{botto
   /* 721-1023 px : la légende remonte au-dessus de la feuille de parcelle (masquée sous 720 px par map.css). */
   html[data-view="map"]:has(#map-parcel-sheet:not(.is-empty)) .map-legend{bottom:var(--map-sheet-clearance,224px)}
 }
+/* n° 162 : en sélection multiple, la légende remonte au-dessus de la barre sombre (masquée sous 720 px) et, sur téléphone/tablette, le bouton « Outils » s’efface au lieu de dépasser derrière elle. */
+@media(min-width:721px){html[data-view="map"]:has(#map-selection:not(.hidden)) .map-legend{bottom:96px}}
+@media(max-width:720px){html[data-view="map"]:has(#map-selection:not(.hidden)) .map-legend{display:none}}
+@media(max-width:1023px){html[data-view="map"]:has(#map-selection:not(.hidden)) .map-tools-launcher{visibility:hidden;pointer-events:none}}
 /* Sélection multiple : barre sombre */
 .map-selection{left:10px;right:10px;bottom:10px;border-radius:24px;padding:14px 16px;background:var(--ink);color:var(--on-ink);box-shadow:0 10px 30px rgba(0,0,0,.25)}
 .map-selection strong{font-size:16px;font-weight:600;margin-bottom:10px}
@@ -710,6 +714,8 @@ html[data-view="map"] .toast-region,html[data-view="parcel"] .toast-region{botto
 .map-quick-tool .ui-icon{width:22px;height:22px;color:var(--brand)}
 .map-quick-tool>span{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:374px){.map-quick-tool{font-size:11px}}
+/* n° 162 : sous 400 px, trois colonnes : « Observation » tenait mal en quatre (coupé en « Observat… »). */
+@media(max-width:400px){.map-quick-tools{grid-template-columns:repeat(3,minmax(0,1fr))}}
 /* Légende */
 .legend-toggle{min-height:0;height:auto;padding:10px 14px;border:0;border-radius:16px;background:color-mix(in srgb,var(--surface) 96%,transparent);color:var(--text-primary);box-shadow:var(--shadow-float);font-size:13px;font-weight:600}
 .legend-content{border-radius:16px;padding:10px 14px;box-shadow:var(--shadow-float)}
@@ -2734,9 +2740,12 @@ html[data-map-mode] .map-whereami,.map-whereami.hidden{display:none}
 .saved-check.is-visible:not(.is-static) .saved-check-disc{animation:saved-pop .6s cubic-bezier(.2,.7,.2,1) both}
 @keyframes saved-pop{0%{transform:scale(.6);opacity:0}25%{transform:scale(1.05);opacity:1}80%{transform:scale(1);opacity:1}100%{transform:scale(1);opacity:0}}
 @media (prefers-reduced-motion:reduce){.saved-check-disc{animation:none!important}}
-.toast.success{border-left:6px solid var(--c-signal-green)}
+/* n° 162 : bande verte du toast de succès dessinée à l’intérieur de la bulle (une bordure gauche sur un coin arrondi faisait un croissant). */
+.toast.success{position:relative;overflow:hidden;border-left:0;padding-left:24px}
+.toast.success::before{content:'';position:absolute;inset:0 auto 0 0;width:6px;background:var(--c-signal-green);pointer-events:none}
 :root.plein-champ .toast,:root:has(#field-mode.field-sun-mode) .toast{font-size:17px;font-weight:700;padding:16px 20px;background:var(--c-black);color:var(--c-white);border:2px solid var(--c-white)}
-:root.plein-champ .toast.success,:root:has(#field-mode.field-sun-mode) .toast.success{border-left:10px solid var(--c-signal-green)}
+:root.plein-champ .toast.success,:root:has(#field-mode.field-sun-mode) .toast.success{border-left:2px solid var(--c-white);padding-left:28px}
+:root.plein-champ .toast.success::before,:root:has(#field-mode.field-sun-mode) .toast.success::before{width:10px}
 :root.plein-champ .toast.error,:root:has(#field-mode.field-sun-mode) .toast.error{background:#8f1d14}
 /* v8b n° 75 : bilan fourrager */
 .forage-gauge{display:grid;gap:6px;margin:0 0 12px}
@@ -2822,6 +2831,8 @@ html[data-map-mode] .map-whereami,.map-whereami.hidden{display:none}
 .profit-map-label .profit-legend div{font-variant-numeric:tabular-nums}
 /* n° 86 : prévisionnel de trésorerie */
 .treasury-chart{width:100%;max-width:560px;height:auto;display:block}
+/* n° 162 : graphique de trésorerie centré dans la fenêtre large. */
+.treasury-chart{margin-inline:auto}
 .treasury-chart text{font-size:9px;fill:var(--text-secondary,currentColor)}
 .treasury-chart .tr-in,.tr-key-in{fill:var(--success);background:var(--success);opacity:.55}
 .treasury-chart .tr-out,.tr-key-out{fill:var(--danger);background:var(--danger);opacity:.45}
@@ -3548,4 +3559,181 @@ details[open]>summary::after{transform:translateY(2px) rotate(-135deg)}
 @media (max-width:430px){.app-header:has(#network-button.offline) .local-badge{display:none}}
 /* Téléphone étroit : écart serré pour que l’avatar garde sa marge de 16 px (connexion, 100 % local, recherche, cloche, profil). */
 @media (max-width:400px){.app-header .header-actions{gap:3px}}
+}
+/* n° 162 : icônes. */
+@layer theme{
+/* n° 162 : les SVG en dur d’index.html ont les mêmes bouts et angles arrondis que ceux d’icon(). */
+.ui-icon{stroke-linecap:round;stroke-linejoin:round}
+/* n° 162 : pastille de la cloche en border-box (le reset ne vise pas ::after) et calée dans le coin, hors du dôme. */
+.header-status[data-count]:not([data-count="0"])::after{box-sizing:border-box;top:2px;right:0;min-width:18px;height:18px;padding:0 4px;line-height:1}
+/* n° 162 : chevrons des menus et « ··· » du Planning lisibles sur le blanc. */
+.menu-row>b{color:var(--text-secondary)}
+#work-list>.work-row.has-time .row-more{color:var(--text-secondary)}
+/* n° 162 : le « ? » d’aide dessine un rond de 32 px comme la croix voisine, la zone tactile reste à 44 px. */
+.modal-header .modal-help{border:6px solid transparent;background-clip:padding-box;box-shadow:inset 0 0 0 1px var(--border-strong)}
+.modal-header .modal-help[aria-expanded="true"]{border-color:transparent;box-shadow:none}
+/* n° 162 : pictogrammes des types de travail dans les pastilles de couleur. */
+.wk-badge .quick-glyph,.wk-badge .ui-icon{width:20px;height:20px}
+.home-row-main .wk-badge .quick-glyph{width:18px;height:18px}
+/* n° 162 : coches SVG dans les cases rondes et carrées. */
+:is(.gs-check,.home-check,.qw-box,.day-route-num,.work-row .row-check) .ui-icon{stroke-width:2.6}
+/* n° 162 : icônes de niveau des notifications. */
+.menu-row>.notif-ico[data-level="urgent"]{color:var(--danger)}
+.menu-row>.notif-ico[data-level="warning"]{color:var(--warning)}
+/* n° 162 : icône devant un libellé de bouton (« Démarrer ») et dans une ligne de texte. */
+:is(.button,.small-button):has(>.btn-ico){display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.inline-icon{display:inline-block;vertical-align:-2px;margin-right:4px}
+.qw-back{display:inline-flex;align-items:center;gap:2px}
+.qw-back[hidden]{display:inline-flex!important}
+.native-lock-icon .ui-icon{margin:0 auto}
+.herd-action .ui-icon{color:var(--brand)}
+}
+@layer theme{
+/* n° 162 : formulaires. */
+/* Bureau aussi : les champs et listes à options longues restent dans leur colonne de .form-grid. */
+:is(.modal,.field-mode-card) :is(.form-grid>*,label,.field-label){min-width:0}
+:is(.modal,.field-mode-card) :is(input,select,textarea){max-width:100%;min-width:0}
+.cv-fields .form-grid :is(input,select){width:100%;min-width:0;max-width:100%}
+/* Textes d’aide trop longs : points de suspension au lieu d’une coupe nette. */
+.map-search input,.search-field input,.qw-search input{min-width:0;text-overflow:ellipsis}
+:is(.map-search,.search-field,.qw-search) input::placeholder{text-overflow:ellipsis}
+/* Tuiles « Quel travail ? » : pas de coupe au milieu des mots ; sur téléphone, pastille au-dessus du nom. */
+.qw-tile b{overflow-wrap:normal;word-break:normal;hyphens:manual}
+@media (max-width:400px){
+  .qw-tile{flex-direction:column;align-items:flex-start;justify-content:center;gap:8px;padding:12px}
+  .qw-tile .wk-badge{width:30px;height:30px;border-radius:9px}
+}
+/* Focus clavier des tuiles : un seul cadre, distinct de la tuile choisie (fond vert). */
+.qw-tile:focus-visible,.qw-parcel:focus-visible{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 30%,transparent)}
+/* Listes à cocher : le nom de la parcelle n’a pas l’air désactivé. */
+.check-row strong{color:var(--text-primary);font-weight:600}
+/* Champs fichier : bouton-pilule au lieu du bouton gris natif, sans boîte de champ texte autour. */
+html body :is(.form-grid,.field-label,.modal,.file-drop) input[type=file]{min-height:0;padding:0;border:0;border-radius:0;background:none;font:inherit;font-size:14px;color:var(--text-secondary);max-width:100%}
+input[type=file]::file-selector-button{min-height:44px;margin-right:12px;padding:0 16px;border:1px solid var(--field-border,var(--border-subtle));border-radius:999px;background:var(--surface);color:var(--text-primary);font:600 14px var(--font-sans);cursor:pointer}
+input[type=file]::file-selector-button:hover{border-color:var(--brand)}
+/* Troupeau : les deux groupes de filtres (présence, sexe) sont séparés. */
+.compact-toolbar .filter-row+.filter-row{margin-left:4px;padding-left:12px;border-left:1px solid var(--border-subtle)}
+/* Fiche animal : le choix du lot respire après la liste de définitions. */
+.field-label:has(>#herd-move-lot){margin-top:16px}
+}
+/* n° 162 : accueil et navigation. */
+@layer theme{
+/* n° 162 : sur petit téléphone, les libellés de la barre du bas restent dans leur colonne (plus de « ParcellesTroupeau »). */
+@media(max-width:400px){
+  .primary-nav:not(.app-nav){grid-template-columns:minmax(0,1fr) minmax(0,1fr) 72px minmax(0,1fr) minmax(0,1fr)}
+  .primary-nav .nav-item{min-width:0}
+  .primary-nav .nav-item small{font-size:12px;letter-spacing:-.01em;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+.app-nav[data-count="4"]{grid-template-columns:repeat(4,minmax(0,1fr))}
+.app-nav[data-count="3"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+.app-nav[data-count="2"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* n° 162 : en-tête à 320 px, la pastille de profil garde sa marge de 16 px au bord droit. */
+@media(max-width:360px){
+  .app-header{padding-left:max(16px,var(--safe-left))}
+  .app-header .header-actions{gap:0;min-width:0}
+  .app-header .profile-chip{width:44px;height:44px;min-width:44px;font-size:14px}
+}
+/* n° 162 : Planning, les cinq sous-vues deviennent un ruban défilant au lieu de se chevaucher. */
+@media(max-width:420px){
+  .segmented.work-subviews{display:flex;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .segmented.work-subviews::-webkit-scrollbar{display:none}
+  .segmented.work-subviews>button{flex:1 0 auto;padding:0 10px;font-size:13px}
+}
+/* n° 162 : onglets Aujourd’hui / Planifiés / En retard / Historique sur une ligne, compteur en ligne. */
+#work-tabs button{min-width:0;padding:0 2px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#work-tabs button .work-tab-count:not(:empty){display:inline;margin-left:2px;padding:2px 3px}
+@media(max-width:360px){#work-tabs button{font-size:11.5px}}
+/* n° 162 : la fin de chaque écran reste atteignable sous les boutons flottants Micro et IA (pas seulement Accueil, Parcelles, Planning). */
+@media(max-width:1023px){
+  html:not([data-view="map"]):not([data-view="parcel"]):not([data-role="viewer"]) main{padding-bottom:calc(var(--nav-h) + 24px + var(--safe-bottom) + var(--assistant-clearance,64px))}
+}
+@media(min-width:1024px){
+  html:not([data-view="map"]):not([data-view="parcel"]):not([data-role="viewer"]) main{padding-bottom:calc(var(--assistant-clearance,64px) + 32px)}
+}
+/* n° 162 : chiffres en serif des repères de l’accueil non rognés en haut et en bas. */
+.today-summary .summary-card strong{line-height:1.15}
+/* n° 162 : mode terrain, plein soleil et fermer restent en haut à droite du titre. */
+.field-mode-card .view-heading{display:flex;align-items:flex-start;gap:8px;flex-wrap:nowrap}
+.field-mode-card .view-heading>div:first-child{flex:1 1 auto;min-width:0}
+.field-mode-card .heading-actions{width:auto;flex:none;flex-wrap:nowrap}
+@media(min-width:1024px){
+  /* n° 162 : pied de la barre latérale dans la même typographie que les entrées au-dessus. */
+  .sidebar-foot>button:not(.local-badge){font-size:15px;font-weight:600}
+  /* n° 162 : contrôles segmentés des écrans lisibles sur bureau (14 px au lieu de 12). */
+  .view .segmented:not(.work-subviews)>button{font-size:14px;min-height:40px;height:40px}
+}
+}
+/* n° 162 : listes et cartes. */
+@layer theme{
+/* n° 162 : notifications en fenêtre, lignes alignées sur le titre et un filet par ligne, bouton « i » compris. */
+.modal .stack-list>.why-row{border-bottom:1px solid var(--line)}
+.modal .stack-list>.why-row:last-child{border-bottom:0}
+.modal .stack-list>.why-row>.menu-row{padding-inline:0;border-bottom:0}
+/* n° 162 : Matériel en fenêtre, la ligne s’aligne sur le titre. */
+.modal-body .stack-list>.equipment-row{padding-inline:0}
+/* n° 162 : Assolement, anneau centré quand la légende passe dessous. */
+.chart-donut-wrap .chart-donut{margin-inline:auto}
+/* n° 162 : barres par culture alignées d’une ligne à l’autre, libellé long coupé entre les mots. */
+.culture-bar-row{grid-template-columns:minmax(0,1fr) 2fr 8.5em}
+.culture-bar-row>strong{min-width:0;overflow-wrap:break-word}
+@media(max-width:520px){.culture-bar-row{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto}}
+/* n° 162 : bilan hydrique, « 14,3 mm » tient dans sa case sur téléphone. */
+@media(max-width:400px){.soil-facts div{padding:8px}.soil-facts dd{font-size:15px}}
+/* n° 162 : chiffres clés, pas de 4e carte orpheline sur bureau. */
+@media(min-width:768px){.preview-summary{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}}
+/* n° 162 : Tâches, « Modifier » et « Terminer » côte à côte. */
+.stack-list>.list-row>div:last-child:has(>.small-button){display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center;flex:none}
+/* n° 162 : fiche parcelle, « Ouvrir » en lien d’action comme ailleurs. */
+.parcel-situation .row-link{flex:none;color:var(--brand);font-weight:600;font-size:14px}
+/* n° 162 : Planning, « ··· » de 32 px comme dans les autres listes. */
+#work-list>.work-row.has-time .row-more{width:32px;height:32px;min-height:32px}
+@media(max-width:360px){.work-row .row-time{flex-basis:52px}}
+@media(max-width:1023px){
+  /* n° 162 : barre d’actions de la fiche parcelle, texte dans ses boutons et fond plein jusqu’à la barre du bas. */
+  #parcel-detail-actions{grid-template-columns:minmax(0,1fr) minmax(0,1fr);bottom:calc(var(--nav-h) + max(0px,var(--safe-bottom) - 16px));padding-top:12px;padding-bottom:12px;background:linear-gradient(color-mix(in srgb,var(--bg) 0%,transparent),var(--bg) 12px)}
+  #parcel-detail-actions .button{font-size:15px;padding:0 10px;white-space:normal;line-height:1.15;text-align:center}
+}
+@media(min-width:1024px){
+  /* n° 162 : barre de recherche collée en haut sans bande translucide ; au Planning elle ne recouvre plus la colonne « Cette semaine ». */
+  .toolbar-panel{top:0;background:var(--bg)}
+  #view-work .toolbar-panel{position:static}
+}
+}
+@layer theme{
+/* n° 162 : fenêtres et feuilles. */
+/* n° 162 : la feuille ne défile jamais elle-même (focus, clavier iOS) : seul le corps défile. */
+.modal{overflow:hidden;overflow:clip}
+.modal-header h2{text-wrap:balance}
+/* n° 162 : en-tête aligné en haut, le « ? » d’aide reste sur la ligne de la croix. */
+.modal-header .modal-help{margin-top:-6px}
+/* n° 162 : pied, le libellé reste sur une ligne et le bouton principal passe à la ligne au lieu de s’écraser. */
+.modal-footer{flex-wrap:wrap}
+.modal-footer .button{height:auto;white-space:nowrap}
+.modal-footer .button.primary{flex:1 0 auto}
+@media(max-width:620px){
+  /* n° 162 : secondaires deux par rangée, principal sur toute la largeur : le pied ne mange plus la feuille ; un libellé long passe sur deux lignes au lieu d’être coupé par « … ». */
+  .modal-footer:not(:has(.rpg-pick-alt,.compliance-settings-link,.team-wide)){display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .modal-footer:not(:has(.rpg-pick-alt,.compliance-settings-link,.team-wide)) .button{min-width:0;height:auto;min-height:44px;padding:6px 8px;font-size:14px;line-height:1.2;white-space:normal;text-align:center;overflow-wrap:break-word;justify-content:center}
+  .modal-footer:not(:has(.rpg-pick-alt,.compliance-settings-link,.team-wide)) :is(.button.primary,.button:only-child,.button:not(.primary):nth-last-child(2):nth-child(odd),.button:last-child:nth-child(odd)){grid-column:1/-1}
+  .modal-footer:not(:has(.rpg-pick-alt,.compliance-settings-link,.team-wide)) .button.primary{height:auto;min-height:48px;font-size:15px}
+}
+@media (pointer:coarse),(max-width:1023px){
+  /* n° 162 : l’anneau de focus de la croix épouse le rond de 32 px, pas la zone tactile de 44 px. */
+  .modal-close:focus-visible{outline:2px solid var(--brand);outline-offset:calc((32px - var(--a11y-hit))/2 + 2px)}
+}
+/* n° 162 : rappels sanitaires et encadrés à la taille du texte des fenêtres. */
+.herd-reminders li{font-size:14px;line-height:1.4;padding:10px 14px}
+.modal .notice{font-size:14px;line-height:1.45}
+/* n° 162 : fiche animal, le champ « Lot de pâturage » ne colle plus au filet de la liste. */
+.modal .definition-list+.field-label{margin-top:16px}
+/* n° 162 : aide, « Toute l’aide » aligné sur le texte comme le lien d’action. */
+.help-topic~.form-note .text-button{padding-inline:0}
+/* n° 162 : liens texte seuls en début de ligne alignés sur le bord du contenu (la zone de clic reste assurée par ::after). */
+#batch-select-all,.herd-more>.text-button:first-child{padding-inline-start:0}
+/* n° 162 : fiche parcelle, « Ajouter un travail » tient sur une ligne à 375 px ; sélection multiple de la carte : l'aide passe à la ligne au lieu d'être coupée et le toast s'affiche en haut pour ne pas recouvrir la barre. */
+@media(max-width:420px){#parcel-detail-actions .button,#parcel-detail-actions .button.primary{font-size:14px;padding:0 8px;height:52px;min-height:52px}}
+@media(max-width:1023px){
+  .map-selection .msel-text small{white-space:normal;overflow:visible;text-overflow:clip;padding-right:36px}
+  html[data-view="map"]:has(#map-selection:not(.hidden)) .toast-region{bottom:auto;top:calc(128px + var(--safe-top))}
+}
 }

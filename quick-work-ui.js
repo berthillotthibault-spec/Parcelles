@@ -6,6 +6,7 @@ import {html, raw} from './safe-html.js';
 import {icon, emptyState} from './ui.js';
 import {uid, campaignFor as campaignOf} from './utils.js';
 import {rankParcels} from './quick-entry.js';
+import {GLYPHS} from './quick-entry-ui.js'; // n° 162 : pictogrammes des types au lieu de deux lettres
 import {checkTreatment, limitsSnapshot, registerMissing, productFor, limitsFor} from './phyto.js';
 import {weatherSnapshotOf, workWindow} from './spray-window.js';
 import {applyWorkEffects} from './work-effects.js';
@@ -95,13 +96,13 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
   }
 
   // ---------- Rendu ----------
-  const badge = type => { const b = typeBadge(type); return html`<span class="wk-badge" data-family="${b.family}" aria-hidden="true">${b.ab}</span>`; };
+  const badge = type => { const b = typeBadge(type); return html`<span class="wk-badge" data-family="${b.family}" aria-hidden="true">${raw(GLYPHS[b.family] || GLYPHS.other)}</span>`; };
   const chip = (attrs, label, on) => html`<button type="button" class="qw-pill${on ? ' is-on' : ''}" aria-pressed="${on ? 'true' : 'false'}" ${attrs}>${label}</button>`;
 
   function headHtml() {
     const summary = s.step > 1 ? draftSummary(state(), {...s, date: s.step === 3 ? dateOf() : '', today: todayIso()}) : '';
     return html`<div class="qw-head">
-      <div class="qw-bar"><button type="button" class="qw-back" data-qw="back"${s.step > 1 && !s.pending ? '' : raw(' hidden')}>‹ Retour</button>
+      <div class="qw-bar"><button type="button" class="qw-back" data-qw="back"${s.step > 1 && !s.pending ? '' : raw(' hidden')}>${raw(icon('back', {size: 18}))}Retour</button>
         <span class="qw-kicker" aria-hidden="true">Étape ${s.step} / 3</span>
         <button type="button" class="qw-close" data-action="close-modal" aria-label="Fermer">${raw(icon('close', {size: 20}))}</button></div>
       <div class="qw-progress" aria-hidden="true">${[1, 2, 3].map(i => html`<span${i <= s.step ? raw(' class="is-on"') : ''}></span>`)}</div>
@@ -122,7 +123,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     const {top, more} = orderedWorkTypes(state(), {today: todayIso()});
     const tile = t => html`<button type="button" class="qw-tile${s.type === t.type ? ' is-on' : ''}" data-qw="type" data-type="${t.type}" aria-pressed="${s.type === t.type ? 'true' : 'false'}">${badge(t.type)}<b>${t.type}</b></button>`;
     return html`${resumeHtml()}${hasParcels() ? '' : noParcelHtml()}<div class="qw-tiles" role="group" aria-labelledby="qw-title">${top.map(tile)}
-      <button type="button" class="qw-tile qw-other" data-qw="more" aria-expanded="${s.showMore ? 'true' : 'false'}"><span class="wk-badge" data-family="other" aria-hidden="true">…</span><b>Autre…</b></button></div>
+      <button type="button" class="qw-tile qw-other" data-qw="more" aria-expanded="${s.showMore ? 'true' : 'false'}"><span class="wk-badge" data-family="other" aria-hidden="true">${raw(icon('more', {size: 20}))}</span><b>Autre…</b></button></div>
       ${s.showMore ? html`<div class="qw-more">${more.length ? html`<div class="qw-tiles">${more.map(tile)}</div>` : ''}
         <label class="qw-field"><span>Autre type de travail</span><span class="qw-inline"><input id="qw-custom-type" autocomplete="off" placeholder="ex. Broyage" value="${s.customType}"><button type="button" class="button primary" data-qw="custom-type">OK</button></span></label>
         <div class="qw-field"><span id="qw-kind">Ce travail utilise (facultatif)</span><div class="qw-machines" role="group" aria-labelledby="qw-kind">${WORK_KINDS.map(([id, label]) => chip(html`data-qw="kind" data-kind="${id}"`, label, s.kind === id))}</div></div></div>` : ''}
@@ -154,7 +155,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     const rows = rowsOf();
     if (!rows.length) return html`<p class="qw-empty">Aucune parcelle ne correspond.</p>${s.filter !== 'all' || s.query ? html`<button type="button" class="button secondary qw-clear" data-qw="clear-filter">Effacer le filtre</button>` : ''}`;
     return rows.map(({parcel: p, plannedLabel, selected, outside}) => html`<button type="button" class="qw-parcel${selected ? ' is-on' : ''}" data-qw="parcel" data-id="${p.id}" role="checkbox" aria-checked="${selected ? 'true' : 'false'}">
-      <span class="qw-box" aria-hidden="true">${selected ? '✓' : ''}</span>
+      <span class="qw-box" aria-hidden="true">${selected ? raw(icon('check', {size: 16})) : ''}</span>
       <span class="qw-parcel-text"><b>${p.nom}</b><small>${[p.culture, `${formatDose(Number(p.surfaceHa) || 0, 0)} ha`, p.id === s.gpsId ? 'détectée par GPS' : '', outside ? 'cochée, hors filtre' : ''].filter(Boolean).join(' · ')}</small>${plannedLabel ? html`<em class="qw-planned">${plannedLabel}</em>` : ''}</span>
       <span class="qw-dot" style="background:${cultureColor(p.culture || '')}" aria-hidden="true"></span></button>`);
   }

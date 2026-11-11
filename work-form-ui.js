@@ -184,7 +184,7 @@ export function createWorkFormUI(ctx) {
       editing && work.status === 'Terminé'
         ? `<button class="button secondary" data-farm="effects" data-id="${escapeHtml(work.id)}">Stocks / heures / coûts</button>` : '',
       editing ? '<button class="button secondary" id="attach-work">Pièce jointe</button>' : '',
-      editing ? '<button class="button secondary" id="delete-work">Supprimer</button>' : '',
+      editing ? '<button class="button danger" id="delete-work">Supprimer</button>' : '',
       '<button class="button primary" id="save-work">Enregistrer</button>'].join('');
     const title = editing ? 'Modifier le travail' : duplicate ? 'Refaire ce travail' : 'Nouveau travail';
     ctx.modal(title, 'Un cas simple peut être enregistré avec les champs essentiels uniquement.', body, footer, 'large');

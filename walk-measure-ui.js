@@ -1,5 +1,6 @@
 // n° 50 : mesurer en marchant, puis transformer la mesure en parcelle, en contour ou en zone.
 import {escapeHtml,formatNumber,geometryCentroid,geometryAreaHa} from './utils.js';
+import {icon as uiIcon} from './ui.js';
 import {acceptFix,walkStats,walkSummary,accuracyLevel,walkGeometry,nearestParcels} from './walk-measure.js';
 import {nextSurfaceHa} from './contour-edit.js';
 import {chipify,validateForm} from './form-chips-ui.js';
@@ -60,7 +61,7 @@ export function createWalkMeasureUI({getMap,store,toast,modal,closeModal,mapMode
   function start(){
     if(mapModes.current){mapModes.leave(()=>start(),{reason:'switch'});return;}
     if(getState()?.preferences?.gpsConsent){begin();return;}
-    modal('Utiliser votre position ?','La mesure en marchant enregistre votre trace GPS sur cet appareil.','<div class="notice info">Un point est posé tous les 3 m quand la précision vaut 8 m ou moins. La position reste sur cet appareil.</div>','<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="walk-allow-gps">Continuer</button>','small');
+    modal('Utiliser votre position ?','La mesure en marchant enregistre votre trace GPS sur cet appareil.','<div class="notice info">Un point est posé tous les 3 m quand la précision vaut 8 m ou moins. La position reste sur cet appareil.</div>','<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="walk-allow-gps">Continuer</button>','small');
     document.getElementById('walk-allow-gps').onclick=async()=>{await store.setPreferences({gpsConsent:true});closeModal();begin();};
   }
 
@@ -75,7 +76,7 @@ export function createWalkMeasureUI({getMap,store,toast,modal,closeModal,mapMode
 
   function openResult(geometry,stats){
     const area=geometryAreaHa(geometry);
-    modal('Mesure terminée',walkSummary(stats),`<div class="walk-result-choices"><button class="menu-row" data-walk-choice="parcel"><span>◇</span><span><strong>Créer une parcelle</strong><small>Nouvelle fiche avec ce contour (${formatNumber(area)} ha)</small></span><b>›</b></button><button class="menu-row" data-walk-choice="replace"><span>◈</span><span><strong>Remplacer le contour de…</strong><small>Une parcelle existante, la plus proche en premier</small></span><b>›</b></button><button class="menu-row" data-walk-choice="zone"><span>▱</span><span><strong>Enregistrer comme zone</strong><small>Repère avec contour : zone humide, mouillère, dégât…</small></span><b>›</b></button></div>`,'<button class="button secondary" data-action="close-modal">Fermer sans enregistrer</button>','small');
+    modal('Mesure terminée',walkSummary(stats),`<div class="walk-result-choices"><button class="menu-row" data-walk-choice="parcel"><span>${uiIcon('parcels',{size:19})}</span><span><strong>Créer une parcelle</strong><small>Nouvelle fiche avec ce contour (${formatNumber(area)} ha)</small></span><b>›</b></button><button class="menu-row" data-walk-choice="replace"><span>${uiIcon('area',{size:19})}</span><span><strong>Remplacer le contour de…</strong><small>Une parcelle existante, la plus proche en premier</small></span><b>›</b></button><button class="menu-row" data-walk-choice="zone"><span>${uiIcon('flag',{size:19})}</span><span><strong>Enregistrer comme zone</strong><small>Repère avec contour : zone humide, mouillère, dégât…</small></span><b>›</b></button></div>`,'<button class="button secondary" data-action="close-modal">Fermer sans enregistrer</button>','small');
     const root=document.querySelector('.walk-result-choices');
     root?.querySelector('[data-walk-choice="parcel"]')?.addEventListener('click',()=>{closeModal();createParcel?.(geometry,area);});
     root?.querySelector('[data-walk-choice="replace"]')?.addEventListener('click',()=>openReplace(geometry,stats));

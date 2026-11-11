@@ -77,7 +77,7 @@ export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=
     if(!canSeeTreasury(role())){toast('La trésorerie n’est pas accessible en lecture seule.','info');return;}
     const state=data(),settings=treasurySettings(state),f=treasuryForecast(state,{start:monthKey(),today:dayKey()}),low=f.low;
     modal('Trésorerie','Prévisionnel sur 12 mois · estimation, non contractuelle',`
-<div class="preview-summary">${[['Solde de départ',eur(f.opening??0)],['Encaissements prévus',eur(f.totals.income)],['Décaissements prévus',eur(-f.totals.expense)],['Point bas',low?`${eur(low.balance)} (${low.label})`:'—']].map(([l,v])=>`<div class="preview-stat"><strong>${e(v)}</strong><small>${e(l)}</small></div>`).join('')}</div>
+<div class="preview-summary">${[['Solde de départ',eur(f.opening??0)],['Encaissements prévus',eur(f.totals.income)],['Décaissements prévus',eur(-f.totals.expense)],[low?`Point bas (${String(low.label).replace(/ /g,'\u00a0')})`:'Point bas',low?eur(low.balance):'—']].map(([l,v])=>`<div class="preview-stat"><strong>${e(v)}</strong><small>${e(l)}</small></div>`).join('')}</div>
 ${low?`<p class="notice ${low.negative?'danger':'info'}" role="${low.negative?'alert':'note'}">${e(lowPointText(low))}</p>`:''}
 ${missingHtml(f)}
 <div class="cm-chart treasury-chart-wrap">${treasuryChart(f)}<p class="form-note"><span class="tr-key tr-key-in"></span> encaissements · <span class="tr-key tr-key-out"></span> décaissements · ligne : solde fin de mois</p></div>

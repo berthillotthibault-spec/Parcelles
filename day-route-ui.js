@@ -3,6 +3,7 @@
 // réutilise la collection existante routeSessions (champs optionnels stopKeys et doneKeys).
 import {dayRouteActions, dayRouteRecap, moveRouteKey, planDayRoute, stepTitle, travelMinutes} from './field-ops.js';
 import {haversineMeters, routeUrl} from './utils.js';
+import {icon as uiIcon} from './ui.js';
 
 const KIND_LABEL = {work: 'Travail', task: 'Tâche', grazing: 'Pâturage', maintenance: 'Entretien'};
 const nf = new Intl.NumberFormat('fr-FR', {maximumFractionDigits: 2});
@@ -96,7 +97,7 @@ export function createDayRouteUI(deps) {
         </div>
         <button class="text-button" data-dr="later">Plus tard (mettre en fin de tournée)</button>
       </article>` : `<article class="day-route-step is-complete"><p class="eyebrow">Bravo</p><h3>Toutes les étapes sont faites.</h3><button class="button primary" data-dr="recap">Voir le récapitulatif</button></article>`;
-    const list = stops.map((s, i) => `<li class="${done.has(s.key) ? 'is-done' : s === current ? 'is-current' : ''}"><span class="day-route-num" aria-hidden="true">${done.has(s.key) ? '✓' : i + 1}</span><div><strong>${e(s.label)}</strong><small>${e([s.place, s.minutes === null ? '' : s.minutes === 0 ? 'sur place' : `${s.minutes} min`].filter(Boolean).join(' · '))}${done.has(s.key) ? ' · fait' : ''}</small></div><span class="day-route-move"><button class="icon-button" data-dr="up" data-key="${e(s.key)}" ${i === 0 ? 'disabled' : ''} aria-label="Monter « ${e(s.label)} »">↑</button><button class="icon-button" data-dr="down" data-key="${e(s.key)}" ${i === total - 1 ? 'disabled' : ''} aria-label="Descendre « ${e(s.label)} »">↓</button></span></li>`).join('');
+    const list = stops.map((s, i) => `<li class="${done.has(s.key) ? 'is-done' : s === current ? 'is-current' : ''}"><span class="day-route-num" aria-hidden="true">${done.has(s.key) ? uiIcon('check', {size: 16}) : i + 1}</span><div><strong>${e(s.label)}</strong><small>${e([s.place, s.minutes === null ? '' : s.minutes === 0 ? 'sur place' : `${s.minutes} min`].filter(Boolean).join(' · '))}${done.has(s.key) ? ' · fait' : ''}</small></div><span class="day-route-move"><button class="icon-button" data-dr="up" data-key="${e(s.key)}" ${i === 0 ? 'disabled' : ''} aria-label="Monter « ${e(s.label)} »">↑</button><button class="icon-button" data-dr="down" data-key="${e(s.key)}" ${i === total - 1 ? 'disabled' : ''} aria-label="Descendre « ${e(s.label)} »">↓</button></span></li>`).join('');
     overlay.innerHTML = `<div class="field-mode-card day-route-card">
       <div class="day-route-head"><div><p class="eyebrow">Ma tournée du jour</p><h2 id="day-route-title">${count}/${total} ${total > 1 ? 'étapes' : 'étape'}</h2><p class="lead">${start ? `Ordre au plus court depuis ${e(start.source)}` : 'Position inconnue : ordre au plus court à partir de la première étape'}</p></div><button class="icon-button" data-dr="close" aria-label="Fermer la tournée">×</button></div>
       <div class="quality-progress" role="progressbar" aria-label="Avancement de la tournée" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>

@@ -1,6 +1,7 @@
 // n° 132 : pastille de synchronisation à 5 états, feuille « File de synchronisation » et rappel d'Aujourd'hui.
 // N'appelle que les méthodes publiques de sync.js (sync, retryFailed) : le moteur n'est pas modifié.
 import {escapeHtml} from './utils.js';
+import {icon as uiIcon} from './ui.js';
 import {sanitizeCloudError} from './security.js';
 import {readableQueue, staleSyncReminder, syncPillState, durationAgo, entityLabel} from './sync-status.js';
 import {entityTitle, fieldLabel} from './sync-conflict.js';
@@ -87,7 +88,7 @@ export function createSyncStatusUI({store, sync, modal, closeModal, toast, openS
     const last = Number(snapshot.metadata?.lastSyncAt) || 0, lastError = snapshot.metadata?.lastSyncError;
     const head = `<div class="sync-sheet-state sync-${state.tone}" role="status"><span class="sync-sheet-dot" aria-hidden="true"></span><div><strong>${escapeHtml(state.label)}</strong><small>${escapeHtml(state.detail || '')}${last ? ` Dernière synchronisation réussie ${escapeHtml(durationAgo(Date.now() - last))}.` : cloudActive() ? ' Aucune synchronisation réussie pour l’instant.' : ''}</small></div></div>`;
     const errorNotice = lastError && cloudActive() ? `<div class="notice warning sync-last-error"><strong>Dernière erreur</strong> <button type="button" class="text-button" data-sync-error="last" aria-expanded="false" aria-controls="sync-error-last">Voir l’erreur</button><p class="sync-op-error" id="sync-error-last" hidden>${escapeHtml(sanitizeCloudError(lastError))}</p></div>` : '';
-    const conflictList = conflicts.length ? `<h3 class="sync-sheet-title">À arbitrer</h3><div class="stack-list">${conflicts.map(c => `<button class="menu-row" data-action="open-sync-conflict" data-id="${escapeHtml(c.id)}"><span>≠</span><span><strong>${escapeHtml(`${entityLabel(c.entity)} · ${entityTitle(c.entity, c.local || c.remote)}`)}</strong><small>${escapeHtml((c.conflictFields || []).length ? `À choisir : ${c.conflictFields.map(fieldLabel).join(', ')}` : 'Deux versions différentes')}</small></span><b>›</b></button>`).join('')}</div>` : '';
+    const conflictList = conflicts.length ? `<h3 class="sync-sheet-title">À arbitrer</h3><div class="stack-list">${conflicts.map(c => `<button class="menu-row" data-action="open-sync-conflict" data-id="${escapeHtml(c.id)}"><span>${uiIcon('alert', {size: 19})}</span><span><strong>${escapeHtml(`${entityLabel(c.entity)} · ${entityTitle(c.entity, c.local || c.remote)}`)}</strong><small>${escapeHtml((c.conflictFields || []).length ? `À choisir : ${c.conflictFields.map(fieldLabel).join(', ')}` : 'Deux versions différentes')}</small></span><b>›</b></button>`).join('')}</div>` : '';
     const list = rows.length
       ? `<h3 class="sync-sheet-title">${rows.length > 1 ? `${rows.length} opérations à envoyer` : '1 opération à envoyer'}</h3><ul class="sync-op-list">${rows.slice(0, MAX_ROWS).map(rowHtml).join('')}</ul>${rows.length > MAX_ROWS ? `<p class="form-note">Et ${rows.length - MAX_ROWS} autres, envoyées dans l’ordre.</p>` : ''}`
       : `<p class="sync-empty">${cloudActive() ? 'Rien en attente : tout ce que vous avez saisi est envoyé.' : 'Synchronisation cloud non activée : vos données restent sur cet appareil.'}</p>`;

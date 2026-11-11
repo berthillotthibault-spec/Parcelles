@@ -3,13 +3,15 @@
 // du HTML sûr (safe-html.js) à partir de l'état ; app.js les pose dans #view-today.
 // Bandeau « En retard », liste « Aujourd'hui » qui mêle travaux et tâches du jour (cocher, décocher),
 // carte « animaux au pré » et « Activité récente ».
-import {html} from './safe-html.js';
+import {html, raw} from './safe-html.js';
+import {icon} from './ui.js';
+import {GLYPHS} from './quick-entry-ui.js'; // n° 162 : pictogrammes des types au lieu de deux lettres
 import {typeBadge} from './quick-work.js';
 import {filterGrazingSessions, grazingTotal} from './grazing.js';
 
 const num = value => Number(value || 0).toLocaleString('fr-FR', {maximumFractionDigits: 1});
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
-const badge = type => { const b = typeBadge(type || 'Travail'); return html`<span class="wk-badge" data-family="${b.family}" aria-hidden="true">${b.ab}</span>`; };
+const badge = type => { const b = typeBadge(type || 'Travail'); return html`<span class="wk-badge" data-family="${b.family}" aria-hidden="true">${raw(GLYPHS[b.family] || GLYPHS.other)}</span>`; };
 const titleOf = entry => entry.kind === 'work' ? (entry.item.type || 'Travail') : (entry.item.title || 'Tâche');
 
 /**
@@ -51,7 +53,7 @@ export function todayListHtml({pending, done}, parcels) {
     const title = titleOf(e);
     return html`<div class="home-row${e.isDone ? ' is-done' : ''}">
       <button type="button" class="home-row-main" data-action="${action}" data-id="${e.item.id}" aria-pressed="${e.isDone ? 'true' : 'false'}" aria-label="${title}${meta ? `, ${meta}` : ''} : ${e.isDone ? 'remettre à faire' : 'marquer comme fait'}">
-        <span class="home-check" aria-hidden="true">${e.isDone ? '✓' : ''}</span>
+        <span class="home-check" aria-hidden="true">${e.isDone ? raw(icon('check', {size: 16})) : ''}</span>
         <span class="home-row-text"><b>${title}</b>${meta ? html`<small>${meta}</small>` : ''}</span>${badge(e.kind === 'work' ? e.item.type : e.item.title)}</button>
       <button type="button" class="home-row-more" data-action="${e.kind === 'work' ? 'edit-work' : 'edit-task'}" data-id="${e.item.id}" aria-label="Ouvrir ${title}">···</button></div>`;
   })}</div>`;

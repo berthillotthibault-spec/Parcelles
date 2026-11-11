@@ -10,7 +10,7 @@
        les plugins et le détournement de <base> ; Firebase, tuiles, météo, Worker et assistant restent libres.
        Les violations sont notées dans Plus › Mes données › Diagnostic. -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'">
-  <meta name="parcelles-build" content="2026.11.09-v10.28.2">
+  <meta name="parcelles-build" content="2026.11.11-v10.28.3">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -33,7 +33,7 @@
   <link rel="stylesheet" href="./public-works.css?v=2">
   <link rel="stylesheet" href="./motion.css?v=1">
   <link rel="stylesheet" href="./personalization.css?v=2">
-  <link rel="stylesheet" href="./design-v3.css?v=4.18">
+  <link rel="stylesheet" href="./design-v3.css?v=4.19">
   <title>Parcelles</title>
 </head>
 <body>
@@ -109,7 +109,7 @@
         <button class="button primary sidebar-new-work" data-action="new-work"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Ajouter</span></button>
         <button class="nav-item is-active" data-view="today" aria-current="page"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8M9 21v-7h6v7"/></svg><small>Accueil</small></button>
         <button class="nav-item" data-view="map"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20"/></svg><small>Carte</small></button>
-        <button class="nav-item" data-view="parcels"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 4h12l2 5-2 11H6L4 9zM4 9h16M9 4v16M15 4v16"/></svg><small>Parcelles</small></button>
+        <button class="nav-item" data-view="parcels"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5l7-1v7H4zM13 4l7 1v6h-7zM4 13h7v7l-7-1zM13 13h7v6l-7 1z"/></svg><small>Parcelles</small></button>
         <button class="nav-item" data-view="herd" data-nav-livestock><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 3h6l4 5v6a7 7 0 0 1-14 0V8z"/><circle cx="12" cy="8" r="1.6"/><path d="M9 14h6"/></svg><small>Troupeau</small></button>
         <button class="nav-item" data-view="work"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 4h14v16H5zM8 7h6M9 12l2 2 4-5"/></svg><small>Planning</small></button>
         <button class="nav-item" data-view="more"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg><small>Modules</small></button>
@@ -163,7 +163,7 @@
           </div>
           <div id="map-search-results" class="map-search-results hidden"></div>
           <button id="map-filter-chip" class="map-filter-chip hidden" data-action="map-tools" aria-haspopup="dialog"></button>
-          <div class="map-controls"><button id="map-multiple-toggle" class="map-circle-button" data-action="map-multiple" aria-pressed="false" aria-label="Sélection multiple">✓+</button>
+          <div class="map-controls"><button id="map-multiple-toggle" class="map-circle-button" data-action="map-multiple" aria-pressed="false" aria-label="Sélection multiple"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 4 4 7-8"/><path d="M18 13v6M15 16h6"/></svg></button>
             <button class="map-circle-button" data-action="locate" aria-label="Me localiser"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="5"/></svg></button>
             <button class="map-circle-button map-tools-launcher" data-action="map-tools" aria-label="Outils de carte" aria-haspopup="dialog"><svg class="ui-icon" width="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M14.7 6.3a4 4 0 0 0-5 5L3 18l3 3 6.7-6.7a4 4 0 0 0 5-5l-2.4 2.4-3-3z"/></svg><span>Outils</span></button>
           </div>
@@ -233,7 +233,7 @@
           <button class="assistant-card" data-action="open-assistant"><span class="assistant-card-icon" aria-hidden="true"><svg class="ui-icon" width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4z"/></svg></span><span><strong>Assistant IA</strong><small id="assistant-card-example">« Résume ma journée »</small></span><b aria-hidden="true">›</b></button>
           <div class="section-heading"><p class="group-label">Favoris</p><button class="text-button" data-action="personalize">Personnaliser</button></div>
           <div class="more-favorites">
-            <button class="tool-shortcut" data-action="open-equipment"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 15h7l2-7h4l2 4h2v3"/><circle cx="7" cy="16" r="3"/><circle cx="18" cy="16" r="2"/></svg><span><strong>Matériel</strong><small>Entretiens, compteurs</small></span></button>
+            <button class="tool-shortcut" data-action="open-equipment"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M7 20a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM18 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM4.5 12.8V5h6.5l1.5 6.5M12.5 11.5H19a2 2 0 0 1 2 2v2.6M11 17.5h4.5M16.5 11.5V8"/></svg><span><strong>Matériel</strong><small>Entretiens, compteurs</small></span></button>
             <button class="tool-shortcut" data-action="open-stock"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 7l8-4 8 4-8 4zM4 7v10l8 4 8-4V7M12 11v10"/></svg><span><strong>Stocks</strong><small>Intrants, mouvements</small></span></button>
             <button class="tool-shortcut" data-action="open-statistics"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span><strong>Pilotage</strong><small>Coûts, marges</small></span></button>
             <button class="tool-shortcut" data-action="open-documents"><svg class="ui-icon" width="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 3h9l3 3v15H6zM15 3v4h4M9 12h6M9 16h6"/></svg><span><strong>Documents</strong><small>Factures, photos, PDF</small></span></button>
@@ -263,7 +263,7 @@
       <button class="nav-item is-active" data-view="today" aria-current="page"><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V21h14V9.8M9 21v-7h6v7"/></svg><small>Accueil</small></button>
       <button class="nav-item" data-view="map"><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20zM9 4v13.5M15 6.5V20"/></svg><small>Carte</small></button>
       <button class="nav-plus" data-action="new-work" aria-label="Ajouter"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-      <button class="nav-item" data-view="parcels"><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M6 4h12l2 5-2 11H6L4 9zM4 9h16M9 4v16M15 4v16"/></svg><small>Parcelles</small></button>
+      <button class="nav-item" data-view="parcels"><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 5l7-1v7H4zM13 4l7 1v6h-7zM4 13h7v7l-7-1zM13 13h7v6l-7 1z"/></svg><small>Parcelles</small></button>
       <button class="nav-item" data-view="herd" data-nav-livestock><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M9 3h6l4 5v6a7 7 0 0 1-14 0V8z"/><circle cx="12" cy="8" r="1.6"/><path d="M9 14h6"/></svg><small>Troupeau</small></button>
       <button class="nav-item" data-view="work" data-nav-no-livestock hidden><span class="nav-bar" aria-hidden="true"></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 4h14v16H5zM8 7h6M9 12l2 2 4-5"/></svg><small>Travaux</small></button>
     </nav>

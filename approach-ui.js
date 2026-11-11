@@ -10,7 +10,7 @@ export function createApproachUI({getMap,getState,store,toast,modal,closeModal,p
   // --- Consentement GPS (préférence existante gpsConsent).
   function withGps(run,reason){
     if(getState()?.preferences?.gpsConsent){run();return;}
-    modal('Utiliser votre position ?',reason,'<div class="notice info">La position reste sur cet appareil.</div>','<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="approach-allow-gps">Continuer</button>','small');
+    modal('Utiliser votre position ?',reason,'<div class="notice info">La position reste sur cet appareil.</div>','<button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="approach-allow-gps">Continuer</button>','small');
     document.getElementById('approach-allow-gps').onclick=async()=>{await store.setPreferences({gpsConsent:true});closeModal();run();};
   }
 

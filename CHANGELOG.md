@@ -1,5 +1,18 @@
 # Changelog
 
+## 10.28.3 · défauts graphiques corrigés — 2026-11-11
+
+Diagnostic visuel automatisé (`tools/scan-graphique.mjs` : débordements, textes coupés, icônes, cibles tactiles, chevauchements) sur plus de 300 écrans et fenêtres, téléphone 375 px et bureau, puis revue des captures une à une. Pas de changement de schéma (version 18).
+
+- **icônes** : jeu redessiné ou complété dans `ui.js` (réglages, Parcelles, tracteur, route, cadrage, crayon, cadenas…), plus d’émojis ni de caractères (✓ ⚠ 🔒 ⚡ ＋) utilisés comme pictogrammes, pictogrammes par famille dans « Quel travail ? » à la place des deux lettres, icônes des notifications et du troupeau ; la pastille de la cloche ne masque plus l’icône ;
+- **navigation** : libellés de la barre du bas qui ne se chevauchent plus à 375 px, sous-onglets du Planning en ruban défilant au lieu de se superposer ;
+- **formulaires** : listes déroulantes et champs qui ne dépassent plus de leur colonne, champ fichier en vrai bouton, champs de recherche à la bonne hauteur, Échéance/Statut/Priorité de la tâche sur toute la largeur ;
+- **fenêtres** : pieds de fenêtre en grille (boutons sur deux colonnes, libellés longs sur deux lignes au lieu d’être coupés), « Ajouter une rotation » lisible, croix et titre alignés, la feuille ne défile plus en entier ;
+- **listes et cartes** : tuiles « Quel travail ? » sans mots coupés, chiffres des repères de l’accueil non rognés, bilan hydrique, Troupeau et Trésorerie sans débordement, « Modifier » et « Terminer » côte à côte dans les Tâches ;
+- **carte** : outils en 3 colonnes sur téléphone, légende et bouton Outils masqués pendant la sélection multiple, aide de la sélection sur deux lignes et toast affiché en haut ;
+- **fiche parcelle** : « Voir sur la carte » et « Ajouter un travail » de même hauteur, sur une ligne ;
+- **textes** : espaces insécables avant « ? » et dans les guillemets pour éviter un signe seul à la ligne ; toast de réussite avec barre verte intérieure.
+
 ## 10.28.2 · débogage complet : 338 défauts corrigés — 2026-11-09
 
 Audit de toute l’application (16 domaines, code et navigateur, téléphone et bureau, clair et sombre), chaque défaut reproduit avant d’être corrigé. Pas de changement de schéma (version 18). **Règles Firebase modifiées : redéployer `firestore.rules` et `storage.rules`.**

@@ -84,7 +84,7 @@ export const HELP = {
     'Le calendrier de coupe compare les sommes de températures depuis le 1er février à des repères indicatifs : le stade réel de la prairie prime.'
   ]},
   seeds: {match: /^Mes variétés/i, title: 'Mes variétés', points: [
-    'Dans un travail de semis, la section « Semence » note la variété (liste apprise), la densité, le PMG, le lot, l’origine et le traitement de semence.',
+    'Dans un travail de semis, la section « Semence » note la variété (liste apprise), la densité, le PMG, le lot, l’origine et le traitement de semence.',
     'La dose en kg/ha se calcule à partir des grains/m² et du PMG ; la fiche parcelle affiche le semis de la campagne.',
     'Le tableau croise variété, date de semis, rendement des lots de récolte et coût semence sur plusieurs campagnes ; les semences de ferme sont totalisées pour la CVO.'
   ]},

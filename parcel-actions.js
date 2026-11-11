@@ -10,7 +10,7 @@ export const parcelActions = {
     const tools = [
       ['choose-import', 'Importer', 'Fichier PAC, SHP, Excel, GeoJSON', 'entry'],
       ['open-rotations', 'Assolement', 'Cultures, surfaces et rotations', 'production'],
-      ['open-grazing', 'Pâturage', 'Animaux actuellement au pré', 'sun'],
+      ['open-grazing', 'Pâturage', 'Animaux actuellement au pré', 'fence'],
       ['open-documents', 'Documents', 'Classement et recherche', 'files']
     ].filter(([action]) => ctx.activities().visible(action));
     const rows = tools.map(([action, title, desc, ico]) => `<button class="menu-row" data-action="${action}"><span>${icon(ico, {size: 19})}</span>`
