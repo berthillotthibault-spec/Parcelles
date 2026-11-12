@@ -11,7 +11,10 @@ const eur=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${n0.format(v)}
 const shift=(c,n)=>{const y=Number(String(c).slice(0,4))+n;return`${y}/${String(y+1).slice(-2)}`;};
 const pct=v=>v===null||v===undefined?'':`${v>0?'+':v<0?'−':''}${n0.format(Math.abs(v))} %`;
 
-export function createMachineCostsUI({store,modal,toast,refreshEquipment=()=>{}}){
+/** Exemple de millésime du barème : l'année précédant la date injectée. */
+export const ratesYearPlaceholder=(now=()=>new Date())=>`ex. ${now().getFullYear()-1}`;
+
+export function createMachineCostsUI({store,modal,toast,refreshEquipment=()=>{},now=()=>new Date()}){
   const data=()=>store.snapshot?store.snapshot():store.state;
   const $=s=>document.querySelector(s);
   let current=campaignFor();
@@ -40,7 +43,7 @@ ${r.completeness!==null&&r.completeness<80?`<p class="notice warning">Seuls ${r.
   function ratesForm(rates){
     const machines=active(data(),'materiels');
     return`<details class="mc-rates"${RATE_CATEGORIES.every(c=>rates.values[c.key].value===null)?' open':''}><summary>Barème de référence (entraide, CUMA)</summary>
-<form id="mc-rates-form" class="form-grid"><label>Millésime<input name="year" type="number" min="2000" max="2100" step="1" value="${e(rates.year??'')}" placeholder="ex. 2025"></label><label>Source<input name="source" value="${e(rates.source)}" placeholder="ex. barème BCMA de ma région"></label>
+<form id="mc-rates-form" class="form-grid"><label>Millésime<input name="year" type="number" min="2000" max="2100" step="1" value="${e(rates.year??'')}" placeholder="${e(ratesYearPlaceholder(now))}"></label><label>Source<input name="source" value="${e(rates.source)}" placeholder="ex. barème BCMA de ma région"></label>
 ${RATE_CATEGORIES.map(c=>`<label>${e(c.label)}<span class="mc-rate"><input name="rate_${c.key}" type="number" min="0" max="5000" step="any" inputmode="decimal" value="${e(rates.values[c.key].value??'')}"><select name="unit_${c.key}" aria-label="Unité ${e(c.label)}"><option value="h"${rates.values[c.key].unit==='h'?' selected':''}>€/h</option><option value="ha"${rates.values[c.key].unit==='ha'?' selected':''}>€/ha</option></select></span></label>`).join('')}
 <label>Sous-utilisé en dessous de (h/campagne)<input name="underuseHours" type="number" min="1" max="2000" step="1" value="${e(rates.underuseHours)}"></label>
 <p class="form-error span-2" id="mc-rates-error" role="alert" hidden></p></form>

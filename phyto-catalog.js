@@ -41,7 +41,7 @@ const COLUMNS={
   functions:[/^fonctions?$/,/^fonction/],
   state:[/^etat d autorisation$/,/^etat autorisation/,/^etat produit/],
   withdrawnAt:[/^date de retrait du produit$/,/^date de retrait/,/^date retrait/],
-  usage:[/^identifiant usage lib court$/,/^usage lib/,/^libelle usage/,/^usage$/],
+  usage:[/^identifiant usage lib court$/,/^identifiant usage$/,/^usage lib/,/^libelle usage/,/^usage$/],
   usageState:[/^etat usage$/],
   dose:[/^dose retenue$/,/^dose max/,/^dose$/],
   doseUnit:[/^dose retenue unite$/,/^unite dose/,/^dose unite/],
@@ -96,7 +96,7 @@ export function catalogFromRows(rows){
     if(/\bH3[46]0|\bH350|\bcmr\b/i.test(text)&&!e.mentions.includes('cmr'))e.mentions.push('cmr');
     const dreText=get(r,'dre')||(text.match(/d[ée]lai de rentr[ée]e[^0-9]{0,30}(\d{1,2})\s*h/i)?.[1]||'');
     const dre=toNullableNumber(dreText);if(dre!==null)e.dre=maxOf(e.dre,dre);
-    const usage=get(r,'usage');if(!usage||(/retir/i.test(get(r,'usageState'))&&!withdrawn))continue;
+    const usage=get(r,'usage');if(!usage||(/retir|retrait/i.test(get(r,'usageState'))&&!withdrawn))continue;
     const parts=usage.split('*').map(s=>s.trim()).filter(Boolean);
     const u={culture:parts[0]||usage,target:parts.length>1?parts.at(-1):'',maxDose:toNullableNumber(get(r,'dose')),doseUnit:unitOf(get(r,'doseUnit')),maxApplications:toNullableNumber(get(r,'maxApplications')),dar:toNullableNumber(get(r,'dar')),zntWater:toNullableNumber(get(r,'zntWater'))};
     e.usages.push(u);e.dar=maxOf(e.dar,u.dar);e.zntWater=maxOf(e.zntWater,u.zntWater);
@@ -105,9 +105,29 @@ export function catalogFromRows(rows){
   return[...by.values()].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
 }
 
+// Colonnes du fichier « produits » E-Phy recopiées sur chaque ligne d'usage (le fichier
+// produits_usages_utf8.csv ne porte ni l'état d'autorisation, ni la date de retrait, ni la fonction).
+const PRODUCT_FIELDS=['seconds noms commerciaux','titulaire','fonctions','Etat d’autorisation','Date de retrait du produit'];
+/** Jointure usages × produits par numéro AMM (les colonnes déjà présentes sur l'usage priment). */
+export function joinEphyProducts(usageRows,productRows){
+  const usages=(Array.isArray(usageRows)?usageRows:[]).filter(r=>r&&typeof r==='object');
+  const products=(Array.isArray(productRows)?productRows:[]).filter(r=>r&&typeof r==='object');
+  if(!usages.length||!products.length)return usages;
+  const pcol=columnMap(Object.keys(products[0])),ucol=columnMap(Object.keys(usages[0]));
+  if(!pcol.amm||!ucol.amm)return usages;
+  // [en-tête canonique, colonne du fichier produits] ; une colonne déjà présente sur l'usage n'est pas remplacée.
+  const fields=PRODUCT_FIELDS.map(f=>{const field=Object.keys(columnMap([f]))[0];return[f,field,pcol[field]];}).filter(([,field,k])=>k&&!ucol[field]);
+  const byAmm=new Map(products.map(p=>[String(p[pcol.amm]||'').replace(/\s+/g,''),p]));
+  return usages.map(r=>{
+    const p=byAmm.get(String(r[ucol.amm]||'').replace(/\s+/g,'')),out={...r};
+    for(const [f,,k] of fields)out[f]=p?String(p[k]??'').trim():'';
+    return out;
+  });
+}
+
 const ownShape=x=>x&&typeof x==='object'&&'amm'in x&&('usages'in x||'name'in x)&&!Object.keys(x).some(k=>/ /.test(k));
 /** Fichier CSV ou JSON (export E-Phy, ou entrées déjà au format du catalogue). */
-export function parseCatalogFile(text,{fileName=''}={}){
+export function parseCatalogFile(text,{fileName='',productsText=''}={}){
   const raw=String(text||'').replace(/^﻿/,'').trim();
   if(!raw)throw new Error('Fichier vide.');
   if(/\.json$/i.test(fileName)||/^[[{]/.test(raw)){
@@ -116,7 +136,8 @@ export function parseCatalogFile(text,{fileName=''}={}){
     if(!list)throw new Error('JSON inattendu : une liste de produits est attendue.');
     return list.every(ownShape)?list.map(normalizeEntry).filter(e=>e.amm):catalogFromRows(list);
   }
-  return catalogFromRows(parseCsv(raw));
+  const rows=parseCsv(raw);
+  return catalogFromRows(productsText?joinEphyProducts(rows,parseCsv(productsText)):rows);
 }
 export function normalizeEntry(e){
   const n=v=>toNullableNumber(v);
@@ -151,15 +172,51 @@ export function searchCatalog(catalog,query,limit=20){
   return(catalog?.entries||[]).filter(e=>e.amm.startsWith(q.replace(/\s+/g,''))||normalize([e.name,...(e.otherNames||[])].join(' ')).includes(q)).slice(0,limit);
 }
 
-/** Âge du catalogue en jours (null si absent) et invitation à mettre à jour au-delà de 30 jours. */
-export function catalogStatus(catalog,now=Date.now()){
+/** Version E-Phy (AAAAMMJJ, lue dans le nom de la ressource data.gouv) → AAAA-MM-JJ, sinon ''. */
+export function ephyVersionDate(version){
+  const m=String(version||'').match(/^(20\d{2})(\d{2})(\d{2})$/);
+  return m&&+m[2]>=1&&+m[2]<=12&&+m[3]>=1&&+m[3]<=31?`${m[1]}-${m[2]}-${m[3]}`:'';
+}
+/** Version AAAAMMJJ contenue dans un nom de fichier E-Phy (decisionamm-intrant-format-csv-20261110-utf8.zip). */
+export function ephyVersionFromName(name){
+  const m=String(name||'').match(/(?:^|[^0-9])(20\d{6})(?:[^0-9]|$)/);
+  return m&&ephyVersionDate(m[1])?m[1]:'';
+}
+/** JJ/MM (et l'année si elle diffère de l'année en cours). */
+export function shortFrDate(iso,now=Date.now()){
+  const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m)return'';
+  return`${m[3]}/${m[2]}${+m[1]!==new Date(now).getFullYear()?`/${m[1]}`:''}`;
+}
+
+/** Âge du catalogue en jours (null si absent) et invitation à mettre à jour au-delà de 30 jours.
+ *  L'âge part de la date de publication E-Phy (sourceDate) quand elle est connue, sinon de l'import.
+ *  latestVersion (AAAAMMJJ) : dernière publication connue ; un catalogue à jour n'est jamais « à mettre à jour ». */
+export function catalogStatus(catalog,now=Date.now(),{latestVersion=''}={}){
   if(!catalog?.updatedAt)return{present:false,stale:true,ageDays:null,label:'Aucun catalogue phyto hors connexion.'};
-  const ageDays=Math.floor((now-catalog.updatedAt)/864e5),date=new Date(catalog.updatedAt).toLocaleDateString('fr-FR');
-  const stale=ageDays>CATALOG_MAX_AGE_DAYS;
-  return{present:true,stale,ageDays,label:`Catalogue du ${date}${ageDays>0?` (il y a ${ageDays} j)`:''} · ${catalog.entries?.length||0} produit${(catalog.entries?.length||0)>1?'s':''}${stale?' : mise à jour conseillée':''}`};
+  const sourceAt=catalog.sourceDate?Date.parse(`${catalog.sourceDate}T00:00:00`):NaN,from=Number.isFinite(sourceAt)?sourceAt:catalog.updatedAt;
+  // Déjà à la dernière publication E-Phy connue : pas d'invitation à mettre à jour, même si elle est ancienne.
+  const current=!!(ephyVersionDate(latestVersion)&&catalog.sourceVersion&&String(catalog.sourceVersion)>=String(latestVersion));
+  const ageDays=Math.max(0,Math.floor((now-from)/864e5)),stale=!current&&ageDays>CATALOG_MAX_AGE_DAYS,count=catalog.entries?.length||0;
+  const head=Number.isFinite(sourceAt)?`Source E-Phy du ${shortFrDate(catalog.sourceDate,now)}`:`Catalogue du ${new Date(catalog.updatedAt).toLocaleDateString('fr-FR')}`;
+  return{present:true,stale,ageDays,sourceDate:Number.isFinite(sourceAt)?catalog.sourceDate:'',label:`${head}${ageDays>0?` (il y a ${ageDays} j)`:''} · ${count} produit${count>1?'s':''}${stale?' : mise à jour conseillée':''}`};
+}
+
+/** Nombre total d'usages d'un catalogue (liste d'entrées ou enregistrement). */
+export function countUsages(catalogOrEntries){
+  const list=Array.isArray(catalogOrEntries)?catalogOrEntries:catalogOrEntries?.entries||[];
+  return list.reduce((n,e)=>n+(Array.isArray(e?.usages)?e.usages.length:0),0);
+}
+/** Garde avant d'écraser le catalogue : jamais vide, et pas de chute de plus de 50 % des usages
+ *  par rapport au catalogue précédent (sauf allowShrink, par exemple quand les cultures ont changé). */
+export function assertCatalogUpdate(previous,entries,{allowShrink=false}={}){
+  const next=countUsages(entries),before=countUsages(previous);
+  if(!(Array.isArray(entries)&&entries.length)||!next)throw new Error('Catalogue refusé : aucun usage trouvé. Le catalogue enregistré est conservé.');
+  if(!allowShrink&&before>0&&next<before*0.5)throw new Error(`Catalogue refusé : ${next} usages contre ${before} auparavant (baisse de plus de 50 %). Le catalogue enregistré est conservé.`);
+  return{usages:next,previousUsages:before};
 }
 
 /** Enregistrement à stocker (hors état synchronisé). */
-export function catalogRecord(entries,{origin='fichier',fileName='',now=Date.now(),cultures=[]}={}){
-  return{updatedAt:now,origin,fileName,cultures,source:EPHY_SOURCE.name,license:EPHY_SOURCE.license,url:EPHY_SOURCE.url,entries};
+export function catalogRecord(entries,{origin='fichier',fileName='',now=Date.now(),cultures=[],sourceVersion='',sourceDate='',checkedAt=now}={}){
+  const version=/^\d{8}$/.test(String(sourceVersion||''))?String(sourceVersion):'';
+  return{updatedAt:now,origin,fileName,cultures,sourceVersion:version,sourceDate:ephyDate(sourceDate)||ephyVersionDate(version),checkedAt,source:EPHY_SOURCE.name,license:EPHY_SOURCE.license,url:EPHY_SOURCE.url,entries};
 }

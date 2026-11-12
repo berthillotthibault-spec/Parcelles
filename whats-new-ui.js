@@ -4,9 +4,10 @@ import {DRAFT_PREFIX, readDraft} from './form-drafts.js';
 import {escapeHtml as e} from './utils.js';
 
 const RESUME_KEY = 'parcelles:update-resume';
+const UPDATE_MESSAGE = 'Une nouvelle version de Parcelles est prête.';
 
 export function createWhatsNewUI({store, modal, closeModal, toast, buildId, openers = {}, doc = globalThis.document, win = globalThis.window, fetchImpl = (...args) => globalThis.fetch(...args)}) {
-  let pending = null, waitingForm = null;
+  let pending = null, waitingForm = null, activating = false;
   const modalRoot = () => doc.getElementById('modal-root');
   const writable = () => !store.tabReadOnly && !store.schemaLock;
 
@@ -70,9 +71,30 @@ export function createWhatsNewUI({store, modal, closeModal, toast, buildId, open
     return best?.key || null;
   }
   // Remplace update.activate : demande quoi faire si une saisie est en cours.
+  // Idempotent (A3) : la dernière version annoncée remplace le toast précédent, sans empilement.
   function offer(update) {
-    pending = update;
-    toast('Une nouvelle version de Parcelles est prête.', 'success', {label: 'Mettre à jour', run: () => activate()}, {persist: true});
+    // Nouvelle version annoncée : une activation automatique restée sans effet peut être retentée.
+    if (update) { if (update !== pending) activating = false; pending = update; }
+    if (!pending) return;
+    try { doc.querySelectorAll?.('#toast-root .toast').forEach(node => { if (node.firstChild?.textContent === UPDATE_MESSAGE) node.remove(); }); } catch {}
+    toast(UPDATE_MESSAGE, 'success', {label: 'Mettre à jour', run: () => activate()}, {persist: true});
+  }
+  // A3 : appelé au passage en arrière-plan. Active seule la version en attente si rien ne peut être perdu :
+  // aucun formulaire modifié, onglet écrivain, et pas de travail en cours (mode terrain, éditeur de facture).
+  function maybeAutoActivate({writable: canWrite = () => true, busy = () => false} = {}) {
+    if (!pending || activating) return false;
+    const allowed = () => { if (dirtyForm() || waitingForm) return false; try { return writable() && canWrite() && !busy(); } catch { return false; } };
+    if (!allowed()) return false;
+    activating = true;
+    const update = pending;
+    const run = () => { try { update.activate(); return true; } catch { activating = false; return false; } };
+    // Enregistrement en cours (Store.writePromise) : le rechargement attend qu'il soit terminé, puis tout est revérifié.
+    const writes = store.writePromise;
+    if (writes && typeof writes.then === 'function') {
+      Promise.resolve(writes).catch(() => {}).then(() => { if (pending === update && allowed()) run(); else activating = false; });
+      return true;
+    }
+    return run();
   }
   function activate() {
     if (!pending) return;
@@ -105,5 +127,5 @@ export function createWhatsNewUI({store, modal, closeModal, toast, buildId, open
     toast(key ? 'Brouillon enregistré. Mise à jour…' : 'Mise à jour…');
     pending.activate();
   }
-  return {boot, open, offer, activate, dirtyForm};
+  return {boot, open, offer, activate, maybeAutoActivate, dirtyForm};
 }

@@ -1,7 +1,7 @@
 // n° 93 — foncier : baux, fermages indexés, avis par bailleur, rappels et couleur carte.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeLease,fermageIndex,validateIndex,parcelRent,rentNotices,leaseReminders,ownerColorInfo,noticePdfBlocks,FERMAGE_INDEX_REFERENCE} from './land.js';
+import {normalizeLease,fermageIndex,validateIndex,parcelRent,rentNotices,leaseReminders,ownerColorInfo,noticePdfBlocks,fermageIndexStatus,FERMAGE_INDEX_REFERENCE} from './land.js';
 import {flowPdf} from './pdf-lite.js';
 
 const lease = x => ({ownerName: 'M. Durand', ownerContact: '06 00 00 00 00', cadastre: 'AB 12', leaseType: 'fermage', startDate: '2019-11-11', endDate: '2027-11-10', rentMode: 'eur', rent: 150, baseIndex: 100, landTaxShare: 40, ...x});
@@ -53,4 +53,44 @@ test('couleur « Propriétaires » stable par bailleur', () => {
   assert.equal(ownerColorInfo(s.parcelles[0]).color, ownerColorInfo(s.parcelles[1]).color);
   assert.equal(ownerColorInfo(s.parcelles[3]).label, 'Propriété de l’exploitant');
   assert.equal(ownerColorInfo(s.parcelles[4]).label, 'Bailleur non renseigné');
+});
+
+test('indice des fermages : statut ok, attendu puis périmé', () => {
+  const ref = {year: 2025, value: 123.06};
+  assert.equal(fermageIndexStatus(ref, '2026-07-31').status, 'ok');
+  const due = fermageIndexStatus(ref, '2026-08-15');
+  assert.equal(due.status, 'attendu'); assert.equal(due.validUntil, '2026-09-30');
+  assert.match(due.message, /Indice 2025 applicable jusqu’au 30\/09\/2026 : saisissez l’indice 2026/);
+  assert.equal(fermageIndexStatus(ref, '2026-09-30').status, 'attendu');
+  assert.equal(fermageIndexStatus(ref, '2026-11-11').status, 'perime');
+  assert.equal(fermageIndexStatus({value: 120}, '2030-01-01').status, 'ok');
+  assert.equal(fermageIndexStatus(ref, 'pas une date').status, 'ok');
+  // La valeur pré-remplie porte le statut.
+  const pre = fermageIndex(farm(), {today: '2026-11-11'});
+  assert.equal(pre.prefilled, true); assert.equal(pre.status, 'perime'); assert.ok(pre.statusMessage);
+  // Un indice saisi pour 2026 reste valable jusqu'au 30/09/2027.
+  const own = {preferences: {fermageIndex: {year: 2026, value: 125.4, enteredAt: Date.parse('2026-07-20')}}};
+  assert.equal(fermageIndex(own, {today: '2026-11-11'}).status, 'ok');
+  assert.equal(fermageIndex(own, {today: '2027-09-30'}).status, 'attendu');
+  assert.equal(fermageIndex(own, {today: '2027-10-01'}).status, 'perime');
+  assert.equal(FERMAGE_INDEX_REFERENCE.year, 2025);
+});
+
+test('avis d’échéance : le statut de l’indice suit jusqu’au PDF', () => {
+  const late = rentNotices(farm(), {today: '2026-11-11'});
+  assert.ok(late.length > 0);
+  assert.ok(late.every(n => n.status === 'perime' && n.statusMessage));
+  const blocks = noticePdfBlocks(late[0], {farm: {nom: 'GAEC'}, index: fermageIndex(farm(), {today: '2026-11-11'}), quintalPrice: 20, today: '2026-11-11'});
+  assert.ok(blocks.some(b => b.type === 'p' && /saisissez l’indice 2026/.test(b.text)));
+  const fine = rentNotices(farm(), {today: '2026-07-31'});
+  assert.ok(fine.every(n => n.status === 'ok'));
+  const okBlocks = noticePdfBlocks(fine[0], {farm: {}, index: fermageIndex(farm(), {today: '2026-07-31'}), today: '2026-07-31'});
+  assert.ok(!okBlocks.some(b => /saisissez l’indice/.test(b.text || '')));
+});
+
+test('indice saisi avec une date d’enregistrement invalide : pas de plantage', () => {
+  const bad = {preferences: {fermageIndex: {year: 2026, value: 125.4, enteredAt: 'pas une date'}}};
+  const idx = fermageIndex(bad, {today: '2026-11-11'});
+  assert.equal(idx.value, 125.4); assert.equal(idx.date, ''); assert.equal(idx.status, 'ok');
+  assert.equal(fermageIndex({preferences: {fermageIndex: {year: 2026, value: 125.4}}}).date, '');
 });

@@ -5,7 +5,8 @@ import {emptyState} from './state.js';
 import {
   NITROGEN_REFERENCES,FERTILIZER_LIBRARY,nitrogenReferences,cultureReference,precedentEffect,fertilizerFor,nitrogenPerHa,
   olympicAverage,previousCampaigns,yieldHistory,parcelPlan,nitrogenRegister,gauge,banPeriodFor,nitrogenAlerts,
-  nitrogenOverview,nitrogenComplianceChecks,parcelInZone,normalizeComposition,planPdfBlocks,registerPdfBlocks,hasInAppPlan,isFertilization
+  nitrogenOverview,nitrogenComplianceChecks,parcelInZone,normalizeComposition,planPdfBlocks,registerPdfBlocks,hasInAppPlan,isFertilization,
+  farmInZone,zvSourceLabel,zvStaleWarning,zvParcelNote
 } from './nitrogen.js';
 import {complianceChecks} from './compliance.js';
 
@@ -183,4 +184,53 @@ test('PDF : blocs du PPF et du cahier avec source et mention indicative', ()=>{
 test('fertilisation : le genre choisi prime sur le libellé', () => {
   assert.equal(isFertilization({kind:'none',type:'Épandage lisier'}),false);
   assert.equal(isFertilization({kind:'fertilize',type:'Apport'}),true);
+});
+
+// A5 — détection Sandre : explicite > automatique > exploitation ; signal d’obsolescence.
+const AUTO_IN={inZone:true,zones:[{nom:'désignation',bassin:'G',arrete:'21.231',datePubli:'2021-08-30',dateMaj:'2024-09-04'}],checkedAt:new Date(2026,10,12,9).getTime()};
+const AUTO_OUT={inZone:false,zones:[],checkedAt:new Date(2026,10,3,9).getTime()};
+
+test('zone vulnérable : choix explicite > détection Sandre > réglage de l’exploitation', ()=>{
+  const s=farm();
+  assert.equal(parcelInZone(s,s.parcelles[0],AUTO_OUT),false,'détection avant réglage');
+  assert.equal(parcelInZone(s,s.parcelles[1],AUTO_IN),false,'choix explicite avant détection');
+  assert.equal(parcelInZone(s,s.parcelles[0],{inZone:null}),true,'inconnu : réglage');
+  assert.equal(parcelInZone(s,s.parcelles[0],id=>id==='p1'?AUTO_OUT:null),false,'résolveur par id');
+  s.exploitation.conformite.zoneVulnerable=false;
+  assert.equal(parcelInZone(s,s.parcelles[0],AUTO_IN),true);
+  assert.equal(farmInZone(s),false);
+  assert.equal(farmInZone(s,id=>id==='p1'?AUTO_IN:null),true);
+  assert.equal(farmInZone(s,id=>id==='p2'?AUTO_IN:null),false,'p2 refusée explicitement');
+  assert.equal(nitrogenComplianceChecks(s,{today:TODAY})[0].status,'na');
+  assert.notEqual(nitrogenComplianceChecks(s,{today:TODAY,zvAuto:id=>id==='p1'?AUTO_IN:null})[0].status,'na');
+  assert.equal(parcelPlan(s,s.parcelles[0],C,{today:TODAY,zvAuto:()=>AUTO_IN}).zone,true);
+  const n=complianceChecks(s,{today:TODAY,zvAuto:id=>id==='p1'?AUTO_IN:null}).find(c=>c.id==='nitrogen');
+  assert.notEqual(n.status,'na','compliance : la détection révèle l’obligation');
+  assert.equal(complianceChecks(s,{today:TODAY}).find(c=>c.id==='nitrogen').status,'na','sans détection : inchangé');
+});
+
+test('zone vulnérable : libellé de la source, écart et avertissement d’obsolescence', ()=>{
+  assert.equal(zvSourceLabel(AUTO_IN),'détectée (Sandre, arrêté 21.231, vérifiée le 12/11)');
+  assert.equal(zvSourceLabel(AUTO_OUT),'hors zone détectée (Sandre, vérifiée le 03/11)');
+  assert.equal(zvSourceLabel(null),'');
+  assert.equal(zvStaleWarning(AUTO_IN),'','désignation antérieure à la table');
+  const recent={...AUTO_IN,zones:[{...AUTO_IN.zones[0],dateMaj:'2026-10-15'}]};
+  assert.match(zvStaleWarning(recent),/^Références d’interdiction à revérifier/);
+  assert.match(zvStaleWarning(recent),/2026/);
+  assert.equal(zvStaleWarning(recent,{date:'2026-12-01'}),'');
+  assert.equal(NITROGEN_REFERENCES.banPeriods.length>0,true,'périodes inchangées');
+  const note=zvParcelNote({zoneVulnerable:false},AUTO_IN);
+  assert.equal(note.diverges,true);assert.equal(note.confirmed,false);assert.equal(note.detected,true);
+  assert.equal(zvParcelNote({zoneVulnerable:true},AUTO_IN).confirmed,true);
+  assert.equal(zvParcelNote({},AUTO_IN).diverges,false);
+  assert.equal(zvParcelNote({},{inZone:null}),null);
+});
+
+test('A5 : zvStaleWarning garde le bon jour quel que soit le fuseau (revue)', async ()=>{
+  const {execFileSync}=await import('node:child_process');
+  const code=`import('./nitrogen.js').then(m=>process.stdout.write(m.zvStaleWarning({inZone:true,zones:[{dateMaj:'2026-10-15'}]},{date:'2026-09-01'})))`;
+  for(const TZ of ['America/Martinique','Pacific/Tahiti','Europe/Paris']){
+    const out=execFileSync(process.execPath,['-e',code],{env:{...process.env,TZ},encoding:'utf8'});
+    assert.match(out,/15 oct\. 2026/,TZ);assert.match(out,/1 sept\. 2026/,TZ);
+  }
 });

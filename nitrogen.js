@@ -115,11 +115,41 @@ export function precedentEffect(culture,refs=NITROGEN_REFERENCES){
 export const cultureSeason=(culture,refs=NITROGEN_REFERENCES)=>cultureReference(culture,refs)?.season||'autre';
 
 /** Zone vulnérable : champ optionnel de la parcelle, sinon réglage de l’exploitation. */
-export function parcelInZone(state,parcel){
+// A5 : 3e argument facultatif = détection automatique (zv-detect.js) {inZone:true|false|null,zones,checkedAt}.
+// Priorité : choix explicite de l’utilisateur, puis détection Sandre, puis réglage de l’exploitation.
+// `auto` peut être l’objet de détection ou une fonction parcelId => détection.
+const autoFor=(auto,parcel)=>typeof auto==='function'?auto(parcel?.id):auto;
+export function parcelInZone(state,parcel,auto){
   if(parcel?.zoneVulnerable===true||parcel?.zoneVulnerable===false)return parcel.zoneVulnerable;
+  const a=autoFor(auto,parcel);
+  if(a?.inZone===true||a?.inZone===false)return a.inZone;
   return state?.exploitation?.conformite?.zoneVulnerable===true;
 }
-export const farmInZone=state=>state?.exploitation?.conformite?.zoneVulnerable===true||active(state,'parcelles').some(p=>p.zoneVulnerable===true);
+/** zvAuto facultatif : fonction parcelId => détection ; une parcelle détectée en zone (sans choix contraire) compte. */
+export const farmInZone=(state,zvAuto)=>state?.exploitation?.conformite?.zoneVulnerable===true||active(state,'parcelles').some(p=>p.zoneVulnerable===true||p.zoneVulnerable!==false&&typeof zvAuto==='function'&&zvAuto(p.id)?.inZone===true);
+const ddmm=ms=>{const d=new Date(ms);return Number.isFinite(d.getTime())?`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`:'';};
+/** Origine lisible de la détection : « détectée (Sandre, arrêté 21.231, vérifiée le 12/11) ». Vide si rien de connu. */
+export function zvSourceLabel(auto){
+  if(auto?.inZone!==true&&auto?.inZone!==false)return '';
+  const arretes=[...new Set((auto.zones||[]).map(z=>z?.arrete).filter(Boolean))],when=auto.checkedAt?ddmm(auto.checkedAt):'';
+  const parts=['Sandre',arretes.length?`arrêté${arretes.length>1?'s':''} ${arretes.join(', ')}`:'',when?`vérifiée le ${when}`:''].filter(Boolean).join(', ');
+  return `${auto.inZone?'détectée':'hors zone détectée'} (${parts})`;
+}
+/** Fiche PPF : détection à afficher sous les puces. null si aucune détection exploitable. */
+export function zvParcelNote(parcel,auto,refs=NITROGEN_REFERENCES){
+  if(auto?.inZone!==true&&auto?.inZone!==false)return null;
+  const explicit=parcel?.zoneVulnerable===true||parcel?.zoneVulnerable===false?parcel.zoneVulnerable:null;
+  return{detected:auto.inZone,label:zvSourceLabel(auto),explicit,confirmed:explicit===auto.inZone,diverges:explicit!==null&&explicit!==auto.inZone,warning:zvStaleWarning(auto,refs)};
+}
+/** Signal d’obsolescence : désignation ZV publiée ou mise à jour après la table de références. Les périodes ne changent pas. */
+export function zvStaleWarning(auto,refs=NITROGEN_REFERENCES){
+  const ref=String(refs?.date||NITROGEN_REFERENCES.date);
+  const newer=(auto?.zones||[]).flatMap(z=>[z?.dateMaj,z?.datePubli]).filter(d=>/^\d{4}-\d{2}-\d{2}/.test(String(d||''))&&String(d).slice(0,10)>ref).sort();
+  if(!newer.length)return '';
+  // Midi local : une date AAAA-MM-JJ lue en UTC reculerait d’un jour à l’ouest de Greenwich (DOM-TOM).
+  const day=d=>localDate(`${String(d).slice(0,10)}T12:00:00`);
+  return `Références d’interdiction à revérifier : désignation de zone vulnérable du ${day(newer[newer.length-1])}, postérieure à la table du ${day(ref)}.`;
+}
 
 // ---------- Fertilisants ----------
 /** Composition saisie sur un article de stock (champ optionnel fertilizer), normalisée. */
@@ -203,7 +233,7 @@ export function coverEffect(rotation,refs=NITROGEN_REFERENCES){
 }
 
 /** PPF d’une parcelle pour une campagne. */
-export function parcelPlan(state,parcel,campaign,{today=localIso(),refs=nitrogenReferences(state)}={}){
+export function parcelPlan(state,parcel,campaign,{today=localIso(),refs=nitrogenReferences(state),zvAuto}={}){
   const culture=cultureFor(state,parcel,campaign,today),ref=cultureReference(culture,refs),rotation=rotationFor(state,parcel.id,campaign),ppf=rotation?.ppf||{};
   const prevCulture=cultureFor(state,parcel,previousCampaign(campaign),today),prev=precedentEffect(prevCulture,refs),cover=coverEffect(rotation,refs);
   const history=ref?yieldHistory(state,parcel,campaign,ref,today):[],avg=olympicAverage(history.map(h=>h.value));
@@ -212,7 +242,7 @@ export function parcelPlan(state,parcel,campaign,{today=localIso(),refs=nitrogen
   const rsh=num(ppf.rsh),mhRaw=num(ppf.mh),mh=mhRaw!==null&&mhRaw>=0?mhRaw:refs.mh;
   const besoin=ref&&objective?round(ref.b*objective.value):null;
   const dose=besoin===null?null:Math.max(0,round(besoin-(rsh??0)-mh-prev.effect-cover.effect));
-  return{parcel,culture,ref,rotation,zone:parcelInZone(state,parcel),objective,history,besoin,rsh,mh,precedent:{culture:prevCulture,...prev},cover,dose,
+  return{parcel,culture,ref,rotation,zone:parcelInZone(state,parcel,zvAuto),objective,history,besoin,rsh,mh,precedent:{culture:prevCulture,...prev},cover,dose,
     complete:Boolean(ref&&objective&&rsh!==null),missing:[!culture&&'culture',culture&&!ref&&'référence de culture',rsh===null&&'reliquat sortie hiver'].filter(Boolean)};
 }
 
@@ -245,13 +275,13 @@ export function banPeriodFor(date,type,season,refs=NITROGEN_REFERENCES){
 }
 const mdLabel=md=>{const [m,d]=md.split('-');return`${Number(d)}/${m}`;};
 
-export function nitrogenAlerts(state,{today=localIso(),campaign=campaignFor(today),refs=nitrogenReferences(state)}={}){
+export function nitrogenAlerts(state,{today=localIso(),campaign=campaignFor(today),refs=nitrogenReferences(state),zvAuto}={}){
   const alerts=[],parcels=new Map(active(state,'parcelles').map(p=>[p.id,p]));
   for(const w of active(state,'interventions')){
     if(w.status==='Annulé'||!isFertilization(w))continue;
     // Fiches terminées : seulement la campagne affichée (cahier d’enregistrement), date de réalisation.
     const done=completed(w);if(done&&workCampaign(w)!==campaign)continue;
-    const date=done?w.date:(w.plannedDate||w.date),parcel=parcels.get(w.parcelId);if(!date||!parcel||!parcelInZone(state,parcel))continue;
+    const date=done?w.date:(w.plannedDate||w.date),parcel=parcels.get(w.parcelId);if(!date||!parcel||!parcelInZone(state,parcel,zvAuto))continue;
     const fert=fertilizerFor(state,w.product);if(!fert)continue;
     const season=cultureSeason(cultureFor(state,parcel,workCampaign(w),today)||parcel.culture,refs),ban=banPeriodFor(date,fert.type,season,refs);
     if(ban)alerts.push({kind:'ban',status:'ko',workId:w.id,parcelId:parcel.id,label:`${parcel.nom} · ${w.product||w.type} ${done?'réalisé':'prévu'} le ${localDate(date)}`,
@@ -275,21 +305,21 @@ export function nitrogenAlerts(state,{today=localIso(),campaign=campaignFor(toda
 }
 
 // ---------- Synthèse par campagne ----------
-export function nitrogenOverview(state,{today=localIso(),campaign=campaignFor(today)}={}){
+export function nitrogenOverview(state,{today=localIso(),campaign=campaignFor(today),zvAuto}={}){
   const refs=nitrogenReferences(state),register=nitrogenRegister(state,campaign);
   const plans=ownParcels(state).map(p=>{
-    const plan=parcelPlan(state,p,campaign,{today,refs}),rows=register.filter(r=>r.parcel?.id===p.id);
+    const plan=parcelPlan(state,p,campaign,{today,refs,zvAuto}),rows=register.filter(r=>r.parcel?.id===p.id);
     const realized=round(rows.reduce((s,r)=>s+(r.nEff??0),0),1);
     return{...plan,realized,gauge:gauge(plan.dose,realized),rows};
   }).filter(x=>x.culture||x.rows.length);
-  return{campaign,refs,plans,register,...nitrogenAlerts(state,{today,campaign,refs})};
+  return{campaign,refs,plans,register,...nitrogenAlerts(state,{today,campaign,refs,zvAuto})};
 }
 
 /** Entrées pour le tableau de conformité (n° 55) : statut du PPF calculé et alertes azote. */
-export function nitrogenComplianceChecks(state,{today=localIso(),campaign=campaignFor(today)}={}){
+export function nitrogenComplianceChecks(state,{today=localIso(),campaign=campaignFor(today),zvAuto}={}){
   const make=(id,label,status,detail,{items=[],action=null,hint=''}={})=>({id,label,status,statusLabel:{ko:'À corriger',warn:'À vérifier',unknown:'Non suivi',ok:'À jour',na:'Non concerné'}[status],detail,items,action,hint});
-  if(!farmInZone(state))return[make('nitrogen-plan','Dose d’azote prévue et apports (zone vulnérable)','na','Aucune parcelle en zone vulnérable.',{action:{type:'nitrogen',label:'Azote'}})];
-  const o=nitrogenOverview(state,{today,campaign}),zone=o.plans.filter(p=>p.zone);
+  if(!farmInZone(state,zvAuto))return[make('nitrogen-plan','Dose d’azote prévue et apports (zone vulnérable)','na','Aucune parcelle en zone vulnérable.',{action:{type:'nitrogen',label:'Azote'}})];
+  const o=nitrogenOverview(state,{today,campaign,zvAuto}),zone=o.plans.filter(p=>p.zone);
   const incomplete=zone.filter(p=>!p.complete),over=zone.filter(p=>p.gauge.status==='over');
   const items=[...o.alerts.map(a=>({label:a.label,note:a.note,status:'ko',action:a.workId?'edit-work':null,id:a.workId||null})),
     ...over.map(p=>({label:p.parcel.nom,note:`Apports au-delà du prévisionnel : ${p.gauge.label}`,status:'warn',action:'open-parcel',id:p.parcel.id})),

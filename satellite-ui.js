@@ -2,13 +2,14 @@ import {SatelliteService,geometryBounds,anomalies,rasterView} from './satellite.
 import {escapeHtml as esc} from './utils.js';
 import {icon as uiIcon} from './ui.js';
 import {skeletonHtml} from './skeletons.js';
+import {idleTask} from './performance.js';
 import {NDVI_REFRESH_KEY,NDVI_REFRESH_PERIOD,NDVI_CONCURRENCY,ndviSummary,refreshDue,refreshOrder,runQueue,rasterFrames,timelineDates,formatImageDate} from './ndvi-map.js';
 const date=value=>new Date(value).toLocaleDateString('fr-FR');
 const number=value=>value===null||value===undefined?'Non disponible':value.toFixed(2);
 const button=(action,label,extra='')=>`<button type="button" class="button secondary" data-sat="${action}" ${extra}>${label}</button>`;
-export function createSatelliteUI({store,sync,map,openParcel,showMap,observe,modal,closeModal,toast=()=>{}}){
+export function createSatelliteUI({store,sync,map,openParcel,showMap,observe,modal,closeModal,toast=()=>{},writable=()=>true,idle=idleTask}){
   const service=new SatelliteService({storage:store.storage,scope:()=>[store.workspaceContext().key,sync.user?.uid||'local'],endpoint:()=>globalThis.PARCELLES_SATELLITE_ENDPOINT||'',token:()=>sync.user?.getIdToken?.()});
-  let sequence=0,controller=null,current=null,overlaySequence=0,bulk=null,stamps={};const rasters=new Map();
+  let sequence=0,controller=null,current=null,overlaySequence=0,bulk=null,stamps={},ready=false,autoRunning=false;const rasters=new Map(),autoTried={};
   // v9 n° 43 : carte « État des cultures » — résumés NDVI de toutes les parcelles depuis le cache.
   const activeParcels=()=>store.snapshot().parcelles.filter(p=>!p.deletedAt&&p.geometry);
   const scopeKey=()=>JSON.stringify(service.scope());
@@ -22,12 +23,13 @@ export function createSatelliteUI({store,sync,map,openParcel,showMap,observe,mod
   }
   function paintBulk(message=''){const root=document.querySelector('#ndvi-refresh');if(root)root.innerHTML=ndviStatusHtml(message);}
   function ndviControls(){return `<section class="ly-ndvi" id="ndvi-refresh">${ndviStatusHtml()}</section>`;}
-  async function refreshAll(){
-    if(bulk)return;const blocker=bulkBlocker();if(blocker){paintBulk(blocker);return;}
+  // silent (actualisation automatique) : pas de toast de succès, seulement sur un refus d'autorisation.
+  async function refreshAll({silent=false}={}){
+    if(bulk)return null;const blocker=bulkBlocker();if(blocker){paintBulk(blocker);return null;}
     await service.init();const scope=scopeKey(),newest=p=>Math.max(0,...service.entriesFor(p).filter(e=>e.period===NDVI_REFRESH_PERIOD).map(e=>e.savedAt||0));
     const valid=refreshOrder(activeParcels(),newest).filter(p=>{try{geometryBounds(p.geometry);return true;}catch{return false;}}),items=valid.filter(p=>refreshDue(newest(p)));
     // Après une annulation, on reprend seulement les parcelles pas encore actualisées aujourd’hui.
-    if(!items.length){paintBulk(valid.length?'Toutes les parcelles sont déjà à jour aujourd’hui.':'Aucune parcelle avec un contour exploitable.');return;}
+    if(!items.length){paintBulk(valid.length?'Toutes les parcelles sont déjà à jour aujourd’hui.':'Aucune parcelle avec un contour exploitable.');return null;}
     const run=bulk={controller:new AbortController(),done:0,total:items.length,failed:0,scope};paintBulk();
     const result=await runQueue(items,async(p,signal)=>{const local=new AbortController(),abort=()=>local.abort();let late=false;const timer=setTimeout(()=>{late=true;local.abort();},45000);signal.addEventListener('abort',abort);try{return await service.load(p,NDVI_REFRESH_PERIOD,{refresh:true,fallback:false,signal:local.signal});}catch(error){if(late&&!signal.aborted)throw Error('Délai satellite dépassé.');throw error;}finally{clearTimeout(timer);signal.removeEventListener('abort',abort);}},
       {concurrency:NDVI_CONCURRENCY,signal:run.controller.signal,stopOn:error=>/autoris|Connectez|Configuration|Hors connexion/.test(error.message),onProgress:({done,failed})=>{run.done=done;run.failed=failed;publishNdvi();paintBulk();}});
@@ -35,7 +37,34 @@ export function createSatelliteUI({store,sync,map,openParcel,showMap,observe,mod
     if(result.ok&&!result.cancelled&&!result.stopped&&scope===scopeKey()){stamps={...stamps,[scope]:Date.now()};try{await store.storage.set(NDVI_REFRESH_KEY,stamps);}catch{}}
     publishNdvi();today();
     const summary=result.cancelled?`Mise à jour annulée : ${result.ok} parcelle${result.ok>1?'s':''} actualisée${result.ok>1?'s':''} sur ${result.total}. Relancer reprend les parcelles restantes.`:result.stopped?result.stopped.message:`${result.ok} parcelle${result.ok>1?'s':''} actualisée${result.ok>1?'s':''} sur ${result.total}${result.failed?` · ${result.failed} échec${result.failed>1?'s':''}`:''}.`;
-    paintBulk(summary);toast(summary,result.stopped||(!result.ok&&!result.cancelled)?'error':'success');
+    paintBulk(summary);
+    if(!silent)toast(summary,result.stopped||(!result.ok&&!result.cancelled)?'error':'success');
+    else if(result.stopped&&/autoris|Connectez/.test(result.stopped.message||''))toast(`Indices satellite non actualisés : ${result.stopped.message}`,'error');
+    return result;
+  }
+  // Actualisation automatique : au plus une tentative par jour et par scope (même après un échec,
+  // pour ne pas boucler), seulement dans l'onglet écrivain, en ligne, hors économie de données.
+  function autoBlocker(){
+    if(!ready)return 'not-ready';if(autoRunning||bulk)return 'running';
+    if(globalThis.navigator?.connection?.saveData===true)return 'save-data';
+    // Mode démonstration : parcelles fictives, on ne consomme pas le quota du compte.
+    if(store.isDemo||store.workspaceContext?.()?.demo||store.snapshot().metadata?.demo)return 'demo';
+    if(store.snapshot().preferences?.ndviAutoRefresh===false)return 'preference';
+    if(!writable())return 'read-only';
+    if(!activeParcels().length)return 'no-parcel';
+    if(bulkBlocker())return 'blocked';
+    if(!refreshDue(autoTried[scopeKey()]))return 'tried-today';
+    return '';
+  }
+  async function autoRefresh(){
+    if(autoBlocker())return null;
+    const scope=scopeKey();autoTried[scope]=Date.now();autoRunning=true;
+    try{
+      // Un autre onglet a pu actualiser depuis le chargement : on relit les tampons du jour.
+      try{const saved=await store.storage.get(NDVI_REFRESH_KEY);if(saved&&typeof saved==='object')for(const [key,at] of Object.entries(saved))if(Number.isFinite(at)&&!(stamps[key]>=at))stamps={...stamps,[key]:at};}catch{}
+      if(bulk||bulkBlocker())return null;
+      return await refreshAll({silent:true});
+    }catch{return null;}finally{autoRunning=false;}
   }
   function cancelAll(){if(!bulk)return;bulk.cancelling=true;bulk.controller.abort();paintBulk();}
   const parcel=id=>store.snapshot().parcelles.find(p=>p.id===id&&!p.deletedAt);
@@ -63,8 +92,10 @@ export function createSatelliteUI({store,sync,map,openParcel,showMap,observe,mod
   function mapControls(){const p=parcel(map.selectedId);return`<section class="form-section"><h3>Satellite agricole</h3><p>${p?esc(p.nom):'Sélectionnez une parcelle pour charger ses données.'}</p>${p?button('open','Ouvrir Satellite',`data-parcel="${esc(p.id)}"`):''}${p&&service.peek(p)?.series.some(r=>r.usable)?`<div class="satellite-actions">${[['rgb','Image satellite'],['ndvi','NDVI'],...(service.peek(p).series.some(r=>r.usable&&r.ndmi!==null)?[['ndmi','NDMI']]:[]),['anomalies','Anomalies']].map(([kind,label])=>button('layer',label,`data-kind="${kind}" data-parcel="${esc(p.id)}"`)).join('')}</div>`:''}${map.satelliteOverlay?`<p>${esc(map.satelliteLabel)}</p><label>Opacité<input data-sat-opacity type="range" min="0" max="1" step=".05" value="${map.satelliteOpacity??.7}"></label>${button('clear','Désactiver la couche')}`:''}</section>`;}
   document.addEventListener('input',e=>{if(e.target.matches('[data-sat-opacity]'))map.setSatelliteOpacity(Number(e.target.value));});
   document.addEventListener('click',async e=>{const b=e.target.closest('[data-sat]');if(!b)return;try{const action=b.dataset.sat;if(action==='open'){closeModal();openParcel(b.dataset.parcel,'satellite');}else if(action==='connection')connection();else if(action==='load')await load();else if(action==='layer'){b.disabled=true;const p=b.dataset.parcel?parcel(b.dataset.parcel):current?.p;await layer(b.dataset.kind,p,b.dataset.parcel?service.peek(p):current?.entry);}else if(action==='clear'){overlaySequence++;map.clearSatelliteOverlay();closeModal();}else if(action==='observe'&&current?.entry){const s=signals(current.entry).find(a=>a.id===b.dataset.signal);if(s)observe(current.p.id,`${s.title} — image du ${current.entry.series.filter(r=>r.usable).at(-1).date}. Signal satellite à vérifier. ${s.detail}`);}else if(action==='ignore'&&current?.entry){await service.ignore(current.entry,b.dataset.signal);render();today();publishNdvi();}else if(action==='ndvi-refresh')await refreshAll();else if(action==='ndvi-cancel')cancelAll();else if(action==='frame'){const p=current?.p||parcel(b.dataset.parcel),date=b.dataset.date,entries=service.entriesFor(p),frame=rasterFrames(entries).find(f=>f.date===date),entry=frame?.entry||[current?.entry,...entries].find(e=>e?.series.some(r=>r.usable&&r.date===date));if(!entry)throw Error('Image indisponible pour cette date.');await layer('ndvi',p,entry,date);}}catch(error){if(current?.root.isConnected)render(error.name==='AbortError'?'Délai satellite dépassé.':error.message);else modal('Satellite','',`<p>${esc(error.message)}</p>`);}finally{b.disabled=false;}});
-  for(const event of ['online','offline'])window.addEventListener(event,()=>{if(current?.root.isConnected)render();today();});
-  store.subscribe(()=>{overlaySequence++;map.clearSatelliteOverlay();if(current&&current.scope!==JSON.stringify(service.scope()))cancel();if(bulk&&bulk.scope!==scopeKey())cancelAll();publishNdvi(false);today();});
-  service.init().then(async()=>{try{stamps=await store.storage.get(NDVI_REFRESH_KEY)||{};}catch{stamps={};}today();publishNdvi();}).catch(()=>{});
-  return{mount,cancel,today,mapControls,connection,ndviControls,refreshAll,cancelAll,publishNdvi};
+  for(const event of ['online','offline'])window.addEventListener(event,()=>{if(current?.root.isConnected)render();today();if(event==='online')idle(()=>autoRefresh(),{timeout:3000});});
+  // Onglet redevenu écrivain (« Utiliser ici ») : l'actualisation automatique est retentée, comme à la connexion.
+  let lastUid=sync.user?.uid||null,lastReadOnly=Boolean(store.tabReadOnly);
+  store.subscribe(()=>{const uid=sync.user?.uid||null,readOnly=Boolean(store.tabReadOnly);if((uid&&uid!==lastUid)||(lastReadOnly&&!readOnly))idle(()=>autoRefresh(),{timeout:3000});lastUid=uid;lastReadOnly=readOnly;overlaySequence++;map.clearSatelliteOverlay();if(current&&current.scope!==JSON.stringify(service.scope()))cancel();if(bulk&&bulk.scope!==scopeKey())cancelAll();publishNdvi(false);today();});
+  service.init().then(async()=>{try{stamps=await store.storage.get(NDVI_REFRESH_KEY)||{};}catch{stamps={};}ready=true;today();publishNdvi();idle(()=>autoRefresh(),{timeout:3000});}).catch(()=>{});
+  return{mount,cancel,today,mapControls,connection,ndviControls,refreshAll,autoRefresh,autoBlocker,cancelAll,publishNdvi};
 }

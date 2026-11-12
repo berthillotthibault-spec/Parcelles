@@ -1,4 +1,4 @@
-const BUILD='2026.11.12-v10.29.1';
+const BUILD='2026.11.12-v10.30.0';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
@@ -29,6 +29,7 @@ const CORE=[
  ,'./forage.js','./forage-ui.js','./seeds.js','./seeds-ui.js','./soil-analysis.js','./soil-analysis-ui.js','./hedges.js','./hedges-ui.js' // v8b
  ,'./telepac.js','./telepac-ui.js','./parcel-check.js','./parcel-check-ui.js','./regulatory.js','./regulatory-ui.js','./regulated-ops.js','./regulated-ops-ui.js','./green-indicators.js','./green-indicators-ui.js' // v8a, v11 n° 71
  ,'./billing-docs-ui.js','./billing-docs-view.js','./company-lookup.js','./billing-docs-editor.js','./billing-docs-actions.js','./billing-docs.css' // v13 : documents de facturation (chantier A)
+ ,'./auto-update.js','./reference-status-ui.js','./rpg-culture-labels.js','./phyto-catalog-auto.js','./weather-freshness.js','./zv-detect.js','./reference-age.js','./fuel-price-ref.js','./doc-text.js','./conseils.js','./input-needs.js','./decision-feed.js','./cost-drift.js','./grazing-rotation.js','./smart-defaults.js' // mises à jour automatiques et conseils (A0-A9, I1-I7)
  ,'./billing-hub.js','./billing-hub-ui.js','./billing-hub-catalog-ui.js','./billing-hub-settings-ui.js','./billing-hub.css','./lazy-styles.js' // v13 : centre Facturation, feuilles des écrans différés
 ];
 
@@ -85,8 +86,36 @@ async function staleWhileRevalidate(request,event){
  return cached||await refresh||new Response('',{status:504,statusText:'Offline'});
 }
 
-async function tileResponse(request){
- try{const cached=await (await caches.open(TILES)).match(request.url);if(cached)return cached;}catch{}
+// Tuiles de plus de 30 jours : servies tout de suite depuis le cache, puis renouvelées en tâche de
+// fond si le réseau est là (hors économiseur de données). Même règle que tileNeedsRefresh dans
+// offline-map.js : un service worker classique ne peut pas importer ce module.
+const TILE_REFRESH_MS=30*24*3600*1000;
+const refreshingTiles=new Set();
+function tileNeedsRefresh(headers,now=Date.now(),maxAgeMs=TILE_REFRESH_MS){
+ const raw=typeof headers?.get==='function'?headers.get('x-parcelles-cached-at'):headers?.['x-parcelles-cached-at'];
+ const at=Number(raw);
+ if(raw==null||raw===''||!Number.isFinite(at)||at<=0)return true;
+ return Number(now)-at>maxAgeMs;
+}
+async function refreshTile(request){
+ const url=request.url;if(refreshingTiles.has(url))return;refreshingTiles.add(url);
+ try{
+   const response=await fetch(url,{mode:'cors',credentials:'omit',cache:'no-cache'});
+   if(!response.ok)return;
+   const blob=await response.blob();
+   await (await caches.open(TILES)).put(url,new Response(blob,{status:200,headers:{'content-type':response.headers.get('content-type')||blob.type||'image/png','x-parcelles-cached-at':String(Date.now()),'x-parcelles-size':String(blob.size)}}));
+ }catch{/* échec : l'ancienne tuile reste en cache */}
+ finally{refreshingTiles.delete(url);}
+}
+async function tileResponse(request,event){
+ try{
+   const cached=await (await caches.open(TILES)).match(request.url);
+   if(cached){
+     // try séparé : si waitUntil échoue, la tuile en cache doit quand même être servie.
+     if(self.navigator?.onLine&&self.navigator?.connection?.saveData!==true&&tileNeedsRefresh(cached.headers)){try{event?.waitUntil(refreshTile(request));}catch{}}
+     return cached;
+   }
+ }catch{}
  return fetch(request).catch(()=>new Response('',{status:504,statusText:'Offline'}));
 }
 
@@ -123,7 +152,7 @@ self.addEventListener('fetch',event=>{
    const isCore=CORE.some(path=>url.pathname===new URL(path,self.registration.scope).pathname);
    event.respondWith(isCore?coreAssetResponse(req):staleWhileRevalidate(req,event));return;
  }
- if(url.hostname==='data.geopf.fr'&&url.pathname==='/wmts'&&url.searchParams.get('REQUEST')==='GetTile'){event.respondWith(tileResponse(req));return;}
+ if(url.hostname==='data.geopf.fr'&&url.pathname==='/wmts'&&url.searchParams.get('REQUEST')==='GetTile'){event.respondWith(tileResponse(req,event));return;}
  const dependencyHost=['cdnjs.cloudflare.com','unpkg.com','www.gstatic.com'].includes(url.hostname);
  if(dependencyHost){event.respondWith(staleWhileRevalidate(req,event));return;}
  event.respondWith(fetch(req).catch(()=>caches.match(req)));

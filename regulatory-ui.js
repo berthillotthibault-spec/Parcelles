@@ -1,7 +1,7 @@
 // n° 48 : groupe « Réglementaire » du panneau Couches, bandeau de la fiche parcelle et valeurs indicatives.
 // Hors connexion : la dernière évaluation de la parcelle (mémorisée sur l'appareil) reste affichée.
 import {html, raw} from './safe-html.js';
-import {REG_DISCLAIMER, REG_LAYERS, REG_RULES_DEFAULT, evaluateParcel, evaluationMessages, evaluationRequests, geometrySignature, linesOf, normalizeRegLayers, regDatePhrase, regulatoryRules} from './regulatory.js';
+import {REG_DISCLAIMER, REG_LAYERS, REG_RULES_DEFAULT, classifyWfsFailure, evaluateParcel, isWfsException, evaluationMessages, evaluationRequests, geometrySignature, linesOf, missingTypeResponse, normalizeRegLayers, regDatePhrase, regLayersWithEditions, regulatoryRules} from './regulatory.js';
 
 const CACHE_KEY='parcelles:reglementaire';
 const MAX_ENTRIES=300,STALE_MS=7*864e5,TIMEOUT_MS=15000;
@@ -10,7 +10,7 @@ let activeUI=null;
 export function regulatoryWaterLines(parcel){if(!activeUI)throw new Error('Couches réglementaires indisponibles.');return activeUI.waterLines(parcel);}
 export function regulatoryRulesNow(){return activeUI?activeUI.rules():regulatoryRules();}
 
-export function createRegulatoryUI({state, store, parcelMap, toast, modal, closeModal, fetchImpl = (...args) => globalThis.fetch(...args), storage = globalThis.localStorage, doc = globalThis.document, online = () => globalThis.navigator?.onLine !== false, now = () => Date.now()} = {}) {
+export function createRegulatoryUI({state, store, parcelMap, toast, modal, closeModal, fetchImpl = (...args) => globalThis.fetch(...args), storage = globalThis.localStorage, doc = globalThis.document, online = () => globalThis.navigator?.onLine !== false, now = () => Date.now(), bcaeYear = null} = {}) {
   const pending = new Map();
   const rules = () => regulatoryRules(state().preferences?.regulatoryRules);
   const enabled = () => normalizeRegLayers(state().preferences?.mapRegLayers);
@@ -26,7 +26,18 @@ export function createRegulatoryUI({state, store, parcelMap, toast, modal, close
 
   async function getJson(url) {
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    try { const response = await fetchImpl(url, {signal: controller.signal, headers: {accept: 'application/json'}}); if (!response?.ok) throw new Error(`HTTP ${response?.status}`); return await response.json(); }
+    try {
+      const response = await fetchImpl(url, {signal: controller.signal, headers: {accept: 'application/json'}});
+      if (!response?.ok) {
+        let body = ''; try { body = await response?.text?.() || ''; } catch {}
+        const error = new Error(`HTTP ${response?.status}`); error.status = response?.status; error.kind = classifyWfsFailure({status: response?.status, body}); throw error;
+      }
+      if (typeof response.text !== 'function') return await response.json();
+      // ExceptionReport servi en HTTP 200 (XML) : couche absente du service, pas une panne réseau.
+      const text = await response.text();
+      if (isWfsException(text)) { const error = new Error(`HTTP ${response.status ?? 200}`); error.status = response.status ?? 200; error.kind = 'missing-type'; throw error; }
+      return JSON.parse(text);
+    }
     finally { clearTimeout(timer); }
   }
   /** Interroge les services publics ; un service en échec rend l'évaluation partielle sans tout bloquer. */
@@ -34,8 +45,14 @@ export function createRegulatoryUI({state, store, parcelMap, toast, modal, close
     if (pending.has(parcel.id)) return pending.get(parcel.id);
     const job = (async () => {
       const responses = {};
-      await Promise.all(evaluationRequests(parcel.geometry, {rules: rules()}).map(async request => { try { responses[request.key] = await getJson(request.url); } catch { responses[request.key] = null; } }));
-      if (!Object.values(responses).some(Boolean)) throw new Error('Services réglementaires injoignables.');
+      await Promise.all(evaluationRequests(parcel.geometry, {rules: rules()}).map(async request => {
+        try { responses[request.key] = await getJson(request.url); }
+        catch (error) { responses[request.key] = error?.kind === 'missing-type' ? missingTypeResponse(error.status) : null; } // HTTP 400 : couche absente, distincte d'une panne réseau
+      }));
+      if (!Object.values(responses).some(r => r && !r.missingType)) {
+        const missing = Object.values(responses).some(r => r?.missingType);
+        const error = new Error(missing ? 'Couches réglementaires absentes du service IGN (HTTP 400).' : 'Services réglementaires injoignables.'); error.kind = missing ? 'missing-type' : 'network'; throw error;
+      }
       const evaluation = evaluateParcel(parcel, responses, {rules: rules(), at: now()});
       evaluation.lines = linesOf([...(responses.bcae?.features || []), ...(responses.hydro?.features || [])]).map(line => line.map(([x, y]) => [Math.round(x * 1e6) / 1e6, Math.round(y * 1e6) / 1e6]));
       if (!evaluation.waterChecked) evaluation.lines = cached(parcel)?.lines; // cours d'eau non interrogés : garder les lignes connues
@@ -64,7 +81,10 @@ export function createRegulatoryUI({state, store, parcelMap, toast, modal, close
     if (entry && !force && now() - entry.at < STALE_MS) return;
     box.innerHTML = String(bannerInner(parcel, entry, {loading: true}));
     try { const evaluation = await evaluate(parcel); if (box.isConnected) box.innerHTML = String(bannerInner(parcel, evaluation)); }
-    catch (error) { if (box.isConnected) box.innerHTML = String(bannerInner(parcel, entry, {error: entry ? 'Services indisponibles : dernière évaluation affichée.' : 'Services réglementaires indisponibles pour le moment.'})); }
+    catch (error) {
+      const why = error?.kind === 'missing-type' ? 'Couches absentes du service IGN (HTTP 400)' : 'Services indisponibles';
+      if (box.isConnected) box.innerHTML = String(bannerInner(parcel, entry, {error: entry ? `${why} : dernière évaluation affichée.` : `${why} pour le moment.`}));
+    }
   }
   function mountParcel(parcel) {
     const box = doc.querySelector('#reg-banner'); if (!box) return;
@@ -82,7 +102,9 @@ export function createRegulatoryUI({state, store, parcelMap, toast, modal, close
   // ---------- Panneau Couches ----------
   function layersHtml() {
     const on = enabled();
-    return String(html`<div class="ly-reg"><p class="ly-label">Réglementaire <small>· indicatif</small></p>${REG_LAYERS.map(layer => html`<div class="ly-row"><span><strong>${layer.label}</strong><small>${layer.hint} · ${layer.date}</small></span><button type="button" class="ly-switch${raw(on.includes(layer.id) ? ' is-on' : '')}" data-reg="${layer.id}" role="switch" aria-checked="${String(on.includes(layer.id))}" aria-label="${layer.label}"><i></i></button></div>`)}<p class="ly-note">Services publics IGN Géoplateforme et Sandre, sans compte.${online() ? '' : ' Hors connexion : ces couches ne se chargent pas, vos parcelles restent affichées.'} ZNT : dépend du produit (AMM). <button type="button" class="text-button" data-reg-rules="1">Valeurs indicatives</button></p></div>`);
+    let year = null; try { year = typeof bcaeYear === 'function' ? bcaeYear() : null; } catch {}
+    const layers = regLayersWithEditions(REG_LAYERS, {bcaeYear: year});
+    return String(html`<div class="ly-reg"><p class="ly-label">Réglementaire <small>· indicatif</small></p>${layers.map(layer => html`<div class="ly-row"><span><strong>${layer.label}</strong><small>${layer.hint} · ${layer.date}</small></span><button type="button" class="ly-switch${raw(on.includes(layer.id) ? ' is-on' : '')}" data-reg="${layer.id}" role="switch" aria-checked="${String(on.includes(layer.id))}" aria-label="${layer.label}"><i></i></button></div>`)}<p class="ly-note">Services publics IGN Géoplateforme et Sandre, sans compte.${online() ? '' : ' Hors connexion : ces couches ne se chargent pas, vos parcelles restent affichées.'} ZNT : dépend du produit (AMM). <button type="button" class="text-button" data-reg-rules="1">Valeurs indicatives</button></p></div>`);
   }
   function onLayerError(def) { toast(`${def.label} : service indisponible ou hors connexion.`, 'error'); }
   function bindLayers(root) {

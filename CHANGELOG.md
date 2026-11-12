@@ -1,5 +1,37 @@
 # Changelog
 
+## 10.30.0 · mises à jour automatiques partout, lecteur de documents, conseils chiffrés — 2026-11-12
+
+### Mises à jour automatiques
+- **Registre des données de référence** (`auto-update.js`) : chaque source a sa fréquence de vérification, un cache horodaté et un repli hors ligne (dernière valeur connue, puis valeur embarquée) ; état visible dans Mes données › Diagnostic › « Données de référence » (« à jour le … », « Vérifier », « Tout vérifier »). Vérifications au démarrage, au retour du réseau et au retour sur l'appli, seulement dans l'onglet qui écrit ;
+- **RPG** : le dernier millésime publié est lu sur la couche `RPG.LATEST` de la Géoplateforme (le RPG 2025 est désormais utilisé ; 2026 le sera dès sa publication) ; années non publiées retenues 30 jours ; liste des années du contrôle des parcelles alignée ; libellés des codes cultures PAC tenus à jour depuis la nomenclature officielle (data.gouv) ;
+- **Catalogue phyto E-Phy** : détection des nouvelles publications sur data.gouv et mise à jour automatique (réduite aux cultures de l'exploitation, jamais en 4G ni avec l'économiseur de données) ; correction de la lecture du fichier officiel (colonne « identifiant usage » : 0 usage importé auparavant) ; un catalogue vide ou réduit de moitié est refusé ;
+- **Appli** : recherche d'une nouvelle version au retour sur l'appli, au retour du réseau et toutes les 30 min ; installation sans perdre une saisie en cours ;
+- **Météo** : rafraîchie dès qu'elle vieillit, cache météo par parcelle ;
+- **Zones vulnérables nitrates** : détectées pour chaque parcelle (Sandre), sans saisie ;
+- **Carte hors ligne** : tuiles de plus de 30 jours renouvelées en tâche de fond, zone étendue aux nouvelles parcelles ;
+- **Indices satellite (NDVI)** : actualisation automatique quand elle est due (désactivable dans les Paramètres) ;
+- **Couches réglementaires** : édition des cours d'eau BCAE détectée, couche disparue signalée ;
+- **Prix du gazole** : prix moyen du moment proposé (data.economie.gouv.fr), jamais appliqué sans appui ;
+- **Barèmes non automatisables** (indice des fermages, barèmes publiés en PDF) : leur âge est signalé et une valeur périmée est indiquée comme telle.
+
+### Intelligence et saisie
+- **Lecteur de documents hors ligne** : « Scanner du texte » de l'iPhone (ou Google Lens, ou un collage) dans la fiche « Photo d'étiquette ou de facture » ; l'appli lit seule type de document, fournisseur, date, numéro, lignes (quantité, unité, prix, lot, AMM), totaux HT/TVA/TTC avec contrôle de cohérence, conditionnements (« 2 × 3 L = 6 L ») et retient les habitudes de chaque fournisseur ;
+- **Fil « À décider »** sur l'accueil : les décisions du moment classées par enjeu (ha, €, jours restants), chacune avec « Pourquoi ? » et une action en un appui ;
+- **Veille agronomique** (`conseils.js`) dans les notifications : délai avant récolte, dates limites de semis, retours trop rapides d'une culture, azote, travaux en retard critiques ;
+- **Besoins en intrants** : le stock est comparé aux travaux prévus (manques datés, lots périmés avant l'emploi, AMM retirées) avec tâche de commande préremplie ;
+- **Dérive des coûts** dans l'onglet Économie de la parcelle : postes qui s'écartent de l'historique, prix et rendement d'équilibre ;
+- **Rotation du pâturage** : jours d'herbe restants par lot et prochain paddock conseillé, avec bouton de déplacement ;
+- **Valeurs « comme la dernière fois »** pour le stock, le carburant et l'entretien ;
+- **Correctif** : un délai avant récolte qui traverse le passage à l'heure d'hiver ne recule plus d'un jour.
+
+### Vérifié sur les vrais services
+- Les 6 sources de référence répondent depuis le site publié (RPG 2025, nomenclature 2026, E-Phy, BCAE 2026, gazole, zones vulnérables recoupées avec le Sandre) ;
+- un rechargement de page pendant une vérification n'est plus compté comme un échec ;
+- E-Phy : retéléchargement automatique au plus une fois par mois (fichier de ~4 Mo ; réseau mobile non détectable sur iPhone), sauf cultures changées ou « Mettre à jour maintenant » ;
+- lecteur de documents : dates et numéros lus malgré un O à la place d'un 0, montants en milliers, numéro de facture après « FACTURE », brut et tare des tickets de pesée ;
+- manques d'intrants : bouton « Préparer la commande » (tâche préremplie) ; couches réglementaires : erreur WFS renvoyée en HTTP 200 correctement signalée.
+
 ## 10.29.1 · saisie rapide : les actions ne sont plus prises pour des clients — 2026-11-12
 
 - **Facturation, saisie rapide** : « Semis de blé », « Moisson de blé », « Fauchage de ray grass », « Pressage de paille »… ne déclenchent plus « Client introuvable » ; le premier mot n'est pris pour un client que s'il s'agit d'un nom propre qui n'est ni une action ni un produit (ou avec « pour », « chez », « client », « Nom : ») ; la désignation garde l'action (« Semis de blé » au lieu de « Blé ») ; « 200 balles » sert d'unité quand la désignation est déjà écrite ;

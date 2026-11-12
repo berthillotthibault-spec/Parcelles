@@ -25,6 +25,11 @@ export const REG_LAYERS=Object.freeze([
   {id:'pentes',label:'Pentes agricoles',hint:'Zones de pente > 10 % (RGE ALTI)',kind:'wmts',url:wmts('GEOGRAPHICALGRIDSYSTEMS.SLOPES.PAC',{style:'GEOGRAPHICALGRIDSYSTEMS.SLOPES.PAC',matrixSet:'PM_0_15'}),minZoom:0,maxNativeZoom:15,attribution:`${IGN} (RGE ALTI 2017)`,source:'IGN, carte des pentes pour l’agriculture',date:'2017'}
 ]);
 export const REG_LAYER_IDS=REG_LAYERS.map(layer=>layer.id);
+/** Copie des couches avec l'édition BCAE détectée (REG_LAYERS reste figé ; année invalide : libellé embarqué). */
+export function regLayersWithEditions(layers=REG_LAYERS,{bcaeYear}={}){
+  const year=Number(bcaeYear),ok=Number.isInteger(year)&&year>=2000&&year<=2099;
+  return(layers||[]).map(layer=>layer.id==='bcae'&&ok?{...layer,date:`édition ${year}`}:{...layer});
+}
 export function normalizeRegLayers(value){return Array.isArray(value)?REG_LAYER_IDS.filter(id=>value.includes(id)):[];}
 
 // Valeurs indicatives, datées et sourcées, modifiables dans Paramètres (preferences.regulatoryRules).
@@ -66,6 +71,43 @@ export function evaluationRequests(geometry,{rules=REG_RULES_DEFAULT}={}){
   ];
 }
 
+
+// ---------- Couche absente du service (HTTP 400 / ExceptionReport) ----------
+// Un type WFS renommé ou retiré par l'IGN répond 400 ou un ExceptionReport : ce n'est pas une panne réseau.
+export const WFS_GROUPS=Object.freeze({bcae:'bcae',hydro:'hydro',sic:'natura2000',zps:'natura2000'});
+export function isWfsException(text){return /ExceptionReport|ServiceException/i.test(String(text||'').slice(0,4000));}
+/** Classe une réponse en échec : 'missing-type' (couche absente du service) ou 'network'. */
+export function classifyWfsFailure({status,body}={}){return Number(status)===400||isWfsException(body)?'missing-type':'network';}
+/** Marqueur à placer dans les réponses passées à evaluateParcel pour une couche absente du service. */
+export function missingTypeResponse(status=400){return{missingType:true,status:Number(status)||0};}
+
+// ---------- Édition de la carte BCAE (source auto-update) ----------
+export const BCAE_EDITION_URL=`${GEOPF_WFS}?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=HYDROGRAPHY.BCAE.LATEST:bcae_cours_eau&COUNT=1&OUTPUTFORMAT=application/json&PROPERTYNAME=millesim`;
+export const BCAE_EDITION_DEFAULT=2026;
+/** Millésime de la carte BCAE servie (features[0].properties.millesim), ou null s'il est absent, invalide ou futur. */
+export function parseBcaeMillesim(json,{now=Date.now()}={}){
+  const raw=json?.features?.[0]?.properties?.millesim;
+  const text=String(raw??'').trim();if(!/^20\d\d$/.test(text))return null;
+  const year=Number(text);return year<=new Date(now).getFullYear()?year:null;
+}
+const DAY_MS=864e5;
+/** Source du registre auto-update.js : 7 jours de validité, 1 jour en janvier (nouvelle carte attendue). */
+export const bcaeEditionSource=Object.freeze({
+  id:'bcae-edition',
+  label:'Cours d’eau BCAE',
+  get ttlMs(){return new Date().getMonth()===0?DAY_MS:7*DAY_MS;},
+  embedded:Object.freeze({value:Object.freeze({year:BCAE_EDITION_DEFAULT}),version:String(BCAE_EDITION_DEFAULT),label:`édition ${BCAE_EDITION_DEFAULT}`}),
+  timeoutMs:10000,
+  async check({fetch,signal,now=Date.now()}={}){
+    const response=await fetch(BCAE_EDITION_URL,{signal,headers:{accept:'application/json'}});
+    if(!response?.ok)throw new Error(`HTTP ${response?.status}`);
+    const year=parseBcaeMillesim(await response.json(),{now:typeof now==='function'?now():now});
+    if(!year)throw new Error('Millésime BCAE absent ou invalide.');
+    return{value:{year},version:String(year),note:`édition ${year}`};
+  },
+  validate(result){const y=result?.value?.year;return Number.isInteger(y)&&y>=2000&&y<=new Date().getFullYear();}
+});
+
 // ---------- Géométrie plane locale (mètres) ----------
 function projector(lat0){const kx=111320*Math.cos(lat0*Math.PI/180),ky=111320;return([lon,lat])=>[lon*kx,lat*ky];}
 function segDist(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],len=dx*dx+dy*dy;let t=len?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/len:0;t=Math.max(0,Math.min(1,t));return Math.hypot(p[0]-(a[0]+t*dx),p[1]-(a[1]+t*dy));}
@@ -100,12 +142,16 @@ export function pointDistanceToLines(lon,lat,lines){
 /** Évaluation indicative à partir des réponses WFS ({bcae,hydro,sic,zps} : FeatureCollection ou null si en échec). */
 export function evaluateParcel(parcel,responses={},{rules=REG_RULES_DEFAULT,at=Date.now()}={}){
   const g=parcel?.geometry;if(!g)return null;
+  // Couche absente du service (missingTypeResponse) : traitée comme une absence de réponse, mais notée à part.
+  const raw=responses||{},missingTypes=Object.keys(raw).filter(k=>raw[k]?.missingType);
+  responses=Object.fromEntries(Object.entries(raw).map(([k,v])=>[k,v?.missingType?null:v]));
   const dist=key=>responses[key]?distanceToLines(g,linesOf(responses[key].features)):undefined;
   const sites=key=>responses[key]?(responses[key].features||[]).map(f=>({name:String(f.properties?.nom_site||'Site Natura 2000'),url:String(f.properties?.url_fiche||'')})):undefined;
   const natura=[...(sites('sic')||[]),...(sites('zps')||[])].filter((s,i,all)=>all.findIndex(x=>x.name===s.name)===i);
   return{parcelId:parcel.id,signature:geometrySignature(g),at,
     bcaeM:dist('bcae'),hydroM:dist('hydro'),waterChecked:Boolean(responses.bcae||responses.hydro),natura:responses.sic||responses.zps?natura:undefined,
-    partial:['bcae','hydro','sic','zps'].some(k=>!responses[k])};
+    partial:['bcae','hydro','sic','zps'].some(k=>!responses[k]),
+    unavailable:[...new Set(['bcae','hydro','sic','zps'].filter(k=>!responses[k]).map(k=>WFS_GROUPS[k]))],missingTypes};
 }
 export function geometrySignature(geometry){const s=JSON.stringify(geometry?.coordinates||[]);let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return`${s.length}:${h}`;}
 
@@ -120,7 +166,17 @@ export function evaluationMessages(evaluation,rules=REG_RULES_DEFAULT){
   else if(nearest!==null&&nearest<=rules.nearWaterM)out.push({level:'warn',text:nearest===0?`Écoulement d’eau dans la parcelle (BD TOPO) : ${znt} si c’est un point d’eau de l’arrêté départemental.`:`Écoulement d’eau à ${m(nearest)} (BD TOPO) : ${znt} si c’est un point d’eau de l’arrêté départemental.`});
   else if(evaluation.waterChecked)out.push({level:'info',text:`Aucun cours d’eau connu à moins de ${rules.nearWaterM} m.`});
   if(evaluation.natura?.length)out.push({level:'warn',text:`Natura 2000 : ${evaluation.natura.map(s=>s.name).join(', ')}. Évaluation d’incidences possible pour certains travaux.`,links:evaluation.natura.filter(s=>/^https:\/\//.test(s.url))});
-  if(evaluation.partial)out.push({level:'info',text:'Évaluation partielle : un service public n’a pas répondu.'});
+  if(evaluation.partial){
+    const names={bcae:'cours d’eau BCAE',hydro:'cours d’eau BD TOPO',natura2000:'Natura 2000'},missing=new Set(evaluation.missingTypes||[]);
+    const list=Array.isArray(evaluation.unavailable)?evaluation.unavailable.filter(k=>names[k]):[];
+    if(!list.length)out.push({level:'info',text:'Évaluation partielle : un service public n’a pas répondu.'});
+    for(const group of list){
+      const absent=Object.keys(WFS_GROUPS).some(k=>WFS_GROUPS[k]===group&&missing.has(k));
+      // Natura 2000 : un seul des deux services (SIC ou ZPS) a répondu, les sites listés sont incomplets, pas absents.
+      const half=group==='natura2000'&&Array.isArray(evaluation.natura);
+      out.push({level:'info',text:`Évaluation partielle : contrôle ${names[group]} ${half?'incomplet':'indisponible'} (${absent?'couche absente du service IGN, HTTP 400':'service IGN injoignable'}).`});
+    }
+  }
   return out;
 }
 

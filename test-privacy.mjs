@@ -18,7 +18,7 @@ test('par défaut : cloud et assistant éteints, météo et carte décrites', ()
 });
 
 test('états suivant les préférences', () => {
-  const prefs = {syncEnabled: true, syncAttachments: true, remoteAiEnabled: true, remoteAiEndpoint: 'https://ia.example.org/a', weatherAutoRefresh: false};
+  const prefs = {syncEnabled: true, syncAttachments: true, remoteAiEnabled: true, remoteAiEndpoint: 'https://ia.example.org/a', weatherAutoRefresh: false, ndviAutoRefresh: false};
   const list = privacyServices(prefs, {firebaseConfigured: true, cloudConnected: true, satelliteEndpoint: 'https://x'});
   assert.equal(byId(list, 'cloud').state, 'on');
   assert.equal(byId(list, 'attachments').state, 'on');
@@ -48,7 +48,10 @@ test('textes fidèles au code : hôtes réellement appelés', () => {
   assert.match(read('rpg.js'), /data\.geopf\.fr\/wfs/);
   assert.match(read('satellite.js'), /operation:'series',geometry:parcel\.geometry/);
   assert.match(read('sync.js'), /if\(!prefs\.syncEnabled\)/);
-  assert.match(read('app.js'), /weatherAutoRefresh!==false&&refreshWeather/);
+  assert.match(read('app.js'), /pref:state\(\)\.preferences\.weatherAutoRefresh/);
+  assert.match(read('weather-freshness.js'), /pref === false/);
+  assert.match(read('zv-detect.js'), /services\.sandre\.eaufrance\.fr/);
+  assert.match(read('fuel-price-ref.js'), /data\.economie\.gouv\.fr/);
 });
 
 test('« Tout effacer » ferme la session cloud et supprime la persistance Firebase', async () => {
@@ -84,4 +87,19 @@ test('n° 114 : heures pointées et affectation des salariés citées, avec qui 
   assert.match(rules, /function advisorReadable\(d\) \{\s*return d\.entityType in \['parcelles','interventions','tasks'/);
   const ui = readFileSync(new URL('./privacy-ui.js', import.meta.url), 'utf8');
   assert.match(ui, /PEOPLE_ITEMS\.map/); assert.match(ui, /escapeHtml\(i\.who\)/);
+});
+
+test('satellite : actualisation quotidienne par défaut, désactivable', () => {
+  const ctx = {firebaseConfigured: true, cloudConnected: true, satelliteEndpoint: 'https://x'};
+  assert.equal(byId(privacyServices({}, ctx), 'satellite').state, 'on');
+  assert.equal(byId(privacyServices({}, ctx), 'satellite').setting, 'ndviAutoRefresh');
+  assert.equal(byId(privacyServices({ndviAutoRefresh: false}, ctx), 'satellite').state, 'on-demand');
+});
+
+test('services de référence déclarés (Sandre, data.gouv, data.economie)', () => {
+  const list = privacyServices({}, {});
+  assert.match(byId(list, 'zones-vulnerables').recipient, /Sandre/);
+  assert.match(byId(list, 'ephy').recipient, /data\.gouv\.fr/);
+  assert.match(byId(list, 'references').recipient, /IGN/);
+  assert.match(byId(list, 'fuel-price').recipient, /data\.economie\.gouv\.fr/);
 });

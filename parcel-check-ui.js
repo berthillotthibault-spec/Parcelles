@@ -3,6 +3,7 @@
 import {html, raw} from './safe-html.js';
 import {PARCEL_CHECK_DISCLAIMER, bboxPolygon, checkParcels, rpgYearOptions} from './parcel-check.js';
 import {geometryBbox} from './utils.js';
+import {getRpgLatestYear} from './rpg.js';
 
 const KIND_LABELS={overlap:'Chevauchements',geometry:'Contours à corriger',surface:'Écarts de surface (> 2 %)','rpg-split':'Découpes RPG','rpg-missing':'Parcelles RPG non reprises'};
 const ORDER=['overlap','geometry','surface','rpg-split','rpg-missing'];
@@ -38,7 +39,7 @@ export function createParcelCheckUI({state, modal, toast, fetchRpg, mapRpg = () 
     }).map(String).join(''));
   }
   function rpgHtml() {
-    const loaded = currentRpg(), years = rpgYearOptions(now());
+    const loaded = currentRpg(), years = rpgYearOptions(now(), {latest: getRpgLatestYear()});
     const status = loading ? 'Chargement du RPG…' : loaded ? `RPG ${loaded.year} chargé : ${loaded.features.length} parcelle${loaded.features.length > 1 ? 's' : ''} autour de l’exploitation.` : 'RPG non chargé : les comparaisons au RPG sont ignorées.';
     return html`<div class="parcel-check-rpg"><label class="field-label">Millésime RPG<select id="parcel-check-year">${years.map(y => html`<option value="${y}" ${raw(Number(year || loaded?.year || years[0]) === y ? 'selected' : '')}>${y}</option>`)}</select></label><button class="button secondary" id="parcel-check-load" ${raw(loading ? 'disabled' : '')}>Charger le RPG</button><small class="form-note" id="parcel-check-status">${status}</small></div>`;
   }
@@ -59,7 +60,7 @@ export function createParcelCheckUI({state, modal, toast, fetchRpg, mapRpg = () 
   async function loadRpg() {
     const zone = farmZone();
     if (!zone) { toast('Aucune parcelle dessinée : rien à comparer au RPG.', 'error'); return; }
-    const chosen = Number($('#parcel-check-year')?.value || year || rpgYearOptions(now())[0]);
+    const chosen = Number($('#parcel-check-year')?.value || year || rpgYearOptions(now(), {latest: getRpgLatestYear()})[0]);
     if (globalThis.navigator && globalThis.navigator.onLine === false) { toast('Hors connexion : le RPG ne peut pas être chargé. Les autres contrôles restent valables.', 'error'); return; }
     loading = true; year = chosen; render();
     try {

@@ -2,6 +2,7 @@
 // de consommation, récoltes (balles, silo, tonnes), inventaires, lots à nourrir et calendrier de coupe.
 import {escapeHtml as e,localDate} from './utils.js';
 import {saveFarmRecord} from './farm-records.js';
+import {referenceAgeBadge} from './reference-age.js';
 import {active} from './farm-memory.js';
 import {UGB_REFERENCES} from './grazing.js';
 import {FORAGE_KIND,FORAGE_REFERENCES,CUT_TYPES,forageType,forageRecords,forageBalance,winterSettings,needPerDay,lotsFromGrazing,validateForage,tonnesMs,cutCalendar} from './forage.js';
@@ -50,7 +51,7 @@ ${days.length?'':'<div class="notice info">Sommes de températures indisponibles
 ${timelineHtml(b)}
 <h3>Calendrier de coupe de l’herbe</h3><div id="forage-calendar">${calendarHtml()}</div>
 <h3>Récoltes et inventaires</h3><div class="stack-list">${recent.length?recent.map(r=>`<div class="list-row"><div><strong>${r.entry==='inventory'?'Inventaire':e(forageType(r.type)?.label||'Fourrage')}${r.cut?` · ${r.cut}<sup>${ord(r.cut)}</sup> coupe`:''}</strong><small>${e(localDate(r.date))}${r.parcelId?` · ${e(names.get(r.parcelId)||'Parcelle')}`:''} · ${n1.format(r.tms)} t MS${r.mode==='bales'&&r.bales?` · ${n0.format(r.bales)} balles`:''}</small></div><button class="small-button" data-forage="edit" data-id="${e(r.id)}">Modifier</button></div>`).join(''):'<div class="empty-state">Aucune récolte de fourrage cette saison.</div>'}</div>
-<p class="form-note">Bilan indicatif : la consommation est estimée à partir des besoins saisis, pas des distributions réelles. Un inventaire (comptage des balles, mesure du silo) remet le stock à jour. Valeurs de référence au ${e(localDate(FORAGE_REFERENCES.date))} : ${e(FORAGE_REFERENCES.source)}</p>`,
+<p class="form-note">Bilan indicatif : la consommation est estimée à partir des besoins saisis, pas des distributions réelles. Un inventaire (comptage des balles, mesure du silo) remet le stock à jour. Valeurs de référence au ${e(localDate(FORAGE_REFERENCES.date))} : ${e(FORAGE_REFERENCES.source)} ${referenceAgeBadge(FORAGE_REFERENCES,todayIso())}</p>`,
     `<button class="button secondary" data-forage="settings">Besoins</button><button class="button secondary" data-forage="new-inventory">Inventaire</button><button class="button primary" data-forage="new-harvest">Récolte</button>`,'large');
   }
 

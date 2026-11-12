@@ -201,14 +201,17 @@ function followupCheck(state){
 function phytoControlsCheck(state,today){const c=phytoComplianceCheck(state,{today});return{...c,statusLabel:STATUS_LABELS[c.status]};}
 
 /** Liste [{id,label,status,statusLabel,detail,items,action}] ; status ∈ ko, warn, unknown, ok, na. */
-export function complianceChecks(state,{today=localIso()}={}){
-  const settings=complianceSettings(state),campaign=campaignFor(today);
+// A5 : zvAuto facultatif (parcelId => détection Sandre). Sans lui, comportement inchangé (réglage seul).
+export function complianceChecks(state,{today=localIso(),zvAuto}={}){
+  // Seule une parcelle détectée en zone (sans refus explicite) bascule le réglage : un résolveur vide ne change rien.
+  const detected=typeof zvAuto==='function'&&active(state,'parcelles').some(p=>p.zoneVulnerable!==false&&zvAuto(p.id)?.inZone===true);
+  const base=complianceSettings(state),settings=detected&&!base.zoneVulnerable?{...base,zoneVulnerable:true}:base,campaign=campaignFor(today);
   const hasPhyto=phytosanitaryRegister(state).some(r=>completed(r.work));
   return[
     phytoCheck(state,campaign),
     phytoControlsCheck(state,today),
     nitrogenCheck(state,campaign,settings,today),
-    ...nitrogenComplianceChecks(state,{today,campaign}), // v5b n° 63
+    ...nitrogenComplianceChecks(state,{today,campaign,zvAuto}), // v5b n° 63
     sprayerCheck(state,settings,today,hasPhyto),
     certiphytoCheck(state,settings,today,hasPhyto),
     adminDeadlinesCheck(state,{today}), // v8a n° 72

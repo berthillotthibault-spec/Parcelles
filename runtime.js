@@ -1,4 +1,5 @@
 import {BUILD_ID,localIso} from './utils.js';
+import {WRITER_LOCK} from './tab-coordinator.js';
 
 const REQUIRED_ASSETS = [
  /* n° 161 */'./apps.js','./apps-ui.js',
@@ -8,7 +9,7 @@ const REQUIRED_ASSETS = [
  /* v7c */'./habits.js','./habits-ui.js','./agro-weather.js','./phenology.js','./phenology-ui.js','./agro-assistant.js','./agro-risk.js','./agro-risk-ui.js','./sowing.js','./sowing-ui.js','./rotation-advice.js','./rotation-advice-ui.js','./stock-capture.js','./stock-capture-ui.js','./share-target.js','./share-target-ui.js',
  /* v6c */'./activity-modules.js','./activity-modules-ui.js','./getting-started.js','./getting-started-ui.js','./whats-new.js','./whats-new-ui.js','./whatsnew.json','./friendly-errors.js','./friendly-errors-ui.js','./help.js','./help-ui.js','./theme.js','./theme-ui.js','./count-up.js','./count-up-ui.js',
  './geometry-ops.js','./contour-edit.js','./contour-edit-ui.js','./snap.js','./snap-ui.js','./walk-measure.js','./walk-measure-ui.js','./parcel-split.js','./parcel-split-ui.js','./approach.js','./approach-ui.js', // v6a
-  './machine-export.js','./application-coverage.js','./spatial-analysis.js','./spatial-ui.js','./work-effects.js','./work-effects-ui.js','./farm-context.js','./weather-decision.js','./work-weather.js','./day-route-ui.js','./qr.js','./qr-labels.js','./equipment-qr-ui.js','./farm-memory.js','./farm-planner.js','./farm-ui.js','./farm-extension-ui.js','./management-zones.js','./prescriptions.js','./farm-records.js','./advanced-economics.js','./connections.js','./scanner.js','./precision-ui.js','./application-map.js','./application-ui.js','./operations-ui.js','./connections-ui.js','./farm-agent.js','./economic-ui.js','./harvest-traceability.js','./harvest-ui.js','./yield.js','./yield-ui.js','./satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css','./design-v3.css',
+  './machine-export.js','./application-coverage.js','./spatial-analysis.js','./spatial-ui.js','./work-effects.js','./work-effects-ui.js','./farm-context.js','./weather-decision.js','./weather-freshness.js','./work-weather.js','./day-route-ui.js','./qr.js','./qr-labels.js','./equipment-qr-ui.js','./farm-memory.js','./farm-planner.js','./farm-ui.js','./farm-extension-ui.js','./management-zones.js','./prescriptions.js','./farm-records.js','./advanced-economics.js','./connections.js','./scanner.js','./precision-ui.js','./application-map.js','./application-ui.js','./operations-ui.js','./connections-ui.js','./farm-agent.js','./economic-ui.js','./harvest-traceability.js','./harvest-ui.js','./yield.js','./yield-ui.js','./satellite.js','./satellite-ui.js','./motion.css','./motion.js','./home-priorities.js','./personalization.js','./personalization-ui.js','./personalization.css','./design-v3.css',
   './index.html',
   './tokens.css','./base.css','./components.css','./map.css','./shell.css','./screens.css','./responsive.css','./accessibility.css','./assistant-launcher.css','./grazing.css','./public-works.css',
   './app.js','./ui.js','./platform.js','./integrations.js','./intelligence.js','./security.js','./diagnostics.js','./state.js','./storage.js','./map.js','./import-export.js',
@@ -25,6 +26,7 @@ const REQUIRED_ASSETS = [
   ,/* release */'./treasury-ui.js','./treasury.js','./isoxml-import.js','./settings-ui.js','./automations-ui.js','./tech-centers-ui.js','./map-layers-ui.js','./share-ui.js','./share-text.js','./explain-ui.js','./explain-model.js','./here-ui.js','./gloves.js','./gloves-ui.js','./here-context.js'
   ,/* release */'./green-indicators-ui.js','./green-indicators.js','./farm-plan-ui.js','./map-render.js','./farm-plan.js','./voice-intents-ui.js','./voice-grammar.js'
   ,'./billing-docs-ui.js','./billing-docs-view.js','./company-lookup.js','./billing-docs-editor.js','./billing-docs-actions.js','./billing-docs.css' // v13 : documents de facturation (chantier A)
+ ,'./auto-update.js','./reference-status-ui.js','./rpg-culture-labels.js','./phyto-catalog-auto.js','./zv-detect.js','./reference-age.js','./fuel-price-ref.js','./doc-text.js','./conseils.js','./input-needs.js','./decision-feed.js','./cost-drift.js','./grazing-rotation.js','./smart-defaults.js' // mises à jour automatiques et conseils (A0-A9, I1-I7)
  ,'./billing-hub.js','./billing-hub-ui.js','./billing-hub-catalog-ui.js','./billing-hub-settings-ui.js','./billing-hub.css','./lazy-styles.js' // v13 : centre Facturation, feuilles des écrans différés
 ];
 
@@ -73,17 +75,33 @@ export function markAppReady(){
   window.dispatchEvent(new CustomEvent('parcelles:ready',{detail:{buildId:BUILD_ID}}));
 }
 
-export async function registerAppServiceWorker({onUpdate,onMessage}={}){
+// A3 : contrôle de version au premier plan, au retour du réseau et toutes les 30 min (onglet visible).
+export const UPDATE_CHECK_MIN_MS=15*60*1000,UPDATE_CHECK_INTERVAL_MS=30*60*1000;
+let lastUpdateCheckAt=null;
+// Horodatage (ms) du dernier contrôle de version lancé, en mémoire ; null avant le premier.
+export function lastUpdateCheck(){return lastUpdateCheckAt;}
+
+// Autre onglet de Parcelles ouvert : il tient ou attend le verrou d'écriture. Sans Web Locks, on suppose que non.
+async function otherTabsOpen(locks){
+  try{if(typeof locks?.query!=='function')return false;const snap=await locks.query();return [...(snap?.held||[]),...(snap?.pending||[])].filter(lock=>lock?.name===WRITER_LOCK).length>1;}
+  catch{return false;}
+}
+
+export async function registerAppServiceWorker({onUpdate,onMessage,autoActivateOnBoot=true,now=()=>Date.now(),setIntervalFn=(fn,ms)=>setInterval(fn,ms),clearIntervalFn=id=>clearInterval(id),locks=globalThis.navigator?.locks}={}){
   if(!('serviceWorker'in navigator))return {supported:false};
+  // Lu avant le premier await : app.js appelle markAppReady() juste après, sans attendre l'enregistrement.
+  const booting=document.documentElement?.dataset?.appReady!=='1';
   const hadController=Boolean(navigator.serviceWorker.controller);
   let reloading=false,activationRequested=false;
   // Observe before registration/update: a fast cached install can activate immediately.
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+  const onControllerChange=()=>{
     if(reloading||(!hadController&&!activationRequested))return;
     reloading=true;
     location.reload();
-  });
-  navigator.serviceWorker.addEventListener('message',event=>onMessage?.(event.data));
+  };
+  const onSwMessage=event=>onMessage?.(event.data);
+  navigator.serviceWorker.addEventListener('controllerchange',onControllerChange);
+  navigator.serviceWorker.addEventListener('message',onSwMessage);
   const registration=await navigator.serviceWorker.register(`./sw.js?build=${encodeURIComponent(BUILD_ID)}`,{updateViaCache:'none'});
 
   const announceWaiting=worker=>{
@@ -99,10 +117,31 @@ export async function registerAppServiceWorker({onUpdate,onMessage}={}){
   };
   registration.addEventListener('updatefound',observeInstalling);
   observeInstalling();
-  if(registration.waiting)announceWaiting(registration.waiting);
+  const waiting=registration.waiting;
+  if(waiting){
+    // Démarrage à froid : aucune saisie n'est encore ouverte, la nouvelle version s'active tout de suite (un seul rechargement).
+    // Pas si un autre onglet est ouvert : SKIP_WAITING le rechargerait aussi, saisie comprise.
+    if(booting&&autoActivateOnBoot!==false&&!(await otherTabsOpen(locks))){activationRequested=true;try{waiting.postMessage({type:'SKIP_WAITING'});}catch{activationRequested=false;announceWaiting(waiting);}}
+    else announceWaiting(waiting);
+  }
+  // Au plus une fois toutes les 15 min, jamais hors ligne ; un échec reste silencieux.
+  const checkForUpdate=({force=false}={})=>{
+    if(navigator.onLine===false)return false;
+    const t=now();
+    if(!force&&lastUpdateCheckAt!=null&&t-lastUpdateCheckAt<UPDATE_CHECK_MIN_MS)return false;
+    lastUpdateCheckAt=t;
+    try{Promise.resolve(registration.update()).catch(()=>{});}catch{}
+    return true;
+  };
+  const onVisible=()=>{if(document.visibilityState==='visible')checkForUpdate();};
+  const onOnline=()=>checkForUpdate();
+  document.addEventListener('visibilitychange',onVisible);
+  window.addEventListener('online',onOnline);
+  const timer=setIntervalFn(()=>{if(document.visibilityState==='visible')checkForUpdate();},UPDATE_CHECK_INTERVAL_MS);
+  const stop=()=>{document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onOnline);clearIntervalFn(timer);navigator.serviceWorker.removeEventListener('controllerchange',onControllerChange);navigator.serviceWorker.removeEventListener('message',onSwMessage);};
   // Checking for an update must not delay readiness or lose updatefound events.
-  registration.update().catch(()=>{});
-  return {supported:true,registration};
+  checkForUpdate({force:true});
+  return {supported:true,registration,checkForUpdate,lastUpdateCheck,stop};
 }
 
 export async function serviceWorkerStatus(){

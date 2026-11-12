@@ -61,9 +61,9 @@ export function explainDailySituation(data,today=localDay()){
 const LEVELS={urgent:'Urgent',warning:'À surveiller',info:'Information'};
 const gapDays=(from,to)=>Math.round((new Date(`${to}T12:00:00Z`)-new Date(`${from}T12:00:00Z`))/86400000);
 const plural=(n,one,many)=>`${n} ${Math.abs(n)>1?many:one}`;
-const OPENABLE=['tasks','interventions','materiels','stockItems','grazingSessions','observations','regulated','sync'];
+const OPENABLE=['tasks','interventions','materiels','stockItems','grazingSessions','observations','regulated','sync','animals','parcelles'];
 export function explainNotification(state,id,{today=localDay()}={}){
-  const n=computeNotifications(state).find(row=>row.id===id);
+  const n=computeNotifications(state,{today}).find(row=>row.id===id);
   if(!n)return {value:null,why:['Cette alerte n’est plus active : la situation a changé depuis son affichage.'],missing:[],rule:null};
   const item=n.entity&&n.entityId?(state[n.entity]||[]).find(x=>x.id===n.entityId):null,why=[],missing=[];
   let rule=OPENABLE.includes(n.entity)?{label:'Ouvrir l’élément',action:'notification-open',entity:n.entity,id:n.entityId||''}:null;
@@ -99,7 +99,13 @@ export function explainNotification(state,id,{today=localDay()}={}){
     why.push(`Dernière sauvegarde automatique : ${localDate(last)}, il y a ${plural(gapDays(last,today),'jour','jours')}.`,'L’alerte apparaît au-delà de 3 jours sans sauvegarde.');
   }else if(n.id.startsWith('deadline-')){
     why.push(`${n.message}.`,n.level==='urgent'?'Échéance dépassée.':'Échéance proche (fenêtre d’alerte du suivi réglementaire).');
+  }else if(n.id.startsWith('advice-')){
+    // I2 : conseil du jour ; le bouton reprend l’action proposée (décaler, modifier, ouvrir la fiche).
+    why.push(n.message);
+    if(n.action?.type)rule={label:n.action.label,action:n.action.type,id:n.action.id||n.entityId||'',edit:n.action.type==='edit-work'};
   }else why.push(n.message||n.title);
+  // I2 : faits retenus par la règle (conseils du jour, retards reclassés).
+  if(Array.isArray(n.why))for(const line of n.why)if(line&&!why.includes(line))why.push(line);
   why.push(`Niveau : ${LEVELS[n.level]||n.level}. Les alertes sont triées : urgent, puis à surveiller, puis information.`);
   return {value:n.title,why,missing,rule};
 }

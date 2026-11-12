@@ -5,7 +5,7 @@ import {emptyState} from './state.js';
 import {
   checkTreatment,isTreatment,phytoSheet,hasPhytoData,usageFor,limitsFor,previousApplications,reentryUntil,reentryLabel,
   activeReentries,grazingReentryConflict,registerRows,registerCsv,registerHtml,registerCampaigns,phytoComplianceCheck,
-  limitsSnapshot,withdrawalLabel,at,DRE_DEFAULT_HOURS,PHYTO_DISCLAIMER
+  limitsSnapshot,withdrawalLabel,at,darEnd,darConflicts,DRE_DEFAULT_HOURS,PHYTO_DISCLAIMER
 } from './phyto.js';
 import {complianceChecks} from './compliance.js';
 
@@ -141,4 +141,23 @@ test('dérogation motivée, instantané des limites et tableau de conformité', 
   assert.ok(entry);assert.equal(entry.statusLabel,'À vérifier');
   const snap=limitsSnapshot(checkTreatment(s,over),123);
   assert.deepEqual({amm:snap.amm,maxDose:snap.maxDose,dar:snap.dar,dre:snap.dre,source:snap.source,checkedAt:snap.checkedAt},{amm:'9990001',maxDose:1,dar:35,dre:24,source:'fiche',checkedAt:123});
+});
+
+test('darEnd : jours civils aux changements d’heure (fuseau Europe/Paris), darConflicts et checkTreatment', () => {
+  const tz=process.env.TZ;process.env.TZ='Europe/Paris';
+  try{
+    // Heure d'hiver : 1er octobre + 35 j = 5 novembre (et non le 4).
+    assert.equal(new Date(darEnd(at('2026-10-01'),35)).getDate(),5);
+    // Heure d'été : 1er mars + 35 j = 5 avril minuit ; une récolte le 5 avril est hors délai.
+    assert.equal(darEnd(at('2026-03-01'),35),at('2026-04-05'));
+    // Culture « Prairie » : pas d'usage de la fiche, DAR du produit (35 j).
+    const s=farm({interventions:[work({id:'w1',date:'2026-10-01',culture:'Prairie'})]});
+    const [c]=darConflicts(s,'p1','2026-11-04');
+    assert.equal(c?.until,'2026-11-05');
+    assert.equal(darConflicts(s,'p1','2026-11-05').length,0);
+    const spring=work({date:'2026-03-01',culture:'Prairie'});
+    const harvest=date=>farm({interventions:[{id:'h1',parcelId:'p1',type:'Moisson',plannedDate:date,date,status:'À faire'}]});
+    assert.ok(!checkTreatment(harvest('2026-04-05'),spring).blocking.some(b=>b.code==='dar'));
+    assert.ok(checkTreatment(harvest('2026-04-04'),spring).blocking.some(b=>b.code==='dar'));
+  }finally{if(tz===undefined)delete process.env.TZ;else process.env.TZ=tz;}
 });

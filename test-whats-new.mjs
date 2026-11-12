@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import {versionFromBuild, compareVersions, entriesSince, whatsNewDecision, parseDraftKey, resumeTarget} from './whats-new.js';
 import {BUILD_ID} from './utils.js';
 import {draftKey} from './form-drafts.js';
+import {createWhatsNewUI} from './whats-new-ui.js';
 
 const catalog = JSON.parse(fs.readFileSync(new URL('./whatsnew.json', import.meta.url), 'utf8'));
 
@@ -52,4 +53,80 @@ test('le brouillon à rouvrir après mise à jour est retrouvé depuis sa clé',
   assert.equal(parseDraftKey('autre:clé'), null);
   assert.deepEqual(resumeTarget(['parcelles:draft:materiels:m1', draftKey('grazingSessions', 'g1')]), {type: 'grazingSessions', id: 'g1', workspace: 'local', key: 'parcelles:draft:grazingSessions:g1'});
   assert.equal(resumeTarget(['parcelles:draft:materiels:m1']), null);
+});
+
+// A3 : toast de mise à jour unique et activation automatique au passage en arrière-plan.
+function fakeUI({dirty = false, tabReadOnly = null} = {}) {
+  const toasts = [], form = {dataset: {edited: '1'}};
+  const modalRoot = {classList: {contains: c => c === 'has-modal' && dirty}, querySelector: () => (dirty ? form : null)};
+  const doc = {
+    addEventListener() {},
+    getElementById: id => (id === 'modal-root' ? modalRoot : null),
+    querySelectorAll: () => [...toasts],
+  };
+  const toast = message => { const node = {firstChild: {textContent: message}, remove() { toasts.splice(toasts.indexOf(node), 1); }}; toasts.push(node); };
+  const store = {tabReadOnly, schemaLock: null, snapshot: () => ({preferences: {}})};
+  return {toasts, store, ui: createWhatsNewUI({store, modal() {}, closeModal() {}, toast, buildId: BUILD_ID, doc, win: {}})};
+}
+const fakeUpdate = () => { const u = {count: 0, activate() { u.count++; }}; return u; };
+
+test('offer appelé deux fois : un seul toast, la dernière version remplace la précédente', () => {
+  const {toasts, ui} = fakeUI(), first = fakeUpdate(), second = fakeUpdate();
+  ui.offer(first); ui.offer(second);
+  assert.equal(toasts.length, 1);
+  ui.activate();
+  assert.equal(first.count, 0); assert.equal(second.count, 1);
+});
+
+test('maybeAutoActivate : rien si un formulaire est modifié, si busy() est vrai ou si l’onglet est en lecture seule', () => {
+  const dirty = fakeUI({dirty: true}), u1 = fakeUpdate(); dirty.ui.offer(u1);
+  assert.equal(dirty.ui.maybeAutoActivate({busy: () => false}), false); assert.equal(u1.count, 0);
+  const busy = fakeUI(), u2 = fakeUpdate(); busy.ui.offer(u2);
+  assert.equal(busy.ui.maybeAutoActivate({busy: () => true}), false); assert.equal(u2.count, 0);
+  assert.equal(busy.ui.maybeAutoActivate({writable: () => false}), false); assert.equal(u2.count, 0);
+  const ro = fakeUI({tabReadOnly: 'Lecture seule'}), u3 = fakeUpdate(); ro.ui.offer(u3);
+  assert.equal(ro.ui.maybeAutoActivate(), false); assert.equal(u3.count, 0);
+});
+
+test('maybeAutoActivate active une seule fois sinon, et ne fait rien sans version en attente', () => {
+  const {ui} = fakeUI(), u = fakeUpdate();
+  assert.equal(ui.maybeAutoActivate(), false);
+  ui.offer(u);
+  assert.equal(ui.maybeAutoActivate({writable: () => true, busy: () => false}), true);
+  assert.equal(ui.maybeAutoActivate(), false);
+  assert.equal(u.count, 1);
+});
+
+test('maybeAutoActivate : une nouvelle version annoncée après une activation sans effet peut être activée', () => {
+  const {ui} = fakeUI(), first = fakeUpdate(), second = fakeUpdate();
+  ui.offer(first); assert.equal(ui.maybeAutoActivate(), true);
+  ui.offer(first); assert.equal(ui.maybeAutoActivate(), false, 'même version : une seule fois');
+  ui.offer(second); assert.equal(ui.maybeAutoActivate(), true);
+  assert.equal(first.count, 1); assert.equal(second.count, 1);
+});
+
+test('maybeAutoActivate : attend la fin de l’enregistrement en cours avant de recharger', async () => {
+  const {ui, store} = fakeUI(), u = fakeUpdate();
+  let finish;
+  ui.offer(u);
+  store.writePromise = new Promise(resolve => { finish = resolve; });
+  assert.equal(ui.maybeAutoActivate(), true);
+  await Promise.resolve();
+  assert.equal(u.count, 0, 'pas de rechargement pendant l’écriture');
+  finish(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(u.count, 1);
+  assert.equal(ui.maybeAutoActivate(), false, 'une seule activation');
+});
+
+test('maybeAutoActivate : une saisie commencée pendant l’enregistrement annule l’activation', async () => {
+  const {ui, store} = fakeUI(), u = fakeUpdate();
+  let finish, busy = false;
+  ui.offer(u);
+  store.writePromise = new Promise(resolve => { finish = resolve; });
+  assert.equal(ui.maybeAutoActivate({busy: () => busy}), true);
+  busy = true; finish(); await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(u.count, 0);
+  busy = false; store.writePromise = null;
+  assert.equal(ui.maybeAutoActivate(), true, 'nouvel essai possible plus tard');
+  assert.equal(u.count, 1);
 });

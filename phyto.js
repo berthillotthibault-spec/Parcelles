@@ -128,13 +128,18 @@ export function harvestsFor(state,parcelId,{exceptId=null}={}){
  * Récolte ou fauche saisie dans le délai avant récolte d'un traitement terminé de la parcelle (même calcul que
  * checkTreatment, vu depuis la récolte). Avertissement seul : [{work, dar, until, message}].
  */
+/** Fin du délai avant récolte (ms) : minuit local du jour start + dar jours civils (pas dar × 24 h, faux aux changements d'heure). */
+export function darEnd(start,dar){const s0=new Date(start);return new Date(s0.getFullYear(),s0.getMonth(),s0.getDate()+Math.ceil(Number(dar))).getTime();}
 export function darConflicts(state,parcelId,date,{catalog=null}={}){
   const t=at(date);if(!Number.isFinite(t))return[];
   const parcel=active(state,'parcelles').find(p=>p.id===parcelId)||null,out=[];
   for(const w of active(state,'interventions').filter(x=>x.parcelId===parcelId&&completed(x)&&isTreatment(x))){
     const start=at(w.date),dar=limitsFor(productFor(state,w,{catalog})?.sheet||null,w,parcel).dar;
-    if(dar===null||dar===undefined||!Number.isFinite(start)||t<start||t>=start+dar*DAY)continue;
-    const until=dayIso(start+dar*DAY);
+    if(dar===null||dar===undefined||!Number.isFinite(start))continue;
+    // Jours civils (et non dar × 24 h) : un délai qui traverse le passage à l'heure d'hiver ne recule pas d'un jour.
+    const end=darEnd(start,dar);
+    if(t<start||t>=end)continue;
+    const until=dayIso(end);
     out.push({work:w,dar,until,message:`${parcel?.nom||'Parcelle'} : ${w.product||w.type||'traitement'} du ${localDate(w.date)}, délai avant récolte de ${fmt(dar)} jours jusqu’au ${localDate(until)}.`});
   }
   return out;
@@ -170,7 +175,7 @@ export function checkTreatment(state,work,{catalog=null}={}){
   }
   const date=String(work.date||work.plannedDate||'').slice(0,10);
   if(limits.dar!==null&&date){
-    const start=at(date),end=start+limits.dar*DAY;
+    const start=at(date),end=darEnd(start,limits.dar);
     for(const h of harvestsFor(state,work.parcelId,{exceptId:work.id})){
       const t=at(h.date);
       if(t>=start&&t<end)out.blocking.push({code:'dar',message:`${h.kind==='lot'?'Lot de récolte':'Récolte prévue'} le ${localDate(h.date)} (${h.label}) dans le délai avant récolte de ${fmt(limits.dar)} jours.`});

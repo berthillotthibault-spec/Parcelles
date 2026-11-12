@@ -11,7 +11,7 @@ const e=escapeHtml;
 const GLOBAL_ACTIONS={phytoRegister:'open-phyto-register',register:'open-traceability',documents:'open-documents',rotations:'open-rotations',nitrogen:'open-nitrogen',pac:'open-pac',covers:'open-covers',herdHealth:'open-herd-health',herd:'open-herd',regulated:'open-regulated-ops'};
 const ITEMS_SHOWN=5;
 
-export function createComplianceUI({store,modal,closeModal,toast,bindChipChoices,openPrintableReport}){
+export function createComplianceUI({store,modal,closeModal,toast,bindChipChoices,openPrintableReport,zvAuto}){
   const $=selector=>document.querySelector(selector);
   const today=()=>localDay();
 
@@ -40,7 +40,7 @@ export function createComplianceUI({store,modal,closeModal,toast,bindChipChoices
   }
 
   function open(){
-    const data=store.state,checks=complianceChecks(data,{today:today()}),summary=complianceSummary(checks),c=summary.counts;
+    const data=store.state,checks=complianceChecks(data,{today:today(),zvAuto}),summary=complianceSummary(checks),c=summary.counts;
     const chips=[['ko','à corriger'],['warn','à vérifier'],['unknown','non suivi'+(c.unknown>1?'s':'')],['ok','à jour']].map(([k,l])=>`<span class="compliance-count is-${k}"><b>${c[k]}</b> ${l}</span>`).join('');
     modal('Prêt pour un contrôle ?','Registres, certificats et règles de culture, d’après vos saisies.',
       `<div class="compliance">

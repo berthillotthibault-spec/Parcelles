@@ -68,6 +68,8 @@ export const dataActions = {
   'open-sync-conflict'({id}) { ctx.openSyncConflict(id); },
   async 'resolve-sync-conflict'({id, control}) { await ctx.resolveSyncConflict(id,control.dataset.choice); },
   async 'open-diagnostic'() { await ctx.openDiagnostic(); },
+  // Données de référence : la section Diagnostic traite elle-même ce bouton ; ailleurs, revérification forcée de la source.
+  async 'ref-refresh'({id}) { if(id)await ctx.autoUpdater?.ensure(id,{force:true,reason:'manual'}); },
   'choose-import'() { ctx.$('#import-file-input').click(); },
   'choose-restore'() { ctx.$('#restore-file-input').click(); },
   async 'export-complete-backup'() { await ctx.exportCompleteBackup(); },

@@ -75,8 +75,14 @@ test('correspondance RPG par identifiant mémorisé ou par centre', ()=>{
 });
 
 test('millésimes RPG : le plus récent d’abord', ()=>{
-  const years=rpgYearOptions(new Date('2026-10-12'));
-  assert.equal(years[0],2025);assert.equal(years.at(-1),2020);
+  const none=()=>false;
+  const years=rpgYearOptions(new Date('2026-10-12'),{unavailable:none});
+  assert.equal(years[0],2025,'sans millésime connu : N-1');assert.equal(years.at(-1),2015);
+  const latest=rpgYearOptions(new Date('2026-10-12'),{latest:2024,unavailable:none});
+  assert.equal(latest[0],2024,'part du dernier millésime publié');assert.equal(latest.length,10);
+  const filtered=rpgYearOptions(new Date('2026-10-12'),{latest:2025,unavailable:y=>y===2025||y===2019});
+  assert.equal(filtered[0],2025,'le dernier millésime reste proposé (servi par RPG.LATEST)');
+  assert.ok(!filtered.includes(2019));
 });
 
 test('fixture anonymisée : défauts dus au bruit d’anonymisation repérés, surfaces cohérentes', ()=>{

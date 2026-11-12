@@ -76,6 +76,29 @@ export function evictionList(entries,cap=TILE_CAP_BYTES){
   return out;
 }
 
+// Renouvellement (chantier A6). Une tuile garde la date de sa mise en cache dans l'en-tête
+// x-parcelles-cached-at ; sw.js applique la même règle (copie locale : un service worker
+// classique ne peut pas importer ce module).
+export const TILE_REFRESH_AGE_MS=30*24*3600*1000;
+export const AUTO_RENEW_AGE_MS=90*24*3600*1000;
+// Tuile à renouveler : plus vieille que maxAgeMs, ou sans date (âge inconnu, traitée comme ancienne).
+export function tileNeedsRefresh(headers,now=Date.now(),maxAgeMs=TILE_REFRESH_AGE_MS){
+  const raw=typeof headers?.get==='function'?headers.get('x-parcelles-cached-at'):headers?.['x-parcelles-cached-at'];
+  const at=Number(raw);
+  if(raw==null||raw===''||!Number.isFinite(at)||at<=0)return true;
+  return Number(now)-at>maxAgeMs;
+}
+// URL prévues mais absentes du cache (nouvelles parcelles, téléchargement incomplet).
+export function planCoverageGap(urls,cachedUrlSet){
+  const cached=cachedUrlSet instanceof Set?cachedUrlSet:new Set(cachedUrlSet||[]);
+  return [...new Set(Array.isArray(urls)?urls:[])].filter(url=>!cached.has(url));
+}
+// Carte téléchargée depuis plus de maxAgeMs (90 jours par défaut).
+export function autoRenewDue(meta,now=Date.now(),{maxAgeMs=AUTO_RENEW_AGE_MS}={}){
+  const at=Number(meta?.at);
+  return Number.isFinite(at)&&at>0&&Number(now)-at>maxAgeMs;
+}
+
 const pad=n=>String(n).padStart(2,'0');
 export function formatBytes(bytes){
   const value=Number(bytes)||0,fmt=n=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:n<10?1:0}).format(n);
@@ -83,11 +106,22 @@ export function formatBytes(bytes){
   return `${fmt(value/1024/1024)} Mo`;
 }
 export function formatCount(n){return new Intl.NumberFormat('fr-FR').format(Number(n)||0);}
-export function offlineSummary(meta){
+const DAY_MS=24*3600*1000;
+// Âge de la carte en jours de calendrier, heure locale (0 = aujourd'hui, 1 = hier), null sans date.
+// Calendrier et non tranches de 24 h : téléchargée la veille à 23 h, elle doit dire « hier » à 8 h,
+// comme la date affichée à côté ; Date.UTC sur les composantes locales neutralise le changement d'heure.
+const calendarDay=t=>{const d=new Date(t);return Date.UTC(d.getFullYear(),d.getMonth(),d.getDate());};
+export function offlineAgeDays(meta,now=Date.now()){
+  const at=Number(meta?.at),current=Number(now);if(!Number.isFinite(at)||at<=0||!Number.isFinite(current))return null;
+  return Math.max(0,Math.round((calendarDay(current)-calendarDay(at))/DAY_MS));
+}
+export function ageLabel(days){return days==null?'':days===0?'aujourd’hui':days===1?'hier':`il y a ${formatCount(days)} jours`;}
+export function offlineSummary(meta,now=Date.now()){
   if(!meta||!meta.at)return 'Pas encore téléchargée';
-  const d=new Date(meta.at),layer=offlineLayer(meta.layer)?.label||'Fond IGN';
-  if(meta.complete===false)return `Incomplète (${formatCount(meta.tiles)}${meta.total>meta.tiles?` / ${formatCount(meta.total)}`:''} tuiles) le ${pad(d.getDate())}/${pad(d.getMonth()+1)} · ${layer}${meta.cadastre?' + cadastre':''} · ${formatBytes(meta.bytes)}`;
-  return `À jour le ${pad(d.getDate())}/${pad(d.getMonth()+1)} · ${layer}${meta.cadastre?' + cadastre':''} · ${formatBytes(meta.bytes)}`;
+  const d=new Date(meta.at),layer=offlineLayer(meta.layer)?.label||'Fond IGN',days=offlineAgeDays(meta,now),old=autoRenewDue(meta,now);
+  const when=`le ${pad(d.getDate())}/${pad(d.getMonth()+1)} (${ageLabel(days)})`,tail=`${layer}${meta.cadastre?' + cadastre':''} · ${formatBytes(meta.bytes)}${old?` · plus de ${Math.round(AUTO_RENEW_AGE_MS/DAY_MS)} jours : à mettre à jour`:''}`;
+  if(meta.complete===false)return `Incomplète (${formatCount(meta.tiles)}${meta.total>meta.tiles?` / ${formatCount(meta.total)}`:''} tuiles) ${when} · ${tail}`;
+  return `${old?'Téléchargée':'À jour'} ${when} · ${tail}`;
 }
 export function normalizeMeta(value){
   if(!value||typeof value!=='object'||!Number.isFinite(Number(value.at))||!offlineLayer(value.layer))return null;

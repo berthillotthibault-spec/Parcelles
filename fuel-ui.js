@@ -4,6 +4,7 @@ import {escapeHtml as e,localDate,uid} from './utils.js';
 import {saveFarmRecord} from './farm-records.js';
 import {active} from './farm-memory.js';
 import {FUEL_KIND,DRIFT_PCT,fuelEntries,tankLevel,consumption,consumptionAlerts,validateFill,ticpeRate,validateRate,ticpeRefund} from './fuel.js';
+import {fuelDefaults,priceWarning} from './smart-defaults.js';
 
 const n2=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}),n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const eur=v=>v===null||v===undefined?'—':`${n2.format(v)} €`;
@@ -37,23 +38,64 @@ ${alerts.length?`<ul class="stock-alerts">${alerts.map(a=>`<li class="is-warning
     `<button class="button secondary" data-fuel="tank-settings">Cuve</button><button class="button secondary" data-fuel="ticpe">Remboursement TICPE</button><button class="button secondary" data-fuel="new-tank">Plein de cuve</button><button class="button primary" data-fuel="new-machine">Plein d’engin</button>`,'large');
   }
 
+  // I7 : pastilles « Comme la dernière fois » (fournisseur, prix, litres). Un appui remplit, rien n'est imposé.
+  function suggestHtml(sd){
+    const parts=[sd.supplier&&{field:'supplier',value:sd.supplier.value,label:sd.supplier.value,from:sd.supplier.from},
+      sd.pricePerLiter&&{field:'unitPrice',value:sd.pricePerLiter.value,label:`${n2.format(sd.pricePerLiter.value)} €/L`,from:sd.pricePerLiter.from},
+      sd.liters&&{field:'litres',value:sd.liters.value,label:`${n0.format(sd.liters.value)} L`,from:sd.liters.from}].filter(Boolean);
+    if(!parts.length)return'';
+    const chip=(values,label,title)=>`<button type="button" class="choice-chip" data-fuel="suggest" data-values="${e(JSON.stringify(values))}" title="${e(title)}" aria-pressed="false">${e(label)}</button>`;
+    const all=parts.length>1?chip(Object.fromEntries(parts.map(x=>[x.field,x.value])),parts.map(x=>x.label).join(' · '),`Remplir ces ${parts.length} champs`):'';
+    return`<div class="field-label span-2 fuel-suggest"><span>Comme la dernière fois</span><div class="chip-choices" role="group" aria-label="Valeurs habituelles">${all}${parts.map(x=>chip({[x.field]:x.value},x.label,x.from)).join('')}</div></div>`;
+  }
+
+  function bindPriceWarning(getMedian){
+    const form=$('#fuel-form'),input=form?.elements?.unitPrice,box=$('#fuel-price-warning');if(!input||!box)return()=>{};
+    const check=()=>{const msg=priceWarning(input.value,getMedian(),{unit:'L'});box.textContent=msg||'';box.hidden=!msg;};
+    input.addEventListener('input',check);check();return check;
+  }
+
+  // Plein d'engin : les valeurs habituelles (litres surtout) dépendent de l'engin, recalculées à son choix.
+  function placeholders(form,sd,fallbackPrice){
+    const set=(name,text)=>{if(form.elements[name])form.elements[name].placeholder=text;};
+    set('litres',sd.liters?`Habituel ${n0.format(sd.liters.value)}`:'');
+    set('unitPrice',sd.pricePerLiter?`Habituel ${n2.format(sd.pricePerLiter.value)}`:fallbackPrice);
+    set('supplier',sd.supplier?sd.supplier.value:'');
+  }
+
+  function applySuggestion(control){
+    const form=$('#fuel-form');if(!form)return;let values={};try{values=JSON.parse(control.dataset.values||'{}');}catch{return;}
+    for(const [k,v] of Object.entries(values)){const el=form.elements[k];if(el){el.value=String(v);el.dispatchEvent(new Event('input',{bubbles:true}));}}
+    control.closest('.chip-choices')?.querySelectorAll('.choice-chip').forEach(c=>{const on=c===control;c.classList.toggle('is-on',on);c.setAttribute('aria-pressed',String(on));});
+  }
+
   function openFill(entry,record=null){
     const r=record||{date:todayIso(),litres:'',unitPrice:'',amount:'',meter:'',equipmentId:'',fromTank:true,supplier:'',invoiceRef:'',note:''},list=machines();
     const t=tankLevel(data(),{today:todayIso()});
+    const sd=fuelDefaults(data(),{today:todayIso(),entry});
+    const pricePh=sd.pricePerLiter?`Habituel ${n2.format(sd.pricePerLiter.value)}`:entry==='machine'&&t.averagePrice!==null?`Moyenne cuve ${n2.format(t.averagePrice)}`:'';
     modal(entry==='tank'?'Plein de cuve':'Plein d’engin',entry==='tank'?'Livraison de GNR dans la cuve de l’exploitation.':'Litres mis dans l’engin et compteur horaire.',`<form id="fuel-form" class="form-grid" data-entry="${entry}" data-id="${e(record?.id||'')}">
 ${entry==='machine'?`<label>Engin<select name="equipmentId" required><option value="">Choisir…</option>${list.map(m=>`<option value="${e(m.id)}" ${r.equipmentId===m.id?'selected':''}>${e(m.nom)}${m.currentMeter!==null&&m.currentMeter!==undefined&&m.currentMeter!==''?` · ${e(m.currentMeter)} h`:''}</option>`).join('')}</select></label>`:''}
-<label>Date<input type="date" name="date" max="${todayIso()}" value="${e(r.date)}"></label>
-<label>Litres<input name="litres" type="number" min="0" step="any" inputmode="decimal" value="${e(r.litres??'')}" required></label>
+${record?'':suggestHtml(sd)}<label>Date<input type="date" name="date" max="${todayIso()}" value="${e(r.date)}"></label>
+<label>Litres<input name="litres" type="number" min="0" step="any" inputmode="decimal" value="${e(r.litres??'')}" placeholder="${sd.liters?`Habituel ${e(n0.format(sd.liters.value))}`:''}" required></label>
 ${entry==='machine'?`<label>Compteur horaire (h)<input name="meter" type="number" min="0" step="any" inputmode="decimal" value="${e(r.meter??'')}" placeholder="Relevé au moment du plein"></label>
 <label><input type="checkbox" name="fromTank" ${r.fromTank!==false?'checked':''}> Pris à la cuve de l’exploitation</label>`:''}
-<label>Prix (€/L)<input name="unitPrice" type="number" min="0" step="any" inputmode="decimal" value="${e(r.unitPrice??'')}" placeholder="${entry==='machine'&&t.averagePrice!==null?`Moyenne cuve ${n2.format(t.averagePrice)}`:''}"></label>
+<label>Prix (€/L)<input name="unitPrice" type="number" min="0" step="any" inputmode="decimal" value="${e(r.unitPrice??'')}" placeholder="${e(pricePh)}"></label>
 <label>Montant TTC (€)<input name="amount" type="number" min="0" step="any" inputmode="decimal" value="${e(r.amount??'')}"></label>
-<label>Fournisseur<input name="supplier" maxlength="120" value="${e(r.supplier||'')}"></label>
+<label>Fournisseur<input name="supplier" maxlength="120" value="${e(r.supplier||'')}" placeholder="${sd.supplier?e(sd.supplier.value):''}"></label>
 <label>N° de facture<input name="invoiceRef" maxlength="80" value="${e(r.invoiceRef||'')}"></label>
 <label class="span-2">Facture (photo ou PDF, facultatif)<input type="file" name="invoiceFile" accept="image/*,application/pdf"></label>
 <label class="span-2">Note<input name="note" maxlength="200" value="${e(r.note||'')}"></label>
+<p class="form-error span-2" id="fuel-price-warning" role="status" hidden></p>
 <p class="form-error span-2" id="fuel-error" role="alert" hidden></p></form>`,
     `<button class="button secondary" data-fuel="back">Annuler</button>${record?`<button class="button danger" data-fuel="delete" data-id="${e(record.id)}">Supprimer</button>`:''}<button class="button primary" data-fuel="save-fill">Enregistrer</button>`,'large');
+    let median=sd.priceMedian;const check=bindPriceWarning(()=>median);
+    const form=$('#fuel-form'),select=form?.elements?.equipmentId;
+    if(entry==='machine'&&!record&&select)select.addEventListener('change',()=>{
+      const next=fuelDefaults(data(),{today:todayIso(),entry,equipmentId:select.value||null});median=next.priceMedian;
+      form.querySelector('.fuel-suggest')?.remove();const html=suggestHtml(next);if(html)form.elements.date.closest('label').insertAdjacentHTML('beforebegin',html);
+      placeholders(form,next,t.averagePrice!==null?`Moyenne cuve ${n2.format(t.averagePrice)}`:'');check();
+    });
   }
 
   async function attachInvoice(file,date){
@@ -118,6 +160,7 @@ ${r.missingInvoice?`<p class="form-note">${r.missingInvoice} achat${r.missingInv
     if(name==='edit'){const r=fuelEntries(data()).find(x=>x.id===id);if(r&&!r.legacy)openFill(r.entry,r);return;}
     if(name==='delete'){const r=fuelEntries(data()).find(x=>x.id===id);if(!r||r.legacy)return;await store.remove('integrationImports',r.id);toast('Plein placé dans la corbeille.','success',{label:'Annuler',run:()=>store.restore('integrationImports',r.id).then(()=>open())});return open();}
     if(name==='save-fill')return saveFill();
+    if(name==='suggest')return applySuggestion(control);
     if(name==='tank-settings')return openTankSettings();
     if(name==='save-tank')return saveTank();
     if(name==='ticpe')return openTicpe();

@@ -38,7 +38,10 @@ export const fieldActions = {
     ctx.closeModal(); ctx.openGrazingEntry({parcelIds: ids, screen: ids.length ? 'details' : 'parcels'});
   },
   'edit-grazing'({id}) { const g=ctx.store.get('grazingSessions',id); if(g){ctx.closeModal();ctx.openGrazingForm(g);} },
-  'move-grazing'({id}) { const g=ctx.store.get('grazingSessions',id); if(g){ctx.closeModal();ctx.getGrazingUI().openMove(g);} },
+  'move-grazing'({id,control}) {
+    const g=ctx.store.get('grazingSessions',id);
+    if(g){ctx.closeModal();ctx.getGrazingUI().openMove(g,{targetId:control?.dataset?.target||''});}
+  },
   async 'end-grazing'({id}) {
     const g=ctx.store.get('grazingSessions',id);
     await endGrazingSession(ctx.store,id,{date:grazingDate()});

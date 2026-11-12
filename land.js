@@ -23,11 +23,29 @@ export const FERMAGE_INDEX_REFERENCE=Object.freeze({
   verify:'Valeur pré-remplie à vérifier sur Légifrance ; saisissez le nouvel indice dès sa publication (juillet). Le prix du quintal de blé fermage est fixé par arrêté préfectoral de votre département.'
 });
 
-/** Indice retenu : saisi par l'exploitant pour l'année, sinon la valeur pré-remplie. */
-export function fermageIndex(state){
+const localIso=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const isoDay=v=>{const s=String(v??'').slice(0,10);return/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(`${s}T12:00:00`))?s:'';};
+
+/**
+ * Validité de l'indice : l'indice de l'année N s'applique aux échéances du 1er octobre N au
+ * 30 septembre N+1. Le nouvel indice paraît en juillet : « attendu » dès le 1er août N+1,
+ * « perime » après le 30 septembre N+1. Vaut pour la valeur pré-remplie comme pour l'indice saisi.
+ */
+export function fermageIndexStatus(idx,today=localIso()){
+  const year=Number(idx?.year),day=isoDay(today);
+  if(!Number.isInteger(year)||year<2000||!day)return{status:'ok',validUntil:'',message:''};
+  const next=year+1,validUntil=`${next}-09-30`;
+  if(day>validUntil)return{status:'perime',validUntil,message:`Indice ${year} applicable jusqu’au 30/09/${next}, échéance dépassée : saisissez l’indice ${next}.`};
+  if(day>=`${next}-08-01`)return{status:'attendu',validUntil,message:`Indice ${year} applicable jusqu’au 30/09/${next} : saisissez l’indice ${next}.`};
+  return{status:'ok',validUntil,message:''};
+}
+
+/** Indice retenu : saisi par l'exploitant pour l'année, sinon la valeur pré-remplie ; porte son statut de validité. */
+export function fermageIndex(state,{today=localIso()}={}){
   const own=state?.preferences?.fermageIndex,value=num(own?.value);
-  if(value!==null&&value>0)return{year:Number(own.year)||null,value,date:own.enteredAt?new Date(own.enteredAt).toISOString().slice(0,10):'',source:'Saisi par l’exploitant',prefilled:false};
-  return{...FERMAGE_INDEX_REFERENCE,prefilled:true};
+  const idx=value!==null&&value>0?{year:Number(own.year)||null,value,date:Number.isFinite(new Date(own.enteredAt??NaN).getTime())?new Date(own.enteredAt).toISOString().slice(0,10):'',source:'Saisi par l’exploitant',prefilled:false}:{...FERMAGE_INDEX_REFERENCE,prefilled:true};
+  const st=fermageIndexStatus(idx,today);
+  return{...idx,status:st.status,validUntil:st.validUntil,statusMessage:st.message};
 }
 export function validateIndex(v){
   const year=Number(v?.year),value=num(v?.value),qp=num(v?.quintalPrice);
@@ -61,7 +79,8 @@ export function parcelRent(parcel,{index,quintalPrice=null}){
 }
 
 /** Avis d'échéance regroupés par bailleur. */
-export function rentNotices(state,{index=fermageIndex(state),quintalPrice=num(state?.preferences?.fermageIndex?.quintalPrice)}={}){
+export function rentNotices(state,{today=localIso(),index=fermageIndex(state,{today}),quintalPrice=num(state?.preferences?.fermageIndex?.quintalPrice)}={}){
+  const st=index?.status?{status:index.status,validUntil:index.validUntil||'',message:index.statusMessage||''}:fermageIndexStatus(index,today);
   const groups=new Map();
   for(const p of active(state,'parcelles').filter(hasLease)){
     if(p.lease.leaseType==='propriete')continue;
@@ -72,7 +91,7 @@ export function rentNotices(state,{index=fermageIndex(state),quintalPrice=num(st
     g.parcels.push({parcel:p,area:num(p.surfaceHa)||0,cadastre:p.lease.cadastre||'',rent:r,tax});g.area+=num(p.surfaceHa)||0;
     if(r.total===null)g.missing+=1;else g.rent+=r.total;g.tax+=tax;groups.set(key,g);
   }
-  return[...groups.values()].map(g=>({...g,area:r2(g.area),rent:r2(g.rent),tax:r2(g.tax),total:r2(g.rent+g.tax)})).sort((a,b)=>a.owner.localeCompare(b.owner,'fr'));
+  return[...groups.values()].map(g=>({...g,area:r2(g.area),rent:r2(g.rent),tax:r2(g.tax),total:r2(g.rent+g.tax),status:st.status,statusMessage:st.message,validUntil:st.validUntil})).sort((a,b)=>a.owner.localeCompare(b.owner,'fr'));
 }
 
 /** Rappels : baux arrivant à échéance dans les 18 mois (ou échus). */
@@ -102,5 +121,6 @@ export function noticePdfBlocks(notice,{farm={},index,quintalPrice=null,today}){
     {type:'table',head:['Parcelle','Cadastre','Surface (ha)','Fermage','Montant','Part taxe foncière'],rows,align:['','','right','right','right','right']},
     {type:'p',text:`Fermages : ${eur(notice.rent)} · part de taxe foncière : ${eur(notice.tax)} · total : ${eur(notice.total)}`,bold:true},
     {type:'note',text:`Indice national des fermages ${index.year||''} : ${String(index.value).replace('.',',')} (${index.prefilled?'valeur pré-remplie':'saisie'}${index.date?` le ${fr(index.date)}`:''}).${quintalPrice?` Prix du quintal : ${String(quintalPrice).replace('.',',')} €.`:''} Calcul indicatif : vérifiez les clauses du bail et l’arrêté préfectoral.`},
+    ...(()=>{const st=notice?.status?{status:notice.status,message:notice.statusMessage}:index?.status?{status:index.status,message:index.statusMessage}:fermageIndexStatus(index,today);return st.status!=='ok'&&st.message?[{type:'p',text:st.message,bold:true}]:[];})(),
     ...(notice.missing?[{type:'p',text:`${notice.missing} parcelle(s) sans fermage calculable (loyer ou prix du quintal manquant).`,muted:true}]:[])];
 }

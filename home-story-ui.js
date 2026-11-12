@@ -1,8 +1,13 @@
 // Rendu de l’accueil « qui raconte la journée » : salutation, phrase d’agenda, carte « Ce matin »,
 // lecture à voix haute, prénom et position de l’exploitation. Lecture seule, sauf deux écritures
 // explicites et confirmées par l’utilisateur : le prénom (préférences) et la position (exploitation).
-import {escapeHtml} from './utils.js';
+import {escapeHtml, localIso} from './utils.js';
 import {composeMorningBrief, dayStory, greetingTitle, typo} from './home-story.js';
+import {decisionFeed, decisionCountLabel, stakesLabel} from './decision-feed.js';
+// Sources du fil « À décider » (W3, W5, W6). Import en espace de noms : un export absent ne casse pas le chargement.
+import * as inputNeedsModule from './input-needs.js';
+import * as costDriftModule from './cost-drift.js';
+import * as grazingRotationModule from './grazing-rotation.js';
 
 const NAME_PROMPT_KEY = 'parcelles:name-prompt-dismissed';
 const readFlag = key => {try {return globalThis.localStorage?.getItem(key) || '';} catch {return '';}};
@@ -49,13 +54,43 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
     return `<li><button type="button" class="story-line${tone}" data-action="${escapeHtml(s.action)}"${s.id ? ` data-id="${escapeHtml(s.id)}"` : ''}><span>${escapeHtml(s.text)}</span>${CHEVRON}</button></li>`;
   }
 
-  function renderBrief(root, {data, weather, cockpit}) {
+  // Fil « À décider » : au plus 7 cartes classées par enjeu ; rien si la liste est vide.
+  const source = fn => {try {const rows = fn(); return Array.isArray(rows) ? rows : [];} catch {return [];}};
+  // treasury.js (et invoices.js) restent hors du démarrage : chargés seulement si la trésorerie est paramétrée ; la carte paraît au rendu suivant.
+  let treasuryModule = null, treasuryLoading = false;
+  const treasuryForecastFor = data => {
+    if (treasuryModule || treasuryLoading || !data?.preferences?.treasury) return treasuryModule?.treasuryForecast || null;
+    treasuryLoading = true;
+    import('./treasury.js').then(m => {treasuryModule = m;}, () => {treasuryLoading = false;});
+    return null;
+  };
+  // agro : prévisions agronomiques (agroWeather.get(), avec days[]) ; le cache météo d’accueil (daily.time) ne convient pas aux risques.
+  function decisionsHtml(data, weather, agro) {
+    const today = localIso(new Date(now()));
+    let rows = [];
+    try {
+      rows = decisionFeed(data, {today, now: now(), weather: agro?.days?.length ? agro : weather?.days?.length ? weather : null,
+        inputNeeds: source(() => inputNeedsModule.inputNeeds?.(data, {today})),
+        costDrifts: source(() => costDriftModule.farmCostDrift?.(data, {})),
+        grazingAdvice: source(() => grazingRotationModule.grazingRotationAdvice?.(data, {today})),
+        treasuryForecast: treasuryForecastFor(data)});
+    } catch {rows = [];}
+    if (!rows.length) return '';
+    const card = d => {
+      const stakes = stakesLabel(d.stakes), a = d.action || {};
+      const extra = (a.payload?.entity ? ` data-entity="${escapeHtml(a.payload.entity)}"` : '') + (a.type === 'create-task-prefill' && a.payload ? ` data-payload="${escapeHtml(JSON.stringify(a.payload))}"` : '');
+      return `<li class="decision-card is-${escapeHtml(d.level)}"><div class="decision-main"><strong>${escapeHtml(typo(d.title))}</strong>${stakes ? `<small class="decision-stakes">${escapeHtml(stakes)}</small>` : ''}<details class="decision-why"><summary>Pourquoi&nbsp;?</summary><ul>${d.why.map(w => `<li>${escapeHtml(typo(w))}</li>`).join('')}</ul></details></div><button type="button" class="button secondary decision-action" data-action="${escapeHtml(a.type)}" data-id="${escapeHtml(a.id ?? '')}"${extra}>${escapeHtml(a.label || 'Voir')}</button></li>`;
+    };
+    return `<section class="decision-feed" aria-labelledby="decision-feed-title"><h2 id="decision-feed-title">${escapeHtml(decisionCountLabel(rows.length))}</h2><ul class="decision-list">${rows.map(card).join('')}</ul></section>`;
+  }
+
+  function renderBrief(root, {data, weather, cockpit, agro = null}) {
     if (!root) return;
     const brief = composeMorningBrief(data, weather, {now: now(), cockpit, location: hasLocation(data)});
     lastSpeech = brief.speech;
     const meta = typo(weatherMeta(brief.weatherAge));
     const speaking = canSpeak() && globalThis.speechSynthesis.speaking;
-    root.innerHTML = `<div class="story-card"><div class="story-head"><div><h2>${escapeHtml(brief.title)}</h2>${meta ? `<small class="story-meta">${escapeHtml(meta)}</small>` : ''}</div>${canSpeak() ? `<button type="button" class="button secondary story-listen" data-story="listen" aria-pressed="${speaking}" aria-label="${speaking ? 'Arrêter la lecture du briefing' : 'Écouter le briefing'}">${speaking ? STOP : SPEAKER}<span>${speaking ? 'Arrêter' : 'Écouter'}</span></button>` : ''}</div><ul class="story-list">${brief.sentences.map(sentenceHtml).join('')}</ul>${brief.indicative ? '<p class="story-note">Créneaux indicatifs, calculés sur les seuils météo de l’application : à confirmer sur le terrain. Ce n’est pas une autorisation réglementaire de traitement.</p>' : ''}</div>`;
+    root.innerHTML = `${decisionsHtml(data, weather, agro)}<div class="story-card"><div class="story-head"><div><h2>${escapeHtml(brief.title)}</h2>${meta ? `<small class="story-meta">${escapeHtml(meta)}</small>` : ''}</div>${canSpeak() ? `<button type="button" class="button secondary story-listen" data-story="listen" aria-pressed="${speaking}" aria-label="${speaking ? 'Arrêter la lecture du briefing' : 'Écouter le briefing'}">${speaking ? STOP : SPEAKER}<span>${speaking ? 'Arrêter' : 'Écouter'}</span></button>` : ''}</div><ul class="story-list">${brief.sentences.map(sentenceHtml).join('')}</ul>${brief.indicative ? '<p class="story-note">Créneaux indicatifs, calculés sur les seuils météo de l’application : à confirmer sur le terrain. Ce n’est pas une autorisation réglementaire de traitement.</p>' : ''}</div>`;
   }
 
   // Carte Météo sans prévision : une ligne compacte plutôt qu’un grand bloc vide.

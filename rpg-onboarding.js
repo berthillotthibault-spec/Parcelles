@@ -3,7 +3,7 @@
 // le RPG publié par l’IGN est anonyme, c’est l’utilisateur qui désigne ses îlots.
 import {clone,formatNumber,uid,validateParcel} from './utils.js';
 import {normalizeEntity} from './state.js';
-import {rpgFeatureId,rpgFeatureToParcel,rpgCultureLabel,isRpgYearUnavailable} from './rpg.js';
+import {rpgFeatureId,rpgFeatureToParcel,rpgCultureLabel,isRpgYearUnavailable,getRpgLatestYear,RPG_OLDEST_YEAR} from './rpg.js';
 
 export const GEOCODE_URL='https://data.geopf.fr/geocodage/search';
 export const RPG_FALLBACK_YEAR=2024;
@@ -13,10 +13,16 @@ export const BATCH_LIMIT=300;
 // Nomenclature des cultures PAC déplacée dans rpg.js (réexportée ici pour telepac.js et les tests).
 export {RPG_CULTURE_LABELS,rpgCultureLabel} from './rpg.js';
 
-export function onboardingRpgYears(now=new Date()){
-  // Mise à jour automatique : l’année en cours d’abord, puis les précédentes jusqu’à 2024.
-  // Un millésime pas encore publié (réponse « inconnu » du WFS) est écarté pour la session.
-  const out=[];for(let year=now.getFullYear();year>=RPG_FALLBACK_YEAR;year--)if(!isRpgYearUnavailable(year))out.push(year);
+export const ONBOARDING_RPG_MAX_YEARS=3;
+export function onboardingRpgYears(now=new Date(),latest=getRpgLatestYear(),{limit=ONBOARDING_RPG_MAX_YEARS}={}){
+  // Mise à jour automatique : le dernier millésime publié (RPG.LATEST, vérifié chaque semaine) s’il est
+  // connu, sinon l’année en cours, puis les précédentes jusqu’à 2015. Un millésime pas encore publié
+  // (réponse « inconnu » du WFS, gardée 30 jours) est écarté ; le dernier connu reste servi par RPG.LATEST.
+  // Au plus `limit` millésimes : la carte et l’accueil essaient chaque année de la liste quand une zone est
+  // vide ou que le service échoue ; sans plafond, une panne coûterait jusqu’à 11 essais de 30 s.
+  const top=Number.isSafeInteger(latest)&&latest>=RPG_OLDEST_YEAR?latest:now.getFullYear();
+  const max=Number.isSafeInteger(limit)&&limit>0?limit:Infinity;
+  const out=[];for(let year=top;year>=RPG_OLDEST_YEAR&&out.length<max;year--)if(year===latest||!isRpgYearUnavailable(year))out.push(year);
   return out.length?out:[RPG_FALLBACK_YEAR];
 }
 

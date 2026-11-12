@@ -6,6 +6,7 @@
 // - Chaque ligne est rapprochée d'un article existant (correspondance floue) ; rien n'est écrit
 //   avant la validation ligne par ligne. Pas d'OCR embarqué.
 import {normalize} from './utils.js';
+import {convertQuantity} from './voice-notes.js';
 
 export const EXTRACT_MODE = 'extract-document';
 export const MAX_LINES = 50;
@@ -79,15 +80,67 @@ export function similarity(a, b) {
   return Math.round(Math.max(dice, contained) * 100) / 100;
 }
 
-// Meilleur article pour une ligne : l'AMM identique l'emporte, sinon le nom le plus proche.
-export function matchLine(line, items = []) {
-  const live = items.filter(i => !i.deletedAt);
+// Meilleur article pour une ligne : une référence déjà retenue chez ce fournisseur (même libellé)
+// l'emporte, puis l'AMM identique, sinon le nom le plus proche.
+export const MAX_SUPPLIER_REFS = 50;
+const refKey = v => normalize(String(v ?? '')).replace(/\s+/g, ' ').trim();
+export function supplierRefFor(item, supplier, label) {
+  const s = refKey(supplier), l = refKey(label);
+  if (!s || !l || !Array.isArray(item?.supplierRefs)) return null;
+  return item.supplierRefs.find(r => refKey(r?.supplier) === s && refKey(r?.label) === l) || null;
+}
+export function matchLine(line, items = [], {supplier = ''} = {}) {
+  const live = items.filter(i => !i.deletedAt), who = supplier || line.supplier || '';
+  if (who) for (const item of live) {const ref = supplierRefFor(item, who, line.product); if (ref) return {item, score: 1, by: 'fournisseur', ref};}
   if (line.amm) {const byAmm = live.find(i => String(i.amm || '').replace(/\D/g, '') === line.amm); if (byAmm) return {item: byAmm, score: 1, by: 'AMM'};}
   let best = null;
   for (const item of live) {const score = similarity(line.product, item.name); if (!best || score > best.score) best = {item, score, by: 'nom'};}
   return best && best.score >= MATCH_MIN ? best : {item: null, score: best?.score || 0, by: null};
 }
-export const matchLines = (lines, items) => lines.map(line => ({line, ...matchLine(line, items)}));
+export const matchLines = (lines, items, options = {}) => lines.map(line => ({line, ...matchLine(line, items, options)}));
+
+// Mémoire fournisseur : « ce libellé chez ce fournisseur = cet article ». Renvoie une copie de l'article ;
+// un doublon (même fournisseur, même libellé) est remplacé, les 50 plus récentes sont gardées.
+export function rememberSupplierRef(item, {supplier = '', label = '', code = '', factor = null, unit = ''} = {}) {
+  const s = str(supplier, 80), l = str(label);
+  const refs = (Array.isArray(item?.supplierRefs) ? item.supplierRefs : []).filter(r => r && typeof r === 'object');
+  if (!s || !l) return {...item, supplierRefs: refs};
+  const f = num(factor), ref = {supplier: s, label: l, ...(str(code, 40) ? {code: str(code, 40)} : {}), ...(f !== null && f > 0 ? {factor: f} : {}), ...(str(unit, 20) ? {unit: str(unit, 20)} : {})};
+  const kept = refs.filter(r => !(refKey(r.supplier) === refKey(s) && refKey(r.label) === refKey(l)));
+  return {...item, supplierRefs: [...kept, ref].slice(-MAX_SUPPLIER_REFS)};
+}
+
+// Ligne lue → quantité et prix dans l'unité de l'article. Le conditionnement (pack, forme de packFactor)
+// multiplie la quantité quand la ligne compte encore des colis ; puis L/kg/t via convertQuantity.
+// Jamais d'exception : unité impossible à convertir → valeurs d'origine et why « Unité incompatible ».
+const UNIT_ALIASES = [[/^(l|lt|litres?)$/, 'l'], [/^(kg|kgs|kilos?|kilogrammes?)$/, 'kg'], [/^(t|tonnes?)$/, 't'], [/^(ml|millilitres?)$/, 'ml'], [/^(u|un|unites?|pcs?|pieces?)$/, 'u']];
+const baseUnit = u => {const f = normalize(String(u ?? '')).replace(/[\s.]/g, ''); for (const [re, v] of UNIT_ALIASES) if (re.test(f)) return v; return f;};
+const fmtQ = n => String(Math.round(n * 1000) / 1000).replace('.', ',');
+export function convertLineToItem(line = {}, item = {}) {
+  const q0 = num(line.quantity), p0 = num(line.unitPrice);
+  const same = {quantity: q0, unitPrice: p0, converted: false, why: ''};
+  if (q0 === null) return {...same, why: 'Quantité absente'};
+  let qty = q0, unit = baseUnit(line.unit), why = '';
+  // Conditionnement déjà appliqué (packs, lecture doc-text) ou compté en unités (« carton 12 doses ») :
+  // la quantité affichée dans le tableau est gardée telle quelle, sans multiplication cachée.
+  const pack = line.pack && num(line.pack.factor) > 0 && !line.packs && baseUnit(line.pack.unit) !== 'u' ? line.pack : null;
+  if (pack && baseUnit(pack.unit) !== unit) {
+    const factor = num(pack.factor);
+    qty = q0 * factor; unit = baseUnit(pack.unit);
+    why = `${fmtQ(q0)} × ${fmtQ(factor)} ${pack.unit} = ${fmtQ(qty)} ${pack.unit}`;
+  }
+  const target = baseUnit(item?.unit);
+  let out = qty;
+  if (target && unit && target !== unit) {
+    out = unit === 'ml' && target === 'l' ? qty / 1000 : unit === 'l' && target === 'ml' ? qty * 1000 : convertQuantity(qty, unit, target);
+    if (out === null || !Number.isFinite(out)) return {...same, why: 'Unité incompatible'};
+    why = `${why ? `${why}, ` : ''}${fmtQ(qty)} ${line.pack && why ? pack.unit : line.unit || unit} = ${fmtQ(out)} ${item.unit}`;
+  }
+  out = Math.round(out * 1000) / 1000;
+  if (out === q0) return same;
+  const unitPrice = p0 === null || !(out > 0) ? null : Math.round(p0 * q0 / out * 10000) / 10000;
+  return {quantity: out, unitPrice, converted: true, why};
+}
 
 // Mouvement d'entrée pour une ligne validée : lot, fournisseur et péremption dans les champs lus par
 // stock-lots.js (itemLots, alertes de péremption), absents quand ils sont vides.

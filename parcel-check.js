@@ -2,6 +2,7 @@
 // Aide à la vérification seulement : la déclaration officielle reste celle de telepac.
 // Les intersections sont approchées par grille (centres de cellules), comme analyzeCoverage.
 import {geometryAreaHa, geometryBbox, geometryCentroid, pointInGeometry} from './utils.js';
+import {isRpgYearUnavailable, rpgParcelKey} from './rpg.js';
 
 export const PARCEL_CHECK_DISCLAIMER='Aide à la vérification calculée sur l’appareil, par approximation : elle ne remplace pas la déclaration telepac ni le contrôle officiel.';
 export const SURFACE_TOLERANCE=0.02; // écart relatif signalé (> 2 %)
@@ -11,8 +12,15 @@ const alive=list=>(list||[]).filter(item=>item&&!item.deletedAt&&!item.archived)
 const polygonsOf=g=>g?.type==='Polygon'?[g.coordinates]:g?.type==='MultiPolygon'?g.coordinates:[];
 const round=(value,digits=2)=>Math.round(value*10**digits)/10**digits;
 
-/** Années RPG proposées, la plus récente d'abord (le millésime N-1 peut ne pas être encore publié). */
-export function rpgYearOptions(now=new Date(),oldest=2020){const last=now.getFullYear()-1,out=[];for(let y=last;y>=oldest;y--)out.push(y);return out;}
+/**
+ * Années RPG proposées, la plus récente d'abord : le dernier millésime publié (RPG.LATEST) s'il est connu,
+ * sinon N-1, jusqu'à 2015, sans les millésimes que le WFS a déclarés absents (le dernier connu reste proposé).
+ */
+export function rpgYearOptions(now=new Date(),{latest=null,oldest=2015,unavailable=isRpgYearUnavailable}={}){
+  const known=Number.isSafeInteger(latest)&&latest>=oldest?latest:null;
+  const out=[];for(let y=known??now.getFullYear()-1;y>=oldest;y--)if(y===known||!unavailable?.(y))out.push(y);
+  return out;
+}
 
 function segmentsCross(a,b,c,d){
   const o=(p,q,r)=>Math.sign((q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]));
@@ -50,7 +58,7 @@ export function overlapArea(a,b,{maxCells=4000}={}){
 export const bboxPolygon=b=>b?{type:'Polygon',coordinates:[[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]],[b[0],b[1]]]]}:null;
 
 function rpgSurface(feature){const v=feature?.properties?.surf_parc??feature?.properties?.SURF_PARC;const n=typeof v==='number'?v:Number(String(v??'').replace(',','.'));return Number.isFinite(n)&&n>0?n:null;}
-function rpgIdOf(feature){return String(feature?.properties?.id_parcel??feature?.properties?.ID_PARCEL??feature?.id??'');}
+function rpgIdOf(feature){return String(rpgParcelKey(feature?.properties)??feature?.id??'');}
 /** Parcelle RPG correspondant à une parcelle : identifiant RPG mémorisé, sinon celle qui contient son centre. */
 export function matchRpg(parcel,features){
   const fromSource=/^rpg:\d+:parcel:(.+)$/.exec(String(parcel.sourceId||''))?.[1];

@@ -102,3 +102,9 @@ test('ancien plein QR (entretien « Plein ») compté une seule fois, en carbura
   assert.equal(r.fuel, 650); assert.equal(r.fuelLitres, 600);
   assert.equal(r.total, 8650);
 });
+
+test('barème : le millésime d’exemple suit l’année injectée', async () => {
+  const {ratesYearPlaceholder} = await import('./machine-costs-ui.js');
+  assert.equal(ratesYearPlaceholder(() => new Date('2026-11-12T12:00:00')), 'ex. 2025');
+  assert.equal(ratesYearPlaceholder(() => new Date('2031-03-01T12:00:00')), 'ex. 2030');
+});

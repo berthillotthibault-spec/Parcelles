@@ -2,6 +2,7 @@
 // d'ancienneté, besoin de chaulage et tâche associée, grille d'échantillonnage et guidage GPS.
 import {escapeHtml as e,localDate,uid} from './utils.js';
 import {saveFarmRecord} from './farm-records.js';
+import {referenceAgeBadge} from './reference-age.js';
 import {active} from './farm-memory.js';
 import {SOIL_KIND,GRID_KIND,SOIL_REFERENCES,SOIL_FIELDS,textureOf,validateAnalysis,analyses,latestAnalysis,ageYears,limingNeed,phClass,analysisAlerts,samplingGrid,grids,guidance,nextPoint} from './soil-analysis.js';
 
@@ -43,7 +44,7 @@ ${grid?`<p class="form-note">Grille : ${grid.points.filter(x=>x.sampledAt).lengt
     modal('Analyses de sol',`pH, P, K, MgO, matière organique et CEC par parcelle · alerte au-delà de ${SOIL_REFERENCES.maxAgeYears} ans`,`
 ${alerts.length?`<h3>À analyser (${alerts.length})</h3><ul class="stock-alerts">${alerts.slice(0,30).map(x=>`<li class="is-warning">${e(x.parcel.nom||'Parcelle')} : ${x.analysis?`analyse de ${n1.format(x.age)} ans (${e(localDate(x.analysis.date))})`:'aucune analyse'} <button class="small-button" data-soil="grid" data-parcel="${e(x.parcel.id)}">Grille</button></li>`).join('')}</ul>`:'<div class="notice info">Toutes les parcelles ont une analyse de moins de 5 ans.</div>'}
 <h3>Dernières analyses</h3><div class="stack-list">${rows.length?rows.map(({p,a})=>`<div class="list-row"><div><strong>${dot(a.ph)}${e(p.nom)}</strong><small>${e(localDate(a.date))}${a.lab?` · ${e(a.lab)}`:''} · ${values(a)||'—'}</small><small>${e(needText(limingNeed(a)))}</small></div><button class="small-button" data-soil="liming" data-id="${e(a.id)}">Chaulage</button><button class="small-button" data-soil="edit" data-id="${e(a.id)}">Modifier</button></div>`).join(''):'<div class="empty-state">Aucune analyse de sol enregistrée.</div>'}</div>
-<p class="form-note">Sur la carte, « Colorer par › pH du sol » montre la dernière analyse de chaque parcelle. ${e(SOIL_REFERENCES.source)} (repères au ${e(localDate(SOIL_REFERENCES.date))}).</p>`,
+<p class="form-note">Sur la carte, « Colorer par › pH du sol » montre la dernière analyse de chaque parcelle. ${e(SOIL_REFERENCES.source)} (repères au ${e(localDate(SOIL_REFERENCES.date))}). ${referenceAgeBadge(SOIL_REFERENCES,today)}</p>`,
     `<button class="button primary" data-soil="new">Nouvelle analyse</button>`,'large');
   }
 

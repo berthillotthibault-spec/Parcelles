@@ -61,7 +61,7 @@ const RULE_ATTRS = ['id', 'entity', 'campaign'];
 function ruleButton(rule, canEdit) {
   if (!rule?.action) return '';
   // Lecture seule : pas de lien vers une règle à modifier.
-  if (!canEdit && ['edit-automation', 'open-settings'].includes(rule.action)) return '';
+  if (!canEdit && ['edit-automation', 'open-settings', 'postpone-work'].includes(rule.action)) return '';
   // Lien d’écriture (rule.edit) vers une fiche consultable : libellé neutre en lecture seule.
   const label = !canEdit && rule.edit ? 'Ouvrir l’élément' : rule.label;
   return `<button type="button" class="button secondary" data-action="${e(rule.action)}"${RULE_ATTRS.filter(k => rule[k]).map(k => ` data-${k}="${e(rule[k])}"`).join('')}>${e(label)}</button>`;

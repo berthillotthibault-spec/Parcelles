@@ -595,6 +595,10 @@ test('lot 3 : traitement, cible, heures, AMM de la fiche, stock et délai avant 
   assert.match(harvestDarWarnings(d, {parcelIds: ['p1'], date: '2026-11-07'})[0].message, /35 jours/);
   assert.equal(harvestDarWarnings(d, {parcelIds: ['p1'], date: '2026-12-10'}).length, 0);
   assert.equal(darConflicts(d, 'p1', '2026-10-27').length, 0);
+  // Délai qui traverse le passage à l'heure d'hiver (25/10/2026) : 1er octobre + 35 jours = 5 novembre, pas le 4.
+  d.interventions.push({...w, id: 'wdst', date: '2026-10-01'});
+  assert.equal(darConflicts(d, 'p1', '2026-11-04').find(c => c.work.id === 'wdst')?.until, '2026-11-05');
+  assert.equal(darConflicts(d, 'p1', '2026-11-05').some(c => c.work.id === 'wdst'), false);
 });
 
 test('lot 3 : produits filtrés par genre, engin au-delà de six, travail futur en mesures prévues', () => {

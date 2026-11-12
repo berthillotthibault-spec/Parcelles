@@ -429,7 +429,7 @@ test('centres techniques différés : intégrations, trace GPS et réparation de
     modal: (title, description, body, footer) => { opened.push({title, body, footer}); nodes['#repair-load-source'] = {}; nodes['#repair-source-files'] = {}; }});
   ui.openIntegrations();
   assert.equal(opened[0].title, 'Intégrations agricoles');
-  assert.match(opened[0].body, /data-action="open-integration-track" data-id="g1"><span>⌁<\/span><span><strong>Trace &lt;1&gt;<\/strong>/);
+  assert.match(opened[0].body, /data-action="open-integration-track" data-id="g1"><span><svg[^>]*>.*?<\/svg><\/span><span><strong>Trace &lt;1&gt;<\/strong>/);
   ui.openIntegrationTrack('g1');
   assert.equal(opened[1].title, 'Trace <1>');
   assert.match(opened[1].body, /Les &lt;Noues&gt;<\/strong><small>50 % des points/);

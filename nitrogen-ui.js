@@ -4,15 +4,18 @@ import {validateForm} from './form-chips-ui.js';
 import {flowPdf,pdfFile,sharePdf} from './pdf-lite.js';
 import {
   FERTILIZER_LIBRARY,FERTILIZER_TYPES,NITROGEN_DISCLAIMER,NITROGEN_REFERENCES,SEASON_LABELS,
-  nitrogenOverview,nitrogenReferences,normalizeComposition,num,parcelPlan,planPdfBlocks,registerPdfBlocks,rotationFor
+  nitrogenOverview,nitrogenReferences,normalizeComposition,num,parcelPlan,planPdfBlocks,registerPdfBlocks,rotationFor,zvParcelNote,zvStaleWarning
 } from './nitrogen.js';
 
 const e=escapeHtml;
 const n0=v=>v===null||v===undefined?'—':formatNumber(v);
 const shift=(campaign,delta)=>{const y=Number(String(campaign).slice(0,4))+delta;return`${y}/${String(y+1).slice(-2)}`;};
 
-export function createNitrogenUI({store,modal,toast,bindChipChoices}){
+// A5 : zvAuto facultatif (parcelId => détection Sandre de zv-detect.js) ; absent, l’écran reste comme avant.
+export function createNitrogenUI({store,modal,toast,bindChipChoices,zvAuto}){
   const $=selector=>document.querySelector(selector);
+  const auto=id=>{try{return typeof zvAuto==='function'?zvAuto(id)||null:null;}catch{return null;}};
+  const zvOpt=typeof zvAuto==='function'?auto:undefined;
   const today=()=>localIso();
   let campaign=campaignFor();
 
@@ -40,7 +43,7 @@ export function createNitrogenUI({store,modal,toast,bindChipChoices}){
 
   function open(options={}){
     if(options.campaign)campaign=options.campaign;
-    const o=nitrogenOverview(store.state,{today:today(),campaign});
+    const o=nitrogenOverview(store.state,{today:today(),campaign,zvAuto:zvOpt});
     const chips=[shift(campaignFor(),-1),campaignFor(),shift(campaignFor(),1)].map(c=>`<button type="button" class="choice-chip${c===campaign?' is-on':''}" data-nz="campaign" data-value="${e(c)}" aria-pressed="${c===campaign}">${e(c)}</button>`).join('');
     const alerts=o.alerts.length?`<ul class="nz-alerts" role="list">${o.alerts.map(a=>`<li class="nz-alert">${a.workId?`<button type="button" class="nz-alert-button" data-action="edit-work" data-id="${e(a.workId)}">`:'<div>'}<strong>${e(a.label)}</strong><small>${e(a.note)}</small>${a.workId?'</button>':'</div>'}</li>`).join('')}</ul>`:`<p class="nz-ok">Aucun épandage prévu ou réalisé en période d’interdiction · ${formatNumber(o.organic.perHa)} kg N organique/ha SAU (plafond ${formatNumber(o.organic.cap)})${o.organic.grazing?`, dont ${formatNumber(o.organic.grazingPerHa)} kg N/ha déposés au pâturage (${formatNumber(o.organic.grazing)} kg N au total)`:''}.</p>`;
     modal('Azote : PPF et cahier',`Méthode du bilan simplifiée, campagne ${campaign}.`,
@@ -68,6 +71,7 @@ export function createNitrogenUI({store,modal,toast,bindChipChoices}){
       else if(k==='pdf-plan')pdf('plan');
       else if(k==='pdf-register')pdf('register');
       else if(k==='back')open();
+      else if(k==='zv-confirm')confirmZone(b.dataset.id,b.dataset.value==='true');
     };
   }
 
@@ -85,7 +89,8 @@ export function createNitrogenUI({store,modal,toast,bindChipChoices}){
 
   function openPlan(parcelId){
     const parcel=store.get('parcelles',parcelId);if(!parcel)return open();
-    const plan=parcelPlan(store.state,parcel,campaign,{today:today()}),ppf=plan.rotation?.ppf||{};
+    const plan=parcelPlan(store.state,parcel,campaign,{today:today(),zvAuto:zvOpt}),ppf=plan.rotation?.ppf||{};
+    const znHtml=zvNoteHtml(parcel);
     const zone=parcel.zoneVulnerable===true?'true':parcel.zoneVulnerable===false?'false':'';
     const chip=(v,l)=>`<button type="button" class="choice-chip${zone===v?' is-on':''}" data-value="${v}" aria-pressed="${zone===v}">${l}</button>`;
     const hist=plan.history.length?plan.history.map(h=>`${h.campaign} : ${formatNumber(h.value)} (${h.source})`).join(' · '):'aucun rendement enregistré';
@@ -94,7 +99,7 @@ export function createNitrogenUI({store,modal,toast,bindChipChoices}){
         <label>Reliquat sortie hiver (kg N/ha) *<input name="rsh" type="number" inputmode="decimal" min="0" max="400" step="1" required value="${e(ppf.rsh??'')}"></label>
         <label>Objectif de rendement${plan.ref?` (${e(plan.ref.unit)})`:''}<input name="yieldTarget" type="number" inputmode="decimal" min="0" max="500" step="0.1" placeholder="${plan.objective?e(formatNumber(plan.objective.value)):''}" value="${e(ppf.yieldTarget??'')}"></label>
         <label>Fournitures du sol (kg N/ha)<input name="mh" type="number" inputmode="decimal" min="0" max="300" step="1" placeholder="${e(nitrogenReferences(store.state).mh)}" value="${e(ppf.mh??'')}"></label>
-        <div class="field-label span-2"><span>Parcelle en zone vulnérable</span><input type="hidden" name="zoneVulnerable" value="${zone}"><div class="chip-choices" data-chip-target="zoneVulnerable">${chip('true','Oui')}${chip('false','Non')}${chip('','Comme l’exploitation')}</div></div>
+        <div class="field-label span-2"><span>Parcelle en zone vulnérable</span><input type="hidden" name="zoneVulnerable" value="${zone}"><div class="chip-choices" data-chip-target="zoneVulnerable">${chip('true','Oui')}${chip('false','Non')}${chip('',auto(parcel.id)?'Selon la détection':'Comme l’exploitation')}</div></div>${znHtml}
         <p class="form-note span-2">Rendements des 5 dernières campagnes : ${e(hist)}. Laissez l’objectif vide pour la moyenne olympique. Précédent : ${e(plan.precedent.culture||'non renseigné')} (${n0(plan.precedent.effect)} kg N/ha).</p>
         <p class="form-error span-2 hidden" role="alert"></p>
       </form>`,
@@ -108,15 +113,37 @@ export function createNitrogenUI({store,modal,toast,bindChipChoices}){
         const rotation=rotationFor(store.state,parcel.id,campaign);
         await store.upsert('rotations',{...(rotation||{parcelId:parcel.id,campaignId:campaign,culture:plan.culture||parcel.culture||''}),ppf:{...(rotation?.ppf||{}),...next}},{label:`PPF ${campaign} : ${parcel.nom}`});
         const zv=v.zoneVulnerable==='true'?true:v.zoneVulnerable==='false'?false:null;
-        if((parcel.zoneVulnerable??null)!==zv)await store.upsert('parcelles',{...store.get('parcelles',parcel.id),zoneVulnerable:zv},{label:`Zone vulnérable : ${parcel.nom}`});
+        if((store.get('parcelles',parcel.id)?.zoneVulnerable??null)!==zv)await store.upsert('parcelles',{...store.get('parcelles',parcel.id),zoneVulnerable:zv},{label:`Zone vulnérable : ${parcel.nom}`});
         toast('PPF enregistré.','success');open();
       }catch(error){const err=form.querySelector('.form-error');err.textContent=error.message;err.classList.remove('hidden');}
     };
   }
 
+  // Détection Sandre sous les puces Oui/Non (vide sans détection). Bouton en .button (cible tactile 44 px au moins).
+  function zvNoteHtml(parcel){
+    const zn=zvParcelNote(parcel,auto(parcel.id),nitrogenReferences(store.state)),yn=v=>v?'en zone':'hors zone';
+    return zn?`<div class="form-note span-2 nz-zv-auto"><p>${zn.detected?'Zone vulnérable':'Zone vulnérable :'} ${e(zn.label)}.${zn.diverges?` Votre choix (${yn(zn.explicit)}) diffère de la détection (${yn(zn.detected)}) : il reste appliqué.`:''}</p>${zn.warning?`<p class="nz-missing">${e(zn.warning)}</p>`:''}${zn.confirmed?'':`<button class="button secondary" type="button" data-nz="zv-confirm" data-id="${e(parcel.id)}" data-value="${zn.detected}">Confirmer : ${yn(zn.detected)}</button>`}</div>`:'';
+  }
+
+  async function confirmZone(parcelId,value){
+    const parcel=store.get('parcelles',parcelId);if(!parcel)return;
+    try{
+      await store.upsert('parcelles',{...parcel,zoneVulnerable:value},{label:`Zone vulnérable : ${parcel.nom}`});
+      toast(`Zone vulnérable confirmée : ${value?'oui':'non'}.`,'success');
+      // Mise à jour sur place : les valeurs saisies et non enregistrées de la fiche sont conservées.
+      const form=document.querySelector('#nz-plan-form'),note=form?.querySelector('.nz-zv-auto');
+      if(!form)return;
+      const v=String(value),input=form.querySelector('input[name="zoneVulnerable"]');if(input)input.value=v;
+      for(const c of form.querySelectorAll('[data-chip-target="zoneVulnerable"] .choice-chip')){const on=c.dataset.value===v;c.classList.toggle('is-on',on);c.setAttribute('aria-pressed',String(on));}
+      if(note)note.outerHTML=zvNoteHtml(store.get('parcelles',parcelId)||{...parcel,zoneVulnerable:value});
+      bind();
+    }catch(error){const err=document.querySelector('#nz-plan-form .form-error');if(err){err.textContent=error.message;err.classList.remove('hidden');}else toast(error.message,'error');}
+  }
+
   function openReferences(){
     const r=nitrogenReferences(store.state);
     const rows=r.cultures.map(c=>`<tr><th scope="row">${e(c.label)}<small>${e(SEASON_LABELS[c.season])}</small></th><td><label class="nz-cell"><span class="sr-only">Besoin unitaire ${e(c.label)}</span><input name="b:${e(c.key)}" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="${e(c.b)}"></label></td><td><label class="nz-cell"><span class="sr-only">Rendement par défaut ${e(c.label)}</span><input name="y:${e(c.key)}" type="number" inputmode="decimal" min="1" max="500" step="0.1" value="${e(c.yield)}"></label><small>${e(c.unit)}</small></td></tr>`).join('');
+    const zvWarn=(store.state.parcelles||[]).filter(p=>!p.deletedAt).map(p=>zvStaleWarning(auto(p.id),r)).find(Boolean)||'';
     const ban=r.banPeriods.map(p=>`<li>${e(p.type)} · ${e(SEASON_LABELS[p.season])} : du ${e(p.from.split('-').reverse().join('/'))} au ${e(p.to.split('-').reverse().join('/'))}</li>`).join('');
     modal('Références azote',`Table ${r.label}`,
       `<form id="nz-ref-form" novalidate>
@@ -124,7 +151,7 @@ export function createNitrogenUI({store,modal,toast,bindChipChoices}){
         <div class="table-wrap"><table class="nz-ref-table"><thead><tr><th>Culture</th><th>Besoin b (kg N/unité)</th><th>Rendement par défaut</th></tr></thead><tbody>${rows}</tbody></table></div>
         <div class="form-grid"><label>Fournitures du sol par défaut (kg N/ha)<input name="mh" type="number" inputmode="decimal" min="0" max="300" step="1" value="${e(r.mh)}"></label>
         <label>Plafond d’azote organique (kg N/ha SAU)<input name="organicCap" type="number" inputmode="decimal" min="1" max="400" step="1" value="${e(r.organicCap)}"></label></div>
-        <h3>Périodes d’interdiction d’épandage</h3><ul class="nz-ban">${ban}</ul>
+        <h3>Périodes d’interdiction d’épandage</h3>${zvWarn?`<p class="nz-missing">${e(zvWarn)}</p>`:''}<ul class="nz-ban">${ban}</ul>
         <p class="form-note">${Object.values(FERTILIZER_TYPES).map(e).join(' · ')}.</p>
         <h3>Fertilisants intégrés</h3><ul class="nz-ban">${FERTILIZER_LIBRARY.map(f=>`<li>${e(f.name)} : N ${formatNumber(f.N)} %, P₂O₅ ${formatNumber(f.P2O5)} %, K₂O ${formatNumber(f.K2O)} %, SO₃ ${formatNumber(f.SO3)} % · type ${e(f.type)} · Keq ${formatNumber(f.keq)}</li>`).join('')}</ul>
         <p class="form-note">Pour un autre engrais, renseignez sa composition dans Stock (Modifier › Composition).</p>

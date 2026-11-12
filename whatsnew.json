@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.30.0",
+      "date": "2026-11-12",
+      "title": "Toujours à jour, plus malin",
+      "items": [
+        "Mises à jour automatiques : RPG 2025, catalogue phyto, zones vulnérables, météo et appli. État dans Mes données › Diagnostic.",
+        "Scannez le texte d’un bon de livraison ou d’une facture avec l’iPhone : l’appli le lit et prépare la saisie, même sans réseau.",
+        "Nouveau fil « À décider » sur l’accueil : les décisions chiffrées du moment, avec une action en un appui.",
+        "Conseils sur les délais avant récolte, les besoins en intrants, les coûts et la rotation du pâturage."
+      ]
+    },
+    {
       "version": "10.29.1",
       "date": "2026-11-12",
       "title": "Saisie rapide mieux comprise",

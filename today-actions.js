@@ -21,6 +21,8 @@ function openNotificationEntity(entity, id) {
   else if(entity==='sync')ctx.openSync();
   else if(entity==='backup')ctx.lazy.run('backupVault',()=>ctx.backupVaultUI?.open());
   else if(entity==='parcelComments')ctx.lazy.run('parcelComments',()=>ctx.parcelCommentsUI?.openInbox());
+  else if(entity==='animals')ctx.lazy.run('herd',()=>ctx.herdUI?.openAnimal(id));
+  else if(entity==='parcelles')ctx.openParcel(id);
 }
 
 // Ouverture d'un résultat de la recherche globale selon son type.
@@ -95,6 +97,13 @@ export const todayActions = {
     const entity=control.dataset.entity;
     ctx.closeModal();
     openNotificationEntity(entity, id);
+  },
+  // Fil « À décider » : tâche de commande préremplie (manque d’intrant prévu).
+  'create-task-prefill'({control}) {
+    let p={};
+    try{p=JSON.parse(control.dataset.payload||'{}');}catch{/* charge illisible : formulaire vide */}
+    ctx.closeModal();
+    ctx.openTaskForm({title:p.title||'',dueDate:p.dueDate||'',note:p.notes||'',status:'À faire',priority:'Normale',parcelId:''});
   },
   'open-privacy'() { ctx.openPrivacy(); },
   'voice-assistant'() { ctx.startVoiceAssistant(); },

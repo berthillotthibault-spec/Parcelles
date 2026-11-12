@@ -7,10 +7,37 @@ import {getRecordedErrors, clearRecordedErrors} from './diagnostics.js';
 import {performanceHistory, resourceTimingSummary} from './performance.js';
 import {nativeCapabilities} from './native.js';
 import {platformSummary} from './platform.js';
+import {referenceStatusHtml} from './reference-status-ui.js';
 
 const plural = (n, one, many) => (n > 1 ? many : one);
 const COUNTED = ['parcelles', 'interventions', 'tasks', 'photos', 'documents', 'points', 'clients', 'observations', 'stockItems', 'materiels',
   'platformJobs'];
+// Section « Données de référence » (chantier A0) : vide sans registre auto-update dans ctx.
+// lastUpdateCheck (facultatif) : date du dernier contrôle de version de l'appli (nombre, chaîne ou {at}).
+export function referenceSectionHtml(autoUpdater, lastUpdateCheck) {
+  if (!autoUpdater) return '';
+  let list = [];
+  try { list = autoUpdater.status() || []; } catch { list = []; }
+  let last = null;
+  try { last = lastUpdateCheck?.() ?? null; } catch { last = null; }
+  const lastAt = last && typeof last === 'object' ? last.at ?? last.checkedAt : last;
+  const lastLabel = lastAt ? escapeHtml(localDateTime(lastAt)) : 'jamais';
+  const lastHtml = lastUpdateCheck ? `<p class="muted">Dernier contrôle de version de l’appli : ${lastLabel}</p>` : '';
+  const listHtml = referenceStatusHtml(list) || '<p class="muted">Aucune source de référence enregistrée.</p>';
+  const disabled = list.length && !list.some(item => item?.pending) ? '' : ' disabled';
+  return `<div class="reference-status-block" id="reference-status">${lastHtml}${listHtml}`
+    + `<button class="button secondary" type="button" id="ref-refresh-all"${disabled}>Tout vérifier</button></div>`;
+}
+
+// Aucune source vérifiée (désactivée, économie de données, déjà en cours) : le dire au lieu de « 0 source vérifiée ».
+export function referenceNothingCheckedMessage(results) {
+  const list = (results || []).filter(Boolean);
+  if (!list.length) return 'Aucune source à vérifier.';
+  if (list.every(r => r.skipped === 'en-cours')) return 'Vérification déjà en cours.';
+  if (list.some(r => r.skipped === 'desactive')) return 'Aucune source vérifiée : mise à jour désactivée (préférence ou économie de données).';
+  return 'Aucune source vérifiée pour le moment.';
+}
+
 const RENDER_NAMES = {today: 'Aujourd’hui', parcels: 'Parcelles', work: 'Travaux', map: 'Carte', parcel: 'Fiche'};
 
 // Décalage mesuré pendant la synchronisation cloud (heure du serveur Firestore) ; la synchronisation n'en dépend plus.
@@ -112,7 +139,8 @@ export function createDiagnosticUI(ctx) {
       row('Démarrage 7.1', `${perfRows[0]?.readyMs ?? '—'} ms`), row('Rendu des écrans', escapeHtml(renderStatsLabel(scheduler.stats())), 'render-stats'),
       row('Blobs', breakdown ? `${mo(breakdown.blobBytes)} Mo` : '—'),
       row('Sauvegardes', `${backups.filter(b => b.verified).length}/${backups.length} ${plural(backups.length, 'vérifiée', 'vérifiées')}`), '</dl>'].join('');
-    const body = `${healthHtml}${failed}${definitions}${errorsHtml}<details><summary>Diagnostic complet</summary>`
+    const refHtml = referenceSectionHtml(ctx.autoUpdater, ctx.lastUpdateCheck);
+    const body = `${healthHtml}${failed}${definitions}${refHtml}${errorsHtml}<details><summary>Diagnostic complet</summary>`
       + `<pre class="diagnostic-pre">${escapeHtml(JSON.stringify(diag, null, 2))}</pre></details>`;
     const footer = ['<button class="button secondary" id="copy-diagnostic">Copier</button>',
       errors.length ? '<button class="button secondary" id="clear-errors">Effacer erreurs</button>' : '',
@@ -137,6 +165,46 @@ export function createDiagnosticUI(ctx) {
     $('#force-update').onclick = async () => {
       try { await reg?.update?.(); ctx.toast('Recherche de mise à jour terminée.'); } catch (error) { ctx.toast(error.message, 'error'); }
     };
+    bindReferenceSection();
+  }
+
+  // Les boutons de la section se gèrent ici (stopPropagation : le gestionnaire délégué d'app.js ne double pas l'appel).
+  // Abonnement au registre tant que la section est affichée : « vérification en cours » apparaît sans attendre le rendu suivant.
+  let unsubscribeReference = null;
+  function bindReferenceSection() {
+    const updater = ctx.autoUpdater, block = $('#reference-status');
+    if (!updater || !block) return;
+    const redraw = () => {
+      const current = $('#reference-status');
+      if (current) { current.outerHTML = referenceSectionHtml(updater, ctx.lastUpdateCheck); bindReferenceSection(); }
+    };
+    if (!unsubscribeReference && typeof updater.subscribe === 'function') {
+      unsubscribeReference = updater.subscribe(() => {
+        if (!$('#reference-status')?.isConnected) { unsubscribeReference?.(); unsubscribeReference = null; return; }
+        redraw();
+      });
+    }
+    block.addEventListener('click', async event => {
+      const target = event.target.closest?.('[data-action], #ref-refresh-all');
+      const one = target?.dataset.action === 'ref-refresh' ? target : null, all = target?.id === 'ref-refresh-all';
+      if (!one && !all) return;
+      event.stopPropagation();
+      if (target.disabled) return;
+      target.disabled = true;
+      target.setAttribute('aria-busy', 'true');
+      try {
+        const results = one ? [await updater.ensure(one.dataset.id, {force: true, reason: 'manual'})]
+          : await updater.ensureAll({reason: 'manual', force: true});
+        const done = results.filter(r => r && !r.skipped), failed = done.filter(r => r.error && r.errorAt === r.checkedAt);
+        const offline = results.some(r => r?.skipped === 'hors-ligne');
+        if (offline) ctx.toast('Hors ligne : vérification reportée, les valeurs en cache restent utilisées.', 'error');
+        else if (!done.length) ctx.toast(referenceNothingCheckedMessage(results), 'error');
+        else if (failed.length) {
+          ctx.toast(`${failed.length} ${plural(failed.length, 'source', 'sources')} en échec sur ${done.length} : dernières valeurs conservées.`, 'error');
+        } else ctx.toast(`${done.length} ${plural(done.length, 'source vérifiée', 'sources vérifiées')}.`, 'success');
+      } catch (error) { ctx.toast(error.message, 'error'); }
+      redraw();
+    });
   }
 
   return {open};

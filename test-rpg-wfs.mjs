@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fetchRpgFeatures,rpgPageUrl,geometryBbox,rpgFeatureId,isRpgYearUnavailable,resetRpgYearCache} from './rpg.js';
+import {fetchRpgFeatures,rpgPageUrl,geometryBbox,rpgFeatureId,isRpgYearUnavailable,resetRpgYearCache,configureRpgYearCache} from './rpg.js';
 import {onboardingRpgYears} from './rpg-onboarding.js';
 
 const square={type:'Polygon',coordinates:[[[1,47],[1.1,47],[1.1,47.1],[1,47.1],[1,47]]]};
@@ -27,10 +27,12 @@ test('pagination STARTINDEX jusqu’au total annoncé', async ()=>{
 });
 
 test('millésime pas encore publié : écarté puis année précédente', async ()=>{
-  resetRpgYearCache();
+  configureRpgYearCache({storage:null});resetRpgYearCache();
   const fetchImpl=async()=>({ok:false,status:400,text:async()=>'<ows:ExceptionText>Unknown namespace [RPG.2026]</ows:ExceptionText>'});
   await assert.rejects(fetchRpgFeatures({geometry:square,year:2026,fetchImpl}),e=>e.code==='rpg-year-unavailable');
   assert.ok(isRpgYearUnavailable(2026));
-  assert.deepEqual(onboardingRpgYears(new Date('2026-11-11T08:00:00')),[2025,2024]);
+  const years=onboardingRpgYears(new Date('2026-11-11T08:00:00'),null);
+  assert.deepEqual(years,[2025,2024,2023],'2026 écarté, au plus 3 essais');
+  assert.equal(onboardingRpgYears(new Date('2026-11-11T08:00:00'),null,{limit:0}).at(-1),2015);
   resetRpgYearCache();
 });

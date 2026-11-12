@@ -33,9 +33,15 @@ test('culture lisible depuis le code PAC, code inconnu conservé', ()=>{
   assert.equal(rpgCultureLabel('ZZZ','Libellé source'),'Libellé source');
 });
 
-test('millésime N-1 d’abord, puis 2024 en secours', ()=>{
-  assert.deepEqual(onboardingRpgYears(new Date('2026-10-07T08:00:00')),[2026,2025,2024]);
-  assert.deepEqual(onboardingRpgYears(new Date('2025-03-01T08:00:00')),[2025,2024]);
+test('millésimes : le dernier publié d’abord, jusqu’à 2015', ()=>{
+  const range=(from,to)=>Array.from({length:from-to+1},(_,i)=>from-i);
+  assert.deepEqual(onboardingRpgYears(new Date('2026-10-07T08:00:00'),null,{limit:0}),range(2026,2015));
+  assert.deepEqual(onboardingRpgYears(new Date('2025-03-01T08:00:00'),null,{limit:0}),range(2025,2015));
+  assert.deepEqual(onboardingRpgYears(new Date('2026-10-07T08:00:00'),2025,{limit:0}),range(2025,2015),'part du dernier millésime publié');
+  // Plafond par défaut : la carte et l’accueil essaient chaque année de la liste (zone vide, panne).
+  assert.deepEqual(onboardingRpgYears(new Date('2026-10-07T08:00:00'),2025),[2025,2024,2023],'au plus 3 essais');
+  assert.deepEqual(onboardingRpgYears(new Date('2026-10-07T08:00:00'),2017),[2017,2016,2015]);
+  assert.deepEqual(onboardingRpgYears(new Date('2026-10-07T08:00:00'),2015),[2015]);
 });
 
 test('géocodage de la commune : URL bornée et réponse filtrée', ()=>{

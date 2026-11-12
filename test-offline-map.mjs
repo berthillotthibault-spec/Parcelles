@@ -65,9 +65,14 @@ test('lots de 6 requêtes',()=>{assert.deepEqual(chunk([1,2,3,4,5,6,7,8],6),[[1,
 test('indicateur « à jour le … » et métadonnées tolérantes',()=>{
   assert.equal(offlineSummary(null),'Pas encore téléchargée');
   const meta=normalizeMeta({at:new Date('2026-10-07T09:00:00').getTime(),layer:'ign-photo',cadastre:true,tiles:154,bytes:4.5*1024*1024});
-  assert.equal(offlineSummary(meta),'À jour le 07/10 · Photo IGN + cadastre · 4,5 Mo');
-  assert.equal(offlineSummary({...meta,complete:false,tiles:64,total:318}),'Incomplète (64 / 318 tuiles) le 07/10 · Photo IGN + cadastre · 4,5 Mo');
-  assert.equal(offlineSummary(normalizeMeta({at:meta.at,layer:'ign-photo',tiles:64,bytes:2048,complete:false})),'Incomplète (64 tuiles) le 07/10 · Photo IGN · 2 Ko');
+  const day=24*3600*1000,now=meta.at+36*day;
+  assert.equal(offlineSummary(meta,now),'À jour le 07/10 (il y a 36 jours) · Photo IGN + cadastre · 4,5 Mo');
+  assert.equal(offlineSummary(meta,meta.at+3600*1000),'À jour le 07/10 (aujourd’hui) · Photo IGN + cadastre · 4,5 Mo');
+  assert.equal(offlineSummary(meta,meta.at+day),'À jour le 07/10 (hier) · Photo IGN + cadastre · 4,5 Mo');
+  assert.equal(offlineSummary({...meta,complete:false,tiles:64,total:318},now),'Incomplète (64 / 318 tuiles) le 07/10 (il y a 36 jours) · Photo IGN + cadastre · 4,5 Mo');
+  assert.equal(offlineSummary(normalizeMeta({at:meta.at,layer:'ign-photo',tiles:64,bytes:2048,complete:false}),now),'Incomplète (64 tuiles) le 07/10 (il y a 36 jours) · Photo IGN · 2 Ko');
+  // Au-delà de 90 jours : plus « à jour », avertissement explicite.
+  assert.equal(offlineSummary(meta,meta.at+120*day),'Téléchargée le 07/10 (il y a 120 jours) · Photo IGN + cadastre · 4,5 Mo · plus de 90 jours : à mettre à jour');
   assert.equal(normalizeMeta({at:1,layer:'osm'}),null);assert.equal(normalizeMeta('x'),null);
   assert.equal(formatBytes(2048),'2 Ko');assert.equal(formatBytes(160*1024*1024),'160 Mo');
 });
@@ -83,4 +88,14 @@ test('service worker : cache « tiles-v1 » indépendant de BUILD, hors de CORE,
   for(const file of ['./offline-map.js','./offline-map-ui.js']){assert.ok(core.includes(`'${file}'`));assert.ok(runtime.includes(`'${file}'`));}
   assert.match(app,/data-action="open-offline-map"/);
   assert.match(fs.readFileSync(new URL('./map-actions.js',import.meta.url),'utf8'),/'open-offline-map'\(\) \{ ctx\.offlineMap\(\)\.open\(\);/); // n° 147
+});
+
+test('revue : âge en jours de calendrier (veille à 23 h = « hier » à 8 h)',async()=>{
+  const {offlineAgeDays,offlineSummary,normalizeMeta}=await import('./offline-map.js');
+  const at=new Date(2026,10,11,23).getTime(),now=new Date(2026,10,12,8).getTime();
+  assert.equal(offlineAgeDays({at},now),1);
+  assert.match(offlineSummary(normalizeMeta({at,layer:'ign-plan',tiles:1,bytes:2048}),now),/^À jour le 11\/11 \(hier\)/);
+  assert.equal(offlineAgeDays({at:now},now),0);
+  assert.equal(offlineAgeDays({at:now+3600*1000},now),0,'date future (horloge) : jamais négatif');
+  assert.equal(offlineAgeDays({at:0},now),null);
 });
