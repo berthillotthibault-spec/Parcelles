@@ -1,5 +1,29 @@
 # Changelog
 
+## 10.32.0 · TVA de bout en bout, TVA nette, point du matin, assistant qui apprend — 2026-11-12
+
+### TVA
+- **Client exploitant agricole** : choix Oui / Non / Ne sais pas sur les fiches client, pré-rempli par la recherche SIREN (code NAF 01.1 à 01.5, 02.1 à 02.3, ou GAEC / EARL / SCEA ; annulé si une entreprise non agricole est choisie ensuite, jamais à la place d'un choix manuel) ; prioritaire sur la déduction par le nom pour le taux forestier ;
+- **Destination de la récolte** sur la fiche parcelle (humaine, animale, semences, énergie, autre), liée à la culture : prioritaire sur le libellé pour le taux des travaux à façon ;
+- **Lignes créées depuis les travaux** : taux conseillé repris quand il est sûr ou probable (hors franchise et remboursement forfaitaire), sinon taux des paramètres ; le gazole refacturé suit le taux de son travail ; arrachage de vigne à 20 % ;
+- **Apprentissage** : un taux corrigé à la main dans l'éditeur est retenu pour cette désignation (après le catalogue).
+
+### Facturation
+- **TVA nette** (`vat-balance.js`) : TVA collectée moins TVA déductible des factures d'achat lues par le lecteur de documents (une facture lue deux fois n'est comptée qu'une fois) ; achats sans TVA connue signalés ; sans objet en franchise ou au remboursement forfaitaire ;
+- **Prix ou quantité anormaux** (`price-anomaly.js`) : avertissement non bloquant avant émission, comparé d'abord aux prix du client (devis refusés et factures annulées exclus) ;
+- **Trésorerie** (`payment-habits.js`) : factures attendues à l'échéance plus le retard moyen réel du client (au moins 2 factures payées, jamais plus tôt que l'échéance) ; « quand vais-je être payé ? » dans l'assistant.
+
+### Agronomie
+- **Zones vulnérables** (`zv-calendar.js`) : calendrier national d'interdiction d'épandage (arrêté du 19 décembre 2011 modifié, annexe I, version consolidée après l'arrêté du 30 janvier 2023), périodes régionales facultatives qui prolongent la nationale ; alerte R12 sur les épandages prévus, R3B aligné, « puis-je épandre du lisier sur … ? » ;
+- **Point du matin** (`morning-brief.js`) : travaux du jour rapprochés des créneaux de traitement, de la portance, des délais avant récolte et de rentrée, des risques et des interdictions d'épandage ; dans le fil « À décider » et dans l'assistant.
+
+### Assistant
+- **Questions de suivi** (`assistant-followup.js`) : « et Dupont ? », « et demain ? », « et le mois dernier ? », « et au Grand Champ ? » ; la question comprise est affichée ; une relance non comprise part à l'assistant distant s'il est configuré ;
+- **« Pas utile »** sur les conseils des notifications (`learning.js`) : deux refus masquent le conseil pour la parcelle jusqu'à la fin de la campagne (jamais les conseils urgents), avec « Annuler ».
+
+### Tests
+- Les nouveaux fichiers de test (y compris ceux de la 10.31.0) sont ajoutés à `npm test`.
+
 ## 10.31.0 · TVA plus fine, assistant de facturation, conseil agronomique — 2026-11-12
 
 ### TVA

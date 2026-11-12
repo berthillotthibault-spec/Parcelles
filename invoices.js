@@ -16,6 +16,7 @@ import {active} from './farm-memory.js';
 import {saveFarmRecord} from './farm-records.js';
 import {printCss,printDocument} from './dossier.js';
 import {checkDocumentVat} from './vat-advisor.js';
+import {priceAnomalies} from './price-anomaly.js';
 import {INVOICE_KIND,QUOTE_KIND,DOC_TYPES,docTypeOf,VAT_RATES_ALL,LINE_KINDS,num,loose,text,round2,round3,DATE_RE,validDay,isoDay,invoices,quotes,
   customRatesOf,settingsVatRate,lineKind,amountLine,lineTotal,documentTotals,quoteStatus,creditNotesOf,creditedShare,paymentsOf,invoiceBalance,
   installmentsOf,invoiceStatus,docStatus,overdueInvoices,billedKeys,inPeriod,fr,workLine,fuelLine,tpLines,billableItems,clientsToBill} from './invoices-core.js';
@@ -361,6 +362,8 @@ export function complianceReport(state,doc,{today=isoDay()}={}){
   if(t==='devis'&&!doc.validUntil)warnings.push('Durée de validité du devis non précisée.');
   // Conseil TVA (vat-advisor.js) : avertissements non bloquants ; la franchise est déjà une erreur ci-dessus.
   for(const w of checkDocumentVat(state,doc,{today}))if(w.code!=='franchise'&&!warnings.includes(w.text))warnings.push(w.text);
+  // Prix ou quantité inhabituels par rapport à l’historique (price-anomaly.js) : avertissements non bloquants.
+  for(const a of priceAnomalies(state,doc))if(!warnings.includes(a.text))warnings.push(a.text);
   return{errors,warnings,mentions:legalMentions(state,doc,{seller:s})};
 }
 // Contrôles supplémentaires avant émission (mentions obligatoires et montants complets).

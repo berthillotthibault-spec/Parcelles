@@ -10,12 +10,13 @@ import {campaignFor,localIso,normalize} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {agendaDate,isPending,expectedCalvings} from './home-priorities.js';
 import {darConflicts,harvestsFor,isTreatment,limitsFor,previousApplications,productFor,withdrawalLabel} from './phyto.js';
-import {banPeriodFor,cultureFor,cultureSeason,fertilizerFor,isFertilization,nitrogenPerHa,nitrogenReferences,parcelInZone,parcelPlan} from './nitrogen.js';
+import {cultureFor,fertilizerFor,isFertilization,nitrogenPerHa,nitrogenReferences,parcelInZone,parcelPlan} from './nitrogen.js';
 import {ROTATION_SOURCE,campaignYear,cultureHistory,rotationAlerts,rotationFamily} from './rotation-advice.js';
 import {SOIL_REFERENCES,ageYears,latestAnalysis} from './soil-analysis.js';
 import {animalLot,animalTreatments,normalizeNationalId} from './herd.js';
 import {grazingAnimalList,grazingDate,grazingStatus} from './grazing.js';
 import {withdrawalEnd} from './herd-health.js';
+import {ZV_CALENDAR_SOURCE,ZV_PAR_WARNING,zvSpreadStatus,zvStatusText} from './zv-calendar.js';
 
 const DAY=864e5;
 const HARVEST=/recolte|moisson|battage|ensilage|arrachage|fauche/;
@@ -72,12 +73,14 @@ function parcelsById(state){return new Map(active(state,'parcelles').map(p=>[p.i
 function cropOf(state,parcel,work,today){
   return work?.culture||(parcel?cultureFor(state,parcel,workCampaign(work),today)||parcel.culture:'')||'';
 }
-// Période d'interdiction en cours pour un apport de fertilisant (null si hors zone, type inconnu ou hors période).
-function banFor(state,work,parcel,day,refs){
-  if(!parcel||!parcelInZone(state,parcel))return null;
-  const fert=fertilizerFor(state,work.product);if(!fert)return null;
-  const season=cultureSeason(cropOf(state,parcel,work,day),refs),ban=banPeriodFor(day,fert.type,season,refs);
-  return ban?{ban,fert,season}:null;
+// Période d'interdiction en cours pour un apport de fertilisant (null si hors zone, interdiction non certaine ou hors période).
+// Même calendrier que R12 et le point du matin (zv-calendar.js) : une seule source pour les dates.
+function banFor(state,work,parcel,day,zvAuto=null){
+  if(!parcel||!parcelInZone(state,parcel,zvAuto))return null;
+  const res=zvSpreadStatus({date:day,culture:cropOf(state,parcel,work,day),product:work.product||'',workType:work.type||'',state});
+  if(res.status!=='interdit'||!res.hit)return null;
+  const type=res.hit.type.replace('a','.a').replace('b','.b');
+  return {ban:res.hit.ban,until:res.hit.until,fert:{type,name:work.product||''},source:res.hit.ban.origin==='regional'?'période régionale saisie':'calendrier national'};
 }
 
 /**
@@ -108,7 +111,7 @@ export function overdueLevel(state,work,{today=localIso(),catalog=null,prefs=sta
     }else if(!limit&&crop)why.push(`Pas de date limite de semis connue pour ${crop}.`);
   }
   if(work&&isFertilization(work)){
-    const refs=nitrogenReferences(state),hit=banFor(state,work,parcel,today,refs);
+    const hit=banFor(state,work,parcel,today);
     if(hit){why.push(`Fertilisation en retard : l’épandage de type ${hit.fert.type} est interdit du ${mdLabel(hit.ban.from)} au ${mdLabel(hit.ban.to)} sur cette culture (zone vulnérable).`);return {level:'urgent',rule:'R8',why};}
   }
   why.unshift(`En retard de ${days(late)}, sans conséquence datée connue (récolte, semis, période d’interdiction).`);
@@ -163,16 +166,37 @@ function ruleR3A(state,{today},parcels,out){
 }
 
 // R3B : apport prévu, non fait, dont la période d'interdiction a commencé (zone vulnérable).
-function ruleR3B(state,{today},parcels,out){
-  const refs=nitrogenReferences(state);
+function ruleR3B(state,{today,zvAuto},parcels,out){
   for(const w of active(state,'interventions')){
     if(!isPending(w)||!isFertilization(w))continue;
     const date=agendaDate(w);if(!date||date>=today)continue;
-    const parcel=parcels.get(w.parcelId),hit=banFor(state,w,parcel,today,refs);if(!hit)continue;
+    const parcel=parcels.get(w.parcelId),hit=banFor(state,w,parcel,today,zvAuto);if(!hit)continue;
     out.push({id:adviceId('R3B',w.id),rule:'R3B',level:'urgent',title:'Apport en période d’interdiction',
-      message:`${w.product||w.type||'Apport'} prévu le ${ddmm(date)} sur ${parcelName(parcel)}, non fait : l’épandage de type ${hit.fert.type} est interdit du ${mdLabel(hit.ban.from)} au ${mdLabel(hit.ban.to)} sur cette culture. Annulez ou reportez après le ${mdLabel(hit.ban.to)}.`,
-      why:[`Parcelle en zone vulnérable.`,`Fertilisant de type ${hit.fert.type} (${hit.fert.name||w.product}).`,`Période d’interdiction de la table de références : du ${mdLabel(hit.ban.from)} au ${mdLabel(hit.ban.to)}.`],
+      message:`${w.product||w.type||'Apport'} prévu le ${ddmm(date)} sur ${parcelName(parcel)}, non fait : l’épandage de type ${hit.fert.type} est interdit du ${mdLabel(hit.ban.from)} au ${mdLabel(hit.ban.to)} sur cette culture. Annulez ou reportez au ${ddmm(hit.until)} ou après.`,
+      why:[`Parcelle en zone vulnérable.`,`Fertilisant de type ${hit.fert.type} (${hit.fert.name||w.product}).`,`Période d’interdiction (${hit.source}) : du ${mdLabel(hit.ban.from)} au ${mdLabel(hit.ban.to)}.`,...(hit.ban.note?[hit.ban.note]:[]),ZV_PAR_WARNING],
       entity:'interventions',entityId:w.id,action:{type:'postpone-work',label:'Reporter l’apport',id:w.id}});
+  }
+}
+
+// R12 : épandage prévu (aujourd'hui ou dans les 60 jours) sur une parcelle en zone vulnérable, pendant une
+// période du calendrier national d'interdiction (zv-calendar.js) ; type de fertilisant inconnu => « à préciser ».
+// Les apports déjà en retard relèvent de R3B.
+function ruleR12(state,{today,zvAuto},parcels,out){
+  const limit=addDays(today,60);
+  for(const w of active(state,'interventions')){
+    if(!isPending(w)||!isFertilization(w))continue;
+    const date=agendaDate(w);if(!date||date<today||date>limit)continue;
+    const parcel=parcels.get(w.parcelId);if(!parcel||!parcelInZone(state,parcel,zvAuto))continue;
+    const res=zvSpreadStatus({date,culture:cropOf(state,parcel,w,today),product:w.product||'',workType:w.type||'',state});
+    if(res.status==='autorise')continue;
+    const near=gap(today,date)<=7,product=w.product||w.type||'Épandage';
+    const why=[`Parcelle en zone vulnérable.`,res.fert.why,`Prévu le ${ddmm(date)}.`,`Source : ${ZV_CALENDAR_SOURCE.text}.`,ZV_PAR_WARNING];
+    if(res.status==='interdit')out.push({id:adviceId('R12',w.id),rule:'R12',level:near?'urgent':'warning',title:'Épandage en période d’interdiction',
+      message:zvStatusText(res,{product,parcelName:parcelName(parcel)}),why,entity:'interventions',entityId:w.id,date,
+      action:{type:'postpone-work',label:'Reporter l’épandage',id:w.id}});
+    else out.push({id:adviceId('R12',w.id),rule:'R12',level:near?'warning':'info',title:'Épandage en zone vulnérable : à vérifier',
+      message:zvStatusText(res,{product,parcelName:parcelName(parcel)}),why,entity:'interventions',entityId:w.id,date,
+      action:{type:'edit-work',label:'Préciser le produit',id:w.id}});
   }
 }
 
@@ -345,8 +369,8 @@ const ORDER={urgent:0,warning:1,info:2};
  * Conseils du jour, triés (urgent, warning, info) puis par identifiant.
  * @returns {Array<{id:string,rule:string,level:string,title:string,message:string,why:string[],entity:string,entityId:string,action:{type:string,label:string,id:string}}>}
  */
-export function farmAdvice(state,{today=localIso(),catalog=null,prefs=state?.preferences||{}}={}){
-  const data=state||{},out=[],parcels=parcelsById(data),ctx={today,catalog,prefs};
+export function farmAdvice(state,{today=localIso(),catalog=null,prefs=state?.preferences||{},zvAuto=null}={}){
+  const data=state||{},out=[],parcels=parcelsById(data),ctx={today,catalog,prefs,zvAuto};
   const run=fn=>{try{fn();}catch{/* une règle en erreur n’empêche pas les autres */}};
   run(()=>ruleR1(data,ctx,parcels,out));
   run(()=>ruleR3A(data,ctx,parcels,out));
@@ -358,6 +382,7 @@ export function farmAdvice(state,{today=localIso(),catalog=null,prefs=state?.pre
   run(()=>ruleR9(data,ctx,parcels,out));
   run(()=>ruleR10(data,ctx,parcels,out));
   run(()=>ruleR11(data,ctx,parcels,out));
+  run(()=>ruleR12(data,ctx,parcels,out));
   const seen=new Set();
   return out.filter(a=>!seen.has(a.id)&&seen.add(a.id)).sort((a,b)=>(ORDER[a.level]??9)-(ORDER[b.level]??9)||a.id.localeCompare(b.id));
 }

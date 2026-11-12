@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.32.0",
+      "date": "2026-11-12",
+      "title": "Une appli qui apprend",
+      "items": [
+        "Fiche client « exploitant agricole » et destination de la récolte : la TVA des factures créées depuis les travaux est juste d’office.",
+        "TVA à payer nette des achats lus, prix anormal signalé avant d’émettre, encaissements prévus selon les vrais délais de chaque client.",
+        "Point du matin et calendrier d’épandage en zone vulnérable dans le fil « À décider ».",
+        "L’assistant suit la conversation (« et Dupont ? ») et retient vos corrections ; « Pas utile » masque un conseil."
+      ]
+    },
+    {
       "version": "10.31.0",
       "date": "2026-11-12",
       "title": "TVA, factures et conseils mieux compris",

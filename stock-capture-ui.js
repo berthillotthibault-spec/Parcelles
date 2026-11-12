@@ -222,6 +222,10 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
     let count = 0;
     const kept = [];
     const supplier = docSupplier(), source = parsed ? (KIND_LABEL[parsed.kind] && parsed.kind !== 'inconnu' ? KIND_LABEL[parsed.kind] : 'Document') : 'Facture';
+    // Facture d'achat lue : TVA et totaux conservés sur l'achat (purchaseVat sur la 1re entrée, clé commune
+    // purchaseKey sur toutes et sur la photo rangée) pour le solde de TVA (vat-balance.js), sans double compte.
+    const purchase = parsed?.kind === 'facture' ? {...docExtractSummary(parsed), supplier} : null, purchaseKey = purchase ? uid('achat') : '';
+    const purchaseFields = first => purchase ? {purchaseKey, ...(purchase.numero ? {invoiceRef: purchase.numero} : {}), ...(first ? {purchaseVat: purchase} : {})} : {};
     for (const tr of chosen) {
       const line = {...lines[Number(tr.dataset.line)]}, price = tr.querySelector('.sc-price').value;
       line.quantity = Number(tr.querySelector('.sc-qty').value); line.unitPrice = price === '' ? null : Number(price);
@@ -233,12 +237,12 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
         if (conv.converted) {line.quantity = conv.quantity; line.unitPrice = conv.unitPrice;}
         else if (conv.why === 'Unité incompatible') kept.push(Number(tr.dataset.line) + 1);
       }
-      await store.recordStockMovement(entryMovement(line, id, {date: isoToday(), source}));
+      await store.recordStockMovement({...entryMovement(line, id, {date: isoToday(), source}), ...purchaseFields(count === 0)});
       const who = line.supplier || supplier, item = items().find(i => i.id === id);
       if (who && item && tr.querySelector('.sc-remember')?.checked) await store.upsert('stockItems', rememberSupplierRef(item, {supplier: who, label: lines[Number(tr.dataset.line)].product, factor: line.pack?.factor ?? null, unit: line.pack?.unit || line.unit || ''}), {label: `Référence fournisseur retenue : ${item.name}`});
       count++;
     }
-    const stored = await storePhoto(parsed && parsed.kind !== 'inconnu' ? source : 'Facture');
+    const stored = await storePhoto(parsed && parsed.kind !== 'inconnu' ? source : 'Facture', purchase ? {purchaseKey, ...(supplier ? {supplier} : {})} : {});
     draft?.clear();
     // Unité lue impossible à convertir vers celle de l'article : quantité gardée telle quelle, et on le dit.
     const note = kept.length ? ` Ligne${kept.length > 1 ? 's' : ''} ${kept.join(', ')} : unité différente de l’article, quantité gardée telle quelle, à vérifier.` : '';
@@ -246,11 +250,11 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
   }
 
   // La photo rejoint les Documents une fois au moins une entrée validée.
-  async function storePhoto(category) {
+  async function storePhoto(category, extra = {}) {
     if (!file) return false;
     const id = uid('doc');
     await store.storage.blobPut(id, file);
-    await store.upsert('documents', {id, name: file.name || `${category}.jpg`, mimeType: file.type, size: file.size, category, documentDate: isoToday(), tags: ['stock'], note: 'Ajoutée depuis « Photo d’étiquette ou de facture ».', origin: 'stock-capture', ...(parsed ? {docExtract: docExtractSummary(parsed)} : {})}, {label: `Document ajouté : ${category}`});
+    await store.upsert('documents', {id, name: file.name || `${category}.jpg`, mimeType: file.type, size: file.size, category, documentDate: isoToday(), tags: ['stock'], note: 'Ajoutée depuis « Photo d’étiquette ou de facture ».', origin: 'stock-capture', ...(parsed ? {docExtract: docExtractSummary(parsed)} : {}), ...extra}, {label: `Document ajouté : ${category}`});
     return true;
   }
 

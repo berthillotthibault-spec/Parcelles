@@ -91,3 +91,16 @@ test('journal vocal : « fini le broyage », « fini le traitement » donnent un
   assert.equal(t.status, 'Terminé');
   assert.equal(parseVoiceJournal('fini le semis sur Les Noues', state()).draft.type, 'Semis');
 });
+
+test('relance « et La Côte ? » après une question sur une parcelle : reformulée et expliquée', () => {
+  const r = answerLocalIntelligence('et La Côte ?', state(), {previous: {question: 'Résume Les Noues', intent: 'parcel_context'}});
+  assert.equal(r.followUp.question, 'Résume La Côte');
+  assert.match(r.answer, /^\(compris : « Résume La Côte »\) La Côte/);
+});
+
+test('relance : la question précédente n’est pas reprise sans contexte, et isFollowUpQuestion est exposé', async () => {
+  const {isFollowUpQuestion} = await import('./intelligence.js');
+  assert.equal(isFollowUpQuestion('et demain ?'), true);
+  assert.equal(isFollowUpQuestion('Où sont les animaux ?'), false);
+  assert.equal(ask('Où sont les animaux ?').followUp, undefined);
+});

@@ -35,6 +35,10 @@ export function agroText(question) {
 
 const MAY = /\b(puis je|peux je|je peux|peut on|on peut|pourrai je|pourra t on|pourrais je|est ce que je peux|est ce qu on peut|possible|faut il|bon moment|quand)\b/;
 export const AGRO_INTENTS = Object.freeze({
+  // Point du matin (morning-brief.js) : « point du matin », « qu'est-ce que je fais aujourd'hui », « quoi de prévu demain ».
+  brief: q => /\b(point du matin|point du jour|briefing|brief du jour|programme du jour)\b/.test(q) || (/\b(quoi de prevu|qu est ce qui est prevu|qu est ce que je fais|qu est ce qu on fait|que faire|je fais quoi|on fait quoi|quoi faire|prevu)\b/.test(q) && /\b(aujourd hui|ce matin|demain|journee)\b/.test(q) && !/\b(traiter|pulveriser|semer|recolter|epandre)\b/.test(q)),
+  // Épandage en zone vulnérable (zv-calendar.js) : « puis-je épandre du lisier sur les Brosses ? ».
+  zvSpread: q => /\b(zone vulnerable|calendrier d epandage|periode d interdiction|interdiction d epandage)\b/.test(q) || (/\b(epandre|epandage|epands?|mettre|apporter|passer)\b/.test(q) && /\b(lisier|fumier|purin|fientes?|digestat|compost|engrais|ammonitrate|uree|solution azotee|azote)\b/.test(q) && (MAY.test(q) || /\b(interdit|autorise|droit)\b/.test(q)) && !/\b(combien|quantite|total|cumul|bilan)\b/.test(q)),
   reentry: q => /\b(delais? de (re ?)?entree|delais? de rentree|\bdre\b|retourner dans|rentrer dans|re rentrer|entrer dans la parcelle|acces a la parcelle|y retourner|y rentrer|y entrer)\b/.test(q),
   dar: q => /\b(delais? avant recolte|\bdar\b)\b/.test(q) || (MAY.test(q) && /\b(recolter|moissonner|faucher|ensiler|battre|recolte|moisson)\b/.test(q) && !/\b(semer|semis)\b/.test(q)),
   sowing: q => (MAY.test(q) && /\b(semer|semis|implanter)\b/.test(q)) || /\b(ressuye|portance|portant|portante|praticable)\b/.test(q) || /\b(entrer|rentrer|aller)\b.*\bavec (le |un |les )?(tracteur|materiel|semoir|engins?)\b/.test(q),
@@ -47,7 +51,7 @@ export const AGRO_INTENTS = Object.freeze({
 export function agroIntent(question) {
   const q = agroText(question);
   if (!q || BILLING_WORDS.test(q) || WRITE_WORDS.test(q)) return null;
-  for (const key of ['reentry', 'dar', 'nextCrop', 'sowing', 'risk', 'nitrogen', 'spray']) if (AGRO_INTENTS[key](q)) return key;
+  for (const key of ['brief', 'zvSpread', 'reentry', 'dar', 'nextCrop', 'sowing', 'risk', 'nitrogen', 'spray']) if (AGRO_INTENTS[key](q)) return key;
   return null;
 }
 export const targetDay = question => /\bdemain\b/.test(agroText(question)) ? 'tomorrow' : 'today';

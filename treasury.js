@@ -6,7 +6,7 @@
 // non synchronisée) : pas de nouvelle collection ni de changement de schéma. Estimation, non contractuelle.
 import {active,completed} from './farm-memory.js';
 import {contracts,contractPrice,toTonnes,pricePerTonne} from './sales.js';
-import {expectedReceipts} from './invoices.js';
+import {clientPaymentHabits,expectedCollections,habitSentence} from './payment-habits.js';
 import {hasCost,proposeCost,costReferences} from './costs.js';
 import {farmRecords} from './farm-records.js';
 import {pacAids} from './crop-margins.js';
@@ -108,9 +108,13 @@ export function treasuryFlows(state,{start=monthKey(),today=`${start}-01`,horizo
     }
   }
   // Factures émises non soldées : reste dû (avoirs et paiements partiels déduits), échéance par échéance.
-  for(const r of expectedReceipts(state,today)){
-    const due=monthOf(r.date)||start,late=r.late||due<start;
-    push(late?start:due,r.amount,`Facture ${text(r.invoice.number)||'émise'}`,'facture',late,`facture:${r.invoice.id}:${r.date||''}`);
+  // Date probable = échéance décalée du retard moyen réellement constaté chez ce client (payment-habits.js).
+  const payHabits=clientPaymentHabits(state);
+  for(const r of expectedCollections(state,{today,habits:payHabits})){
+    const due=monthOf(r.expectedDate)||start,late=r.overdue||r.late||due<start;
+    const id=`facture:${r.invoice.id}:${r.dueDate||''}`,before=lines.length;
+    push(due<start?start:due,r.amount,`Facture ${text(r.invoice.number)||'émise'}${r.shiftDays>0&&text(r.invoice.clientName)?` · ${text(r.invoice.clientName)}`:''}`,'facture',late,id);
+    if(r.shiftDays>0&&lines.length>before)Object.assign(lines[lines.length-1],{dueDate:r.dueDate,expectedDate:r.expectedDate,shiftDays:r.shiftDays,note:habitSentence(r.habit)});
   }
   // Aides PAC saisies en €/ha × surface des parcelles (calendrier indicatif).
   const aids=pacAids(state);
@@ -184,7 +188,7 @@ export function treasuryFlows(state,{start=monthKey(),today=`${start}-01`,horizo
   }
   // Échéancier saisi.
   for(const item of schedule)for(const month of itemOccurrences(item,start,horizon))push(month,item.sign==='+'?item.amount:-item.amount,item.label,'echeancier',false,`echeancier:${item.id}:${month}`);
-  return{lines,missing,duplicates};
+  return{lines,missing,duplicates,payHabits};
 }
 
 /**
@@ -201,7 +205,7 @@ export function shiftLines(lines,shifts={},{start,horizon=HORIZON}={}){
 /** Prévisionnel mois par mois avec solde cumulé et point bas. */
 export function treasuryForecast(state,options={}){
   const start=options.start||monthKey(),horizon=options.horizon||HORIZON,settings=treasurySettings(state);
-  const flows=treasuryFlows(state,{...options,start,horizon}),{missing,duplicates}=flows;
+  const flows=treasuryFlows(state,{...options,start,horizon}),{missing,duplicates,payHabits}=flows;
   const lines=options.shifts?shiftLines(flows.lines,options.shifts,{start,horizon}):flows.lines;
   const opening=settings.openingBalance;let balance=opening??0;
   const months=Array.from({length:horizon},(_,i)=>{
@@ -215,7 +219,7 @@ export function treasuryForecast(state,options={}){
   const after=low?months.find(m=>m.key>low.key&&m.income>0):null,nextLine=after?after.lines.filter(l=>l.amount>0).sort((a,b)=>b.amount-a.amount)[0]:null;
   const nextIncome=nextLine?{key:after.key,label:after.label,amount:nextLine.amount,line:nextLine.label,source:nextLine.source,monthIncome:after.income}:null;
   return{start,months,opening,openingMissing:opening===null,low:low?{key:low.key,label:low.label,balance:low.balance,negative:low.balance<0,nextIncome}:null,
-    totals:{income:round2(months.reduce((s,m)=>s+m.income,0)),expense:round2(months.reduce((s,m)=>s+m.expense,0))},missing,duplicates,items:settings.items,lines};
+    totals:{income:round2(months.reduce((s,m)=>s+m.income,0)),expense:round2(months.reduce((s,m)=>s+m.expense,0))},missing,duplicates,items:settings.items,lines,payHabits};
 }
 
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);

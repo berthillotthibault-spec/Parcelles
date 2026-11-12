@@ -8,6 +8,7 @@ import {DOC_LABELS, UNITS, MORE_UNITS, VAT_EXEMPTIONS, OPERATION_NATURES, vatRat
   runningSubtotals, lineKind} from './invoices.js';
 import {catalogItems, catalogLine, convertQuote, createDepositInvoice} from './billing.js';
 import {parseQuickEntry, suggestVatRate} from './billing-insights.js';
+import {recordVatCorrection} from './learning.js';
 import {invoiceHtmlWithQr} from './billing-export.js';
 import {draftKey, readDraft, writeDraft, removeDraft, draftTimeLabel} from './form-drafts.js';
 import {showPrintable, assetBase} from './dossier-ui.js';
@@ -314,12 +315,13 @@ export function createDocsEditor(ui) {
     if (li && event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) { event.preventDefault(); moveBy(li.dataset.line, event.key === 'ArrowUp' ? -1 : 1, `[data-line="${li.dataset.line}"] [data-f="${el.dataset.f || 'label'}"]`); }
   }
   // TVA proposée d’après la désignation (catalogue, habitude, règle usuelle) tant que le taux n’a pas été choisi à la main.
-  const vatManual = new Set();
+  const vatManual = new Set(), vatProposed = new Map();
   function proposeVat(li, l) {
     if (vatManual.has(l.id)) return;
     // Contexte du document (type de client, nom, nature de l’opération) : affine le taux (ex. travaux forestiers).
     const state = ui.state(), client = ed.clientId ? (state.clients || []).find(c => c?.id === ed.clientId) || null : null;
     const sug = suggestVatRate(l.label, {state, clientKind: ed.clientKind, clientName: ed.clientName, client, operationNature: ed.operationNature, today: validDay(ed.issueDate) ? ed.issueDate : undefined}), select = li.querySelector('[data-f="vatRate"]');
+    if (sug && select && [...select.options].some(o => Number(o.value) === sug.rate)) vatProposed.set(l.id, sug.rate);
     if (!sug || !select || ![...select.options].some(o => Number(o.value) === sug.rate) || Number(l.vatRate) === sug.rate) return;
     l.vatRate = sug.rate; select.value = [...select.options].find(o => Number(o.value) === sug.rate).value;
     const exo = li.querySelector('.bd-f-exo'); if (exo) exo.hidden = sug.rate !== 0;
@@ -327,6 +329,14 @@ export function createDocsEditor(ui) {
     // Cas à vérifier : on cite les autres taux possibles (ex. « 10 % si la récolte est destinée à l’alimentation animale »).
     const more = alts.length ? ` Autre taux possible : ${alts.map(a => `${pct(a.rate)} ${a.when}`).join(' ; ')}.` : sug.confidence === 'check' ? ' À confirmer avec votre comptable.' : '';
     ui.toast(`TVA proposée : ${pct(sug.rate)} (${sug.basis}).${more}${sug.caution ? ` ${sug.caution}` : ''} Modifiable sur la ligne.`, 'info');
+  }
+  // Taux proposé remplacé à la main : on retient « désignation -> taux » pour les prochains brouillons.
+  function learnVat(l, value) {
+    const proposed = vatProposed.get(l.id), rate = Number(value), store = ui.store?.();
+    if (proposed === undefined || !Number.isFinite(rate) || rate === proposed || !String(l.label || '').trim() || !store?.mutate) return;
+    vatProposed.set(l.id, rate);
+    // Préférence locale (tous les rôles peuvent l’écrire) : ni journal, ni file de synchronisation ; la fenêtre de l’éditeur reste ouverte.
+    Promise.resolve().then(() => store.mutate('Correction de TVA retenue.', st => { st.preferences = st.preferences || {}; st.preferences.vatCorrections = recordVatCorrection(st, l.label, rate, {proposed}); }, {entity: 'preferences', kind: 'settings', action: 'update', queue: false, log: false})).catch(() => { /* onglet en lecture seule ou rôle sans écriture : rien à retenir */ });
   }
   function onField(el, committed) {
     if (!ed || !el) return;
@@ -340,7 +350,7 @@ export function createDocsEditor(ui) {
       const fkey = el.dataset.f;
       l[fkey] = el.value;
       if (fkey === 'discountPct') el.setAttribute('aria-invalid', String(discountInvalid(el.value)));
-      if (fkey === 'vatRate') { vatManual.add(l.id); const exo = li.querySelector('.bd-f-exo'); if (exo) exo.hidden = Number(el.value) !== 0; }
+      if (fkey === 'vatRate') { vatManual.add(l.id); const exo = li.querySelector('.bd-f-exo'); if (exo) exo.hidden = Number(el.value) !== 0; if (committed) learnVat(l, el.value); }
       if (fkey === 'label' && committed) { proposeVat(li, l); refreshHint(li, l); }
       if (fkey === 'unitPrice' || fkey === 'unit') refreshHint(li, l);
     } else if (el.name === 'goodForAgreement') ed.goodForAgreement = el.checked;

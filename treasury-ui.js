@@ -11,6 +11,7 @@ const eur=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${v<0?'−':''}
 const SOURCES={contrat:'Contrat',vente:'Vente',facture:'Facture',pac:'Aides PAC',travail:'Travail prévu',entretien:'Entretien',echeancier:'Échéancier',
   fermage:'Foncier (fermage)',structure:'Marge nette (structure)',appro:'Stock (achat d’appro)',gnr:'Carburant (GNR)',sinistre:'Sinistre'};
 const SHIFTS=[-3,-2,-1,1,2,3,4,6];
+const frDay=d=>d?`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`:'';
 
 /** Texte du point bas, avec le prochain encaissement attendu (n° 86). */
 export function lowPointText(low){
@@ -24,6 +25,12 @@ export function scenarioText(base,simulated,line,shift){
   const where=out?'au-delà des 12 mois':`en ${monthLabel(to<simulated.start?simulated.start:to)}`;
   const delta=simulated.low&&base.low?simulated.low.balance-base.low.balance:0;
   return`Si « ${SOURCES[line.source]||line.source} · ${line.label} » (${eur(line.amount)}) arrive ${where} au lieu de ${monthLabel(line.month)} : point bas ${eur(simulated.low?.balance??0)} fin ${simulated.low?.label||'—'}${delta?` (${delta<0?'−':'+'}${n0.format(Math.abs(delta))} € par rapport au prévisionnel)`:' (inchangé)'}. Simulation : rien n’est enregistré.`;
+}
+
+/** Habitudes de paiement des clients qui ont une facture à encaisser : « Martin paie en moyenne à 52 jours… ». */
+export function payHabitsText(f){
+  const open=new Set((f?.lines||[]).filter(l=>l.source==='facture'&&l.note).map(l=>l.note));
+  return[...open].slice(0,4);
 }
 
 export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=()=>'owner'}){
@@ -43,7 +50,7 @@ export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=
   }
 
   function tableHtml(f){
-    const row=m=>`<tr class="${m.key===f.low?.key?'tr-low-row':''}"><th scope="row">${e(m.label)}</th><td>${e(eur(m.income))}</td><td>${e(eur(-m.expense))}</td><td class="${m.balance<0?'negative':''}"><strong>${e(eur(m.balance))}</strong></td></tr>${m.lines.length?`<tr class="tr-detail"><td colspan="4"><details><summary>${m.lines.length} flux</summary><ul>${m.lines.map(l=>`<li>${e(SOURCES[l.source]||l.source)} · ${e(l.label)} : <strong>${e(eur(l.amount))}</strong>${l.late?' <small>(en retard)</small>':''}</li>`).join('')}</ul></details></td></tr>`:''}`;
+    const row=m=>`<tr class="${m.key===f.low?.key?'tr-low-row':''}"><th scope="row">${e(m.label)}</th><td>${e(eur(m.income))}</td><td>${e(eur(-m.expense))}</td><td class="${m.balance<0?'negative':''}"><strong>${e(eur(m.balance))}</strong></td></tr>${m.lines.length?`<tr class="tr-detail"><td colspan="4"><details><summary>${m.lines.length} flux</summary><ul>${m.lines.map(l=>`<li>${e(SOURCES[l.source]||l.source)} · ${e(l.label)} : <strong>${e(eur(l.amount))}</strong>${l.late?' <small>(en retard)</small>':''}${l.shiftDays>0?` <small>(échéance ${e(frDay(l.dueDate))}, attendue vers le ${e(frDay(l.expectedDate))})</small>`:''}</li>`).join('')}</ul></details></td></tr>`:''}`;
     return`<div class="econ-table-wrap"><table class="econ-table treasury-table"><thead><tr><th>Mois</th><th>Encaissements</th><th>Décaissements</th><th>Solde fin de mois</th></tr></thead><tbody>${f.months.map(row).join('')}</tbody></table></div>`;
   }
 
@@ -80,6 +87,7 @@ export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=
 <div class="preview-summary">${[['Solde de départ',eur(f.opening??0)],['Encaissements prévus',eur(f.totals.income)],['Décaissements prévus',eur(-f.totals.expense)],[low?`Point bas (${String(low.label).replace(/ /g,'\u00a0')})`:'Point bas',low?eur(low.balance):'—']].map(([l,v])=>`<div class="preview-stat"><strong>${e(v)}</strong><small>${e(l)}</small></div>`).join('')}</div>
 ${low?`<p class="notice ${low.negative?'danger':'info'}" role="${low.negative?'alert':'note'}">${e(lowPointText(low))}</p>`:''}
 ${missingHtml(f)}
+${payHabitsText(f).length?`<p class="notice info" role="note">Factures à encaisser placées à la date probable de paiement : ${payHabitsText(f).map(e).join(' ')}</p>`:''}
 <div class="cm-chart treasury-chart-wrap">${treasuryChart(f)}<p class="form-note"><span class="tr-key tr-key-in"></span> encaissements · <span class="tr-key tr-key-out"></span> décaissements · ligne : solde fin de mois</p></div>
 ${tableHtml(f)}
 ${scenarioHtml(f)}

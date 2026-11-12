@@ -24,6 +24,24 @@ export function companySearchUrl(query, {perPage = 8} = {}) {
   params.set('q', q);
   return `${COMPANY_SEARCH_URL}?${params.toString()}`;
 }
+// ---------- Exploitant agricole probable (pré-remplissage, toujours modifiable) ----------
+// Code NAF (activite_principale, ex. « 01.11Z ») : 01.1 à 01.5 (cultures, élevage, culture et élevage associés)
+// et 02.1 à 02.3 (sylviculture, exploitation forestière, récolte de produits forestiers). Les services de
+// soutien (01.6, 02.4 : entreprises de travaux agricoles ou forestiers) et la chasse (01.7) sont exclus par prudence.
+const AGRI_NAF_RE = /^(01\.?[1-5]|02\.?[1-3])/;
+export function agriculturalActivity(code) { return AGRI_NAF_RE.test(String(code || '').trim()); }
+// Catégories juridiques INSEE (nature_juridique) des formes agricoles usuelles ; le nom sert de repli.
+const LEGAL_CODES = {'6533': 'GAEC', '6597': 'SCEA', '6598': 'EARL', '6316': 'CUMA'};
+const FARM_FORMS = new Set(['GAEC', 'EARL', 'SCEA']);
+export function legalFormOf(code, name = '') {
+  const known = LEGAL_CODES[String(code || '').trim()];
+  if (known) return known;
+  const m = /\b(GAEC|EARL|SCEA|CUMA)\b/i.exec(String(name || ''));
+  return m ? m[1].toUpperCase() : '';
+}
+/** Exploitant agricole probable d'après l'activité principale (NAF) ou la forme juridique (GAEC, EARL, SCEA). */
+export function farmerLikely({activity = '', legalForm = ''} = {}) { return agriculturalActivity(activity) || FARM_FORMS.has(String(legalForm || '').toUpperCase()); }
+
 const title = s => clean(s).toLowerCase().replace(/(^|[\s'’\-])([a-zàâçéèêëîïôûùüÿ])/g, (m, a, b) => a + b.toUpperCase());
 /** Réponse de l'API → propositions de fiche client (champs de clientBillingValues). */
 export function parseCompanyResults(payload) {
@@ -31,7 +49,9 @@ export function parseCompanyResults(payload) {
     const s = r.siege || {}, street = clean([s.numero_voie, s.indice_repetition, s.type_voie, s.libelle_voie].filter(Boolean).join(' '));
     const address = [s.complement_adresse, street, clean(`${s.code_postal || ''} ${s.libelle_commune || ''}`)].map(clean).filter(Boolean).join('\n') || clean(s.adresse);
     const dirigeant = (r.dirigeants || []).find(d => d.nom || d.denomination);
+    const activity = clean(r.activite_principale), legalForm = legalFormOf(r.nature_juridique, r.nom_raison_sociale || r.nom_complet);
     return {
+      legalForm, farmerLikely: farmerLikely({activity, legalForm}),
       name: clean(r.nom_raison_sociale || r.nom_complet) || clean(r.nom_complet), displayName: clean(r.nom_complet || r.nom_raison_sociale),
       siren: clean(r.siren), siret: clean(s.siret), vatNumber: vatFromSiren(r.siren), billingAddress: address, kind: 'pro',
       city: title(s.libelle_commune || ''), postalCode: clean(s.code_postal), activity: clean(r.activite_principale),

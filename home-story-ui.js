@@ -4,6 +4,7 @@
 import {escapeHtml, localIso} from './utils.js';
 import {composeMorningBrief, dayStory, greetingTitle, typo} from './home-story.js';
 import {decisionFeed, decisionCountLabel, stakesLabel} from './decision-feed.js';
+import {briefing} from './morning-brief.js';
 // Sources du fil « À décider » (W3, W5, W6). Import en espace de noms : un export absent ne casse pas le chargement.
 import * as inputNeedsModule from './input-needs.js';
 import * as costDriftModule from './cost-drift.js';
@@ -17,7 +18,7 @@ const STOP = '<svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fi
 const CHEVRON = '<svg class="ui-icon story-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>';
 const PIN = '<svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>';
 
-export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeather, now = () => Date.now()}) {
+export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeather, now = () => Date.now(), zvAuto = null}) {
   let lastSpeech = '';
   const canSpeak = () => 'speechSynthesis' in globalThis && typeof globalThis.SpeechSynthesisUtterance === 'function';
   const coordinate = value => value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(Number(value));
@@ -73,6 +74,11 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
         inputNeeds: source(() => inputNeedsModule.inputNeeds?.(data, {today})),
         costDrifts: source(() => costDriftModule.farmCostDrift?.(data, {})),
         grazingAdvice: source(() => grazingRotationModule.grazingRotationAdvice?.(data, {today})),
+        // Prévision horaire (créneaux de traitement) et détection automatique des zones vulnérables, si disponibles.
+        morning: (() => {
+          const hourly = weather?.hourly?.time?.length ? weather : null;
+          try {return briefing(data, {today, now: now(), agro: agro?.days?.length ? agro : null, weather: hourly, zvAuto});} catch {return [];}
+        })(),
         treasuryForecast: treasuryForecastFor(data)});
     } catch {rows = [];}
     if (!rows.length) return '';

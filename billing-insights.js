@@ -7,7 +7,7 @@ import {normalize} from './utils.js';
 import {active} from './farm-memory.js';
 import {ACCOUNTING_TYPES,addDays,addMonths,billableItems,billingDocs,daysBetween,docTypeOf,documentTotals,expectedReceipts,invoiceBalance,invoiceSettings,invoiceStatus,invoices,isoDay,lineTotal,paymentsOf,quoteStatus,quotes,round2,amountLine,VAT_RATES_ALL} from './invoices.js';
 import {catalogItems,catalogPrice,dueSchedules,findCatalogItem} from './billing.js';
-import {classify as classifyVat} from './vat-advisor.js';
+import {classify as classifyVat} from './vat-advisor.js';import {learnedVatRate} from './learning.js';
 
 const num=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
 const ttcOf=d=>num(d.totals?.ttc)??documentTotals(d).ttc;
@@ -182,6 +182,9 @@ export function suggestVatRate(label,{state=null,...ctx}={}){
   const withCaution=(rate,basis)=>({rate,basis,alternatives:[],confidence:'probable',...(rule&&rule.confidence==='sure'&&Math.abs(rule.rate-rate)>0.001?{caution:`Taux usuel pour ce libellé : ${String(rule.rate).replace('.',',')} % (${rule.basis}).`}:{})});
   const item=state?findCatalogItem(state,label):null;
   if(item&&item.vatRate!==undefined&&item.vatRate!==null&&item.vatRate!=='')return withCaution(Number(item.vatRate),'Taux de l’article du catalogue');
+  // Taux que l’utilisateur a déjà choisi à la main pour cette désignation (learning.js), après le catalogue.
+  const learned=state?learnedVatRate(state,label):null;
+  if(learned)return{...withCaution(learned.rate,learned.basis),confidence:'learned'};
   if(state){
     const seen=emitted(state).slice().sort((a,b)=>String(b.issueDate||'').localeCompare(String(a.issueDate||''))).flatMap(d=>d.lines||[]).find(l=>normalize(l.label)===n&&Number.isFinite(Number(l.vatRate)));
     if(seen)return withCaution(Number(seen.vatRate),'Taux déjà utilisé pour cette désignation');

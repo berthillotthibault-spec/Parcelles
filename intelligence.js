@@ -2,6 +2,8 @@ import {answerFarmQuestion} from './farm-agent.js';import {answerAgroQuestion} f
 import {agendaDate,isPending,localDay,maintenanceRemaining,isLowStock} from './home-priorities.js';
 import {campaignFor, isoDate, normalize, toNumber, localIso} from './utils.js';
 import {grazingStatus,grazingTotal,grazingType} from './grazing.js';import {matchWorkType} from './voice-notes.js';
+import {rewriteFollowUp,understoodNote,isFollowUpQuestion} from './assistant-followup.js';
+export {isFollowUpQuestion,rewriteFollowUp};
 
 const active=(state,type)=>(state?.[type]||[]).filter(item=>!item?.deletedAt);
 const fmt=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(Number(value)||0);
@@ -156,6 +158,19 @@ export function showOnMapAction(state,ids,label='Voir sur la carte'){
 }
 
 export function answerLocalIntelligence(question,state,context={}){
+  // Relance courte (« et Dupont ? ») : reformulée d’après la question précédente (context.previous = {question, intent}).
+  if(context.previous?.question&&!context.followUpDone){
+    const f=rewriteFollowUp(question,context.previous,state);
+    if(f?.question){
+      const r=answerLocalIntelligence(f.question,state,{...context,previous:null,followUpDone:true}),followUp={original:String(question||'').trim(),question:f.question,kind:f.kind};
+      return r.recognized?{...r,answer:`${understoodNote(f.question)} ${r.answer}`,followUp}:{...r,followUp};
+    }
+    if(f?.unresolved){
+      // « et les stocks faibles ? » : le terme seul (puis la question telle quelle) peut être une question reconnue.
+      for(const q of [f.term,question]){const r=answerLocalIntelligence(q,state,{...context,previous:null,followUpDone:true});if(r.recognized)return q===question?r:{...r,followUp:{original:String(question||'').trim(),question:q,kind:'plain'}};}
+      return{recognized:false,intent:'followup_unresolved',answer:`Je n’ai reconnu « ${f.term} » ni parmi vos clients, ni parmi vos parcelles, ni comme une période. Posez la question complète, par exemple « ${context.previous.question} » en changeant le nom.`,actions:[]};
+    }
+  }
   const farm=answerFarmQuestion(question,state,context);if(farm)return farm;
   const agro=answerAgroQuestion(question,state,context);if(agro)return agro;
   const billing=answerBillingQuestion(question,state,context.today?{today:context.today}:{});if(billing)return billing;
@@ -217,7 +232,7 @@ export function answerLocalIntelligence(question,state,context={}){
 
 export function intelligenceCapabilities(){return{
   local:true,offline:true,writeConfirmation:true,
-  intents:['billing_client_balance','billing_receivables','billing_revenue','billing_unbilled','billing_quotes','billing_last_invoice','billing_price','billing_vat','billing_summary','daily_brief','weekly_brief','parcel_context','parcel_filter','crop_area','works_today','maintenance_due','low_stock','urgent_observations','overdue_tasks','overdue_works','grazing_current','grazing_entry','cereal_area','stock_quantity','chantiers','create_work','create_task']
+  intents:['billing_client_balance','billing_receivables','billing_revenue','billing_unbilled','billing_quotes','billing_last_invoice','billing_price','billing_vat','billing_collections','billing_summary','daily_brief','weekly_brief','parcel_context','parcel_filter','crop_area','works_today','maintenance_due','low_stock','urgent_observations','overdue_tasks','overdue_works','grazing_current','grazing_entry','cereal_area','stock_quantity','chantiers','create_work','create_task']
 };}
 
 // A journal produces a draft and explicit alternatives, never a write action.

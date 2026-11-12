@@ -4,6 +4,7 @@ import {longOpenLots} from './grazing.js';
 import {deadlineNotifications} from './regulated-ops.js'; // v8a n° 72
 import {missedHabits} from './habits.js'; // n° 102
 import {farmAdvice,overdueLevel} from './conseils.js'; // I2 : conseils du jour
+import {filterHiddenAdvice} from './learning.js'; // conseils jugés « pas utiles » deux fois : masqués pour la campagne
 
 export function computeNotifications(state,{uid='',now=Date.now(),today=localDay()}={}){
   const rows=[];
@@ -53,7 +54,7 @@ export function computeNotifications(state,{uid='',now=Date.now(),today=localDay
   if(state.preferences?.autoBackup&&meta.lastAutoBackupDay){const age=(Date.now()-new Date(`${meta.lastAutoBackupDay}T12:00:00`).getTime())/86400000;if(age>3)rows.push({id:'backup-old',level:'warning',title:'Sauvegarde locale ancienne',message:`Dernière sauvegarde : ${localDate(meta.lastAutoBackupDay)}`,entity:'backup'});}
   // I2 : conseils du jour (DAR, azote, successions, vêlages, délais d’attente), sans doublon d’identifiant.
   // Un apport en période d’interdiction (R3B) est toujours aussi un travail en retard : son conseil complète la ligne work-overdue-<id> au lieu d’en ajouter une seconde.
-  try{const ids=new Set(rows.map(r=>r.id));for(const a of farmAdvice(state,{today})){const late=a.rule==='R3B'&&rows.find(r=>r.id===`work-overdue-${a.entityId}`);if(late){late.level='urgent';late.why=[a.message,...(late.why||[]).filter(x=>x!==a.message)];continue;}if(!ids.has(a.id)){ids.add(a.id);rows.push({id:a.id,level:a.level,title:a.title,message:a.message,entity:a.entity,entityId:a.entityId,why:a.why,action:a.action});}}}catch{}
+  try{const ids=new Set(rows.map(r=>r.id));const parcelOf=new Map((state.interventions||[]).map(w=>[w?.id,w?.parcelId]));const advices=farmAdvice(state,{today}).map(a=>a.parcelId||a.entity!=='interventions'?a:{...a,parcelId:parcelOf.get(a.entityId)||''});for(const a of filterHiddenAdvice(state,advices,{today})){const late=a.rule==='R3B'&&rows.find(r=>r.id===`work-overdue-${a.entityId}`);if(late){late.level='urgent';late.why=[a.message,...(late.why||[]).filter(x=>x!==a.message)];continue;}if(!ids.has(a.id)){ids.add(a.id);rows.push({id:a.id,level:a.level,title:a.title,message:a.message,entity:a.entity,entityId:a.entityId,why:a.why,action:a.action,rule:a.rule||'',parcelId:a.parcelId||''});}}}catch{}
   const order={urgent:0,warning:1,info:2};
   return rows.sort((a,b)=>(order[a.level]??9)-(order[b.level]??9));
 }

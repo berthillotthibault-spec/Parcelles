@@ -151,15 +151,30 @@ export function tpLines(project,log,client,vatRate){
   return out;
 }
 
+// Conseil de TVA des lignes de travaux : fonction (state,{work,parcel,client}) → {rate,note}|null, branchée par
+// vat-advisor.js à son chargement (ce noyau n’importe pas le conseil, chargé à la demande avec invoices.js).
+let workVatAdvisor=null;
+export function setWorkVatAdvisor(fn){workVatAdvisor=typeof fn==='function'?fn:null;}
+// Taux conseillé retenu seulement s’il fait partie des taux proposés (usuels ou personnalisés des paramètres).
+function advisedWorkVat(advise,state,args,fallback){
+  if(!advise)return{rate:fallback,note:''};
+  let a=null;try{a=advise(state,args);}catch{a=null;}
+  const rate=loose(a?.rate),custom=customRatesOf(state?.exploitation?.invoicing?.customVatRates);
+  return rate!==null&&(VAT_RATES_ALL.includes(rate)||custom.includes(rate))?{rate,note:text(a.note)}:{rate:fallback,note:''};
+}
+const withVatNote=(line,note)=>note?{...line,vatBasis:note,basis:`${line.basis} · ${note}`.slice(0,120)}:line;
+
 // Travaux réalisés sur les parcelles du client (ou rattachés au client) et journaux des chantiers TP
-// du client, sur la période, pas encore facturés.
-export function billableItems(state,clientId,{from='',to='',exceptId=null,includeFuel=true}={}){
+// du client, sur la période, pas encore facturés. vatAdvice : conseil de TVA (par défaut celui branché par
+// vat-advisor.js ; null pour garder le taux des paramètres). Le gazole refacturé suit le taux de son travail.
+export function billableItems(state,clientId,{from='',to='',exceptId=null,includeFuel=true,vatAdvice=workVatAdvisor}={}){
   const client=active(state,'clients').find(c=>c.id===clientId)||null,billed=billedKeys(state,{exceptId}),vat=settingsVatRate(state),fuelPrice=positive(state.preferences?.fuelPrice);
   const parcels=new Map(active(state,'parcelles').map(p=>[p.id,p])),items=[];
   for(const w of active(state,'interventions')){
     const parcel=parcels.get(w.parcelId);if(!completed(w)||isObservationWork(w)||w.billable===false||!(parcel?.clientId===clientId||w.clientId===clientId)||!inPeriod(String(w.date||'').slice(0,10),from,to))continue;
-    if(!billed.has(`work:${w.id}`))items.push({key:`work:${w.id}`,kind:'work',date:w.date,line:workLine(w,parcel,client,vat)});
-    if(includeFuel&&!billed.has(`fuel:${w.id}`)){const f=fuelLine(w,parcel,vat,fuelPrice);if(f)items.push({key:`fuel:${w.id}`,kind:'fuel',date:w.date,line:f});}
+    const workVat=advisedWorkVat(vatAdvice,state,{work:w,parcel,client},vat);
+    if(!billed.has(`work:${w.id}`))items.push({key:`work:${w.id}`,kind:'work',date:w.date,line:withVatNote(workLine(w,parcel,client,workVat.rate),workVat.note)});
+    if(includeFuel&&!billed.has(`fuel:${w.id}`)){const f=fuelLine(w,parcel,workVat.rate,fuelPrice);if(f)items.push({key:`fuel:${w.id}`,kind:'fuel',date:w.date,line:withVatNote(f,workVat.note?`TVA ${String(workVat.rate).replace('.',',')} % comme le travail`:'')});}
   }
   for(const p of active(state,'chantiers')){
     if(p.kind!=='tp'||p.clientId!==clientId)continue;

@@ -4,6 +4,7 @@
 import {ctx} from './app-context.js';
 import {openPersonalization} from './personalization-ui.js';
 import {toggledTheme} from './theme.js';
+import {recordAdviceDismissal, undoAdviceDismissal} from './learning.js';
 
 const networkDetailsBody = () => `<div class="notice ${navigator.onLine?'info':'warning'}">${navigator.onLine?'Les fonctions réseau sont disponibles.'
   :'Les données locales restent accessibles et modifiables.'}</div>`;
@@ -93,6 +94,17 @@ export const todayActions = {
   async 'assistant-remote-action'({id}) { await ctx.runAssistantRemoteAction(id); },
   async 'open-account'() { await ctx.openAccountTeam(); },
   'open-notifications'() { ctx.openNotifications(); },
+  // Conseil jugé « pas utile » : mémorisé (learning.js), masqué pour la campagne au deuxième refus.
+  async 'advice-dismiss'({id, control}) {
+    const d=control.dataset, advice={rule:d.rule, entity:d.entity, entityId:id, parcelId:d.parcel||''};
+    await ctx.store.setPreferences({dismissedAdvice:recordAdviceDismissal(ctx.state(), advice)});
+    ctx.openNotifications();
+    const undo = async () => {
+      await ctx.store.setPreferences({dismissedAdvice:undoAdviceDismissal(ctx.state(), advice)});
+      ctx.openNotifications();
+    };
+    ctx.toast('Noté : ce conseil sera masqué pour la campagne s’il ne vous sert toujours pas.', 'info', {label:'Annuler', run:undo});
+  },
   'notification-open'({id, control}) {
     const entity=control.dataset.entity;
     ctx.closeModal();

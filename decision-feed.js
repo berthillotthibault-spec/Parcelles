@@ -150,6 +150,19 @@ function fromNitrogen(a, state, i) {
     action: a.workId ? {type: 'notification-open', label: 'Voir le travail', id: a.workId, payload: {entity: 'interventions'}} : {type: 'open-compliance', label: 'Voir', id: 'nitrogen', payload: null}, key: a.workId || a.parcelId || id});
 }
 
+// Point du matin (morning-brief.js, items injectés) : seules les phrases qui appellent une décision sur un
+// travail du jour ou du lendemain (créneau de traitement absent, sol humide, portance limite, type de
+// fertilisant à préciser en zone vulnérable). Épandage interdit et délai avant récolte viennent déjà des conseils.
+const BRIEF_KINDS = {'spray-none': 'postpone-work', 'spray-watch': 'edit-work', 'soil-wet': 'postpone-work', 'soil-limit': 'edit-work', 'zv-check': 'edit-work'};
+export function fromBrief(item, state = {}, {today = localIso()} = {}) {
+  const type = BRIEF_KINDS[item?.kind];
+  if (!type || !item.workId || !item.text) return null;
+  const label = type === 'postpone-work' ? 'Reporter' : item.kind === 'zv-check' ? 'Préciser le produit' : 'Modifier';
+  return decision({id: `brief-${item.kind}-${item.workId}`, kind: `brief-${item.kind}`, title: item.text, why: ['Point du matin : rapprochement du planning et des conditions du jour (indicatif).'],
+    level: item.level, ha: num(find(state, 'interventions', item.workId)?.surfaceWorked) ?? parcelHa(state, item.parcelId), daysLeft: daysUntil(item.day, today),
+    action: {type, label, id: item.workId, payload: null}, key: item.workId});
+}
+
 const safe = (fn, fallback = []) => {try {return fn() ?? fallback;} catch {return fallback;}};
 
 /** Fusionne les entrées de même clé (entité ou parcelle) et de même kind. */
@@ -164,10 +177,11 @@ function merge(into, other) {
 
 /**
  * Fil « À décider ». Sources internes recalculées (sauf si fournies dans options pour les tests :
- * notifications, compliance, treasury) et sources injectées (inputNeeds, costDrifts, grazingAdvice).
+ * notifications, compliance, treasury) et sources injectées (inputNeeds, costDrifts, grazingAdvice, morning :
+ * items de briefing() de morning-brief.js).
  * treasuryForecast : fonction de treasury.js, injectée car ce module est chargé à la demande (pas au démarrage).
  */
-export function decisionFeed(state, {today = localIso(), now = Date.now(), weather = null, inputNeeds = [], costDrifts = [], grazingAdvice = [], limit = 7,
+export function decisionFeed(state, {today = localIso(), now = Date.now(), weather = null, inputNeeds = [], costDrifts = [], grazingAdvice = [], morning = [], limit = 7,
   notifications = null, compliance = null, treasury = null, treasuryForecast = null} = {}) {
   if (!state) return [];
   const rows = [];
@@ -180,13 +194,15 @@ export function decisionFeed(state, {today = localIso(), now = Date.now(), weath
   push((inputNeeds || []).map(n => safe(() => fromInputNeed(n, {today}), null)));
   push((costDrifts || []).map(d => safe(() => fromCostDrift(d), null)));
   push((grazingAdvice || []).map(g => safe(() => fromGrazing(g, state), null)));
+  push((Array.isArray(morning) ? morning : morning?.items || []).map(m => safe(() => fromBrief(m, state, {today}), null)));
   // 1. Même id : la première occurrence l’emporte. 2. Même clé + même kind (stock et stock-shortfall comptent pour un) : les why fusionnent.
   const seen = new Set(), byKey = new Map(), out = [];
   for (const d of rows) {
     if (!DECISION_ACTIONS.includes(d.action?.type) || seen.has(d.id)) continue;
     seen.add(d.id);
     // « Stock faible » (notification) et besoin en intrants du même article : une seule carte, celle du besoin (commande préparée).
-    const k = d.key ? `${d.key}|${d.kind === 'stock' ? 'stock-shortfall' : d.kind}` : null;
+    // Épandage interdit : conseil R12 (calendrier national) et alerte azote du même travail ne font qu’une carte.
+    const k = d.key ? `${d.key}|${d.kind === 'stock' ? 'stock-shortfall' : d.kind === 'nitrogen-ban' || d.id.startsWith('advice-R12-') ? 'zv-ban' : d.kind}` : null;
     if (k && byKey.has(k)) {
       const prev = byKey.get(k);
       if (prev.kind === 'stock' && d.kind === 'stock-shortfall') {merge(d, prev); out[out.indexOf(prev)] = d; byKey.set(k, d);} else merge(prev, d);

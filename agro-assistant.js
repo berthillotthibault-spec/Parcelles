@@ -15,6 +15,9 @@ import {assessParcel} from './soil-water.js';
 import {evaluateAgroRisks} from './agro-risk.js';
 import {cultureFor, cultureReference, fertilizerFor, isFertilization, nitrogenPerHa, nitrogenReferences, parcelPlan} from './nitrogen.js';
 import {agroIntent, agroText, cropAfterWord, nextCropOptions, sameCrop, targetDay} from './agro-knowledge.js';
+import {parcelInZone} from './nitrogen.js';
+import {ZV_CALENDAR_SOURCE, ZV_PAR_WARNING, zvSpreadStatus, zvStatusText} from './zv-calendar.js';
+import {briefing} from './morning-brief.js';
 
 const pad = n => String(n).padStart(2, '0');
 const isoToday = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -249,7 +252,46 @@ export function answerNextCropQuestion(question, state = {}, context = {}) {
   return reply('next_crop', parts.join(' '), parcel ? [openParcel(parcel)] : []);
 }
 
-const AGRO_ANSWERS = {reentry: answerReentryQuestion, dar: answerDarQuestion, nextCrop: answerNextCropQuestion, sowing: answerSowingQuestion, risk: answerRiskQuestion, nitrogen: answerNitrogenQuestion, spray: answerSprayQuestion};
+// « Puis-je épandre du lisier sur les Brosses ? » : calendrier national des zones vulnérables (zv-calendar.js).
+const FERT_WORDS = /\b(lisier|purin|fientes?|fumier(?: de volailles?| compact| pailleux)?|compost(?: de dechets verts| de fientes?)?|digestat(?: brut)?|ammonitrate|uree|solution azotee|engrais azote|engrais mineral|de l azote|azote)\b/;
+export function answerZvSpreadQuestion(question, state = {}, context = {}) {
+  const q = agroText(question), now = context.now ?? Date.now(), today = context.today || isoToday(new Date(now));
+  const day = targetDay(question) === 'tomorrow' ? addDaysIso(today, 1) : today, when = day === today ? 'aujourd’hui' : 'demain';
+  const parcel = parcelInQuestion(question, state, context);
+  const word = (q.match(FERT_WORDS) || [])[0] || '';
+  const product = word === 'de l azote' || word === 'azote' ? 'engrais azoté minéral' : word;
+  const display = product ? product.charAt(0).toUpperCase() + product.slice(1) : 'Fertilisant';
+  const source = `Source : ${ZV_CALENDAR_SOURCE.text} (${ZV_CALENDAR_SOURCE.version}).`;
+  if (!parcel) return reply('zv_spread', `Citez la parcelle (« puis-je épandre du lisier sur les Brosses ? ») : la période d’interdiction dépend de la culture en place et du type de fertilisant. ${ZV_PAR_WARNING}`);
+  const auto = typeof context.zvAuto === 'function' ? context.zvAuto(parcel.id) : context.zvAuto;
+  const explicitOut = parcel.zoneVulnerable === false || (parcel.zoneVulnerable !== true && auto?.inZone === false);
+  const inZone = parcelInZone(state, parcel, context.zvAuto);
+  const culture = cultureFor(state, parcel, campaignFor(day), today) || parcel.culture || '';
+  const res = zvSpreadStatus({date: day, culture, product, state});
+  const parts = [];
+  if (explicitOut) parts.push(`${parcel.nom} est indiquée hors zone vulnérable : le calendrier d’interdiction des zones vulnérables ne s’y applique pas (les autres règles d’épandage restent valables).`);
+  else if (!inZone) parts.push(`${parcel.nom} : zone vulnérable non renseignée (fiche parcelle ou détection automatique). Si elle l’est :`);
+  else parts.push(`${parcel.nom} est en zone vulnérable.`);
+  if (!explicitOut) {
+    parts.push(`${when.charAt(0).toUpperCase()}${when.slice(1)}, ${zvStatusText(res, {product: display, parcelName: ''}).replace(/^./, c => c.toLowerCase())}`);
+    if (!product || !res.fert.type) parts.push(`${res.fert.why}`);
+    if (!res.occupation) parts.push(`Culture ${culture ? `« ${culture} » non reconnue` : 'non renseignée'} : précisez-la dans l’assolement.`);
+  }
+  parts.push(ZV_PAR_WARNING, source);
+  return reply('zv_spread', parts.join(' ').replace(/\s+/g, ' ').trim(), [openParcel(parcel)]);
+}
+
+// « Point du matin », « qu’est-ce que je fais aujourd’hui ? », « quoi de prévu demain ? »
+export function answerBriefQuestion(question, state = {}, context = {}) {
+  const now = context.now ?? Date.now(), today = context.today || isoToday(new Date(now));
+  const b = briefing(state, {today, now, agro: context.agro || null, agroDays: context.agroDays || [], weather: context.weather || null,
+    soilWater: context.soilWater || null, stations: context.stations || [], catalog: context.catalog || null, zvAuto: context.zvAuto || null});
+  const ids = [...new Set(b.items.map(x => x.parcelId).filter(Boolean))].slice(0, 3);
+  const actions = ids.map(id => activeParcels(state).find(p => p.id === id)).filter(Boolean).map(openParcel);
+  return reply('morning_brief', `${b.text} Repères indicatifs : vérifiez au champ, l’étiquette des produits et la réglementation font foi.`, actions);
+}
+
+const AGRO_ANSWERS = {brief: answerBriefQuestion, zvSpread: answerZvSpreadQuestion, reentry: answerReentryQuestion, dar: answerDarQuestion, nextCrop: answerNextCropQuestion, sowing: answerSowingQuestion, risk: answerRiskQuestion, nitrogen: answerNitrogenQuestion, spray: answerSprayQuestion};
 
 export function answerAgroQuestion(question, state = {}, context = {}) {
   const first = answerPhenologyQuestion(question, state, context) || answerMarginQuestion(question, state, context) || answerRotationQuestion(question, state, context);

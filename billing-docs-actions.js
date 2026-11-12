@@ -5,6 +5,7 @@
 // Toute écriture passe par le moteur (invoices.js, billing.js) ; une action réversible propose « Annuler ».
 import {html, raw} from './safe-html.js';
 import {searchCompanies} from './company-lookup.js';
+import {clientFarmerFields, farmerPrefill} from './vat-advisor.js';
 import {download} from './utils.js';
 import {DOC_LABELS, PAYMENT_METHODS, VAT_EXEMPTIONS, ACCOUNTING_TYPES, docTypeOf, documentTotals, invoiceBalance, invoiceStatus, paymentsOf, methodLabel, fingerprintOk,
   isoDay, dateFr, lineKind, amountLine, runningSubtotals, emitDocument, addPayment, removePayment, createCreditNote, patchEmitted, deleteDraft, invoiceFileName} from './invoices.js';
@@ -410,6 +411,7 @@ export function createDocsActions(ui) {
       <div class="span-2 bd-co-lookup"><label for="bd-co-q">Retrouver l’entreprise dans l’annuaire officiel</label><div class="bd-co-row"><input id="bd-co-q" name="coQuery" value="${c ? '' : name || ''}" placeholder="Nom, SIREN, SIRET, commune ou code postal" autocomplete="off" enterkeyhint="search"><button type="button" class="button secondary" data-bdoc="company-search">Rechercher</button></div><p class="bd-note">Remplit raison sociale, SIREN, n° de TVA et adresse du siège (annuaire des entreprises de l’État). Relisez avant d’enregistrer.</p><ul id="bd-co-list" class="bd-co-list" hidden></ul></div>
       <label class="span-2">Nom ou raison sociale *<input name="name" maxlength="120" value="${v.name || ''}" autocomplete="off" data-autofocus></label>
       <div class="bd-field span-2"><span class="bd-label">Type de client</span>${ui.chipGroup('kind', [['pro', 'Professionnel'], ['particulier', 'Particulier']], v.kind || '', 'Type de client')}</div>
+      <div class="bd-field span-2"><span class="bd-label">Exploitant agricole</span>${ui.chipGroup('farmer', [['oui', 'Oui'], ['non', 'Non'], ['', 'Ne sais pas']], v.farmer === true ? 'oui' : v.farmer === false ? 'non' : '', 'Client exploitant agricole')}<input type="hidden" name="legalForm" value="${v.legalForm || ''}"><input type="hidden" name="activity" value="${v.activity || ''}"><p class="bd-note">Sert au conseil de TVA (ex. travaux forestiers à 10 % pour un exploitant agricole jusqu’au 31/12/2028).</p></div>
       <label>Contact<input name="contact" maxlength="120" value="${v.contact || ''}" autocomplete="off"></label><label>Téléphone<input name="phone" inputmode="tel" maxlength="30" value="${v.phone || ''}" autocomplete="off"></label>
       <label class="span-2">E-mail de facturation<input type="email" name="billingEmail" maxlength="160" value="${v.billingEmail || v.email || ''}" autocomplete="off"></label>
       <label class="span-2">Adresse de facturation<textarea name="billingAddress" rows="2" maxlength="400">${v.billingAddress || v.address || ''}</textarea></label>
@@ -421,6 +423,7 @@ export function createDocsActions(ui) {
       <p class="span-2 form-error hidden" role="alert"></p></form>`;
     ui.modal(c ? `Facturation : ${c.name}` : 'Nouveau client', 'Coordonnées reprises sur les devis et les factures', String(body), String(html`<button type="button" class="button secondary" data-bdoc="client-cancel">Annuler</button><button type="button" class="button primary" data-bdoc="client-save">Enregistrer</button>`), 'small');
     ui.bindChips($('#bd-client-form'));
+    $('#bd-client-form [data-chip-target="farmer"]')?.addEventListener('click', e => { if (e.target.closest('.choice-chip')) $('#bd-client-form').dataset.farmerManual = '1'; });
     $('#bd-co-q')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); companySearch(); } });
   }
   // ---------- Annuaire des entreprises ----------
@@ -437,9 +440,15 @@ export function createDocsActions(ui) {
     const r = companyResults[Number(control.dataset.i)], f = $('#bd-client-form'); if (!r || !f) return;
     const set = (k, v, {onlyEmpty = false} = {}) => { const el = f.elements[k]; if (el && v && (!onlyEmpty || !el.value.trim())) el.value = v; };
     set('name', r.name); set('siren', r.siret || r.siren); set('vatNumber', r.vatNumber); set('billingAddress', r.billingAddress); set('contact', r.contact, {onlyEmpty: true});
-    if (f.elements.kind) { f.elements.kind.value = 'pro'; f.querySelectorAll('[data-chip-target="kind"] .choice-chip').forEach(b => { const on = b.dataset.value === 'pro'; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); }); }
+    const chip = (name, value) => { if (!f.elements[name]) return; f.elements[name].value = value; f.querySelectorAll(`[data-chip-target="${name}"] .choice-chip`).forEach(b => { const on = b.dataset.value === value; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', String(on)); }); };
+    chip('kind', 'pro'); for (const k of ['legalForm', 'activity']) if (f.elements[k]) f.elements[k].value = r[k] || '';
+    // Exploitant agricole probable (code NAF 01.1 à 01.5 ou 02.1 à 02.3, GAEC, EARL, SCEA) : sans écraser un choix manuel.
+    // Un « Oui » mis par l'annuaire est retiré si l'entreprise choisie ensuite n'est pas agricole.
+    const farmer = farmerPrefill(f.elements.farmer?.value, r, {manual: f.dataset.farmerManual === '1', auto: f.dataset.farmerAuto === '1'});
+    if (farmer !== null) { chip('farmer', farmer); f.dataset.farmerAuto = farmer === 'oui' ? '1' : ''; }
     const list = $('#bd-co-list'); if (list) { list.hidden = true; list.innerHTML = ''; }
-    ui.toast(r.closed ? `Fiche préremplie : ${r.displayName}. Attention, l’annuaire indique cette entreprise comme fermée.` : `Fiche préremplie : ${r.displayName}. Relisez puis enregistrez.`, r.closed ? 'info' : 'success');
+    const farmNote = farmer === '' ? ' Exploitant agricole : remis à « Ne sais pas ».' : farmer ? ` Exploitant agricole : Oui (d’après ${r.legalForm && r.legalForm !== 'CUMA' ? `la forme ${r.legalForm}` : `l’activité ${r.activity}`}), à vérifier.` : '';
+    ui.toast(r.closed ? `Fiche préremplie : ${r.displayName}. Attention, l’annuaire indique cette entreprise comme fermée.${farmNote}` : `Fiche préremplie : ${r.displayName}.${farmNote} Relisez puis enregistrez.`, r.closed ? 'info' : 'success');
     f.elements.name?.focus();
   }
 
@@ -455,7 +464,7 @@ export function createDocsActions(ui) {
       return;
     }
     const prev = clientCtx.id ? store().get('clients', clientCtx.id) : null, value = checked.value;
-    const record = {...(prev || {}), ...value, address: prev?.address || value.billingAddress, email: prev?.email || value.billingEmail};
+    const record = {...(prev || {}), ...value, ...clientFarmerFields(raw0), address: prev?.address || value.billingAddress, email: prev?.email || value.billingEmail};
     let saved; try { saved = await store().upsert('clients', record, {label: `Client ${prev ? 'modifié' : 'créé'} : ${value.name}`}); } catch (error) { return ui.showFormError(f, error?.message || 'Enregistrement impossible.', null); }
     const ctx0 = clientCtx; clientCtx = null;
     ui.toast(prev ? 'Fiche de facturation mise à jour.' : `Client créé : ${saved.name}.`, 'success', prev ? null : {label: 'Annuler', run: () => ui.run(() => store().remove('clients', saved.id))});

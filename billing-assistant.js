@@ -4,8 +4,10 @@
 // ils ne remplacent ni la comptabilité ni l’avis du comptable.
 import {normalize} from './utils.js';
 import {active} from './farm-memory.js';
-import {ACCOUNTING_TYPES,addDays,daysBetween,docTypeOf,documentTotals,invoiceBalance,invoiceSettings,invoiceStatus,invoices,isoDay,paymentsOf,quoteStatus,quotes,round2,amountLine} from './invoices.js';
+import {ACCOUNTING_TYPES,addDays,daysBetween,docTypeOf,documentTotals,invoiceBalance,invoiceSettings,invoiceStatus,invoices,isoDay,quoteStatus,quotes,round2,amountLine} from './invoices.js';
 import {agedBalance,quotesToFollow,remindersDue,revenueByClient,revenueByMonth,unbilledAlerts} from './billing-insights.js';
+import {vatBalance,FILING_NOTE} from './vat-balance.js';
+import {expectedCollections,habitSentence} from './payment-habits.js';
 
 const LEGAL=new Set(['gaec','scea','earl','sarl','sas','sasu','sa','eurl','ets','sci','cuma','eta','ste','societe','mr','mme','monsieur','madame','de','des','du','la','le','les','et']);
 const MONTHS=['janvier','fevrier','mars','avril','mai','juin','juillet','aout','septembre','octobre','novembre','decembre'];
@@ -15,7 +17,6 @@ const dateFr=d=>d?`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`:'';
 const plural=(n,one,many)=>`${n} ${n>1?many:one}`;
 const num=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
 const ttcOf=d=>num(d.totals?.ttc)??documentTotals(d).ttc;
-const totalsOf=d=>d.totals&&num(d.totals.ttc)!==null&&num(d.totals.tva)!==null?d.totals:documentTotals(d);
 const emitted=state=>invoices(state).filter(i=>i.status!=='brouillon'&&ACCOUNTING_TYPES.has(docTypeOf(i)));
 const docName=d=>`${d.docType==='avoir'?'avoir':d.docType==='acompte'?'acompte':docTypeOf(d)==='devis'?'devis':'facture'}${d.number?` ${d.number}`:''}`;
 const reply=(intent,answer,extra={})=>({recognized:true,intent,answer,text:answer,actions:[],source:'billing',...extra});
@@ -132,24 +133,32 @@ function vatCollected(state,q,today){
   const s=invoiceSettings(state),p=periodFromQuestion(q,today,'month');
   if(s.vatRegime==='franchise')return reply('billing_vat','Vos paramètres indiquent la franchise en base de TVA : vos factures ne portent pas de TVA, il n’y a donc pas de TVA collectée à reverser. À confirmer avec votre comptable si votre chiffre d’affaires approche des seuils.');
   if(s.vatRegime==='remboursement-forfaitaire')return reply('billing_vat','Vos paramètres indiquent le remboursement forfaitaire agricole : vous ne collectez normalement pas de TVA sur vos factures. Vérifiez avec votre comptable que ce régime s’applique bien à toutes vos ventes et prestations.');
-  let debits=0,cash=0,cashUnknown=0;const byRate=new Map();
-  for(const d of emitted(state)){
-    const t=totalsOf(d),sign=d.docType==='avoir'?-1:1;
-    if(d.issueDate&&d.issueDate>=p.from&&d.issueDate<=p.to){debits=round2(debits+t.tva);for(const r of t.byRate||[])if(r.tax)byRate.set(r.rate,round2((byRate.get(r.rate)||0)+r.tax));}
-    if(d.docType==='avoir'||!(Math.abs(t.ttc)>0))continue;
-    const b=invoiceBalance(state,d),ratio=t.tva/t.ttc;
-    const pays=b.legacy?[{date:d.paidAt,amount:Math.max(0,b.net)}]:paymentsOf(d);
-    for(const pay of pays)if(pay.date&&pay.date>=p.from&&pay.date<=p.to){if(num(pay.amount)===null){cashUnknown+=1;continue;}cash=round2(cash+sign*pay.amount*ratio);}
-  }
-  const nature=s.operationNature,onDebits=!!s.vatOnDebits;
-  const rates=[...byRate.entries()].sort((a,b)=>b[0]-a[0]).map(([r,v])=>`${String(r).replace('.',',')} % : ${euro(v)}`).join(', ');
+  // TVA collectée et déductible : un seul calcul, celui de vat-balance.js.
+  const vb=vatBalance(state,{from:p.from,to:p.to}),unknown=vb.unknown.length;
+  const {debits,cash,cashUnknown}=vb.collected,nature=s.operationNature,onDebits=!!s.vatOnDebits;
+  const rates=vb.collected.byRate.map(({rate,tax})=>`${String(rate).replace('.',',')} % : ${euro(tax)}`).join(', ');
   const rule=nature==='biens'?'Pour des livraisons de biens, la TVA est en principe exigible à la livraison, donc le montant facturé est le repère.'
     :nature==='mixte'?'Activité mixte : la TVA des biens suit en principe la livraison (factures), celle des prestations suit l’encaissement, sauf option pour les débits'+(onDebits?' (option cochée dans vos paramètres).':'.')
     :onDebits?'Vous avez opté pour la TVA d’après les débits : pour vos prestations, la TVA est due sur les factures émises.'
     :'Pour des prestations de services, la TVA est en principe due à l’encaissement (sauf option pour les débits, non cochée dans vos paramètres).';
   const main=nature==='biens'||onDebits?debits:nature==='mixte'?null:cash;
-  const answer=`TVA collectée ${p.label} : ${euro(debits)} sur les factures émises${rates?` (${rates})`:''} et ${euro(cash)} sur les encaissements reçus. ${rule}${main!==null?` Repère retenu : ${euro(main)}.`:''} La TVA déductible sur vos achats n’est pas connue de l’appli : le montant réellement à reverser est la TVA collectée moins cette TVA déductible, selon votre régime de déclaration (mensuel, trimestriel ou simplifié agricole). À confirmer avec votre comptable.${cashUnknown?` ${plural(cashUnknown,'paiement sans montant n’est pas compté','paiements sans montant ne sont pas comptés')}.`:''}`;
-  return reply('billing_vat',answer,{metrics:{...p,debits,cash,main,onDebits,nature}});
+  // TVA déductible : seulement celle des achats dont le montant de TVA est connu.
+  const unknownText=unknown?` ${plural(unknown,'achat',"achats")} (${euro(vb.unknownAmount)}) sans TVA connue ${unknown>1?'ne sont pas déduits':'n’est pas déduit'} : le solde réel sera sans doute plus faible.`:'';
+  const deductibleText=vb.known.length
+    ?` TVA déductible connue sur vos achats : ${euro(vb.deductible)} (${plural(vb.known.length,'pièce','pièces')}).${main!==null?` TVA ${vb.balance>=0?'à reverser (à payer)':'en crédit'} ${p.label} : ${euro(Math.abs(vb.balance))}.`:` Solde estimé : ${euro(vb.balances.debits)} d’après les factures, ${euro(vb.balances.encaissements)} d’après les encaissements.`}${unknownText} ${FILING_NOTE}`
+    :' La TVA déductible sur vos achats n’est pas connue de l’appli : le montant réellement à reverser est la TVA collectée moins cette TVA déductible, selon votre régime de déclaration (mensuel, trimestriel ou simplifié agricole).';
+  const answer=`TVA collectée ${p.label} : ${euro(debits)} sur les factures émises${rates?` (${rates})`:''} et ${euro(cash)} sur les encaissements reçus. ${rule}${main!==null?` Repère retenu : ${euro(main)}.`:''}${deductibleText} À confirmer avec votre comptable.${cashUnknown?` ${plural(cashUnknown,'paiement sans montant n’est pas compté','paiements sans montant ne sont pas comptés')}.`:''}`;
+  return reply('billing_vat',answer,{metrics:{...p,debits,cash,main,onDebits,nature,deductible:vb.deductible,balance:main!==null&&vb.known.length?vb.balance:null,unknownPurchases:unknown}});
+}
+// Prévision d’encaissements : date probable = échéance décalée du retard moyen constaté chez le client.
+function collections(state,c,today){
+  const rows=expectedCollections(state,{today}).filter(r=>!c||sameClient(r.invoice,c)).sort((a,b)=>a.expectedDate.localeCompare(b.expectedDate));
+  if(!rows.length)return reply('billing_collections',c?`Aucune facture de ${c.name} n’attend de paiement.`:'Aucune facture émise n’attend de paiement : rien à encaisser pour le moment.');
+  const total=round2(rows.reduce((s,r)=>s+r.amount,0)),soon=addDays(today,30),late=rows.filter(r=>r.late),next=rows.filter(r=>!r.late&&r.expectedDate<=soon);
+  const lateAmount=round2(late.reduce((s,r)=>s+r.amount,0)),nextAmount=round2(next.reduce((s,r)=>s+r.amount,0));
+  const list=rows.slice(0,5).map(r=>`${c?docName(r.invoice):r.invoice.clientName||'Client'} ${euro(r.amount)} ${r.late?`attendus depuis le ${dateFr(r.expectedDate)}`:`vers le ${dateFr(r.expectedDate)}`}${r.shiftDays>0?` (échéance ${dateFr(r.dueDate)})`:''}`);
+  const habits=[...new Map(rows.filter(r=>r.habit).map(r=>[r.habit.key,r.habit])).values()].slice(0,3).map(habitSentence);
+  return reply('billing_collections',`${euro(total)} TTC à encaisser${c?` auprès de ${c.name}`:''} sur ${plural(rows.length,'échéance','échéances')}${lateAmount?`, dont ${euro(lateAmount)} déjà attendus`:''}${nextAmount?` ; ${euro(nextAmount)} probables dans les 30 jours`:''} : ${list.join(' ; ')}.${habits.length?` ${habits.join(' ')}`:''} Date probable = échéance décalée du retard moyen constaté chez le client (à partir de 2 factures payées), sinon l’échéance. Estimation, non garantie.`,{metrics:{total,late:lateAmount,next30:nextAmount,count:rows.length}});
 }
 function billingSummary(state,today){
   const aged=agedBalance(state,today),f=quotesToFollow(state,today),u=unbilledAlerts(state,today,{days:0}),r=remindersDue(state,today);
@@ -173,7 +182,8 @@ export function answerBillingQuestion(question,state,{today=isoDay()}={}){
   const named=findClientInQuestion(q,state),c=named&&!named.ambiguous?named:null;
   const clientOwe=owe||/\bcombien\b(?:\s+\S+){0,3}?\s+doi(t|vent)\b(?![- ]on\b)(?!\s+(faire|passer|venir|etre|avoir))/.test(q);
   if(named?.ambiguous&&(clientOwe||/\b(derniere facture|solde)\b/.test(q)))return reply('billing_client_ambiguous',`Plusieurs clients correspondent : ${named.ambiguous.slice(0,4).map(x=>x.name).join(', ')}. Précisez le nom.`);
-  if(/\btva\b/.test(q)&&/\b(reverser|payer|paye|due|dois|doit|collectee?s?|declarer|declaration|montant|combien)\b/.test(q))return vatCollected(state,q,today);
+  if(/\btva\b/.test(q)&&/\b(reverser|payer|paye|due|dois|doit|collectee?s?|declarer|declaration|montant|combien|solde|deductible|credit)\b/.test(q))return vatCollected(state,q,today);
+  if(/\bquand\b.*(\b(paye|payee?s?|payera|payeront|encaisse\w*|reglee?s?|reglera)\b|\b(me|nous|m)\s+(payer|regler)\b)|\bprevisions? d encaissements?\b|\bencaissements? (prevus?|attendus?|a venir|probables?)\b/.test(q))return collections(state,c,today);
   if(/\b(pas|non|jamais) (encore )?factur|\ba facturer\b|\boubli\w* de factur|\bsans facture\b/.test(q))return unbilled(state,today);
   if(/\bdevis\b/.test(q)&&/\b(attente|relancer|relance|en cours|sans reponse|ouverts?|envoyes?|expire\w*|signes?|combien|quels?)\b/.test(q))return pendingQuotes(state,today);
   if(/\bderni\w+ facture\b/.test(q))return lastInvoice(state,c,today);

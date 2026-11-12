@@ -341,3 +341,11 @@ test('R11 : parcelle travaillée sans culture renseignée', () => {
   state.rotations = [{id: 'r1', parcelId: 'p1', campaignId: '2025/26', culture: 'Orge d’hiver'}];
   assert.equal(rules(farmAdvice(state, {today: '2026-03-01'}), 'R11').length, 0);
 });
+
+test('R3B : même calendrier que R12 (lisier sur prairie permanente le 20/10 : hors période)', () => {
+  const s = {parcelles: [{id: 'p2', nom: 'Pré du bas', culture: 'Prairie permanente', zoneVulnerable: true}],
+    interventions: [{id: 'l1', parcelId: 'p2', type: 'Épandage lisier', product: 'Lisier', status: 'À faire', plannedDate: '2026-10-15'}]};
+  assert.equal(rules(farmAdvice(s, {today: '2026-10-20'}), 'R3B').length, 0);
+  const [a] = rules(farmAdvice(s, {today: '2026-11-20'}), 'R3B');
+  assert.match(a.message, /type II est interdit du 15\/11 au 15\/01 sur cette culture\. Annulez ou reportez au 16\/01 ou après\./);
+});

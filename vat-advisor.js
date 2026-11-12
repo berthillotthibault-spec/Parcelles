@@ -3,7 +3,9 @@
 // BOFiP BOI-TVA-SECT-80-70 (opérations de façon, travaux agricoles et forestiers).
 // Le conseil reste indicatif : chaque taux proposé est modifiable, et les cas incertains sont signalés
 // (« confidence: 'check' ») avec les autres taux possibles. À confirmer avec votre comptable.
-import {normalize} from './utils.js';
+import {normalize,campaignFor} from './utils.js';
+import {agriculturalActivity,legalFormOf} from './company-lookup.js';
+import {setWorkVatAdvisor} from './invoices-core.js';
 
 /** Fin du taux de 10 % des travaux forestiers pour les exploitants agricoles (LF 2026, art. 96). */
 export const FORESTRY_END = '2028-12-31';
@@ -26,14 +28,41 @@ const FARM_RE = /\b(gaec|earl|scea|ea|cuma|exploitation agricole|exploitant agri
 export function clientCategory({clientKind = '', clientName = '', client = null} = {}) {
   const name = normalize(clientName || client?.name || client?.nom || '');
   const hint = normalize([client?.kind, client?.category, client?.type, client?.activity].filter(Boolean).join(' '));
-  if (client && (client.farmer === true || client.isFarmer === true || client.agricultural === true)) return 'farm';
-  if (/\b(exploitant|agricole|agriculteur|eleveur)\b/.test(hint)) return 'farm';
+  // Statut choisi sur la fiche client (Oui / Non) : prioritaire sur les indices du nom.
+  const stated = explicitFarmer(client);
+  if (stated === true) return 'farm';
+  if (stated === null && /\b(exploitant|agricole|agriculteur|eleveur)\b/.test(hint)) return 'farm';
   if (/\b(collectivite|public|commune)\b/.test(hint) || PUBLIC_RE.test(name)) return 'public';
   const kind = clientKind || client?.clientKind || '';
   if (kind === 'particulier' || hint === 'particulier') return 'private';
-  if (FARM_RE.test(name)) return 'farm';
-  if (kind === 'pro') return 'pro';
+  if (stated === null && (FARM_RE.test(name) || agriculturalActivity(client?.activity) || ['GAEC', 'EARL', 'SCEA'].includes(legalFormOf('', client?.legalForm)))) return 'farm';
+  if (kind === 'pro' || stated === false) return 'pro';
   return 'unknown';
+}
+/** Statut « exploitant agricole » saisi sur la fiche client : true, false ou null (non renseigné). */
+export function explicitFarmer(client) {
+  if (!client) return null;
+  if (client.farmer === true || client.farmer === false) return client.farmer;
+  return client.isFarmer === true || client.agricultural === true ? true : null;
+}
+/** Valeur d'un choix Oui / Non / Ne sais pas d'un formulaire : true, false ou null. */
+export const farmerChoice = v => v === true || v === 'oui' || v === 'true' ? true : v === false || v === 'non' || v === 'false' ? false : null;
+/** Champs « exploitant agricole » d'un formulaire client : statut, forme juridique et code NAF (annuaire). */
+export function clientFarmerFields(raw = {}) {
+  const legalForm = legalFormOf('', raw.legalForm), activity = String(raw.activity ?? '').trim().toUpperCase();
+  const naf = /^\d{2}\.?\d{2}[A-Z]$/.test(activity) ? activity : '';
+  // Champ présent mais vide : '' explicite, pour effacer la valeur d'une entreprise choisie avant.
+  return {farmer: farmerChoice(raw.farmer), ...(legalForm || 'legalForm' in raw ? {legalForm} : {}), ...(naf || 'activity' in raw ? {activity: naf} : {})};
+}
+/**
+ * Choix proposé par l'annuaire, sans écraser un choix manuel : 'oui', '' (annuler un « Oui » mis par l'annuaire
+ * quand la nouvelle entreprise n'est pas agricole) ou null (rien à changer). opts.auto : valeur actuelle venue de l'annuaire.
+ */
+export function farmerPrefill(current, company, {manual = false, auto = false} = {}) {
+  if (manual) return null;
+  const set = farmerChoice(current) !== null && !auto;
+  if (company?.farmerLikely) return set ? null : 'oui';
+  return auto && farmerChoice(current) !== null ? '' : null;
 }
 
 // ---------- Cultures : taux du produit obtenu ----------
@@ -60,11 +89,31 @@ const CROPS = [
 const ALT_ANIMAL = {rate: 10, when: 'si la récolte est destinée à l’alimentation animale'};
 const ALT_HUMAN = {rate: 5.5, when: 'si la récolte est destinée à l’alimentation humaine (ex. blé meunier, orge de brasserie)'};
 const ALT_NONFOOD = {rate: 20, when: 'si la récolte a une destination non alimentaire (chanvre, biocarburant, industrie)'};
-/** Taux du produit obtenu pour une culture reconnue dans le libellé, ou null. */
-export function cropRate(label, {destination = ''} = {}) {
-  const n = normalize(label), crop = CROPS.find(c => c.re.test(n));
+// Destination de la récolte choisie sur la parcelle (culture de la campagne). Elle prime sur le libellé.
+export const DESTINATIONS = [['humaine', 'Alimentation humaine'], ['animale', 'Alimentation animale'], ['semence', 'Semences'], ['energie', 'Énergie (méthanisation, biocarburant)'], ['autre', 'Autre usage non alimentaire']];
+const DEST_KEYS = new Set(DESTINATIONS.map(d => d[0]));
+export const validDestination = v => DEST_KEYS.has(v) ? v : '';
+function explicitRate(dest, cropLabel, kind = '') {
+  const out = (rate, why, alternatives = []) =>
+    ({crop: cropLabel, kind, rate, confidence: 'probable', why, alternatives, explicit: true});
+  if (dest === 'humaine') return out(5.5, `${cropLabel} destiné à l’alimentation humaine (destination indiquée sur la parcelle)`, [ALT_ANIMAL]);
+  if (dest === 'animale') return out(10, `${cropLabel} destiné à l’alimentation animale (destination indiquée sur la parcelle)`, [ALT_HUMAN]);
+  if (dest === 'semence') return out(10, `${cropLabel} destiné à la production de semences, produit agricole (destination indiquée sur la parcelle)`, [ALT_HUMAN]);
+  // Méthanisation, biocarburant, industrie : le bien obtenu n'a pas une destination alimentaire ou agricole.
+  return out(20, `${cropLabel} à destination ${dest === 'energie' ? 'énergétique (méthanisation, biocarburant)' : 'non alimentaire'} : le produit obtenu n’a pas une destination alimentaire ou agricole, taux normal en principe (${SECT} §20, à vérifier avec votre comptable)`, [ALT_ANIMAL]);
+}
+/**
+ * Taux du produit obtenu pour une culture reconnue, ou null.
+ * opts.crop : culture indiquée sur la parcelle (prioritaire sur le libellé) ;
+ * opts.destination : 'humaine' | 'animale' | 'semence' | 'energie' | 'autre' (parcelle, prioritaire) ou une destination lue dans le libellé.
+ */
+export function cropRate(label, {destination = '', crop: givenCrop = ''} = {}) {
+  const n = normalize(label), g = normalize(givenCrop);
+  const crop = (g && CROPS.find(c => c.re.test(g))) || CROPS.find(c => c.re.test(n));
+  const stated = validDestination(destination);
+  if (stated) return explicitRate(stated, crop?.label || String(givenCrop || '').trim() || 'récolte', crop?.kind || '');
   if (!crop) return null;
-  const dest = destinationOf(n, destination), out = (rate, confidence, why, alternatives = []) => ({crop: crop.label, rate, confidence, why, alternatives});
+  const dest = destinationOf(n, destination), out = (rate, confidence, why, alternatives = []) => ({crop: crop.label, kind: crop.kind, rate, confidence, why, alternatives});
   if (crop.kind === 'nonfood') return out(20, crop.sure ? 'sure' : 'probable', `${crop.label} : produit non destiné à l’alimentation, taux normal`);
   if (dest === 'non-alimentaire') return out(20, 'probable', 'récolte à destination non alimentaire, taux normal', [ALT_ANIMAL]);
   if (dest === 'animale') return out(10, 'probable', `${crop.label} destiné à l’alimentation animale`, [ALT_HUMAN]);
@@ -128,6 +177,9 @@ function forestry(n, opts) {
   if (day > FORESTRY_END) return res(20, {...base, basis: 'Travaux forestiers après le 31/12/2028 : taux normal', reason: 'Le taux de 10 % des travaux forestiers pour les exploitants agricoles est prévu jusqu’au 31 décembre 2028 (loi de finances pour 2026).', confidence: 'probable', alternatives: [{rate: 10, when: 'si le dispositif a été prorogé (à vérifier)'}]});
   if (who === 'public') return res(20, {...base, basis: 'Travaux forestiers pour l’État ou une collectivité : taux normal', reason: 'Les travaux sur les arbres d’alignement ou les parcs publics ne bénéficient pas du taux de 10 %, réservé aux exploitants agricoles.', confidence: 'sure'});
   if (who === 'private') return res(20, {...base, basis: 'Travaux forestiers pour un particulier : taux normal', reason: 'Le taux de 10 % est réservé aux travaux réalisés pour des exploitants agricoles ; l’entretien des parcs et jardins d’agrément d’un particulier est au taux normal.', confidence: 'sure'});
+  const stated = explicitFarmer(opts.client);
+  if (stated === false) return res(20, {...base, basis: 'Travaux forestiers pour un client non exploitant agricole : taux normal', reason: 'La fiche client indique que ce client n’est pas exploitant agricole : le taux de 10 % des travaux forestiers, réservé aux exploitants agricoles, ne s’applique pas.', confidence: 'sure', alternatives: [{rate: 10, when: 'si le client est en réalité exploitant agricole (corrigez sa fiche)'}]});
+  if (stated === true) return res(10, {...base, basis: 'Travaux forestiers pour un exploitant agricole (10 %, fiche client)', reason: 'La fiche client indique un exploitant agricole : taux de 10 % pour les travaux sylvicoles et d’exploitation forestière (abattage, élagage, débardage, taille des haies…) réalisés pour son activité agricole, jusqu’au 31/12/2028.', confidence: 'sure', alternatives: [{rate: 20, when: 'si les travaux ne servent pas son activité agricole ou si le client n’est pas soumis au régime de TVA agricole'}]});
   const ten = {rate: 10, when: 'si le client est un exploitant agricole (régime de TVA agricole) et que les travaux servent son activité agricole, jusqu’au 31/12/2028'};
   if (who === 'farm') return res(10, {...base, basis: 'Travaux forestiers pour un exploitant agricole (10 %)', reason: 'Taux de 10 % pour les travaux sylvicoles et d’exploitation forestière (abattage, élagage, débardage, taille des haies…) réalisés au profit d’un exploitant agricole pour son activité agricole, jusqu’au 31/12/2028.', confidence: 'probable', alternatives: [{rate: 20, when: 'si le client n’est pas soumis au régime de TVA agricole ou si les travaux ne servent pas son activité agricole'}]});
   return res(20, {...base, basis: 'Travaux forestiers : taux normal, sauf client exploitant agricole', reason: 'Le taux de 10 % ne s’applique qu’aux travaux réalisés pour un exploitant agricole ; précisez le client pour affiner.', confidence: 'check', alternatives: [ten]});
@@ -200,7 +252,9 @@ export function checkDocumentVat(state, doc, {today = todayIso()} = {}) {
   if (regime === 'franchise' && [...lines.map(x => x.l), ...(doc?.shipping ? [doc.shipping] : [])].some(l => Number(l.vatRate) > 0))
     out.push({code: 'franchise', line: null, text: 'Franchise en base de TVA : aucune TVA ne doit être facturée (mention « TVA non applicable, art. 293 B du CGI »).'});
   if (regime !== 'normal') return out;
-  const advice = lines.map(x => ({...x, a: classify(x.l.label, ctx)}));
+  const advice = lines.map(x => ({...x, a: classify(x.l.label, {...ctx, ...lineWorkContext(state, x.l)})}));
+  // Gazole refacturé depuis un travail : comparé au taux de la ligne de ce travail quand elle est sur le document.
+  const workRate = id => { const w = all.find(l => l?.source?.type === 'work' && l.source.id === id); return w && Number.isFinite(Number(w.vatRate)) ? Number(w.vatRate) : null; };
   const principal = advice.filter(x => x.a?.category !== 'accessoire' && Number.isFinite(Number(x.l.vatRate))).sort((a, b) => lineHt(b.l) - lineHt(a.l))[0];
   const mainRate = principal ? Number(principal.l.vatRate) : null;
   const shown = r => fmtRate(Number(r));
@@ -215,7 +269,8 @@ export function checkDocumentVat(state, doc, {today = todayIso()} = {}) {
       if (who !== 'farm') { out.push({code: 'forestier-verifier', line: no, text: `Ligne ${no} « ${name} » à 10 % : vérifiez que le client est bien un exploitant agricole (régime de TVA agricole) et que les travaux servent son activité agricole.`}); continue; }
     }
     if (a.category === 'facon' && who === 'private' && (sameRate(rate, 5.5) || sameRate(rate, 10))) { out.push({code: 'reduit-particulier', line: no, text: `Ligne ${no} « ${name} » à ${shown(rate)} pour un particulier : le taux réduit des opérations de façon suppose un produit destiné à l’alimentation ou à la production agricole ; vérifiez (à défaut, 20 %).`}); continue; }
-    if (a.category === 'accessoire' && mainRate !== null && !sameRate(rate, mainRate) && rate !== 0) { out.push({code: 'accessoire', line: no, text: `Ligne ${no} « ${name} » à ${shown(rate)} alors que la prestation principale est à ${shown(mainRate)} : les frais accessoires refacturés suivent en principe le taux de la prestation principale (à confirmer avec votre comptable). S’il s’agit de débours refacturés à l’euro près, ils sont hors champ de la TVA.`}); continue; }
+    const ownMain = l.source?.type === 'fuel' ? workRate(l.source.id) ?? mainRate : mainRate;
+    if (a.category === 'accessoire' && ownMain !== null && !sameRate(rate, ownMain) && rate !== 0) { out.push({code: 'accessoire', line: no, text: `Ligne ${no} « ${name} » à ${shown(rate)} alors que la prestation principale est à ${shown(ownMain)} : les frais accessoires refacturés suivent en principe le taux de la prestation principale (à confirmer avec votre comptable). S’il s’agit de débours refacturés à l’euro près, ils sont hors champ de la TVA.`}); continue; }
     if (a.category === 'logement' && sameRate(rate, 10)) {
       const txt = normalize([doc.terms, doc.subject, doc.notes, doc.reference, s.mention, s.template?.freeMentions].filter(Boolean).join(' '));
       if (!/\battestation|achev\w* depuis plus de (2|deux) ans\b/.test(txt)) { out.push({code: 'logement-attestation', line: no, text: `Ligne ${no} « ${name} » à 10 % : le taux réduit des travaux dans un logement suppose un logement achevé depuis plus de 2 ans ; conservez le justificatif du client (attestation ou mention prévue sur le devis ou la facture).`}); continue; }
@@ -231,3 +286,48 @@ export function checkDocumentVat(state, doc, {today = todayIso()} = {}) {
     out.push({code: 'client-ue', line: null, text: `Client établi dans un autre État membre (n° de TVA ${prefix}…) : pour une prestation de services à un assujetti, la TVA est en principe due par le client (mention « Autoliquidation », n° de TVA du client) ; pour une livraison de biens, exonération intracommunautaire. Exception : les travaux portant sur un terrain ou un bâtiment situé en France restent taxables en France. À confirmer avec votre comptable.`});
   return out;
 }
+
+// ---------- Lignes générées depuis les travaux ----------
+const live = x => x && !x.deletedAt;
+/**
+ * Culture et destination de la récolte de la parcelle d'un travail : assolement de la campagne du travail
+ * (rotations), sinon culture actuelle de la parcelle. La destination de la parcelle ne vaut que pour la
+ * culture pour laquelle elle a été choisie (cropDestinationFor).
+ */
+export function workVatContext(state, work, parcel = null) {
+  const p = parcel || (state?.parcelles || []).find(x => live(x) && x.id === work?.parcelId) || null;
+  if (!p) return {crop: '', destination: ''};
+  const day = String(work?.date || '').slice(0, 10), campaign = /^\d{4}-\d{2}-\d{2}$/.test(day) ? campaignFor(day) : '';
+  const rot = campaign ? (state?.rotations || []).find(r => live(r) && r.parcelId === p.id && r.campaignId === campaign && String(r.culture || '').trim()) : null;
+  if (rot) {
+    const same = normalize(rot.culture) === normalize(p.culture);
+    return {crop: String(rot.culture).trim(), destination: validDestination(rot.destination) || (same && sameCrop(p) ? validDestination(p.cropDestination) : '')};
+  }
+  return {crop: String(p.culture || '').trim(), destination: sameCrop(p) ? validDestination(p.cropDestination) : ''};
+}
+// Destination enregistrée pour une culture : null/absent (ancienne fiche) vaut pour la culture actuelle ; '' (sans culture) ne vaut pour aucune.
+const sameCrop = p => p.cropDestinationFor == null || normalize(p.cropDestinationFor) === normalize(p.culture);
+function lineWorkContext(state, line) {
+  const t = line?.source?.type;
+  if ((t !== 'work' && t !== 'fuel') || !line.source.id) return {};
+  const w = (state?.interventions || []).find(x => live(x) && x.id === line.source.id);
+  if (!w) return {};
+  const c = workVatContext(state, w);
+  return {...(c.crop ? {crop: c.crop} : {}), ...(c.destination ? {destination: c.destination} : {})};
+}
+/**
+ * Taux conseillé pour la ligne d'un travail à facturer (type de travail, culture et destination de la parcelle,
+ * fiche client), ou null : régime autre que normal (franchise…), travail sans type, ou conseil à vérifier.
+ * Retour : {rate, basis, note, confidence}. note : trace courte non imprimée (champ basis de la ligne).
+ */
+export function workVatAdvice(state, {work, parcel = null, client = null} = {}) {
+  const regime = state?.exploitation?.invoicing?.vatRegime || 'normal';
+  if (regime !== 'normal' || !work || !String(work.type || '').trim()) return null;
+  const ctx = workVatContext(state, work, parcel);
+  const a = classify(String(work.type), {client, clientKind: client?.kind || '', clientName: client?.name || '', crop: ctx.crop, destination: ctx.destination});
+  if (!a || (a.confidence !== 'sure' && a.confidence !== 'probable') || a.category === 'accessoire' || a.category === 'franchise') return null;
+  return {rate: a.rate, basis: a.basis, confidence: a.confidence, note: `TVA ${fmtRate(a.rate)} conseillée : ${a.basis}`};
+}
+// Branché sur billableItems (invoices-core.js) dès que ce module est chargé : les lignes de travaux
+// prennent le taux conseillé quand il est sûr ou probable, sinon le taux des paramètres.
+setWorkVatAdvisor(workVatAdvice);
