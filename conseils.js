@@ -1,16 +1,18 @@
 // I2 — Veille agronomique quotidienne sur le prévu. Logique pure (aucun accès au DOM ni au réseau).
 // farmAdvice(state) relit les travaux prévus, l'assolement et le troupeau et signale ce qui pose problème
 // avant qu'il ne soit trop tard : DAR d'une récolte prévue, azote au-delà du PPF, épandage en période
-// d'interdiction, successions à risque, vêlages, délais d'attente avant une sortie.
+// d'interdiction, successions à risque, vêlages, délais d'attente avant une sortie, nombre d'applications
+// ou date limite d'utilisation d'un produit, analyse de sol ancienne, culture non renseignée.
 // Aucun produit n'est jamais recommandé. Sans donnée (pas de fiche DAR, composition inconnue, race
 // inconnue), pas d'alerte : l'absence est seulement notée dans why[] quand elle compte.
 // overdueLevel(state, work) reclasse un travail en retard (R8) pour notifications.js.
 import {campaignFor,localIso,normalize} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {agendaDate,isPending,expectedCalvings} from './home-priorities.js';
-import {darConflicts,harvestsFor,isTreatment,limitsFor,productFor} from './phyto.js';
+import {darConflicts,harvestsFor,isTreatment,limitsFor,previousApplications,productFor,withdrawalLabel} from './phyto.js';
 import {banPeriodFor,cultureFor,cultureSeason,fertilizerFor,isFertilization,nitrogenPerHa,nitrogenReferences,parcelInZone,parcelPlan} from './nitrogen.js';
-import {campaignYear,cultureHistory,rotationAlerts,rotationFamily} from './rotation-advice.js';
+import {ROTATION_SOURCE,campaignYear,cultureHistory,rotationAlerts,rotationFamily} from './rotation-advice.js';
+import {SOIL_REFERENCES,ageYears,latestAnalysis} from './soil-analysis.js';
 import {animalLot,animalTreatments,normalizeNationalId} from './herd.js';
 import {grazingAnimalList,grazingDate,grazingStatus} from './grazing.js';
 import {withdrawalEnd} from './herd-health.js';
@@ -209,6 +211,77 @@ function ruleR4(state,{today},parcels,out){
   }
 }
 
+// R4D : retour trop rapide d'une culture d'après les délais de retour réglables (rotation-advice.js),
+// pour les cas que R4C (sclérotinia) ne signale pas déjà : betterave, pomme de terre, féverole, lentille,
+// pois revenant entre 3 et 5 ans…
+function ruleR4D(state,{today},parcels,out){
+  const year=c=>campaignYear(c);
+  for(const a of rotationAlerts(state,{current:campaignFor(today)})){
+    const parcel=parcels.get(a.parcelId);if(!parcel)continue;
+    if(out.some(x=>x.rule==='R4C'&&x.entityId===a.parcelId&&x.id===adviceId('R4C',a.parcelId,year(a.campaignId))))continue;
+    out.push({id:adviceId('R4D',a.parcelId,year(a.campaignId)),rule:'R4D',level:'warning',title:'Retour trop rapide de la culture',
+      message:`${a.message} Les maladies et ravageurs propres à la culture se maintiennent dans le sol quand elle revient trop souvent.`,
+      why:[`${a.previous} puis ${a.campaignId} : ${a.gap} an${a.gap>1?'s':''} d’écart pour ${a.delay} conseillés.`,`${ROTATION_SOURCE}.`],
+      entity:'parcelles',entityId:a.parcelId,action:{type:'open-rotations',label:'Ouvrir l’assolement',id:a.parcelId}});
+  }
+}
+
+// R9 : traitement prévu au-delà du nombre maximal d'applications (R9A) ou après la date limite
+// d'utilisation du produit retiré (R9B), d'après la fiche produit saisie ou le catalogue.
+function ruleR9(state,{today,catalog},parcels,out){
+  for(const w of active(state,'interventions')){
+    if(!isPending(w)||!isTreatment(w))continue;
+    const date=agendaDate(w)||today,parcel=parcels.get(w.parcelId),found=productFor(state,w,{catalog}),sheet=found?.sheet||null;
+    if(!sheet)continue;
+    const product=w.product||sheet.name||'Ce produit',limits=limitsFor(sheet,w,parcel);
+    if(sheet.useUntil&&date>sheet.useUntil){
+      out.push({id:adviceId('R9B',w.id),rule:'R9B',level:'urgent',title:'Produit dont l’usage n’est plus autorisé',
+        message:`${product} prévu le ${ddmm(date)} sur ${parcelName(parcel)} : ${withdrawalLabel(sheet)} Choisissez une autre solution.`,
+        why:[`Date limite d’utilisation de la fiche produit : ${ddmm(sheet.useUntil)}/${sheet.useUntil.slice(0,4)}.`,'Seule l’étiquette et la base officielle des produits font foi.'],
+        entity:'interventions',entityId:w.id,action:{type:'edit-work',label:'Modifier le traitement',id:w.id}});
+      continue;
+    }
+    if(limits.maxApplications===null||limits.maxApplications===undefined)continue;
+    // Applications de la campagne datées au plus tard le même jour que ce traitement (y compris celui-ci).
+    const before=previousApplications(state,w).filter(x=>{const d=agendaDate(x)||'';return d<date||d===date&&String(x.id)<String(w.id);});
+    const rank=before.length+1;
+    if(rank<=limits.maxApplications)continue;
+    out.push({id:adviceId('R9A',w.id),rule:'R9A',level:gap(today,date)<=7?'urgent':'warning',title:'Nombre d’applications dépassé',
+      message:`${parcelName(parcel)} : ${product} prévu le ${ddmm(date)} serait la ${rank}ᵉ application de la campagne, pour ${limits.maxApplications} au maximum d’après la fiche produit.`,
+      why:[`Applications déjà réalisées ou prévues avant : ${before.map(x=>ddmm(agendaDate(x))).join(', ')}.`,`Maximum ${limits.maxApplications} par campagne${limits.usage?' pour cet usage':''} (fiche produit).`,'Seule l’étiquette du produit fait foi.'],
+      entity:'interventions',entityId:w.id,action:{type:'edit-work',label:'Modifier le traitement',id:w.id}});
+  }
+}
+
+// R10 : parcelle cultivée dont la dernière analyse de sol date de plus de 5 ans (repère soil-analysis.js).
+// Les parcelles sans aucune analyse ne sont pas signalées ici (écran Analyses de sol) pour ne pas noyer la veille.
+function ruleR10(state,{today},parcels,out){
+  const max=SOIL_REFERENCES.maxAgeYears;
+  for(const parcel of parcels.values()){
+    if(parcel.archived)continue;
+    const a=latestAnalysis(state,parcel.id);if(!a||!isDay(a.date))continue;
+    const age=ageYears(a.date,today);if(!(age>max))continue;
+    out.push({id:adviceId('R10',parcel.id),rule:'R10',level:'info',title:'Analyse de sol ancienne',
+      message:`${parcelName(parcel)} : dernière analyse de sol du ${ddmm(a.date)}/${a.date.slice(0,4)}, il y a ${String(Math.floor(age))} ans. Une nouvelle analyse recale le chaulage et la fumure de fond.`,
+      why:[`Repère : une analyse au moins tous les ${max} ans (${SOIL_REFERENCES.source})`],
+      entity:'parcelles',entityId:parcel.id,action:{type:'open-soil-analyses',label:'Ouvrir les analyses de sol',id:parcel.id}});
+  }
+}
+
+// R11 : parcelle travaillée cette campagne sans culture renseignée : azote, délai avant récolte par usage
+// et rotation ne peuvent pas être contrôlés.
+function ruleR11(state,{today},parcels,out){
+  const campaign=campaignFor(today),works=active(state,'interventions').filter(w=>w.status!=='Annulé'&&workCampaign(w)===campaign);
+  for(const parcel of parcels.values()){
+    if(parcel.archived||cultureFor(state,parcel,campaign,today))continue;
+    const mine=works.filter(w=>w.parcelId===parcel.id);if(!mine.length)continue;
+    out.push({id:adviceId('R11',parcel.id,campaignYear(campaign)),rule:'R11',level:'info',title:'Culture non renseignée',
+      message:`${parcelName(parcel)} : ${mine.length} ${mine.length>1?'travaux':'travail'} saisi${mine.length>1?'s':''} en ${campaign} mais aucune culture. Renseignez-la pour activer les contrôles d’azote, de délai avant récolte et de rotation.`,
+      why:[`Ni l’assolement ${campaign} ni la fiche de la parcelle n’indiquent de culture.`],
+      entity:'parcelles',entityId:parcel.id,action:{type:'open-rotations',label:'Ouvrir l’assolement',id:parcel.id}});
+  }
+}
+
 // R6 : vêlages attendus (tarissement, case de vêlage, vêlage dépassé).
 function ruleR6(state,{today,prefs},out){
   const dairy=(Array.isArray(prefs?.dairyBreeds)&&prefs.dairyBreeds.length?prefs.dairyBreeds:DAIRY_BREEDS).map(normalize);
@@ -279,8 +352,12 @@ export function farmAdvice(state,{today=localIso(),catalog=null,prefs=state?.pre
   run(()=>ruleR3A(data,ctx,parcels,out));
   run(()=>ruleR3B(data,ctx,parcels,out));
   run(()=>ruleR4(data,ctx,parcels,out));
+  run(()=>ruleR4D(data,ctx,parcels,out));
   run(()=>ruleR6(data,ctx,out));
   run(()=>ruleR7(data,ctx,out));
+  run(()=>ruleR9(data,ctx,parcels,out));
+  run(()=>ruleR10(data,ctx,parcels,out));
+  run(()=>ruleR11(data,ctx,parcels,out));
   const seen=new Set();
   return out.filter(a=>!seen.has(a.id)&&seen.add(a.id)).sort((a,b)=>(ORDER[a.level]??9)-(ORDER[b.level]??9)||a.id.localeCompare(b.id));
 }

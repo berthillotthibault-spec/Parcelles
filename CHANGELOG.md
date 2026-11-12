@@ -1,5 +1,21 @@
 # Changelog
 
+## 10.31.0 · TVA plus fine, assistant de facturation, conseil agronomique — 2026-11-12
+
+### TVA
+- **Conseil de taux** (`vat-advisor.js`) d'après le BOFiP BOI-TVA-SECT-80-70 (version du 25/03/2026) : opérations de façon (récolte, labour, hersage, binage, disquage, pressage, broyage de paille) au taux du produit obtenu (blé 5,5 %, céréales fourragères 10 %, chanvre et vin 20 %) ; semis, plantations, pulvérisations, désherbage, épandage, tri, stockage, terrassement, drainage toujours à 20 % ; transport, location, ensilage, fauche, enrubannage, séchage à 20 % « à vérifier » ; travaux forestiers à 10 % seulement pour un exploitant agricole et jusqu'au 31/12/2028 (LF 2026), 20 % pour un particulier ou une collectivité ; travaux dans un logement, franchise, frais refacturés au taux de la prestation principale ;
+- **Correction** : moisson, labour, hersage et binage étaient proposés à 20 % ;
+- **Éditeur** : la proposition tient compte du client et de la date, cite les autres taux possibles et l'explication ; un taux choisi à la main n'est jamais remplacé ;
+- **Contrôle avant émission** : avertissements non bloquants (frais accessoires à un autre taux que la prestation, forestier à 10 % hors exploitant ou après 2028, taux réduit agricole pour un particulier, 0 % sans motif, client UE sans autoliquidation, logement à 10 % sans attestation, taux contraire à une règle sûre).
+
+### Facturation
+- **Saisie rapide** plus tolérante : prix sans « € » après une quantité (ligne « à vérifier »), forfaits, voyages et passages, prix TTC convertis en HT, remises par ligne ou sur le total ;
+- **Assistant** (`billing-assistant.js`) : reste dû par client, impayés et retards, chiffre d'affaires et encaissements (mois, trimestre, année, campagne), travaux non facturés, devis à relancer, dernière facture, prix pratiqué, TVA collectée sur la période (selon encaissements ou débits, TVA déductible non connue).
+
+### Agronomie
+- **Assistant** (`agro-knowledge.js`, `agro-assistant.js`) : « puis-je traiter aujourd'hui / demain », délai avant récolte, délai de rentrée, semis et portance du sol, risques maladies, gel et chaleur, azote apporté, culture suivante ; les demandes de création (« planifie un traitement… ») ne sont jamais prises pour des questions ;
+- **Veille quotidienne** : 5 nouvelles alertes (retour trop rapide d'une culture, nombre maximal d'applications dépassé, produit retiré prévu après sa date limite, analyse de sol de plus de 5 ans, parcelle travaillée sans culture renseignée pour la campagne).
+
 ## 10.30.0 · mises à jour automatiques partout, lecteur de documents, conseils chiffrés — 2026-11-12
 
 ### Mises à jour automatiques

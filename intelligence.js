@@ -1,4 +1,4 @@
-import {answerFarmQuestion} from './farm-agent.js';import {answerAgroQuestion} from './agro-assistant.js';
+import {answerFarmQuestion} from './farm-agent.js';import {answerAgroQuestion} from './agro-assistant.js';import {answerBillingQuestion} from './billing-assistant.js';
 import {agendaDate,isPending,localDay,maintenanceRemaining,isLowStock} from './home-priorities.js';
 import {campaignFor, isoDate, normalize, toNumber, localIso} from './utils.js';
 import {grazingStatus,grazingTotal,grazingType} from './grazing.js';import {matchWorkType} from './voice-notes.js';
@@ -158,6 +158,7 @@ export function showOnMapAction(state,ids,label='Voir sur la carte'){
 export function answerLocalIntelligence(question,state,context={}){
   const farm=answerFarmQuestion(question,state,context);if(farm)return farm;
   const agro=answerAgroQuestion(question,state,context);if(agro)return agro;
+  const billing=answerBillingQuestion(question,state,context.today?{today:context.today}:{});if(billing)return billing;
   const raw=String(question||'').trim(),q=norm(raw),parcels=active(state,'parcelles'),works=active(state,'interventions');
   if(!q)return{recognized:false,answer:'',actions:[],intent:'empty'};
   const parcel=findParcelFromQuestion(raw,state,context);
@@ -216,7 +217,7 @@ export function answerLocalIntelligence(question,state,context={}){
 
 export function intelligenceCapabilities(){return{
   local:true,offline:true,writeConfirmation:true,
-  intents:['daily_brief','weekly_brief','parcel_context','parcel_filter','crop_area','works_today','maintenance_due','low_stock','urgent_observations','overdue_tasks','overdue_works','grazing_current','grazing_entry','cereal_area','stock_quantity','chantiers','create_work','create_task']
+  intents:['billing_client_balance','billing_receivables','billing_revenue','billing_unbilled','billing_quotes','billing_last_invoice','billing_price','billing_vat','billing_summary','daily_brief','weekly_brief','parcel_context','parcel_filter','crop_area','works_today','maintenance_due','low_stock','urgent_observations','overdue_tasks','overdue_works','grazing_current','grazing_entry','cereal_area','stock_quantity','chantiers','create_work','create_task']
 };}
 
 // A journal produces a draft and explicit alternatives, never a write action.

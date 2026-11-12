@@ -15,6 +15,7 @@ import {csvFormulaSafe,normalize,uid} from './utils.js';
 import {active} from './farm-memory.js';
 import {saveFarmRecord} from './farm-records.js';
 import {printCss,printDocument} from './dossier.js';
+import {checkDocumentVat} from './vat-advisor.js';
 import {INVOICE_KIND,QUOTE_KIND,DOC_TYPES,docTypeOf,VAT_RATES_ALL,LINE_KINDS,num,loose,text,round2,round3,DATE_RE,validDay,isoDay,invoices,quotes,
   customRatesOf,settingsVatRate,lineKind,amountLine,lineTotal,documentTotals,quoteStatus,creditNotesOf,creditedShare,paymentsOf,invoiceBalance,
   installmentsOf,invoiceStatus,docStatus,overdueInvoices,billedKeys,inPeriod,fr,workLine,fuelLine,tpLines,billableItems,clientsToBill} from './invoices-core.js';
@@ -358,6 +359,8 @@ export function complianceReport(state,doc,{today=isoDay()}={}){
   else if(accounting&&!dated)warnings.push('Date de la livraison ou de la prestation non précisée : la date d’émission fera foi.');
   if(doc.issueDate&&doc.issueDate>today)warnings.push('Date d’émission postérieure à aujourd’hui.');
   if(t==='devis'&&!doc.validUntil)warnings.push('Durée de validité du devis non précisée.');
+  // Conseil TVA (vat-advisor.js) : avertissements non bloquants ; la franchise est déjà une erreur ci-dessus.
+  for(const w of checkDocumentVat(state,doc,{today}))if(w.code!=='franchise'&&!warnings.includes(w.text))warnings.push(w.text);
   return{errors,warnings,mentions:legalMentions(state,doc,{seller:s})};
 }
 // Contrôles supplémentaires avant émission (mentions obligatoires et montants complets).

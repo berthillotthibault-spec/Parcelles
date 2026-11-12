@@ -262,3 +262,82 @@ test('R1 : délai qui traverse le passage à l’heure d’hiver (fuseau Europe/
     if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
   }
 });
+
+// ---- Règles ajoutées : R4D, R9A, R9B, R10, R11 ----
+
+test('R4D : retour trop rapide hors sclérotinia, sans doublon avec R4C', () => {
+  const state = {
+    parcelles: [{id: 'p1', nom: 'Les Brosses', culture: 'Betterave'}, {id: 'p2', nom: 'La Noue', culture: 'Colza'}],
+    rotations: [{id: 'r1', parcelId: 'p1', campaignId: '2023/24', culture: 'Betterave'}, {id: 'r2', parcelId: 'p2', campaignId: '2023/24', culture: 'Colza'}]
+  };
+  const list = farmAdvice(state, {today: '2026-03-01'});
+  const [a] = rules(list, 'R4D');
+  assert.ok(a);
+  assert.equal(a.entityId, 'p1');
+  assert.equal(a.level, 'warning');
+  assert.match(a.message, /Les Brosses : betterave prévu en 2025\/26, dernier betterave en 2023\/24 \(délai conseillé 3 ans, réglable\)/);
+  assert.ok(a.why.some(w => /Terres Inovia/.test(w)));
+  assert.equal(rules(list, 'R4D').length, 1, 'le colza reste signalé par R4C seul');
+  assert.equal(rules(list, 'R4C').length, 1);
+  assert.equal(rules(farmAdvice({...state, preferences: {rotationDelays: {betterave: 2}}}, {today: '2026-03-01'}), 'R4D').length, 0, 'délai réglable');
+});
+
+function phytoPlanState(phyto, planned = '2026-04-01') {
+  return {
+    parcelles: [{id: 'p1', nom: 'Les Brosses', culture: 'Blé tendre'}],
+    stockItems: [{id: 's1', name: 'Fongi', phyto}],
+    interventions: [
+      {id: 't1', parcelId: 'p1', type: 'Traitement fongicide', product: 'Fongi', status: 'Terminé', date: '2026-03-10'},
+      {id: 't2', parcelId: 'p1', type: 'Traitement fongicide', product: 'Fongi', status: 'À faire', plannedDate: planned}
+    ]
+  };
+}
+
+test('R9A : traitement prévu au-delà du nombre maximal d’applications', () => {
+  const [a] = rules(farmAdvice(phytoPlanState({maxApplications: 1}), {today: '2026-03-28'}), 'R9A');
+  assert.ok(a);
+  assert.equal(a.id, 'advice-R9A-t2');
+  assert.equal(a.level, 'urgent');
+  assert.match(a.message, /Les Brosses : Fongi prévu le 01\/04 serait la 2ᵉ application de la campagne, pour 1 au maximum/);
+  assert.deepEqual(a.action, {type: 'edit-work', label: 'Modifier le traitement', id: 't2'});
+  assert.equal(rules(farmAdvice(phytoPlanState({maxApplications: 1}), {today: '2026-03-01'}), 'R9A')[0].level, 'warning');
+  assert.equal(rules(farmAdvice(phytoPlanState({maxApplications: 2}), {today: '2026-03-28'}), 'R9A').length, 0);
+  assert.equal(rules(farmAdvice(phytoPlanState({dar: 30}), {today: '2026-03-28'}), 'R9A').length, 0, 'sans maximum connu : pas d’alerte');
+});
+
+test('R9B : produit prévu après sa date limite d’utilisation', () => {
+  const [a] = rules(farmAdvice(phytoPlanState({amm: '2000001', withdrawnAt: '2025-09-15', useUntil: '2026-03-15'}), {today: '2026-03-28'}), 'R9B');
+  assert.ok(a);
+  assert.equal(a.level, 'urgent');
+  assert.match(a.message, /Fongi prévu le 01\/04 sur Les Brosses : AMM retirée le .+ : utilisation interdite après le .+2026\. Choisissez/);
+  assert.equal(rules(farmAdvice(phytoPlanState({amm: '2000001', useUntil: '2026-06-30'}), {today: '2026-03-28'}), 'R9B').length, 0);
+});
+
+test('R10 : analyse de sol de plus de 5 ans, rien sans analyse ou si récente', () => {
+  const base = {parcelles: [{id: 'p1', nom: 'Les Brosses', culture: 'Blé tendre'}]};
+  const old = {...base, integrationImports: [{id: 'a1', farmKind: 'soilAnalysis', parcelId: 'p1', date: '2019-02-01', ph: 6.2}]};
+  const [a] = rules(farmAdvice(old, {today: '2026-03-01'}), 'R10');
+  assert.ok(a);
+  assert.equal(a.level, 'info');
+  assert.match(a.message, /Les Brosses : dernière analyse de sol du 01\/02\/2019, il y a 7 ans/);
+  assert.equal(a.action.type, 'open-soil-analyses');
+  assert.equal(rules(farmAdvice(base, {today: '2026-03-01'}), 'R10').length, 0);
+  const recent = {...base, integrationImports: [{id: 'a1', farmKind: 'soilAnalysis', parcelId: 'p1', date: '2023-02-01', ph: 6.2}]};
+  assert.equal(rules(farmAdvice(recent, {today: '2026-03-01'}), 'R10').length, 0);
+});
+
+test('R11 : parcelle travaillée sans culture renseignée', () => {
+  const state = {
+    parcelles: [{id: 'p1', nom: 'Le Pré', culture: ''}, {id: 'p2', nom: 'Vide', culture: ''}],
+    interventions: [{id: 'w1', parcelId: 'p1', type: 'Labour', status: 'Terminé', date: '2025-10-02'}]
+  };
+  const list = rules(farmAdvice(state, {today: '2026-03-01'}), 'R11');
+  assert.equal(list.length, 1);
+  assert.equal(list[0].entityId, 'p1');
+  assert.equal(list[0].level, 'info');
+  assert.match(list[0].message, /Le Pré : 1 travail saisi en 2025\/26 mais aucune culture/);
+  state.interventions.push({id: 'w2', parcelId: 'p1', type: 'Semis', status: 'Terminé', date: '2025-10-12'});
+  assert.match(rules(farmAdvice(state, {today: '2026-03-01'}), 'R11')[0].message, /Le Pré : 2 travaux saisis en 2025\/26/);
+  state.rotations = [{id: 'r1', parcelId: 'p1', campaignId: '2025/26', culture: 'Orge d’hiver'}];
+  assert.equal(rules(farmAdvice(state, {today: '2026-03-01'}), 'R11').length, 0);
+});

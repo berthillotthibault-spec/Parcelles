@@ -574,7 +574,7 @@ test('TVA proposée : franchise, catalogue, habitude puis règle usuelle',()=>{
 
 test('saisie rapide : une action en tête de phrase n’est jamais prise pour un client',()=>{
   const state=emptyState();state.clients=[{id:'c4',name:'Martin Paul'}];
-  for(const [txt,label,vat] of [['Semis de blé','Semis de blé',20],['semis de blé 12 ha à 60 €','Semis de blé',20],['Moisson de blé 15 ha','Moisson de blé',20],['fauchage de ray grass 8 ha','Fauchage de ray grass',20],['pressage de paille 200 balles à 3 €','Pressage de paille',20],['Vente de paille 5 t à 90 €','Vente de paille',10]]){
+  for(const [txt,label,vat] of [['Semis de blé','Semis de blé',20],['semis de blé 12 ha à 60 €','Semis de blé',20],['Moisson de blé 15 ha','Moisson de blé',5.5],['fauchage de ray grass 8 ha','Fauchage de ray grass',20],['pressage de paille 200 balles à 3 €','Pressage de paille',5.5],['Vente de paille 5 t à 90 €','Vente de paille',10]]){
     const r=parseQuickEntry(txt,state);
     assert.ok(!r.warnings.some(w=>/introuvable/.test(w)),`${txt} : ${r.warnings}`);
     assert.equal(r.clientQuery,'',txt);assert.equal(r.lines[0].label,label,txt);assert.equal(r.lines[0].vatRate,vat,txt);

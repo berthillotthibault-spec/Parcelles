@@ -7,6 +7,7 @@ import {normalize} from './utils.js';
 import {active} from './farm-memory.js';
 import {ACCOUNTING_TYPES,addDays,addMonths,billableItems,billingDocs,daysBetween,docTypeOf,documentTotals,expectedReceipts,invoiceBalance,invoiceSettings,invoiceStatus,invoices,isoDay,lineTotal,paymentsOf,quoteStatus,quotes,round2,amountLine,VAT_RATES_ALL} from './invoices.js';
 import {catalogItems,catalogPrice,dueSchedules,findCatalogItem} from './billing.js';
+import {classify as classifyVat} from './vat-advisor.js';
 
 const num=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
 const ttcOf=d=>num(d.totals?.ttc)??documentTotals(d).ttc;
@@ -164,38 +165,45 @@ const numberOf=s=>{const n=Number(String(s).replace(/\s/g,'').replace(',','.'));
 const PRICE_RE=/(?:^|\s)(?:à|a|@|pour|x|:)?\s*(\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(?:€|euros?|eur)\s*(?:\/\s*([a-zA-Zéèêàâîôûç³²]+))?\s*(ht|ttc)?\s*$/i;
 const VAT_RE=/\b(?:tva\s*(?:à\s*)?(\d+(?:[.,]\d+)?)\s*%?|(\d+(?:[.,]\d+)?)\s*%\s*(?:de\s*)?tva\b)/i;
 // ---------- Taux de TVA proposé ----------
-// Règles usuelles en France métropolitaine, à titre indicatif : l’utilisateur garde la main sur chaque ligne.
-const VAT_RULES=[
-  [20,/\b(prestations?|travaux|pelle|mini ?pelle|tracteur|terrassement|broyage|fauch\w*|fanage|debroussaill\w*|taille|elagage|location|transport|deplacement|livraison|main d ?oeuvre|heures?|deneigement|curage|epandage|moisson\w*|semis|semer|labour|dechaumage|hersage|roulage|binage|desherbage|traitement|pulverisation|pressage|andainage|ensilage|enrubannage|battage|sechage|arrachage|plantation|chargement|nettoyage|recolte|gazole|carburant|materiel|pieces?|reparation|entretien)\b/,'Prestation de services ou vente de matériel (20 %)'],
-  [5.5,/\b(legumes?|fruits?|pommes? de terre|oeufs?|lait|miel|farine|viande|colis de viande|volailles? pretes?|fromages?|beurre|cremes?|confitures?|ble|orge de brasserie|cereales? alimentaires?)\b/,'Produit alimentaire (5,5 %) ; céréales vendues pour l’alimentation animale : 10 %'],
-  [10,/\b(paille|foin|fourrages?|ensilage|enrubann\w*|luzerne|regain|balles?|bottes?|mais grain|orge|triticale|avoine|cereales?|semences?|aliments? du betail|tourteaux?|grains?)\b/,'Produit agricole non transformé ou alimentation animale (10 %)'],
-  [10,/\b(bois de chauffage|buches?|plaquettes?|granules?|bois energie|stere)\b/,'Bois de chauffage (10 %)'],
-  [10,/\b(bovins?|veaux?|genisses?|vaches?|taurillons?|broutards?|agneaux?|brebis|moutons?|porcs?|porcelets?|animaux vivants?)\b/,'Animaux vivants de boucherie ou d’élevage (10 %)'],
-  [10,/\b(fumier|compost|lisier|amendements? organiques?|digestat)\b/,'Matière fertilisante organique (10 % si utilisable en agriculture biologique, sinon 20 %)']
-];
-/** Taux proposé pour une désignation : catalogue, puis habitude de l’exploitation, puis règle usuelle. */
-export function suggestVatRate(label,{state=null}={}){
+// Règles détaillées dans vat-advisor.js (opérations de façon, services au taux normal, travaux forestiers,
+// ventes de produits), à titre indicatif : l’utilisateur garde la main sur chaque ligne.
+/**
+ * Taux proposé pour une désignation : catalogue, puis habitude de l’exploitation, puis règle (vat-advisor).
+ * Retour : {rate, basis} et, selon la source, {alternatives, reason, confidence, ref, category, caution}.
+ * ctx : {clientKind, clientName, client, operationNature, destination, today, mainRate}.
+ */
+export function suggestVatRate(label,{state=null,...ctx}={}){
   const n=normalize(label);if(!n)return null;
   const regime=state?.exploitation?.invoicing?.vatRegime;
-  if(regime==='franchise')return{rate:0,basis:'Franchise en base de TVA (paramètres)'};
+  if(regime==='franchise')return{rate:0,basis:'Franchise en base de TVA (paramètres)',alternatives:[],confidence:'sure',reason:'En franchise en base, la TVA n’est pas facturée (art. 293 B du CGI).',ref:'CGI art. 293 B',category:'franchise'};
+  const client=ctx.client||(ctx.clientId&&state?(state.clients||[]).find(c=>c?.id===ctx.clientId)||null:null);
+  const rule=classifyVat(label,{...ctx,client});
+  // Habitude ou catalogue contraire à une règle sûre : on garde le choix de l’utilisateur, avec une mise en garde.
+  const withCaution=(rate,basis)=>({rate,basis,alternatives:[],confidence:'probable',...(rule&&rule.confidence==='sure'&&Math.abs(rule.rate-rate)>0.001?{caution:`Taux usuel pour ce libellé : ${String(rule.rate).replace('.',',')} % (${rule.basis}).`}:{})});
   const item=state?findCatalogItem(state,label):null;
-  if(item&&item.vatRate!==undefined&&item.vatRate!==null&&item.vatRate!=='')return{rate:Number(item.vatRate),basis:'Taux de l’article du catalogue'};
+  if(item&&item.vatRate!==undefined&&item.vatRate!==null&&item.vatRate!=='')return withCaution(Number(item.vatRate),'Taux de l’article du catalogue');
   if(state){
     const seen=emitted(state).slice().sort((a,b)=>String(b.issueDate||'').localeCompare(String(a.issueDate||''))).flatMap(d=>d.lines||[]).find(l=>normalize(l.label)===n&&Number.isFinite(Number(l.vatRate)));
-    if(seen)return{rate:Number(seen.vatRate),basis:'Taux déjà utilisé pour cette désignation'};
+    if(seen)return withCaution(Number(seen.vatRate),'Taux déjà utilisé pour cette désignation');
   }
-  for(const [rate,re,basis] of VAT_RULES)if(re.test(n))return{rate,basis};
-  return null;
+  return rule;
 }
 
 // ---------- Saisie rapide en français ----------
-const NUMBER_WORDS={deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,neuf:9,dix:10,onze:11,douze:12,treize:13,quatorze:14,quinze:15,seize:16,vingt:20,trente:30,quarante:40,cinquante:50,soixante:60,cent:100,mille:1000};
+const NUMBER_WORDS={deux:2,trois:3,quatre:4,cinq:5,six:6,sept:7,huit:8,dix:10,onze:11,douze:12,treize:13,quatorze:14,quinze:15,seize:16,vingt:20,trente:30,quarante:40,cinquante:50,soixante:60,cent:100,mille:1000};
 const LEGAL_FORMS=new Set(['gaec','scea','earl','sarl','sas','sasu','sa','eurl','ets','etablissements','sci','cuma','eta','ste','societe','mr','mme','m','monsieur','madame','de','des','du','la','le','les','et']);
 const NOT_CLIENT=/^(semis|semer|moisson\w*|recoltes?|fauch\w*|fanage|pressage|presse|andainage|epandage|labours?|dechaumage|broyage|ensilage|enrubannage|traitements?|pulverisation|desherbage|binage|hersage|roulage|transports?|livraisons?|location|vente|achat|prestations?|travaux|travail|entretien|taille|elagage|debroussaill\w*|terrassement|curage|deneigement|nettoyage|reparations?|main|heures?|journees?|pelle|mini|tracteur|chargement|deplacement|plantation|arrachage|battage|sechage|stockage|ramassage|balles?|bottes?|ballots?|paille|foin|ble|orge|mais|colza|tournesol|luzerne|ray|herbe|fumier|lisier|compost|bois|gazole|gasoil|carburant|semences?|engrais|transport|forfait|frais|materiel|pieces?|ensemble|total)$/;
 const CLIENT_PREFIX=/^(pour|chez|client|a|à|au|aux)$/i;
 const fold=w=>normalize(w).replace(/ /g,'');
 const PRICE_ANY=/(?:(?:\bà|\ba|@|\bpour|\bx|\bau prix de|\bprix|\bsoit)\s*)?(\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(?:€|euros?\b|eur\b)\s*(ht\b|ttc\b)?/i;
 const UNIT_AFTER=/^\s*(?:\/|par\s+|la\s+|le\s+|les\s+|l['’]\s*|de\s+l['’]\s*|de\s+la\s+|du\s+)?([a-zA-Zéèêàâîôûç³²]+[23]?)/i;
+// Remise : « -10 % », « remise 10 % », « 10 % de remise », « remise de 5 % sur le total ».
+const DISCOUNT_RE=/(?:^|\s)(?:(?:avec\s+)?(?:une\s+)?(?:remise|rabais|r[ée]duction|ristourne)\s*(?:de\s*)?(?:-\s*)?(\d+(?:[.,]\d+)?)\s*%|-\s*(\d+(?:[.,]\d+)?)\s*%|(\d+(?:[.,]\d+)?)\s*%\s*(?:de\s+)?(?:remise|rabais|r[ée]duction|ristourne))(\s+(?:sur\s+(?:le\s+)?total|globale?|sur\s+l['’]ensemble|sur\s+tout))?/i;
+// Prix sans symbole euro en fin de segment, une fois la quantité lue : « moisson 25 ha 130 », « 3 voyages x 40 ».
+const BARE_PRICE=/(?:^|\s)(?:(?:à|a|@|x|pour|prix|soit|:)\s*)?(\d+(?:[.,]\d+)?)\s*(?:\/\s*([a-zA-Zéèêàâîôûç³²]+[23]?))?\s*(ht|ttc)?\s*$/i;
+// Noms comptés sans unité dédiée : la quantité est en unités, la désignation reste devant.
+const COUNTED=/^(balles?|bottes?|ballots?|sacs?|round|rounds|palettes?|big ?bags?|voyages?|rotations?|passages?|trajets?|allers?)$/;
+const fmtFr=n=>String(n).replace('.',',');
 function cleanLabel(v){
   let t=String(v||'').replace(/\s+/g,' ').trim();
   for(let k=0;k<4;k++)t=t.replace(/^[,:;\-–—.]+\s*/,'').replace(/^(de|d['’]|du|des|pour|à|a|le|la|les|l['’]|et|avec)\s+/i,'').replace(/^d['’]/i,'').replace(/\s*[,:;\-–—.]+$/,'').replace(/\s+(à|a|@|pour|de|du|des|et|le|la|les)$/i,'').trim();
@@ -205,6 +213,8 @@ function wordsToNumbers(text){
   return text
     .replace(/\b(une?\s+)?demi[- ]journ[ée]es?\b/gi,'0,5 j').replace(/\b(une?\s+)?demi[- ]heures?\b/gi,'0,5 h')
     .replace(/\b(une?)\s+(?=(heures?|jours?|journ[ée]es?|hectares?|tonnes?|ha|h|t|m3|m³|stères?|forfaits?|semaines?)\b)/gi,'1 ')
+    // « neuf » est souvent l’adjectif (« pneu neuf ») : nombre seulement devant une unité ou un nom compté.
+    .replace(/\bneuf\s+(?=(heures?|jours?|journ[ée]es?|hectares?|tonnes?|ha|h|t|km|m3|m³|stères?|forfaits?|semaines?|balles?|bottes?|ballots?|sacs?|palettes?|voyages?|rotations?|passages?|trajets?)\b)/gi,'9 ')
     .replace(/\b([a-zA-Zéè]+)\b/g,w=>{const n=NUMBER_WORDS[normalize(w)];return n===undefined?w:String(n);});
 }
 // Client reconnu n’importe où dans la phrase (nom complet, ou mots significatifs du nom).
@@ -278,11 +288,19 @@ export function parseQuickEntry(input,state=null){
       else warnings.push(`Client « ${clientQuery} » introuvable : choisissez-le ou créez sa fiche.`);
     }else if(found.candidates.length>1)warnings.push(`Plusieurs clients possibles (${found.candidates.slice(0,3).map(c=>c.name).join(', ')}) : précisez.`);
   }
-  const lines=[],unparsed=[];
+  const lines=[],unparsed=[];let globalDiscount=null;
   for(const seg of rest.split(/\s*[;]\s*|\s*\+\s*|,\s+(?=\D)|\s+(?:et|puis|plus|ainsi que|avec)\s+(?=\d)/i).map(x=>x.trim()).filter(Boolean)){
     let s=seg,vatRate=null,vatBasis='',mode=globalTtc?'TTC':'HT';
     const vm=s.match(VAT_RE);if(vm){const r=numberOf(vm[1]||vm[2]);if(r!==null&&(VAT_RATES_ALL.includes(r)||settings.customVatRates.includes(r))){vatRate=r;vatBasis='Taux saisi';}s=s.replace(vm[0],' ').replace(/\s+/g,' ').trim();}
     const sansTva=/\b(sans tva|exon[ée]r[ée]e?)\b/i.test(s);if(sansTva){vatRate=0;vatBasis='Sans TVA (saisi)';s=s.replace(/\b(sans tva|exon[ée]r[ée]e?)\b/i,' ');}
+    let discountPct=null,discountGlobal=false;
+    const dm=s.match(DISCOUNT_RE);if(dm){const d=numberOf(dm[1]||dm[2]||dm[3]);if(d!==null&&d>0&&d<100){discountPct=d;discountGlobal=!!dm[4];}s=s.replace(dm[0],' ').replace(/\s+/g,' ').trim();}
+    if(discountPct!==null&&!/\d|[a-z]{3,}/i.test(cleanLabel(s))){
+      // Remise seule (« + remise 10 % ») : elle porte sur la ligne précédente, ou sur toutes avec « sur le total ».
+      if(discountGlobal||!lines.length)globalDiscount=discountPct;else{lines[lines.length-1].discountPct=discountPct;lines[lines.length-1].basis+=` ; remise ${fmtFr(discountPct)} %`;}
+      continue;
+    }
+    if(discountGlobal){globalDiscount=discountPct;discountPct=null;}
     let price=null,perUnit=null;
     const pm=s.match(PRICE_ANY);
     if(pm){
@@ -293,16 +311,20 @@ export function parseQuickEntry(input,state=null){
       const m2=after.match(/^\s*(ht|ttc)\b/i);if(m2){mode=m2[1].toUpperCase();after=after.slice(m2[0].length);}
       s=`${s.slice(0,pm.index)} ${after}`.replace(/\s+/g,' ').trim();
     }
-    let quantity=1,unit=perUnit||'forfait',label=s,qtyFound=false;
+    let quantity=1,unit=perUnit||'forfait',label=s,qtyFound=false,bareNote=false;
     const qm=s.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*([a-zA-Zéèêàâîôûç³²]+[23]?)?(?=[\s,.;:]|$)/);
     if(qm){
       quantity=numberOf(qm[1]);qtyFound=true;const u=qm[2]?unitOf(qm[2]):null;
       const before=s.slice(0,qm.index),after=s.slice(qm.index+qm[0].length);
       if(u){unit=u;label=`${before} ${after}`;}
       // « pressage de paille 200 balles » : le nom compté sert d'unité quand la désignation est déjà devant.
-      else if(qm[2]&&/^(balles?|bottes?|ballots?|sacs?|round|rounds|palettes?|big ?bags?)$/.test(fold(qm[2]))&&cleanLabel(before)){unit=perUnit||'u';label=`${before} ${after}`;}
+      else if(qm[2]&&COUNTED.test(fold(qm[2]))&&cleanLabel(before)){unit=perUnit||'u';label=`${before} ${after}`;}
       else{unit=perUnit||(quantity!==1?'u':'forfait');label=`${before} ${qm[2]||''} ${after}`;}
     }
+    // « déplacement forfait 50 € » : le mot « forfait » est l'unité, pas la désignation.
+    if(/\bforfait(?:aire)?s?\b/i.test(label)&&cleanLabel(label.replace(/\bforfait(?:aire)?s?\b/i,' '))){label=label.replace(/\b(?:au\s+|en\s+)?forfait(?:aire)?s?\b/i,' ');if(!qtyFound&&!perUnit)unit='forfait';}
+    // Prix sans « € » en fin de segment, seulement si une quantité a déjà été lue.
+    if(price===null&&qtyFound){const bm=label.replace(/\s+/g,' ').trim().match(BARE_PRICE);if(bm&&cleanLabel(label.replace(/\s+/g,' ').trim().slice(0,bm.index))){price=numberOf(bm[1]);const u=bm[2]?unitOf(bm[2]):null;if(u&&(unit==='forfait'||unit==='u'))unit=u;if(bm[3])mode=bm[3].toUpperCase();label=label.replace(/\s+/g,' ').trim().slice(0,bm.index);bareNote=true;}}
     label=cleanLabel(label);
     if(!label&&price===null&&!qtyFound){unparsed.push(seg);continue;}
     if(!label&&price===null){unparsed.push(seg);continue;}
@@ -312,12 +334,15 @@ export function parseQuickEntry(input,state=null){
     if(vatRate===null||!(VAT_RATES_ALL.includes(vatRate)||settings.customVatRates.includes(vatRate))){vatRate=settings.vatRate;vatBasis='Taux par défaut (paramètres)';}
     if(item&&unit==='forfait'&&item.unit&&!qtyFound)unit=item.unit;
     let unitPrice=price,basis='Prix saisi';
-    if(price!==null&&mode==='TTC'){unitPrice=Math.round(price/(1+vatRate/100)*10000)/10000;basis='Prix TTC saisi, converti en HT';}
+    if(bareNote)basis='Prix saisi (sans « € », à vérifier)';
+    if(price!==null&&mode==='TTC'){unitPrice=Math.round(price/(1+vatRate/100)*10000)/10000;basis='Prix TTC saisi, converti en HT';warnings.push(`${label.charAt(0).toUpperCase()+label.slice(1)} : ${fmtFr(price)} € TTC converti en ${fmtFr(round2(unitPrice))} € HT avec une TVA à ${fmtFr(vatRate)} % ; vérifiez le taux.`);}
     if(unitPrice===null&&state){const sug=suggestPrice(state,{clientId:client?.id||null,itemId:item?.id||null,label,unit});if(sug){unitPrice=sug.price;basis=sug.source==='client'?'Dernier prix pratiqué pour ce client':sug.source==='historique'?'Prix habituel (historique)':'Prix du catalogue';}}
     if(unitPrice===null)warnings.push(`Prix à saisir : ${label}.`);
     if(item?.label)label=item.label;
-    lines.push({label:label.charAt(0).toUpperCase()+label.slice(1),quantity,unit,unitPrice,vatRate,vatBasis,basis,...(item?{itemId:item.id,...(item.account?{account:item.account}:{})}:{})});
+    if(discountPct!==null)basis+=` ; remise ${fmtFr(discountPct)} %`;
+    lines.push({label:label.charAt(0).toUpperCase()+label.slice(1),quantity,unit,unitPrice,vatRate,vatBasis,basis,...(discountPct!==null?{discountPct}:{}),...(item?{itemId:item.id,...(item.account?{account:item.account}:{})}:{})});
   }
+  if(globalDiscount!==null&&lines.length){for(const l of lines)if(l.discountPct===undefined){l.discountPct=globalDiscount;l.basis+=` ; remise ${fmtFr(globalDiscount)} %`;}warnings.push(`Remise de ${fmtFr(globalDiscount)} % appliquée à chaque ligne : vérifiez-la.`);}
   if(!lines.length)warnings.push('Aucune ligne reconnue : écrivez par exemple « 3 h de pelle à 65 € ».');
   return{docType:docType||'facture',docTypeGuessed:!docType,clientQuery,client,candidates,lines,mode:globalTtc?'TTC':'HT',warnings,unparsed,draftOnly:true};
 }

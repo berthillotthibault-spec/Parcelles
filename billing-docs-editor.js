@@ -317,11 +317,16 @@ export function createDocsEditor(ui) {
   const vatManual = new Set();
   function proposeVat(li, l) {
     if (vatManual.has(l.id)) return;
-    const sug = suggestVatRate(l.label, {state: ui.state()}), select = li.querySelector('[data-f="vatRate"]');
+    // Contexte du document (type de client, nom, nature de l’opération) : affine le taux (ex. travaux forestiers).
+    const state = ui.state(), client = ed.clientId ? (state.clients || []).find(c => c?.id === ed.clientId) || null : null;
+    const sug = suggestVatRate(l.label, {state, clientKind: ed.clientKind, clientName: ed.clientName, client, operationNature: ed.operationNature, today: validDay(ed.issueDate) ? ed.issueDate : undefined}), select = li.querySelector('[data-f="vatRate"]');
     if (!sug || !select || ![...select.options].some(o => Number(o.value) === sug.rate) || Number(l.vatRate) === sug.rate) return;
     l.vatRate = sug.rate; select.value = [...select.options].find(o => Number(o.value) === sug.rate).value;
     const exo = li.querySelector('.bd-f-exo'); if (exo) exo.hidden = sug.rate !== 0;
-    ui.toast(`TVA proposée : ${String(sug.rate).replace('.', ',')} % (${sug.basis}). Modifiable sur la ligne.`, 'info');
+    const pct = r => `${String(r).replace('.', ',')} %`, alts = sug.alternatives || [];
+    // Cas à vérifier : on cite les autres taux possibles (ex. « 10 % si la récolte est destinée à l’alimentation animale »).
+    const more = alts.length ? ` Autre taux possible : ${alts.map(a => `${pct(a.rate)} ${a.when}`).join(' ; ')}.` : sug.confidence === 'check' ? ' À confirmer avec votre comptable.' : '';
+    ui.toast(`TVA proposée : ${pct(sug.rate)} (${sug.basis}).${more}${sug.caution ? ` ${sug.caution}` : ''} Modifiable sur la ligne.`, 'info');
   }
   function onField(el, committed) {
     if (!ed || !el) return;

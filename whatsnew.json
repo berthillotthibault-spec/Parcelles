@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.31.0",
+      "date": "2026-11-12",
+      "title": "TVA, factures et conseils mieux compris",
+      "items": [
+        "TVA au plus juste : moisson et labour au taux du produit (5,5 % pour le blé), semis et traitements à 20 %, forestier à 10 % pour un exploitant.",
+        "Avant d’émettre une facture, l’appli signale les taux de TVA douteux, sans jamais bloquer.",
+        "Demandez à l’assistant : « combien me doit Martin », « travaux non facturés », « TVA à reverser ce trimestre ».",
+        "Et aussi : « puis-je traiter demain », « quand puis-je récolter », « que semer après le blé », avec de nouvelles alertes agronomiques."
+      ]
+    },
+    {
       "version": "10.30.0",
       "date": "2026-11-12",
       "title": "Toujours à jour, plus malin",
