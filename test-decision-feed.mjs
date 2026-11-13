@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyState} from './state.js';
 import {treasuryForecast} from './treasury.js';
-import {decisionFeed, decisionCountLabel, scoreDecision, urgency, fromCostDrift, stakesLabel, DECISION_ACTIONS} from './decision-feed.js';
+import {decisionFeed, decisionCountLabel, scoreDecision, urgency, fromCostDrift, fromGesture, stakesLabel, DECISION_ACTIONS} from './decision-feed.js';
 
 const TODAY = '2026-11-12';
 // Notifications et conformité fournies en littéral : le fil reste indépendant de l’horloge réelle.
@@ -173,4 +173,19 @@ test('manque d’intrant : le bouton prépare la tâche de commande (titre, éch
   assert.match(short.action.payload.dueDate, /^\d{4}-\d{2}-\d{2}$/);
   assert.match(short.action.payload.notes, /Urée : il manque 1,3 t dès l’apport du 20\/11/);
   assert.deepEqual([amm.action.type, amm.action.id], ['stock-movement', 's1']);
+});
+
+test('automatisation proposée : une carte info au plus, qui ouvre l’écran des automatisations', () => {
+  const g = (from, to) => ({key: `${from}>${to}`.toLowerCase(), from, to, reason: `Après 4 des 4 « ${from} » terminés.`});
+  const d = fromGesture(g('Moisson', 'Déchaumage'));
+  assert.equal(d.id, 'gesture-moisson>déchaumage');
+  assert.equal(d.level, 'info'); assert.equal(d.kind, 'gesture-rule');
+  assert.equal(d.action.type, 'open-automations'); assert.ok(DECISION_ACTIONS.includes('open-automations'));
+  assert.match(d.why[0], /4 des 4/);
+  assert.equal(fromGesture({key: 'x', from: '', to: 'B'}), null);
+  const rows = feed(farm({interventions: []}), {gestures: [g('Moisson', 'Déchaumage'), g('Semis', 'Roulage')]}).filter(r => r.kind === 'gesture-rule');
+  assert.equal(rows.length, 1); assert.match(rows[0].title, /Moisson/);
+  // « Pas pertinent » (retour du fil) masque la carte.
+  const fb = {items: {[d.id]: {verdict: 'no', at: TODAY, until: '2026-11-26', level: 'info'}}, kinds: {}};
+  assert.equal(feed(farm({interventions: []}), {gestures: [g('Moisson', 'Déchaumage')], feedback: fb}).filter(r => r.kind === 'gesture-rule').length, 0);
 });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyState} from './state.js';
-import {weatherRaces, raceFamily, rainSeries, dayName} from './weather-race.js';
+import {weatherRaces, raceFamily, rainSeries, dayName, stationsForParcel} from './weather-race.js';
 import {decisionFeed, DECISION_ACTIONS} from './decision-feed.js';
 
 const TODAY = '2026-11-12';
@@ -121,5 +121,71 @@ test('relecture : pluie aujourd’hui, aucun jour praticable : pas de « commenc
   const [race] = weatherRaces(farm(), {today: TODAY, agro: agro({'2026-11-12': 6})});
   assert.equal(race.dryDays, 0);
   assert.doesNotMatch(race.title, /commencez par/);
+  assert.match(race.title, /à replanifier$/);
+});
+
+// Par parcelle : petites parcelles carrées autour d’un point, stations positionnées.
+const square = (lon, lat) => ({type: 'Polygon', coordinates: [[[lon, lat], [lon + 0.004, lat], [lon + 0.004, lat + 0.004], [lon, lat + 0.004], [lon, lat]]]});
+const placed = () => {
+  const s = farm();
+  s.parcelles[0].geometry = square(4.0, 46.0);
+  s.parcelles[1].geometry = square(4.3, 46.0);
+  s.parcelles[2].geometry = square(4.01, 46.0);
+  return s;
+};
+const station = (name, lon, lat, readings) => ({id: name, name, longitude: lon + 0.002, latitude: lat + 0.002, readings});
+
+test('par parcelle : station la plus proche, une parcelle détrempée conseillée plus tard', () => {
+  const s = placed();
+  s.weatherStations = [station('Station du Clos', 4.3, 46.0, [{time: '2026-11-11T08:00', rainMm: 25}]),
+    station('Station des Brosses', 4.0, 46.0, [{time: '2026-11-11T08:00', rainMm: 0}])];
+  const [race] = weatherRaces(s, {today: TODAY, agro: agro()});
+  assert.ok(race.perParcel);
+  assert.equal(race.dryDays, 2);
+  assert.deepEqual(race.start.map(x => x.workId), ['w3', 'w1']);
+  assert.deepEqual(race.blocked.map(b => [b.parcelId, b.from]), [['p2', '2026-11-15']]);
+  const line = race.why.find(w => w.startsWith('Bloquées aujourd’hui'));
+  assert.match(line, /Le Clos \(25 mm en 3 jours \(seuil 18 mm\) ; praticable dimanche\)/);
+  assert.ok(race.why.some(w => w.includes('Station du Clos')));
+  // Sans station : calcul de toute la ferme, aucune parcelle bloquée.
+  const [plain] = weatherRaces(placed(), {today: TODAY, agro: agro()});
+  assert.deepEqual(plain.blocked, []);
+  assert.equal(plain.perParcel, false);
+});
+
+test('par parcelle : bilan hydrique récent, sol hydromorphe gorgé d’eau aujourd’hui', () => {
+  const days = Array.from({length: 15}, (_, i) => ({date: new Date(Date.UTC(2026, 9, 29 + i)).toISOString().slice(0, 10), rain: 0, et0: 1}));
+  assert.equal(days.at(-1).date, TODAY);
+  const soil = {days, forecast: [], soilMoisture: 0.35, soilMoistureAt: `${TODAY}T08:00`, soilMoistureStart: 0.2, loadedAt: Date.UTC(2026, 10, 12, 8)};
+  const [race] = weatherRaces(farm(), {today: TODAY, agro: agro(), soil});
+  assert.ok(race.perParcel);
+  assert.deepEqual(race.blocked.map(b => [b.parcelId, b.from]), [['p3', '2026-11-13']]);
+  assert.deepEqual(race.start.map(x => x.workId), ['w1', 'w2']);
+  assert.match(race.title, /commencez par Les Brosses et Le Clos$/);
+  assert.ok(race.why.some(w => w.startsWith('Portance par parcelle')));
+  assert.ok(race.why.some(w => w.includes('Les Noues (surface gorgée d’eau ; praticable demain)')));
+  // Bilan trop ancien : repli sur le cumul de pluie de toute la ferme.
+  const old = {...soil, days: days.slice(0, 8), soilMoistureAt: '2026-11-05T08:00'};
+  const [fallback] = weatherRaces(farm(), {today: TODAY, agro: agro(), soil: old});
+  assert.deepEqual(fallback.blocked, []);
+  assert.deepEqual(fallback.start.map(x => x.workId), ['w3', 'w1']);
+});
+
+test('stations d’une parcelle : la plus proche positionnée, pluviomètre sans position gardé', () => {
+  const gauge = {id: 'g', name: 'Pluviomètre manuel', source: 'manual-gauge', readings: []};
+  const near = station('Proche', 4.0, 46.0, []), far = station('Loin', 4.5, 46.0, []), mid = station('Milieu', 4.05, 46.0, []);
+  assert.deepEqual(stationsForParcel({geometry: square(4.0, 46.0)}, [far, gauge, mid, near]).map(x => x.id), ['Proche', 'g']);
+  assert.deepEqual(stationsForParcel({geometry: square(4.0, 46.0)}, [far, gauge]).map(x => x.id), ['g']);
+  assert.deepEqual(stationsForParcel({id: 'sans-contour'}, [far, gauge]).map(x => x.id), ['Loin', 'g']);
+  assert.deepEqual(stationsForParcel({geometry: square(4.0, 46.0)}, [{...near, deletedAt: 1}, gauge]).map(x => x.id), ['g']);
+});
+
+test('relecture : pluie annoncée aujourd’hui, relevé partiel à 0 mm : aujourd’hui reste non praticable', () => {
+  const s = farm();
+  s.weatherStations = [{id: 'g', name: 'Pluviomètre manuel', source: 'manual-gauge', readings: [{time: `${TODAY}T07:00`, rainMm: 0}]}];
+  const [race] = weatherRaces(s, {today: TODAY, agro: agro({'2026-11-12': 6})});
+  assert.equal(race.rainDate, TODAY);
+  assert.equal(race.dryDays, 0);
+  assert.equal(race.endDate, '2026-11-15');
   assert.match(race.title, /à replanifier$/);
 });

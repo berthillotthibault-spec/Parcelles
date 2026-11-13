@@ -10,6 +10,14 @@ import {newAutomationFromTemplate} from './automations.js';
 
 export const GESTURE_DEFAULTS = Object.freeze({windowDays: 14, minOccurrences: 3, minCampaigns: 2, minRatio: 0.5, max: 3});
 export const GESTURE_PREF = 'gestureRuleDismissed';
+// Délai de l'enchaînement réglable dans l'écran Automatisations (préférence de l'appareil, non synchronisée).
+export const GESTURE_WINDOW_PREF = 'gestureWindowDays';
+export const GESTURE_WINDOWS = Object.freeze([7, 14, 21, 30]);
+/** Délai retenu : la préférence si elle fait partie des choix proposés, sinon 14 jours. */
+export const gestureWindowDays = preferences => {
+  const n = Number(preferences?.[GESTURE_WINDOW_PREF]);
+  return GESTURE_WINDOWS.includes(n) ? n : GESTURE_DEFAULTS.windowDays;
+};
 const DONE = ['Terminé', 'Terminée'];
 const DAY = 86400000;
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -67,9 +75,10 @@ export function isCovered(rules, from, to) {
  * Enchaînements répétés. Pour chaque travail terminé A (type, parcelle, date de réalisation), on cherche une tâche ou
  * un travail B créé à la main sur la même parcelle dans les `windowDays` jours qui suivent. Un enchaînement est retenu
  * s'il s'observe au moins `minOccurrences` fois, sur `minCampaigns` campagnes, et après au moins `minRatio` des A.
+ * `windowDays` vient de preferences.gestureWindowDays (7, 14, 21 ou 30), sauf s'il est passé dans options.
  */
 export function detectGestures(state, options = {}) {
-  const o = {...GESTURE_DEFAULTS, ...options};
+  const o = {...GESTURE_DEFAULTS, windowDays: gestureWindowDays(state?.preferences), ...options};
   const dismissed = new Set(Array.isArray(state?.preferences?.[GESTURE_PREF]) ? state.preferences[GESTURE_PREF] : []);
   const rules = live(state, 'automationRules');
   const sources = live(state, 'interventions').filter(w => DONE.includes(w.status) && w.parcelId && String(w.type || '').trim() && day(w.date));

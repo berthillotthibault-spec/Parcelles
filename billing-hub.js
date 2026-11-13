@@ -103,10 +103,13 @@ export function reminderGroups(state,today=isoDay()){
     const g=map.get(k);g.items.push(r);g.total=round2(g.total+r.due);g.level=Math.max(g.level,r.level);g.maxDays=Math.max(g.maxDays,r.daysLate);}
   return[...map.values()].sort((a,b)=>b.level-a.level||b.total-a.total);
 }
+// Seuil « Proposer de facturer après » (preferences.unbilledDays) : 15, 30, 45 ou 60 jours, 30 par défaut.
+export const UNBILLED_CHOICES=[15,30,45,60];
+export function unbilledDaysPref(prefs){const n=Number(prefs?.unbilledDays);return UNBILLED_CHOICES.includes(n)?n:30;}
 export function hubTodo(state,{today=isoDay(),dismissed=[]}={}){
   const skip=new Set(dismissed),reminders=reminderGroups(state,today),follow=quotesToFollow(state,today),expiringIds=new Set(follow.expiring.map(x=>x.quote.id));
   const quotesList=[...follow.expiring.map(x=>({...x,expiring:true})),...follow.toFollow.filter(x=>!expiringIds.has(x.quote.id)).map(x=>({...x,expiring:false}))];
-  const recurring=dueSchedulesList(state,today),unbilled=unbilledAlerts(state,today);
+  const recurring=dueSchedulesList(state,today),unbilled=unbilledAlerts(state,today,{days:unbilledDaysPref(state?.preferences)});
   const duplicates=probableDuplicates(state).filter(d=>!skip.has(dupKey(d)));
   const risky=riskyClients(state,today);
   const count=reminders.length+quotesList.length+recurring.length+unbilled.length+duplicates.length;

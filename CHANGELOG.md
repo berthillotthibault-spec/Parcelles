@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.37.0 · seuils réglables, course contre la météo par parcelle — 2026-11-13
+
+- Course contre la météo : les jours praticables sont calculés pour chaque parcelle (station la plus proche, bilan hydrique du sol prolongé avec la prévision) ; une parcelle détrempée est conseillée plus tard et « Pourquoi ? » dit quelles parcelles sont bloquées et jusqu'à quand.
+- Réglages : « Proposer de facturer après » (15, 30, 45 ou 60 jours) dans les réglages de la facturation, et « Protection d'un fongicide » (7, 10, 14 ou 21 jours) dans les seuils des alertes sanitaires ; « couvert jusqu'au … » suit la valeur réglée.
+- Automatisations proposées : le délai entre les deux gestes se règle (7, 14, 21 ou 30 jours) et la meilleure proposition paraît dans « À décider », seulement pour les rôles qui peuvent créer une règle ; « Pas pertinent » vaut « Non merci ».
+
 ## 10.36.0 · course contre la météo, maladies selon le stade, NDVI comparé, durées GPS, automatisations proposées, facturation en un geste — 2026-11-13
 
 - Course contre la météo : quand une récolte, un ensilage, une fauche, un semis ou un travail du sol sur plusieurs parcelles ne tient pas avant la pluie annoncée ou à cause d'un sol trop humide, l'accueil affiche les hectares restants, les jours de travail, les jours praticables et les parcelles par lesquelles commencer (`weather-race.js`).

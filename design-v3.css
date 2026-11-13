@@ -3784,4 +3784,6 @@ html body select:not([multiple]):not([size])::-ms-expand{display:none}
 .gesture-proposals .gesture-row{align-items:center;gap:10px;flex-wrap:wrap}
 .gesture-proposals .gesture-actions{display:flex;gap:8px;flex-wrap:wrap}
 .gesture-proposals .gesture-actions .small-button{min-height:48px;min-width:48px}
+.gesture-proposals .gesture-window{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+.gesture-proposals .gesture-window select{min-height:48px;width:auto}
 }

@@ -5,7 +5,7 @@
 // peut rester incomplète, l'émission reste alors bloquée) et s'annule depuis le toast.
 import {ACCENTS, FONTS, OPERATION_NATURES, PAYMENT_TERMS, VAT_REGIMES, DEFAULT_PENALTY, invoiceSettings, saveSettings, vatRatesOf} from './invoices.js';
 import {epcQrSvg, invoiceHtmlWithQr} from './billing-export.js';
-import {LEGAL_FORMS, MESSAGE_KEYS, MESSAGE_VARIABLES, NUMBERING_DOC_TYPES, SETTINGS_SECTIONS, TEMPLATE_COLUMNS, bicCheck, defaultMessage, ibanCheck, messagePreview, numberingPreview, numberingReport, sampleDocument, sectionValues, settingsChecklist, settingsSection, siretCheck} from './billing-hub.js';
+import {LEGAL_FORMS, MESSAGE_KEYS, MESSAGE_VARIABLES, NUMBERING_DOC_TYPES, SETTINGS_SECTIONS, TEMPLATE_COLUMNS, bicCheck, defaultMessage, ibanCheck, messagePreview, numberingPreview, numberingReport, sampleDocument, sectionValues, settingsChecklist, settingsSection, siretCheck, UNBILLED_CHOICES, unbilledDaysPref} from './billing-hub.js';
 
 const rate = r => `${String(r).replace('.', ',')} %`;
 const TERM = d => (d === 0 ? 'À réception' : `${d} jours`);
@@ -121,6 +121,8 @@ export function createHubSettingsUI(ctx) {
       default: return html`<fieldset class="bh-fieldset"><legend>Accueil et ouverture</legend>
         ${check('billingHomeCard', 'Carte « factures en retard » sur l’accueil (gestion et comptabilité seulement)', data().preferences?.billingHomeCard !== false)}
         <label>Onglet à l’ouverture de la facturation<select name="billingHubTab">${[['suivi', 'Suivi'], ['afaire', 'À faire']].map(([k, l]) => option(k, l, data().preferences?.billingHubTab || 'suivi'))}</select></label>
+        <label>Proposer de facturer après<select name="unbilledDays">${UNBILLED_CHOICES
+          .map(n => option(String(n), `${n} jours`, String(unbilledDaysPref(data().preferences))))}</select></label>
         <p class="bh-note">Ces choix sont enregistrés immédiatement.</p></fieldset>`;
     }
   }
@@ -213,6 +215,12 @@ export function createHubSettingsUI(ctx) {
     try {
       if (el.name === 'billingHomeCard') { const before = data().preferences?.billingHomeCard !== false; await store.setPreferences({billingHomeCard: el.checked}); toast(el.checked ? 'Carte affichée sur l’accueil.' : 'Carte retirée de l’accueil.', 'success', {label: 'Annuler', run: () => store.setPreferences({billingHomeCard: before})}); }
       if (el.name === 'billingHubTab') { await store.setPreferences({billingHubTab: el.value}); toast('Onglet d’ouverture enregistré.'); }
+      if (el.name === 'unbilledDays') {
+        const before = unbilledDaysPref(data().preferences);
+        await store.setPreferences({unbilledDays: Number(el.value)});
+        const undo = async () => { await store.setPreferences({unbilledDays: before}); el.value = String(before); };
+        toast(`Facturation proposée après ${el.value} jours.`, 'success', {label: 'Annuler', run: undo});
+      }
     } catch (error) { toast(error.message, 'error'); }
   });
 

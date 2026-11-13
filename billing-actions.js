@@ -8,7 +8,7 @@
 // Chargé à la demande (avec les modules de facturation), jamais au démarrage.
 import {active} from './farm-memory.js';
 import {addDays,billableItems,dateFr,isoDay,lineTotal,round2} from './invoices.js';
-import {reminderGroups} from './billing-hub.js';
+import {reminderGroups,unbilledDaysPref} from './billing-hub.js';
 import {clientPaymentHabits,habitSentence,habitsIndex} from './payment-habits.js';
 
 export const UNBILLED_DAYS=30;
@@ -83,7 +83,8 @@ export function unbilledProposals(state,{today=isoDay(),days:limitDays=UNBILLED_
  * Propositions pour le fil « À décider » (decision-feed.js, fromBilling) :
  * {id, kind, title, why, level, eur, daysLeft, key, action:{type, id, label}}.
  */
-export function billingDecisions(state,{today=isoDay(),habits=null,unbilledDays=UNBILLED_DAYS}={}){
+// unbilledDays : par défaut le réglage du centre Facturation (preferences.unbilledDays, 30 jours sinon).
+export function billingDecisions(state,{today=isoDay(),habits=null,unbilledDays=unbilledDaysPref(state?.preferences)}={}){
   if(!state)return[];
   const rows=[];
   for(const r of reminderProposals(state,{today,habits}))rows.push({id:`billing-remind-${r.key}`,kind:'billing-remind',key:`client:${r.key}`,

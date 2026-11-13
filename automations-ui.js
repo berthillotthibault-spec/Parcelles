@@ -5,7 +5,8 @@ import {icon as uiIcon} from './ui.js';
 import {validateForm} from './form-chips-ui.js';
 import {explainButton} from './margin-ui.js'; // n° 110
 import {AUTOMATION_ACTIONS, AUTOMATION_FIELDS, AUTOMATION_KINDS, AUTOMATION_OPERATORS, AUTOMATION_TARGETS, AUTOMATION_TRIGGERS, automationActions, automationRuleLabel, automationRuleSummary, automationTemplates, evaluateAutomationRules} from './automations.js';
-import {GESTURE_PREF, detectGestures, dismissGesture, gestureReason, gestureRule} from './gesture-rules.js'; // idée 4
+import {GESTURE_PREF, GESTURE_WINDOW_PREF, GESTURE_WINDOWS, detectGestures, dismissGesture, gestureReason, gestureRule, gestureWindowDays}
+  from './gesture-rules.js'; // idée 4
 
 export function createAutomationsUI({state, store, active, modal, toast, weather = () => null, doc = globalThis.document} = {}) {
   const $ = selector => doc.querySelector(selector), $$ = selector => [...doc.querySelectorAll(selector)];
@@ -30,13 +31,20 @@ export function createAutomationsUI({state, store, active, modal, toast, weather
 
   // Idée 4 : automatisations proposées d’après les gestes répétés (gesture-rules.js). Rien n’est écrit sans confirmation.
   function gestureSection(data){
-    const list=detectGestures(data);if(!list.length)return'';
+    // Le délai reste réglable quand il ne donne rien : la section reste visible dès qu'un délai a été choisi.
+    const list=detectGestures(data),days=gestureWindowDays(data.preferences),chosen=data.preferences?.[GESTURE_WINDOW_PREF]!==undefined;
+    if(!list.length&&!chosen)return'';
+    const options=GESTURE_WINDOWS.map(n=>`<option value="${n}" ${n===days?'selected':''}>${n} jours</option>`).join('');
+    const picker=`<label class="gesture-window"><span>Délai entre les deux gestes</span><select id="gesture-window">${options}</select></label>`;
     const row=(g,i)=>`<div class="list-row gesture-row"><div><strong>${escapeHtml(`Après « ${g.from} » → tâche « ${g.to} »`)}</strong>`
       +`<small>${escapeHtml(gestureReason(g))}</small></div><div class="gesture-actions">`
       +`<button class="small-button" data-gesture-create="${i}">Créer la règle</button> <button class="small-button" data-gesture-dismiss="${i}">Non merci</button></div></div>`;
-    return `<div class="settings-group gesture-proposals"><h3>Proposées d’après vos habitudes</h3><div class="stack-list">${list.map(row).join('')}</div></div>`;
+    const rows=list.length?list.map(row).join(''):'<p class="muted">Aucune proposition avec ce délai.</p>';
+    return `<div class="settings-group gesture-proposals"><h3>Proposées d’après vos habitudes</h3>${picker}<div class="stack-list">${rows}</div></div>`;
   }
   function bindGestures(data){
+    const select=$('#gesture-window');
+    if(select)select.onchange=async()=>{await store.setPreferences({[GESTURE_WINDOW_PREF]:Number(select.value)});openAutomations();};
     const list=detectGestures(data);if(!list.length)return;
     $$('[data-gesture-create]').forEach(button=>{button.onclick=()=>confirmGesture(list[Number(button.dataset.gestureCreate)]);});
     $$('[data-gesture-dismiss]').forEach(button=>{button.onclick=async()=>{

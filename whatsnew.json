@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "10.37.0",
+      "date": "2026-11-13",
+      "title": "Des seuils à votre main",
+      "items": [
+        "Course contre la météo calculée parcelle par parcelle : une parcelle détrempée est conseillée plus tard, avec la raison.",
+        "Réglables : délai avant de proposer une facture (15 à 60 j) et durée de protection d’un fongicide (7 à 21 j).",
+        "Automatisations proposées : délai entre les deux gestes réglable, et la meilleure proposition paraît dans « À décider »."
+      ]
+    },
+    {
       "version": "10.36.0",
       "date": "2026-11-13",
       "title": "Une appli qui anticipe",

@@ -37,9 +37,13 @@ export const RISK_SOURCES = {
 export const RISK_LABELS = {septoria: 'Septoriose du blé', maizeLeaf: 'Helminthosporiose et rouille du maïs', sclerotinia: 'Sclérotinia du colza', thi: 'Stress thermique des bovins',
   fusarium: 'Fusariose des épis du blé'};
 
+// Réglage « Protection d'un fongicide » (preferences.fungicideProtectionDays) : prioritaire sur l'ancien seuil cover.days.
+export const FUNGICIDE_DAYS_CHOICES = [7, 10, 14, 21];
 export function riskThresholds(prefs = {}) {
   const o = prefs?.agroRiskThresholds || {}, out = {};
   for (const [k, v] of Object.entries(RISK_DEFAULTS)) out[k] = {...v, ...(o[k] || {})};
+  const fd = Number(prefs?.fungicideProtectionDays);
+  if (FUNGICIDE_DAYS_CHOICES.includes(fd)) out.cover = {...out.cover, days: fd};
   return out;
 }
 export function thi(t, rh) {

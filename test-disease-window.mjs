@@ -113,3 +113,29 @@ test('stade observé ancien sans météo depuis : stade inconnu, pas de filtrage
   const a = evaluateAgroRisks(state, {days: recent, hourly: null}, {now: NOW}).find(x => x.kind === 'septoria');
   assert.ok(a, 'la règle des mois doit s’appliquer au lieu de supprimer l’alerte');
 });
+
+test('réglage « Protection d’un fongicide » (preferences.fungicideProtectionDays)', () => {
+  assert.equal(riskThresholds({}).cover.days, 14);
+  assert.equal(riskThresholds({fungicideProtectionDays: 7}).cover.days, 7);
+  assert.equal(riskThresholds({fungicideProtectionDays: 30}).cover.days, 14, 'hors choix : ignoré');
+  assert.equal(riskThresholds({fungicideProtectionDays: 21, agroRiskThresholds: {cover: {days: 30}}}).cover.days, 21, 'prioritaire sur l’ancien seuil');
+  // Fongicide à J-5 : couvert 14 jours par défaut ; avec 7 jours, protection terminée à J+2 et pluie de J+3 non couverte.
+  const data = farm([fungicide(-5)]), r = i => (i === -2 || i === 3 ? 12 : 0);
+  const at = days => ({...data, preferences: {...(data.preferences || {}), fungicideProtectionDays: days}});
+  const c = evaluateAgroRisks(at(21), weather(6.5, r), {now: NOW, withCovered: true}).find(a => a.kind === 'septoria');
+  assert.equal(c.level, 'couvert');
+  assert.equal(c.until, shift(16));
+  assert.match(c.title, /couvert jusqu’au 31\/05/);
+  assert.match(c.why, /protection indicative de 21 jours/);
+  const a = evaluateAgroRisks(at(7), weather(6.5, r), {now: NOW}).find(x => x.kind === 'septoria');
+  assert.ok(a && a.level !== 'couvert');
+  assert.match(a.why, /terminée le 17\/05 \(7 jours indicatifs\)/);
+});
+test('réglage du fongicide : une ancienne valeur nulle s’affiche comme le calcul (14 jours)', async () => {
+  // Ancien champ libre à 0 : le calcul retombe sur 14 jours, la liste des réglages doit aussi sélectionner 14.
+  assert.equal(riskThresholds({agroRiskThresholds: {cover: {days: 0}}}).cover.days, 0);
+  const {readFileSync} = await import('node:fs');
+  const ui = readFileSync(new URL('./agro-risk-ui.js', import.meta.url), 'utf8');
+  assert.match(ui, /coverDays = rawCover > 0 \? rawCover : RISK_DEFAULTS\.cover\.days/);
+  assert.match(readFileSync(new URL('./agro-risk.js', import.meta.url), 'utf8'), /Number\(thresholds\.cover\?\.days\) \|\| RISK_DEFAULTS\.cover\.days/);
+});

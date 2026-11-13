@@ -5,7 +5,8 @@
 import {workDuration} from './farm-planner.js';
 import {isPending} from './home-priorities.js';
 import {CANCELLED} from './pilotage.js';
-import {soilProfile, assessParcel} from './soil-water.js';
+import {soilProfile, stationRainByDay, waterBalance, trafficability} from './soil-water.js';
+import {geometryCentroid, haversineMeters} from './utils.js';
 
 // rate : rythme par défaut (h/ha) quand ni durée saisie ni historique ; dryMm : pluie du jour qui arrête le chantier.
 export const RACE_FAMILIES = Object.freeze([
@@ -18,6 +19,10 @@ export const RACE_FAMILIES = Object.freeze([
 export const DEFAULT_DAY_HOURS = 9;
 export const DUE_WINDOW_DAYS = 7;
 export const MAX_FORECAST_DAYS = 7;
+// Station retenue pour une parcelle : la plus proche ayant une position, à 20 km au plus.
+export const STATION_MAX_METERS = 20000;
+// Bilan hydrique utilisable si son dernier jour mesuré date d’aujourd’hui ou d’hier.
+export const SOIL_MAX_LAG_DAYS = 1;
 
 const num = v => {const n = Number(v); return v === null || v === undefined || v === '' || !Number.isFinite(n) ? null : n;};
 const plain = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -56,14 +61,31 @@ export function rainSeries({agro = null, soil = null, today}) {
   return {rain, horizon: days};
 }
 
+const posOf = s => {const lat = num(s?.latitude), lon = num(s?.longitude); return lat === null || lon === null ? null : {latitude: lat, longitude: lon};};
+
+/**
+ * Stations météo d’une parcelle : la plus proche ayant une position (STATION_MAX_METERS au plus), puis celles
+ * sans position (pluviomètre de la ferme). Sans position de parcelle ou de station : toutes, comme soil-water.js.
+ */
+export function stationsForParcel(parcel, stations = []) {
+  const list = (Array.isArray(stations) ? stations : []).filter(s => s && !s.deletedAt && Array.isArray(s.readings));
+  const placed = list.filter(posOf);
+  let center = null;
+  try {center = parcel?.geometry ? geometryCentroid(parcel.geometry) : null;} catch {center = null;}
+  if (!placed.length || !center) return list;
+  const near = placed.map(s => ({s, m: haversineMeters(center, posOf(s))})).filter(x => x.m <= STATION_MAX_METERS).sort((a, b) => a.m - b.m)[0];
+  return [...(near ? [near.s] : []), ...list.filter(s => !posOf(s))];
+}
+
 const dueOf = w => String(w.plannedDate || w.date || '').slice(0, 10);
 const inProgress = w => /en cours/i.test(String(w.status || ''));
 
 /**
  * Courses contre la météo : une entrée par famille dont les chantiers ne tiennent pas avant la pluie
- * (ou que le sol humide empêche de finir dans la prévision). Options : today, agro, soil, dayHours.
+ * (ou que le sol humide empêche de finir dans la prévision). Options : today, agro, soil, dayHours,
+ * stations (par défaut state.weatherStations).
  */
-export function weatherRaces(state, {today, agro = null, soil = null, dayHours = null} = {}) {
+export function weatherRaces(state, {today, agro = null, soil = null, dayHours = null, stations = null} = {}) {
   if (!state || !today) return [];
   const {rain, horizon} = rainSeries({agro, soil, today});
   if (horizon.length < 2) return [];
@@ -84,13 +106,13 @@ export function weatherRaces(state, {today, agro = null, soil = null, dayHours =
   const out = [];
   for (const {family, works} of groups.values()) {
     if (new Set(works.map(w => w.parcelId)).size < 2) continue;
-    const race = projectRace(state, family, works, {today, rain, horizon, hpd, parcels, soil});
+    const race = projectRace(state, family, works, {today, rain, horizon, hpd, parcels, soil, stations: stations ?? live(state, 'weatherStations')});
     if (race) out.push(race);
   }
   return out.sort((a, b) => (a.rainDate || '9999').localeCompare(b.rainDate || '9999') || b.remainingHa - a.remainingHa);
 }
 
-function projectRace(state, family, works, {today, rain, horizon, hpd, parcels, soil}) {
+function projectRace(state, family, works, {today, rain, horizon, hpd, parcels, soil, stations = []}) {
   // 1. Heures restantes par chantier : durée saisie, historique (farm-planner), sinon rythme du groupe ou par défaut.
   const rows = works.map(w => {
     const p = parcels.get(w.parcelId), area = num(w.surfaceWorked) ?? num(p?.surfaceHa);
@@ -111,20 +133,56 @@ function projectRace(state, family, works, {today, rain, horizon, hpd, parcels, 
   for (const r of rows) haByParcel.set(r.p.id, Math.max(haByParcel.get(r.p.id) ?? 0, r.area ?? 0));
   const remainingHa = [...haByParcel.values()].reduce((s, a) => s + a, 0);
 
-  // 2. Praticabilité par parcelle et par jour : pas de pluie dans la journée, cumul des 3 jours précédents
-  // sous le seuil de portance du sol (soil-water.js), et aujourd’hui pas « à éviter » d’après le bilan hydrique.
-  const rain3Before = d => [1, 2, 3].reduce((s, i) => s + Math.max(0, rain.get(addDays(d, -i)) ?? 0), 0);
-  const todayAvoid = new Set();
+  // 2. Praticabilité par parcelle et par jour. Pluie : prévision en cache, remplacée jusqu’à aujourd’hui par les
+  // relevés de la station la plus proche de la parcelle. Portance : bilan hydrique de la parcelle (soil-water.js,
+  // texture et drainage) prolongé jour par jour avec la prévision si le cache sol est récent ; sinon cumul de
+  // pluie sur 3 jours sous le seuil de la parcelle.
+  const soilDays = soil?.days?.length && String(soil.days.at(-1)?.date || '') >= addDays(today, -SOIL_MAX_LAG_DAYS) ? soil.days : null;
+  const et0 = new Map();
+  for (const x of [...(soilDays || []), ...(soil?.forecast || [])]) if (x?.date && num(x.et0) !== null) et0.set(String(x.date).slice(0, 10), num(x.et0));
+  const et0Mean = et0.size ? [...et0.values()].reduce((s, v) => s + v, 0) / et0.size : 0;
+  const surfaceToday = soilDays && String(soil.soilMoistureAt || '').slice(0, 10) === today ? soil.soilMoisture : null;
+  const byParcel = new Map();
   for (const r of rows) {
-    r.threshold = (() => {const pr = soilProfile(r.p); return pr.rain3Avoid * pr.drainageFactor;})();
-    const a = soil?.days?.length ? (() => {try {return assessParcel(r.p, soil);} catch {return null;}})() : null;
-    if (a?.portance?.level === 'avoid') todayAvoid.add(r.p.id);
+    if (!byParcel.has(r.p.id)) {
+      const profile = soilProfile(r.p), stationRain = stationRainByDay(stationsForParcel(r.p, stations));
+      byParcel.set(r.p.id, {profile, stationRain, threshold: profile.rain3Avoid * profile.drainageFactor, ground: new Map()});
+    }
+    Object.assign(r, {site: byParcel.get(r.p.id), threshold: byParcel.get(r.p.id).threshold});
   }
-  const workable = (r, d) => (rain.get(d) ?? 0) < family.dryMm && rain3Before(d) < r.threshold && !(d === today && todayAvoid.has(r.p.id));
+  // Relevé de station jusqu’à hier ; aujourd’hui, le relevé (souvent partiel) ne fait pas oublier la pluie annoncée.
+  const rainOf = (site, d) => {
+    const model = Math.max(0, rain.get(d) ?? 0), st = d <= today ? site.stationRain.get(d) : null;
+    return !st ? {mm: model, st: null} : {mm: d === today ? Math.max(st.mm, model) : st.mm, st};
+  };
+  const rainAt = (r, d) => rainOf(r.site, d).mm;
+  const groundAt = (r, d) => {
+    const site = r.site;
+    if (site.ground.has(d)) return site.ground.get(d);
+    let g;
+    if (soilDays) {
+      const end = d === today ? today : addDays(d, -1), days = [];
+      for (let x = String(soilDays[0].date).slice(0, 10); x <= end && days.length < 60; x = addDays(x, 1)) {
+        const {mm, st} = rainOf(site, x);
+        days.push({date: x, rain: mm, et0: et0.get(x) ?? et0Mean, source: st ? 'station' : 'model'});
+      }
+      const balance = waterBalance({days, soilMoistureStart: soil.soilMoistureStart, profile: site.profile});
+      const t = trafficability({balance, profile: site.profile, soilMoisture: d === today ? surfaceToday : null});
+      g = {ok: t.level !== 'avoid', reasons: t.reasons};
+    } else {
+      const r3 = [1, 2, 3].reduce((s, i) => s + rainAt(r, addDays(d, -i)), 0);
+      g = {ok: r3 < r.threshold, reasons: [`${fr(r3)} mm en 3 jours (seuil ${fr(r.threshold)} mm)`]};
+    }
+    site.ground.set(d, g);
+    return g;
+  };
+  const workable = (r, d) => rainAt(r, d) < family.dryMm && groundAt(r, d).ok;
   const rainDate = horizon.find(d => (rain.get(d) ?? 0) >= family.dryMm) || null;
 
-  // 3. Ordre conseillé : praticable aujourd’hui, sol qui ressuie le plus lentement, échéance, surface.
-  const order = rows.slice().sort((a, b) => Number(workable(b, today)) - Number(workable(a, today)) || a.threshold - b.threshold
+  // 3. Ordre conseillé : premier jour praticable (une parcelle détrempée passe après celles praticables plus tôt),
+  // sol qui ressuie le plus lentement, échéance, surface.
+  const firstDay = r => {const i = horizon.findIndex(d => workable(r, d)); return i < 0 ? horizon.length : i;};
+  const order = rows.slice().sort((a, b) => firstDay(a) - firstDay(b) || a.threshold - b.threshold
     || (dueOf(a.w) || '9999').localeCompare(dueOf(b.w) || '9999') || (b.area ?? 0) - (a.area ?? 0));
 
   // 4. Projection : chaque jour praticable fournit hpd heures, réparties dans l’ordre conseillé.
@@ -175,18 +233,32 @@ function projectRace(state, family, works, {today, rain, horizon, hpd, parcels, 
     count('groupe') && `${count('groupe')} au rythme des autres chantiers (${fr(groupRate, 2)} h/ha)`,
     count('défaut') && `${count('défaut')} au rythme par défaut de ${fr(family.rate, 2)} h/ha`].filter(Boolean).join(', ');
   const rains = horizon.filter(d => (rain.get(d) ?? 0) > 0).map(d => `${dayName(d, today)} ${fr(rain.get(d))} mm`).join(', ');
-  const wet = order.filter(r => todayAvoid.has(r.p.id)).map(r => r.p.nom || 'parcelle');
+  // Parcelles bloquées aujourd’hui par la portance : pourquoi, et à partir de quand elles redeviennent praticables.
+  const seen = new Set(), blocked = [];
+  for (const r of order) {
+    if (seen.has(r.p.id) || groundAt(r, today).ok) continue;
+    seen.add(r.p.id);
+    blocked.push({parcelId: r.p.id, nom: r.p.nom || r.p.name || 'parcelle sans nom', reasons: groundAt(r, today).reasons,
+      from: horizon.find(d => workable(r, d)) || null});
+  }
+  const fromText = b => b.from ? `praticable ${dayName(b.from, today)}` : 'pas praticable dans la prévision';
+  const blockedText = blocked.map(b => `${b.nom} (${b.reasons.join(', ')} ; ${fromText(b)})`);
+  const stationNames = [...new Set(rows.flatMap(r => [...r.site.stationRain.values()].map(x => x.station)))].slice(0, 3);
+  const portanceText = soilDays
+    ? 'Portance par parcelle : bilan hydrique de chaque sol (texture, drainage) prolongé jour par jour avec la prévision.'
+    : 'Portance : sol jugé trop humide après un cumul de pluie sur 3 jours au-delà du seuil de la parcelle (texture et drainage).';
   const n = rows.length, nParcels = new Set(rows.map(r => r.p.id)).size;
   const why = [
     `${n} chantiers sur ${nParcels} parcelles : environ ${fr(remainingHours)} h restantes (${sources}).`,
     `Journées de ${fr(hpd)} h ; fin projetée : ${endDate ? `${dayName(endDate, today)} (${endDate})` : 'au-delà de la prévision'}.`,
     `Prévision en cache sur ${horizon.length} jours : ${rains || 'pas de pluie annoncée'} (chantier arrêté dès ${fr(family.dryMm)} mm).`,
-    `Portance : sol jugé trop humide après un cumul de pluie sur 3 jours au-delà du seuil de la parcelle (texture et drainage).`
-      + (wet.length ? ` À éviter aujourd’hui : ${wet.join(', ')}.` : ''),
-    'Ordre conseillé : parcelles praticables aujourd’hui, puis sols qui ressuient le plus lentement, échéance la plus proche, plus grande surface.',
+    portanceText + (stationNames.length ? ` Pluie relevée à la station la plus proche de chaque parcelle (${stationNames.join(', ')}).` : ''),
+    ...(blockedText.length ? [`Bloquées aujourd’hui : ${blockedText.join(' ; ')}.`] : []),
+    'Ordre conseillé : parcelles praticables le plus tôt, puis sols qui ressuient le plus lentement, échéance la plus proche, plus grande surface.',
     ...(unknown ? [`${unknown} chantier${unknown > 1 ? 's' : ''} sans surface connue, non compté${unknown > 1 ? 's' : ''}.`] : []),
     'Estimation indicative : rien n’est modifié dans votre planning.'
   ];
   return {id: `weather-race-${family.key}`, family: family.key, label: family.label, title, why, level, remainingHa, remainingHours,
-    daysOfWork, dayHours: hpd, dryDays, rainDate, endDate, start: start.map(r => ({parcelId: r.p.id, nom: r.p.nom || '', workId: r.w.id})), works: rows.length};
+    daysOfWork, dayHours: hpd, dryDays, rainDate, endDate, start: start.map(r => ({parcelId: r.p.id, nom: r.p.nom || '', workId: r.w.id})), works: rows.length,
+    blocked, perParcel: Boolean(soilDays) || stationNames.length > 0};
 }

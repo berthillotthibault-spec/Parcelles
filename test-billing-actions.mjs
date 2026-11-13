@@ -121,3 +121,27 @@ test('accueil : les cartes de facturation se chargent aussi avec des factures sa
   const src = read('home-story-ui.js');
   assert.match(src, /live\(data\?\.clients\) \|\| live\(\(data\?\.integrationImports \|\| \[\]\)\.filter\(r => r\?\.farmKind === 'invoice'\)\)/);
 });
+
+test('seuil réglable « Proposer de facturer après » (preferences.unbilledDays)', async () => {
+  const {UNBILLED_CHOICES, hubTodo, unbilledDaysPref} = await import('./billing-hub.js');
+  assert.deepEqual(UNBILLED_CHOICES, [15, 30, 45, 60]);
+  assert.equal(unbilledDaysPref({}), 30); assert.equal(unbilledDaysPref({unbilledDays: 90}), 30, 'hors choix : 30');
+  assert.equal(unbilledDaysPref({unbilledDays: 45}), 45);
+  const store = await makeStore({parcelles: [{id: 'p1', nom: 'Champ fictif', surfaceHa: 4, clientId: 'c1'}],
+    interventions: [{id: 'w1', parcelId: 'p1', type: 'Semis', date: '2026-04-01', status: 'Terminé', duration: 3}]});
+  const bill = () => billingDecisions(store.state, {today: TODAY}).find(r => r.kind === 'billing-unbilled');
+  assert.equal(bill().level, 'warning', '80 jours > 2 × 30');
+  assert.equal(hubTodo(store.state, {today: TODAY}).unbilled.length, 1);
+  await store.setPreferences({unbilledDays: 60});
+  assert.equal(bill().level, 'info', '80 jours < 2 × 60');
+  assert.match(bill().why.join(' '), /depuis plus de 60 jours/);
+  // Travail récent seulement : sous le seuil réglé, rien à proposer.
+  const recent = await makeStore({parcelles: [{id: 'p1', nom: 'Champ fictif', surfaceHa: 4, clientId: 'c1'}],
+    interventions: [{id: 'w1', parcelId: 'p1', type: 'Semis', date: '2026-05-01', status: 'Terminé', duration: 3}]});
+  assert.ok(billingDecisions(recent.state, {today: TODAY}).some(r => r.kind === 'billing-unbilled'), '50 jours > 30');
+  await recent.setPreferences({unbilledDays: 60});
+  assert.ok(!billingDecisions(recent.state, {today: TODAY}).some(r => r.kind === 'billing-unbilled'), '50 jours < 60');
+  assert.equal(hubTodo(recent.state, {today: TODAY}).unbilled.length, 0, 'le centre suit le même seuil');
+  const ui = read('billing-hub-settings-ui.js');
+  assert.match(ui, /Proposer de facturer après/); assert.match(ui, /setPreferences\(\{unbilledDays: before\}\); el\.value = String\(before\)/);
+});

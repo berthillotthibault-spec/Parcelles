@@ -3,7 +3,7 @@
 // explicites et confirmées par l’utilisateur : le prénom (préférences) et la position (exploitation).
 import {escapeHtml, localIso} from './utils.js';
 import {composeMorningBrief, dayStory, greetingTitle, typo} from './home-story.js';
-import {decisionFeed, decisionCountLabel, stakesLabel} from './decision-feed.js';
+import {decisionFeed, decisionCountLabel, stakesLabel, GESTURE_DECISION_PREFIX} from './decision-feed.js';
 import {recordFeedback, undoFeedback, alreadyRecorded, unhideAll, restoreHidden, hiddenLabel, laterDays} from './decision-feedback.js';
 import {briefing} from './morning-brief.js';
 // Sources du fil « À décider » (W3, W5, W6). Import en espace de noms : un export absent ne casse pas le chargement.
@@ -24,7 +24,8 @@ const STOP = '<svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fi
 const CHEVRON = '<svg class="ui-icon story-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>';
 const PIN = '<svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>';
 
-export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeather, now = () => Date.now(), zvAuto = null, onLateData = null, canBill = () => true}) {
+export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeather, now = () => Date.now(), zvAuto = null, onLateData = null, canBill = () => true,
+  canAutomate = () => true}) {
   let lastSpeech = '';
   const canSpeak = () => 'speechSynthesis' in globalThis && typeof globalThis.SpeechSynthesisUtterance === 'function';
   const coordinate = value => value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(Number(value));
@@ -99,6 +100,23 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
     }
     try {return billingModule.billingDecisions(data, {today});} catch {return [];}
   };
+  // Idée 4 : gesture-rules.js (automatisations proposées) reste hors du démarrage : chargé seulement s'il y a au moins
+  // 3 travaux terminés sur une parcelle (seuil minimal d'un enchaînement) ; la carte paraît au rendu suivant (onLateData).
+  let gestureModule = null, gestureLoading = false;
+  const gesturesFor = data => {
+    // Rôle sans droit d'écriture sur les règles (lecteur, conseiller…) : pas de proposition qu'il ne pourrait pas créer.
+    try {if (!canAutomate()) return [];} catch {return [];}
+    const done = (data?.interventions || []).filter(w => w && !w.deletedAt && w.parcelId && ['Terminé', 'Terminée'].includes(w.status));
+    if (done.length < 3) return [];
+    if (!gestureModule) {
+      if (!gestureLoading) {
+        gestureLoading = true;
+        import('./gesture-rules.js').then(m => {gestureModule = m; try {onLateData?.();} catch {}}, () => {gestureLoading = false;});
+      }
+      return [];
+    }
+    try {return gestureModule.detectGestures(data).slice(0, 1).map(g => ({...g, reason: gestureModule.gestureReason(g)}));} catch {return [];}
+  };
   // agro : prévisions agronomiques (agroWeather.get(), avec days[]) ; le cache météo d’accueil (daily.time) ne convient pas aux risques.
   // Cartes du dernier rendu, pour retrouver kind, gravité et délai au clic sur « Fait / Plus tard / Pas pertinent ».
   const shownDecisions = new Map();
@@ -129,6 +147,7 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
         weatherRace: source(() => weatherRaces(data, {today, agro: agro?.days?.length ? agro : null, soil: (() => {
           try {const c = JSON.parse(globalThis.localStorage?.getItem(SOIL_WATER_CACHE_KEY) || 'null'); return c?.days?.length ? c : null;} catch {return null;}
         })()})),
+        gestures: gesturesFor(data),
         treasuryForecast: treasuryForecastFor(data)});
     } catch {rows = [];}
     shownDecisions.clear();
@@ -164,10 +183,22 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
     shownDecisions.delete(id); // double appui : le second clic ne trouve plus la carte
     const today = todayIso();
     if (alreadyRecorded(currentFeedback(), id, verdict, {today})) return;
+    // « Pas pertinent » sur une automatisation proposée vaut « Non merci » de l'écran Automatisations (gestureRuleDismissed).
+    const gestureKey = verdict === 'no' && d.kind === 'gesture-rule' && gestureModule ? d.id.slice(GESTURE_DECISION_PREFIX.length) : '';
+    const gestureBefore = store.state.preferences?.[gestureModule?.GESTURE_PREF];
     try {
-      await store.setPreferences({decisionFeedback: recordFeedback(currentFeedback(), d, verdict, {today})});
+      const patch = {decisionFeedback: recordFeedback(currentFeedback(), d, verdict, {today})};
+      if (gestureKey) patch[gestureModule.GESTURE_PREF] = gestureModule.dismissGesture(store.state.preferences, gestureKey);
+      await store.setPreferences(patch);
       refocusFeed();
-      toast(FEEDBACK_TOAST[verdict](d), 'success', {label: 'Annuler', run: () => store.setPreferences({decisionFeedback: undoFeedback(currentFeedback(), d, verdict, {today})})});
+      const undo = () => {
+        const back = {decisionFeedback: undoFeedback(currentFeedback(), d, verdict, {today})};
+        // Retire seulement cette clé : un autre « Non merci » donné entre-temps est conservé.
+        const list = store.state.preferences?.[gestureModule?.GESTURE_PREF], had = Array.isArray(gestureBefore) && gestureBefore.includes(gestureKey);
+        if (gestureKey && !had) back[gestureModule.GESTURE_PREF] = (Array.isArray(list) ? list : []).filter(k => k !== gestureKey);
+        return store.setPreferences(back);
+      };
+      toast(gestureKey ? 'Proposition écartée.' : FEEDBACK_TOAST[verdict](d), 'success', {label: 'Annuler', run: undo});
     } catch (e) {shownDecisions.set(id, d); toast(`Enregistrement impossible : ${e.message}`, 'error');}
   }
   async function decisionUnhide() {

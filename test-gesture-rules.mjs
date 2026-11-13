@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {detectGestures, dismissGesture, gestureKey, gestureReason, gestureRule, isCovered, GESTURE_PREF} from './gesture-rules.js';
+import {detectGestures, dismissGesture, gestureKey, gestureReason, gestureRule, isCovered, GESTURE_PREF, gestureWindowDays} from './gesture-rules.js';
 import {evaluateAutomationRules} from './automations.js';
 
 const ms = iso => new Date(`${iso}T09:00:00`).getTime();
@@ -90,4 +90,31 @@ test('un horodatage de création juste après minuit compte pour le jour local',
   s.tasks.forEach((t, i) => { const d = s.interventions[i].date; t.createdAt = new Date(`${d}T00:30:00`).getTime(); t.dueDate = d; });
   const g = detectGestures(s)[0];
   assert.ok(g); assert.equal(g.occurrences, 4); assert.equal(g.dueOffsetDays, 0);
+});
+
+test('délai réglable : preferences.gestureWindowDays (7, 14, 21, 30), sinon 14 jours', () => {
+  // Tâches créées 17 jours après la moisson : hors du délai par défaut, dans un délai de 21 jours.
+  const s = farm();
+  s.tasks.forEach(t => { t.createdAt += 15 * 86400000; });
+  assert.equal(detectGestures(s).length, 0);
+  s.preferences = {gestureWindowDays: 21};
+  const g = detectGestures(s)[0];
+  assert.ok(g); assert.equal(g.windowDays, 21); assert.match(gestureReason(g), /dans les 21 jours/);
+  assert.equal(detectGestures(s, {windowDays: 7}).length, 0, 'une option explicite prime sur la préférence');
+  assert.equal(gestureWindowDays({gestureWindowDays: 99}), 14);
+  assert.equal(gestureWindowDays({gestureWindowDays: '30'}), 30);
+  assert.equal(gestureWindowDays(undefined), 14);
+});
+
+test('accueil : proposition réservée aux rôles qui peuvent créer une règle, module chargé à la demande', async () => {
+  const {readFileSync} = await import('node:fs');
+  const {canMutate} = await import('./permissions.js');
+  const op = {entity: 'automationRules', action: 'create'};
+  assert.equal(canMutate('owner', op), true); assert.equal(canMutate('editor', op), true);
+  assert.equal(canMutate('viewer', op), false); assert.equal(canMutate('advisor', op), false);
+  const home = readFileSync(new URL('./home-story-ui.js', import.meta.url), 'utf8');
+  assert.match(home, /if \(!canAutomate\(\)\) return \[\];/); assert.match(home, /import\('\.\/gesture-rules\.js'\)/);
+  assert.doesNotMatch(home, /^import .*gesture-rules/m, 'pas chargé au démarrage');
+  const app = readFileSync(new URL('./app.js', import.meta.url), 'utf8');
+  assert.match(app, /canAutomate:\(\)=>canMutate\(cloudRole\(\),\{entity:'automationRules',action:'create'\}\)/);
 });

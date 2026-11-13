@@ -14,7 +14,8 @@ import {applyFeedback} from './decision-feedback.js';
 export const GRAVITY = Object.freeze({urgent: 3, warning: 2, info: 1});
 // Actions autorisées : toutes ouvrent un écran ou un formulaire, aucune n’enregistre seule. open-compliance
 // (modules-actions.js), edit-work, open-rotations et open-herd-animal (actions des conseils W2) sont déjà routées.
-export const DECISION_ACTIONS = Object.freeze(['finish-work', 'postpone-work', 'open-parcel', 'stock-movement', 'open-treasury', 'move-grazing', 'notification-open', 'create-task-prefill', 'open-compliance', 'edit-work', 'open-rotations', 'open-herd-animal', 'plan-habit-work', 'open-forage', 'open-grazing', 'billing-remind', 'billing-prepare-invoice']);
+export const DECISION_ACTIONS = Object.freeze(['finish-work', 'postpone-work', 'open-parcel', 'stock-movement', 'open-treasury', 'move-grazing', 'notification-open', 'create-task-prefill', 'open-compliance', 'edit-work', 'open-rotations', 'open-herd-animal', 'plan-habit-work', 'open-forage', 'open-grazing', 'billing-remind', 'billing-prepare-invoice',
+  'open-automations']);
 // Entités que notification-open sait ouvrir (today-actions.js, openNotificationEntity).
 const OPENABLE = new Set(['tasks', 'interventions', 'materiels', 'regulated', 'stockItems', 'grazingSessions', 'observations', 'weather', 'sync', 'backup', 'parcelComments']);
 
@@ -208,6 +209,21 @@ export function fromWeatherRace(r, {today = localIso()} = {}) {
     daysLeft: daysUntil(r.rainDate || r.endDate, today), action: {type: 'edit-work', label: 'Voir le chantier', id: r.start[0].workId, payload: null}});
 }
 
+/** Préfixe des cartes « automatisation possible » : la suite de l'id est la clé de l'enchaînement (gestureKey). */
+export const GESTURE_DECISION_PREFIX = 'gesture-';
+/**
+ * Idée 4 : enchaînement répété (gesture-rules.js, detectGestures) vers carte d'information. `reason` est la phrase
+ * de gestureReason, calculée par l'appelant (gesture-rules.js reste hors du démarrage). La carte ouvre l'écran des
+ * automatisations, où la règle se crée après confirmation.
+ */
+export function fromGesture(g) {
+  if (!g?.key || !text(g.from) || !text(g.to)) return null;
+  const title = `Automatiser : après « ${text(g.from)} », tâche « ${text(g.to)} »`;
+  return decision({id: `${GESTURE_DECISION_PREFIX}${g.key}`, kind: 'gesture-rule', title,
+    why: whyList(g.reason || '', 'Proposition d’après vos habitudes : rien n’est créé sans votre confirmation.'), level: 'info',
+    action: {type: 'open-automations', label: 'Voir la proposition', id: '', payload: null}});
+}
+
 const safe = (fn, fallback = []) => {try {return fn() ?? fallback;} catch {return fallback;}};
 
 /** Fusionne les entrées de même clé (entité ou parcelle) et de même kind. */
@@ -227,10 +243,11 @@ function merge(into, other) {
  * treasuryForecast : fonction de treasury.js, injectée car ce module est chargé à la demande (pas au démarrage).
  * feedback : retour de l’utilisateur (decision-feedback.js), lu par défaut dans preferences.decisionFeedback ;
  * stats : objet facultatif qui reçoit stats.hidden (cartes masquées par ce retour).
+ * gestures : enchaînements proposés (detectGestures, déjà classés) ; seul le premier donne une carte.
  */
 export function decisionFeed(state, {today = localIso(), now = Date.now(), weather = null, inputNeeds = [], costDrifts = [], grazingAdvice = [], morning = [], limit = 7, ndviPeers = [],
   notifications = null, compliance = null, treasury = null, treasuryForecast = null, forage = null, grassShortfall = null, billing = [], feedback = undefined, stats = null,
-  weatherRace = []} = {}) {
+  weatherRace = [], gestures = []} = {}) {
   if (!state) return [];
   const rows = [];
   const push = list => {for (const d of list) if (d) rows.push(d);};
@@ -247,6 +264,7 @@ export function decisionFeed(state, {today = localIso(), now = Date.now(), weath
   push((weatherRace || []).map(r => safe(() => fromWeatherRace(r, {today}), null)));
   push((billing || []).map(b => safe(() => fromBilling(b), null)));
   push((ndviPeers || []).map(r => safe(() => fromNdviPeer(r, state), null)));
+  push((Array.isArray(gestures) ? gestures : []).slice(0, 1).map(g => safe(() => fromGesture(g), null)));
   // 1. Même id : la première occurrence l’emporte. 2. Même clé + même kind (stock et stock-shortfall comptent pour un) : les why fusionnent.
   const seen = new Set(), byKey = new Map(), out = [];
   for (const d of rows) {

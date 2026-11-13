@@ -1,6 +1,6 @@
 // n° 108 — Alertes sanitaires météo : ligne sur la carte météo de l'accueil, détail avec la règle,
 // les données et la source, observation de contrôle en un clic, réglage des seuils.
-import {evaluateAgroRisks, riskThresholds, RISK_DEFAULTS, RISK_LABELS} from './agro-risk.js';
+import {evaluateAgroRisks, riskThresholds, FUNGICIDE_DAYS_CHOICES, RISK_DEFAULTS, RISK_LABELS} from './agro-risk.js';
 import {AGRO_SOURCE} from './agro-weather.js';
 import {escapeHtml as e} from './utils.js';
 import {validateForm} from './form-chips-ui.js';
@@ -14,7 +14,7 @@ const FIELDS = [
   ['maizeLeaf', 'rhMin', 'Maïs : humidité d’humectation (%)', 1], ['maizeLeaf', 'watchHours', 'Maïs : heures pour « surveiller »', 1], ['maizeLeaf', 'riskHours', 'Maïs : heures pour « risque »', 1],
   ['sclerotinia', 'rhMin', 'Colza : humidité moyenne (%)', 1], ['sclerotinia', 'watchDays', 'Colza : jours humides pour « surveiller »', 1], ['sclerotinia', 'riskDays', 'Colza : jours humides pour « risque »', 1],
   ['thi', 'watch', 'Bovins : THI « surveiller »', 1], ['thi', 'risk', 'Bovins : THI « risque »', 1],
-  ['fusarium', 'rainMm', 'Fusariose : pluie à la floraison (mm)', 1], ['cover', 'days', 'Fongicide : protection indicative (jours)', 1]
+  ['fusarium', 'rainMm', 'Fusariose : pluie à la floraison (mm)', 1]
 ];
 
 export function createAgroRiskUI({store, state, modal, closeModal, toast, agro, canWrite = () => true, doc = globalThis.document, now = () => Date.now()} = {}) {
@@ -65,9 +65,15 @@ export function createAgroRiskUI({store, state, modal, closeModal, toast, agro, 
   }
 
   function openSettings() {
-    const t = riskThresholds(state().preferences);
+    const t = riskThresholds(state().preferences), rawCover = Number(t.cover.days);
+    // Même repli que le calcul (agro-risk.js) : une ancienne valeur nulle ou invalide vaut 14 jours.
+    const coverDays = rawCover > 0 ? rawCover : RISK_DEFAULTS.cover.days;
+    // Protection d'un fongicide : choix fixes ; une ancienne valeur libre reste proposée tant qu'elle est en place.
+    const coverChoices = FUNGICIDE_DAYS_CHOICES.includes(coverDays) ? FUNGICIDE_DAYS_CHOICES : [...FUNGICIDE_DAYS_CHOICES, coverDays].sort((a, b) => a - b);
+    const coverSelect = `<label>Protection d’un fongicide<select name="fungicideProtectionDays">${coverChoices
+      .map(n => `<option value="${n}"${n === coverDays ? ' selected' : ''}>${n} jours</option>`).join('')}</select></label>`;
     modal('Seuils des alertes sanitaires', 'Ajustez les seuils à votre secteur. Les valeurs par défaut sont des repères simplifiés.',
-      `<form id="agro-risk-form" class="form-grid">${FIELDS.map(([k, f, label, step]) => `<label>${e(label)}<input type="number" name="${k}.${f}" min="0" max="200" step="${step}" required value="${t[k][f]}"></label>`).join('')}</form>`,
+      `<form id="agro-risk-form" class="form-grid">${FIELDS.map(([k, f, label, step]) => `<label>${e(label)}<input type="number" name="${k}.${f}" min="0" max="200" step="${step}" required value="${t[k][f]}"></label>`).join('')}${coverSelect}</form>`,
       '<button class="button secondary" id="agro-risk-reset">Valeurs par défaut</button><button class="button secondary" data-action="close-modal">Annuler</button><button class="button primary" id="agro-risk-save">Enregistrer</button>');
     const form = doc.getElementById('agro-risk-form');
     doc.getElementById('agro-risk-save').onclick = async () => {
@@ -84,10 +90,13 @@ export function createAgroRiskUI({store, state, modal, closeModal, toast, agro, 
         return;
       }
       err?.remove();
-      await store.setPreferences({agroRiskThresholds: out});
+      // L'ancien seuil libre (cover.days) est conservé ; le choix ci-dessus le remplace dans le calcul.
+      const prevCover = state().preferences?.agroRiskThresholds?.cover;
+      if (prevCover) out.cover = prevCover;
+      await store.setPreferences({agroRiskThresholds: out, fungicideProtectionDays: Number(form.elements.fungicideProtectionDays.value)});
       closeModal(); toast('Seuils des alertes enregistrés.', 'success'); renderHome();
     };
-    doc.getElementById('agro-risk-reset').onclick = async () => {await store.setPreferences({agroRiskThresholds: {}}); closeModal(); toast('Seuils par défaut rétablis.', 'success'); renderHome();};
+    doc.getElementById('agro-risk-reset').onclick = async () => {await store.setPreferences({agroRiskThresholds: {}, fungicideProtectionDays: null}); closeModal(); toast('Seuils par défaut rétablis.', 'success'); renderHome();};
   }
 
   return {renderHome, openList, openSettings, alerts, createObservation, labels: RISK_LABELS, defaults: RISK_DEFAULTS};
