@@ -7,6 +7,7 @@ import {grazingTimeline} from './charts.js';
 import {exitedInLot} from './herd.js';
 import {saveGrazingSession,endGrazingSession,grazingReentryAlert,moveGrazingLot,updateGrazingCount} from './grazing-records.js';
 import {grazingRotationAdvice,rotationLine} from './grazing-rotation.js';
+import {farmGrassGrowth,growthOptions} from './grass-growth.js';
 
 const labels={current:'Au pré',planned:'Prévu',ended:'Sorti',invalid:'Dates à vérifier'};
 // W6 : conseil de rotation sous chaque lot au pré (jours d'herbe, paddock suivant, pastille de niveau).
@@ -75,7 +76,7 @@ export function createGrazingUI({store,state,modal,closeModal,toast,savedToast=n
     const rows=filterGrazingSessions(data.grazingSessions||[],{...filters,parcels:active('parcelles'),date:today()});
     const total=rows.reduce((sum,row)=>sum+grazingTotal(row),0);
     let advice=new Map(),noRest=null;
-    try{const list=grazingRotationAdvice(data,{today:today()});advice=new Map(list.filter(a=>a.sessionId).map(a=>[a.sessionId,a]));noRest=list.find(a=>!a.lotId)||null;}catch{advice=new Map();}
+    try{const list=grazingRotationAdvice(data,{today:today(),...growthOptions(farmGrassGrowth(data,{today:today()}))});advice=new Map(list.filter(a=>a.sessionId).map(a=>[a.sessionId,a]));noRest=list.find(a=>!a.lotId)||null;}catch{advice=new Map();}
     $('#grazing-counter').textContent=`${formatNumber(total,0)} ${total>1?'animaux':'animal'} dans ${rows.length} lot${rows.length>1?'s':''} affiché${rows.length>1?'s':''}`;
     $('#grazing-results').innerHTML=rows.length?rows.map(row=>{
       const animals=grazingAnimalList(row),unknown=Math.max(0,grazingTotal(row)-animals.length),status=grazingStatus(row,{date:today()});

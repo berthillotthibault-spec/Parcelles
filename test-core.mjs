@@ -18,3 +18,14 @@ console.log('✓ Utilitaires : dates FR, zéro valide, géométrie et distance v
 const {isSafeId}=await import('./state.js');
 for(const id of ['obj_m3k2_9zx','p1',12,'parcelle 12','FR-123/4','é_ü']) assert.equal(isSafeId(id),true,String(id));
 for(const id of ['x" onmouseover="a','<img>','a`b',"a'b",'','x'.repeat(257),null,{}]) assert.equal(isSafeId(id),false,String(id));
+
+// Statuts au féminin ramenés à « Annulé » et « Terminé » (écriture, chargement).
+{
+  const {migrateData, normalizeEntity, canonicalStatus, emptyState} = await import('./state.js');
+  assert.equal(canonicalStatus('Annulée'), 'Annulé');
+  assert.equal(canonicalStatus('À faire'), 'À faire');
+  assert.equal(normalizeEntity('interventions', {id: 'w1', parcelId: 'p', type: 'Semis', date: '2026-03-01', status: 'Annulée'}).status, 'Annulé');
+  assert.equal(normalizeEntity('tasks', {id: 't1', title: 'x', status: 'Terminée'}).status, 'Terminé');
+  const data = migrateData({...emptyState(), interventions: [{id: 'w2', parcelId: 'p', type: 'Semis', date: '2026-03-01', status: 'Terminée'}]});
+  assert.equal(data.interventions[0].status, 'Terminé');
+}

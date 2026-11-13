@@ -9,11 +9,12 @@ import {evaluateAgroRisks} from './agro-risk.js';
 import {nitrogenAlerts} from './nitrogen.js';
 import {explainNotification} from './explain-model.js';
 import {orderTaskDraft} from './input-needs.js';
+import {applyFeedback} from './decision-feedback.js';
 
 export const GRAVITY = Object.freeze({urgent: 3, warning: 2, info: 1});
 // Actions autorisées : toutes ouvrent un écran ou un formulaire, aucune n’enregistre seule. open-compliance
 // (modules-actions.js), edit-work, open-rotations et open-herd-animal (actions des conseils W2) sont déjà routées.
-export const DECISION_ACTIONS = Object.freeze(['finish-work', 'postpone-work', 'open-parcel', 'stock-movement', 'open-treasury', 'move-grazing', 'notification-open', 'create-task-prefill', 'open-compliance', 'edit-work', 'open-rotations', 'open-herd-animal']);
+export const DECISION_ACTIONS = Object.freeze(['finish-work', 'postpone-work', 'open-parcel', 'stock-movement', 'open-treasury', 'move-grazing', 'notification-open', 'create-task-prefill', 'open-compliance', 'edit-work', 'open-rotations', 'open-herd-animal', 'plan-habit-work', 'open-forage', 'open-grazing', 'billing-remind', 'billing-prepare-invoice']);
 // Entités que notification-open sait ouvrir (today-actions.js, openNotificationEntity).
 const OPENABLE = new Set(['tasks', 'interventions', 'materiels', 'regulated', 'stockItems', 'grazingSessions', 'observations', 'weather', 'sync', 'backup', 'parcelComments']);
 
@@ -53,14 +54,14 @@ function decision({id, kind, title, why, level, ha = null, eur = null, daysLeft 
     score: scoreDecision({gravity: GRAVITY[lvl], ...stakes}), level: lvl, action, key};
 }
 
-const NOTIF_KINDS = {interventions: 'work', tasks: 'task', stockItems: 'stock', grazingSessions: 'grazing', materiels: 'maintenance', observations: 'observation', regulated: 'deadline', parcelComments: 'comments', sync: 'sync', backup: 'backup'};
+const NOTIF_KINDS = {habitCalendar: 'habit-calendar', interventions: 'work', tasks: 'task', stockItems: 'stock', grazingSessions: 'grazing', materiels: 'maintenance', observations: 'observation', regulated: 'deadline', parcelComments: 'comments', sync: 'sync', backup: 'backup'};
 
 /** Notification (computeNotifications, conseils compris) vers décision. */
 export function fromNotification(n, state = {}, {today = localIso()} = {}) {
   if (!n?.id) return null;
   const entity = n.entity || '', item = n.entityId ? find(state, entity, n.entityId) : null;
   const parcelId = n.parcelId || item?.parcelId || null;
-  const ha = entity === 'interventions' ? (num(item?.surfaceWorked) ?? parcelHa(state, parcelId))
+  const ha = num(n.ha) !== null ? num(n.ha) : entity === 'interventions' ? (num(item?.surfaceWorked) ?? parcelHa(state, parcelId))
     : entity === 'tasks' ? ((item?.parcelIds || []).reduce((s, id) => s + (parcelHa(state, id) ?? 0), 0) || parcelHa(state, parcelId))
     : parcelHa(state, parcelId);
   // Le message est déjà dans le titre des alertes simples : il ne sert de « pourquoi » qu’à défaut d’autre explication.
@@ -163,6 +164,50 @@ export function fromBrief(item, state = {}, {today = localIso()} = {}) {
     action: {type, label, id: item.workId, payload: null}, key: item.workId});
 }
 
+const ddMonth = iso => {const d = new Date(`${iso}T12:00:00`); return Number.isFinite(d.getTime()) ? d.toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'}) : iso;};
+/** Bilan fourrager (forage.js forageBalance) vers décision : seulement si l’hivernage est paramétré et le stock court. */
+export function fromForage(b, {today = localIso()} = {}) {
+  if (!b?.settings?.configured || !(b.daily > 0) || b.coversAll || !b.coveredUntil) return null;
+  const left = daysUntil(b.coveredUntil, today);
+  const level = left !== null && left <= 7 ? 'urgent' : left !== null && left <= 30 ? 'warning' : 'info';
+  const head = b.available <= 0 ? 'Fourrage : aucun stock disponible' : `Fourrage : stock couvert jusqu’au ${ddMonth(b.coveredUntil)}`;
+  return decision({id: `forage-shortfall-${b.settings.start.slice(0, 4)}`, kind: 'forage-shortfall', title: `${head}, il manque ${frNum(b.missing)} t MS`,
+    why: [`Stock disponible ${frNum(b.available)} t MS pour ${frNum(b.daily, 2)} t MS/j de besoins, jusqu’à la fin de l’hivernage le ${ddMonth(b.settings.end)} (pertes de ${b.settings.lossPct} % déduites).`,
+      'Bilan fourrager de l’application : récoltes et inventaires saisis, lots et période d’hivernage paramétrés.'],
+    level, daysLeft: left, action: {type: 'open-forage', label: 'Bilan fourrager', id: '', payload: null}});
+}
+
+/** Herbe insuffisante pour les lots au pré (grass-growth.js grassShortfall) vers décision. */
+export function fromGrassShortfall(g, {today = localIso()} = {}) {
+  if (!g) return null;
+  return decision({id: `grass-shortfall-${String(today).slice(0, 4)}`, kind: 'grass-shortfall', title: 'L’herbe ne suffit plus aux lots au pré : affourager ou réduire le chargement',
+    why: [`Besoins d’environ ${g.need} kg MS/j pour ${frNum(g.ugb)} UGB au pré, pousse d’environ ${g.offer} kg MS/j sur ${frNum(g.grassHa)} ha d’herbe (${Math.round(g.ratio * 100)} %).`,
+      g.growth?.note || 'Pousse de l’herbe estimée.', ...(g.known ? [] : ['Catégorie d’un lot non renseignée : 1 UGB par animal.'])],
+    level: g.ratio < 0.5 ? 'warning' : 'info', ha: g.grassHa, action: {type: 'open-grazing', label: 'Pâturage', id: '', payload: null}});
+}
+
+/** Idée 10 : parcelle en retard de NDVI sur les parcelles de même culture (ndvi-peers.js), lue dans le cache satellite. */
+export function fromNdviPeer(r, state = {}) {
+  if (!r?.parcelId || !r.lagging) return null;
+  return decision({id: `ndvi-peer-${r.parcelId}-${r.date}`, kind: 'ndvi-peer', title: `${r.name || 'Parcelle'} : NDVI en retard sur les ${r.culture || 'parcelles'} comparables`,
+    why: whyList(r.why || [r.text]), level: r.level === 'warning' ? 'warning' : 'info', ha: r.surfaceHa ?? parcelHa(state, r.parcelId),
+    action: {type: 'open-parcel', label: 'Voir la parcelle', id: r.parcelId, payload: null}, key: r.parcelId});
+}
+
+/** Idée 13 : proposition de facturation (billing-actions.js, billingDecisions) : relance ou facture à préparer. */
+export function fromBilling(b) {
+  if (!b?.id || !b.action?.type) return null;
+  return decision({id: b.id, kind: b.kind || 'billing', title: b.title, why: whyList(b.why || []), level: b.level, eur: b.eur, daysLeft: b.daysLeft,
+    action: {type: b.action.type, label: b.action.label, id: b.action.id ?? '', payload: null}, key: b.key || null});
+}
+
+/** Idée 6 : course contre la météo (weather-race.js, weatherRaces) : chantiers d’une même famille qui ne tiennent pas avant la pluie. */
+export function fromWeatherRace(r, {today = localIso()} = {}) {
+  if (!r?.id || !r.start?.length) return null;
+  return decision({id: r.id, kind: 'weather-race', title: r.title, why: whyList(r.why || []), level: r.level, ha: r.remainingHa,
+    daysLeft: daysUntil(r.rainDate || r.endDate, today), action: {type: 'edit-work', label: 'Voir le chantier', id: r.start[0].workId, payload: null}});
+}
+
 const safe = (fn, fallback = []) => {try {return fn() ?? fallback;} catch {return fallback;}};
 
 /** Fusionne les entrées de même clé (entité ou parcelle) et de même kind. */
@@ -180,9 +225,12 @@ function merge(into, other) {
  * notifications, compliance, treasury) et sources injectées (inputNeeds, costDrifts, grazingAdvice, morning :
  * items de briefing() de morning-brief.js).
  * treasuryForecast : fonction de treasury.js, injectée car ce module est chargé à la demande (pas au démarrage).
+ * feedback : retour de l’utilisateur (decision-feedback.js), lu par défaut dans preferences.decisionFeedback ;
+ * stats : objet facultatif qui reçoit stats.hidden (cartes masquées par ce retour).
  */
-export function decisionFeed(state, {today = localIso(), now = Date.now(), weather = null, inputNeeds = [], costDrifts = [], grazingAdvice = [], morning = [], limit = 7,
-  notifications = null, compliance = null, treasury = null, treasuryForecast = null} = {}) {
+export function decisionFeed(state, {today = localIso(), now = Date.now(), weather = null, inputNeeds = [], costDrifts = [], grazingAdvice = [], morning = [], limit = 7, ndviPeers = [],
+  notifications = null, compliance = null, treasury = null, treasuryForecast = null, forage = null, grassShortfall = null, billing = [], feedback = undefined, stats = null,
+  weatherRace = []} = {}) {
   if (!state) return [];
   const rows = [];
   const push = list => {for (const d of list) if (d) rows.push(d);};
@@ -195,6 +243,10 @@ export function decisionFeed(state, {today = localIso(), now = Date.now(), weath
   push((costDrifts || []).map(d => safe(() => fromCostDrift(d), null)));
   push((grazingAdvice || []).map(g => safe(() => fromGrazing(g, state), null)));
   push((Array.isArray(morning) ? morning : morning?.items || []).map(m => safe(() => fromBrief(m, state, {today}), null)));
+  push([safe(() => fromForage(forage, {today}), null), safe(() => fromGrassShortfall(grassShortfall, {today}), null)]);
+  push((weatherRace || []).map(r => safe(() => fromWeatherRace(r, {today}), null)));
+  push((billing || []).map(b => safe(() => fromBilling(b), null)));
+  push((ndviPeers || []).map(r => safe(() => fromNdviPeer(r, state), null)));
   // 1. Même id : la première occurrence l’emporte. 2. Même clé + même kind (stock et stock-shortfall comptent pour un) : les why fusionnent.
   const seen = new Set(), byKey = new Map(), out = [];
   for (const d of rows) {
@@ -212,7 +264,10 @@ export function decisionFeed(state, {today = localIso(), now = Date.now(), weath
     out.push(d);
   }
   out.sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return out.slice(0, Math.max(0, Number(limit) || 0)).map(({key, ...d}) => d);
+  // Retour de l’utilisateur : cartes écartées masquées, rang ajusté par type d’alerte (avant la limite).
+  const ranked = safe(() => applyFeedback(out, feedback === undefined ? state.preferences?.decisionFeedback : feedback, {today}), null) || {rows: out, hidden: 0};
+  if (stats && typeof stats === 'object') stats.hidden = ranked.hidden;
+  return ranked.rows.slice(0, Math.max(0, Number(limit) || 0)).map(({key, ...d}) => d);
 }
 
 /** « À décider (3) ». */

@@ -97,7 +97,10 @@ export function forageStockItems(state){
 
 /** Bilan stock contre besoins sur l'hivernage, arrêté à « today ». */
 export function forageBalance(state,{today}){
-  const w=winterSettings(state,{today}),year=w.start.slice(0,4),from=`${year}-01-01`,keep=1-w.lossPct/100;
+  // Inventaires et récoltes comptés depuis la fin de l'hivernage précédent : un inventaire saisi pendant l'hiver passé
+  // ne tient pas compte de ce qui a été consommé ensuite.
+  const w=winterSettings(state,{today}),year=w.start.slice(0,4),prevEnd=`${Number(w.end.slice(0,4))-1}${w.end.slice(4)}`;
+  const from=prevEnd>`${year}-01-01`&&prevEnd<w.start?prevEnd:`${year}-01-01`,keep=1-w.lossPct/100;
   const daily=r2(w.lots.reduce((s,l)=>s+needPerDay(l),0));
   const inventory=forageRecords(state,'inventory').filter(r=>r.date>=from&&r.date<=today).at(-1)||null;
   const baseDate=inventory?inventory.date:from;

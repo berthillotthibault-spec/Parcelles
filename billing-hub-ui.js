@@ -12,6 +12,7 @@ import {active} from './farm-memory.js';
 import {DOC_LABELS, dateFr, isoDay, patchEmitted} from './invoices.js';
 import {recordReminder, logSent} from './billing.js';
 import {groupedReminderMessage, quoteFollowUpMessage} from './billing-messages.js';
+import {habitNoteText, reminderProposals} from './billing-actions.js';
 import {HUB_TABS, hubTab, PERIODS, hubDashboard, revenueChartSvg, forecastChartSvg, hubTodo, dupKey, clientBilling, clientsOverview, RISK_LABELS, money, moneyShort, plural, monthLabel} from './billing-hub.js';
 import {createHubCatalogUI} from './billing-hub-catalog-ui.js';
 import {createHubSettingsUI} from './billing-hub-settings-ui.js';
@@ -206,7 +207,14 @@ export function createBillingHubUI(host = {}) {
     const t = safeTodo(), w = canWrite('invoice');
     const section = (title, count, body, id) => html`<section class="bh-card" aria-labelledby="bh-todo-${id}"><div class="bh-card-head"><h3 id="bh-todo-${id}">${title}</h3><span class="bh-count">${count}</span></div>${body}</section>`;
     const parts = [];
-    if (t.reminders.length) parts.push(section('Factures à relancer', t.reminders.length, html`<ul class="bh-todo">${t.reminders.map(g => html`<li class="bh-todo-item"><div class="bh-todo-main"><strong>${g.name}</strong><small>${plural(g.items.length, 'facture', 'factures')} · ${money(g.total)} · jusqu’à ${g.maxDays}${' '}j de retard</small>
+    // Idée 13 : habitudes de paiement du client (payment-habits.js) rappelées sous chaque relance.
+    let habitOf = new Map();
+    try { if (t.reminders.length) habitOf = new Map(reminderProposals(data(), {today: today(), includeWithinHabits: true}).map(p => [p.key, p])); } catch { habitOf = new Map(); }
+    const habitNote = g => {
+      const note = habitNoteText(habitOf.get(g.key));
+      return note ? html`<small class="bh-habit">${note}</small>` : '';
+    };
+    if (t.reminders.length) parts.push(section('Factures à relancer', t.reminders.length, html`<ul class="bh-todo">${t.reminders.map(g => html`<li class="bh-todo-item"><div class="bh-todo-main"><strong>${g.name}</strong><small>${plural(g.items.length, 'facture', 'factures')} · ${money(g.total)} · jusqu’à ${g.maxDays}${' '}j de retard</small>${habitNote(g)}
         <ul class="bh-docs">${g.items.map(i => html`<li><button type="button" class="text-button" data-bh="doc" data-id="${i.invoice.id}">${i.invoice.number}</button> échéance ${dateFr(i.invoice.dueDate)} · ${money(i.due)} · relance ${i.level} due</li>`)}</ul></div>
         <div class="bh-todo-actions"><span class="bh-pill is-${g.level >= 3 ? 'bad' : 'warn'}">Relance ${g.level}${g.items.length > 1 ? ' groupée' : ''}</span>${w ? html`<button type="button" class="button primary" data-bh="remind" data-key="${g.key}">Relancer</button>` : ''}</div></li>`)}</ul>`, 'relances'));
     if (t.quotes.length) parts.push(section('Devis à suivre', t.quotes.length, html`<ul class="bh-todo">${t.quotes.map(q => html`<li class="bh-todo-item"><div class="bh-todo-main"><strong>${q.quote.clientName || 'Client'} · devis ${q.quote.number || ''}</strong><small>${q.expiring ? (q.days < 0 ? 'expiré' : q.days === 0 ? 'expire aujourd’hui' : `expire dans ${plural(q.days, 'jour', 'jours')}`) : `envoyé il y a ${plural(q.days, 'jour', 'jours')}, sans réponse`} · ${money(Math.abs(q.quote.totals?.ttc || 0))} TTC</small></div>
@@ -378,6 +386,8 @@ export function createBillingHubUI(host = {}) {
     openClient: id => { open('clients'); openClient(id); },
     clientSection,
     newInvoice: clientId => (clientId ? billClientOrNew(clientId) : openNew({docType: 'facture'})),
+    // Idée 13 : relance proposée par le fil « À décider » (clé client de reminderGroups) ; message prérempli, envoi confirmé par l’utilisateur.
+    remind: key => (canWrite('invoice') && key ? remindGroup(key) : open('afaire')),
     // Tests et outils : vues de l’instance.
     get tab() { return tab; }, $
   };

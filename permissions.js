@@ -164,7 +164,7 @@ export const ECONOMY_ACTIONS=new Set(['open-statistics','open-clients','open-inv
 /** Outil de Plus ou commande de recherche visible pour ce rôle (masquage d'interface, les règles font foi). */
 export function actionVisibleForRole(role,action){
   if(action==='open-treasury'&&!canSeeTreasury(role))return false;
-  if(['open-invoices','new-invoice'].includes(action)&&!canSeeBilling(role))return false;
+  if(['open-invoices','new-invoice','billing-remind','billing-prepare-invoice'].includes(action)&&!canSeeBilling(role))return false;
   return canSeeEconomy(role)||!ECONOMY_ACTIONS.has(action);
 }
 

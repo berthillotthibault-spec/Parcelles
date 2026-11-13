@@ -7,13 +7,14 @@ import {validateForm} from './form-chips-ui.js';
 
 const pad = n => String(n).padStart(2, '0');
 const isoToday = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const LEVEL = {risque: 'Risque', surveiller: 'À surveiller'};
+const LEVEL = {risque: 'Risque', surveiller: 'À surveiller', couvert: 'Couvert'};
 // Seuils proposés au réglage : [famille, clé, libellé, pas].
 const FIELDS = [
   ['septoria', 'rainMm', 'Septoriose : pluie contaminatrice (mm)', 1], ['septoria', 'riskEvents', 'Septoriose : pluies pour « risque »', 1],
   ['maizeLeaf', 'rhMin', 'Maïs : humidité d’humectation (%)', 1], ['maizeLeaf', 'watchHours', 'Maïs : heures pour « surveiller »', 1], ['maizeLeaf', 'riskHours', 'Maïs : heures pour « risque »', 1],
   ['sclerotinia', 'rhMin', 'Colza : humidité moyenne (%)', 1], ['sclerotinia', 'watchDays', 'Colza : jours humides pour « surveiller »', 1], ['sclerotinia', 'riskDays', 'Colza : jours humides pour « risque »', 1],
-  ['thi', 'watch', 'Bovins : THI « surveiller »', 1], ['thi', 'risk', 'Bovins : THI « risque »', 1]
+  ['thi', 'watch', 'Bovins : THI « surveiller »', 1], ['thi', 'risk', 'Bovins : THI « risque »', 1],
+  ['fusarium', 'rainMm', 'Fusariose : pluie à la floraison (mm)', 1], ['cover', 'days', 'Fongicide : protection indicative (jours)', 1]
 ];
 
 export function createAgroRiskUI({store, state, modal, closeModal, toast, agro, canWrite = () => true, doc = globalThis.document, now = () => Date.now()} = {}) {
@@ -34,13 +35,14 @@ export function createAgroRiskUI({store, state, modal, closeModal, toast, agro, 
 
   function alertHtml(a, i, write) {
     return `<article class="agro-risk-item is-${a.level}"><header><span class="agro-risk-badge">${LEVEL[a.level]}</span><strong>${e(a.label)}</strong></header>
-      <p>${e(a.message)}</p><dl><div><dt>Règle</dt><dd>${e(a.rule)}</dd></div><div><dt>Données</dt><dd>${e(a.data)}</dd></div><div><dt>Source</dt><dd>${e(a.source)}</dd></div></dl>
+      <p>${e(a.message)}</p><dl><div><dt>Règle</dt><dd>${e(a.rule)}</dd></div><div><dt>Données</dt><dd>${e(a.data)}</dd></div>${a.why && a.data !== a.why ? `<div><dt>Pourquoi</dt><dd>${e(a.why)}</dd></div>` : ''}<div><dt>Source</dt><dd>${e(a.source)}</dd></div></dl>
       ${write ? `<button type="button" class="button secondary" data-agro-obs="${i}">Créer une observation de contrôle</button>` : ''}</article>`;
   }
 
   function openList() {
-    const list = alerts(), write = canWrite(), loadedAt = agro?.get()?.loadedAt;
-    modal('Alertes sanitaires', 'Conditions météo favorables, à vérifier au champ. Aucune recommandation de traitement.',
+    // Idée 9 : les parcelles protégées par un fongicide récent apparaissent « couvert jusqu'au … ».
+    const list = evaluateAgroRisks(state(), agro?.get(), {now: now(), withCovered: true}), write = canWrite(), loadedAt = agro?.get()?.loadedAt;
+    modal('Alertes sanitaires', 'Conditions météo favorables aux stades sensibles, à vérifier au champ. Aucune recommandation de traitement.',
       `${list.length ? list.map((a, i) => alertHtml(a, i, write)).join('') : '<p class="empty-state">Aucune condition favorable détectée avec les seuils actuels.</p>'}
       <p class="agro-risk-foot"><small>Indicatif · météo ${e(AGRO_SOURCE)}${loadedAt ? ` du ${new Date(loadedAt).toLocaleString('fr-FR', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})}` : ''}. Les règles sont simplifiées : l’observation au champ fait foi.</small></p>`,
       `${write ? '<button class="button secondary" id="agro-risk-settings">Régler les seuils</button>' : ''}<button class="button primary" data-action="close-modal">Fermer</button>`, 'large');

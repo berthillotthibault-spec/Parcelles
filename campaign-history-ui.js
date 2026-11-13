@@ -3,6 +3,7 @@
 import {escapeHtml as e,campaignFor} from './utils.js';
 import {economicColor} from './pilotage.js';
 import {campaignHistory,underperformers,sparkPoints,METRICS} from './campaign-history.js';
+import {marginGaps,gapText} from './margin-gap.js';
 
 const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const eur=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${v<0?'−':''}${n0.format(Math.abs(v))}`;
@@ -30,6 +31,14 @@ export function createCampaignHistoryUI({store,modal}){
     render(campaignHistory(data(),opts));
   }
 
+  // Par parcelle, marge/ha : écarts de la dernière campagne à culture égale, décomposés par poste.
+  function gapsHtml(h){
+    if(h.by!=='parcel'||h.metric!=='marginHa')return'';
+    let gaps=[];try{gaps=marginGaps(data(),{campaign:h.campaigns.at(-1)}).filter(g=>g.significant&&g.gapHa<0);}catch{gaps=[];}
+    const note='<p class="form-note">Comparaison avec les autres parcelles de même culture (moyenne pondérée par la surface) : elle montre où se fait l’écart, pas sa cause certaine. Une valeur partielle (*) peut le fausser.</p>';
+    return`<h3>Écarts à culture égale · ${e(h.campaigns.at(-1))}</h3>${gaps.length?`<ul class="stock-alerts">${gaps.map(g=>`<li class="is-warning">${e(gapText(g))}${g.partial?' *':''}</li>`).join('')}</ul>`:'<p class="form-note">Aucun écart marqué (50 €/ha et 10 % au moins) entre parcelles de même culture.</p>'}${note}`;
+  }
+
   function render(h){
     const metric=METRICS[h.metric],weak=underperformers(h);
     modal('Historique des campagnes',`${h.campaigns[0]} → ${h.campaigns.at(-1)} · ${metric.label} en €/ha`,`
@@ -40,7 +49,7 @@ ${h.rows.map(r=>`<tr><th scope="row">${e(r.label)}</th>${r.cells.map((c,i)=>cell
 <tr class="ch-farm"><th scope="row">Exploitation</th>${h.farm.map((v,i)=>cell(v===null?{value:null}:{value:v,reliability:100},h.campaigns[i],metric.mode)).join('')}<td><strong>${e(eur(h.farmMean.value))}</strong></td><td>${spark(h.farm,`${metric.label} de l’exploitation`)}</td></tr></tbody></table></div>
 <p class="form-note">* valeur partielle (travaux sans coût ou produit inconnu). Touchez une valeur pour ouvrir les marges de la campagne. Moyenne olympique : sans la meilleure ni la pire année (référence utile pour l’assurance récolte).</p>
 <h3>${h.metric==='costHa'?'Charges régulièrement au-dessus de la moyenne':'Régulièrement sous la moyenne'}</h3>
-${weak.length?`<ul class="stock-alerts">${weak.map(w=>`<li class="is-warning">${e(w.text)}</li>`).join('')}</ul>`:'<p class="form-note">Aucune ligne n’est sous la moyenne de l’exploitation plus d’une année sur deux.</p>'}`,
+${weak.length?`<ul class="stock-alerts">${weak.map(w=>`<li class="is-warning">${e(w.text)}</li>`).join('')}</ul>`:`<p class="form-note">Aucune ligne n’est sous la moyenne ${h.by==='parcel'?'des autres parcelles de même culture':'de l’exploitation'} plus d’une année sur deux.</p>`}${gapsHtml(h)}`,
     '<button type="button" class="button primary" data-action="close-modal">Fermer</button>','large');
     // Sur téléphone, le tableau s’ouvre sur les campagnes récentes, la moyenne et la tendance.
     const wrap=document.querySelector('.ch-table')?.closest('.econ-table-wrap');if(wrap){const th=wrap.querySelectorAll('thead th');if(th.length>3)wrap.scrollLeft+=th[th.length-3].getBoundingClientRect().left-th[0].getBoundingClientRect().right;}

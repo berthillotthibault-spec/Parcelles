@@ -4,11 +4,17 @@
 import {escapeHtml, localIso} from './utils.js';
 import {composeMorningBrief, dayStory, greetingTitle, typo} from './home-story.js';
 import {decisionFeed, decisionCountLabel, stakesLabel} from './decision-feed.js';
+import {recordFeedback, undoFeedback, alreadyRecorded, unhideAll, restoreHidden, hiddenLabel, laterDays} from './decision-feedback.js';
 import {briefing} from './morning-brief.js';
 // Sources du fil « À décider » (W3, W5, W6). Import en espace de noms : un export absent ne casse pas le chargement.
 import * as inputNeedsModule from './input-needs.js';
 import * as costDriftModule from './cost-drift.js';
 import * as grazingRotationModule from './grazing-rotation.js';
+import {farmGrassGrowth, growthOptions, grassShortfall} from './grass-growth.js';
+import {isModuleActive} from './activity-modules.js';
+import {publishedNdviPeers} from './ndvi-peers.js';
+import {weatherRaces} from './weather-race.js';
+import {SOIL_WATER_CACHE_KEY} from './soil-water.js';
 
 const NAME_PROMPT_KEY = 'parcelles:name-prompt-dismissed';
 const readFlag = key => {try {return globalThis.localStorage?.getItem(key) || '';} catch {return '';}};
@@ -18,7 +24,7 @@ const STOP = '<svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fi
 const CHEVRON = '<svg class="ui-icon story-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>';
 const PIN = '<svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>';
 
-export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeather, now = () => Date.now(), zvAuto = null}) {
+export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeather, now = () => Date.now(), zvAuto = null, onLateData = null, canBill = () => true}) {
   let lastSpeech = '';
   const canSpeak = () => 'speechSynthesis' in globalThis && typeof globalThis.SpeechSynthesisUtterance === 'function';
   const coordinate = value => value !== null && value !== undefined && String(value).trim() !== '' && Number.isFinite(Number(value));
@@ -65,29 +71,112 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
     import('./treasury.js').then(m => {treasuryModule = m;}, () => {treasuryLoading = false;});
     return null;
   };
+  // forage.js (bilan fourrager) reste hors du démarrage : chargé seulement si l’hivernage a des lots paramétrés.
+  let forageModule = null, forageLoading = false;
+  const forageBalanceFor = (data, today) => {
+    const lots = data?.preferences?.forageWinter?.lots;
+    if (!Array.isArray(lots) || !lots.length) return null;
+    if (!forageModule) {
+      if (!forageLoading) {forageLoading = true; import('./forage.js').then(m => {forageModule = m; try {onLateData?.();} catch {}}, () => {forageLoading = false;});}
+      return null;
+    }
+    try {return forageModule.forageBalance(data, {today});} catch {return null;}
+  };
+  // Hivernage paramétré : chargement lancé dès la création ; l’accueil est redessiné à son arrivée (onLateData).
+  if (store?.state?.preferences?.forageWinter?.lots?.length) forageBalanceFor(store.state, localIso(new Date(now())));
+  // Idée 13 : billing-actions.js (relances, factures à préparer) reste hors du démarrage : chargé seulement s’il y a des
+  // clients ou des factures et que le rôle voit la facturation ; les cartes paraissent au rendu suivant (onLateData).
+  let billingModule = null, billingLoading = false;
+  const billingFor = (data, today) => {
+    let allowed = false;
+    // Clients enregistrés, ou factures sans fiche client (relances regroupées par nom).
+    const live = list => (list || []).some(x => x && !x.deletedAt);
+    try {allowed = !!canBill() && (live(data?.clients) || live((data?.integrationImports || []).filter(r => r?.farmKind === 'invoice')));} catch {allowed = false;}
+    if (!allowed) return [];
+    if (!billingModule) {
+      if (!billingLoading) {billingLoading = true; import('./billing-actions.js').then(m => {billingModule = m; try {onLateData?.();} catch {}}, () => {billingLoading = false;});}
+      return [];
+    }
+    try {return billingModule.billingDecisions(data, {today});} catch {return [];}
+  };
   // agro : prévisions agronomiques (agroWeather.get(), avec days[]) ; le cache météo d’accueil (daily.time) ne convient pas aux risques.
+  // Cartes du dernier rendu, pour retrouver kind, gravité et délai au clic sur « Fait / Plus tard / Pas pertinent ».
+  const shownDecisions = new Map();
   function decisionsHtml(data, weather, agro) {
     const today = localIso(new Date(now()));
     let rows = [];
+    const stats = {hidden: 0};
+    let growth = null;
+    const livestock = isModuleActive('livestock', data.preferences?.activeModules);
+    try {growth = farmGrassGrowth(data, {today, agro});} catch {growth = null;}
     try {
-      rows = decisionFeed(data, {today, now: now(), weather: agro?.days?.length ? agro : weather?.days?.length ? weather : null,
+      rows = decisionFeed(data, {today, now: now(), stats, weather: agro?.days?.length ? agro : weather?.days?.length ? weather : null,
         inputNeeds: source(() => inputNeedsModule.inputNeeds?.(data, {today})),
         costDrifts: source(() => costDriftModule.farmCostDrift?.(data, {})),
-        grazingAdvice: source(() => grazingRotationModule.grazingRotationAdvice?.(data, {today})),
+        grazingAdvice: source(() => grazingRotationModule.grazingRotationAdvice?.(data, {today, ...growthOptions(growth)})),
+        // Cartes d’élevage seulement si le module Élevage est actif (outils masqués sinon).
+        forage: livestock ? forageBalanceFor(data, today) : null,
+        grassShortfall: livestock ? (() => {try {return grassShortfall(data, growth, {today});} catch {return null;}})() : null,
         // Prévision horaire (créneaux de traitement) et détection automatique des zones vulnérables, si disponibles.
         morning: (() => {
           const hourly = weather?.hourly?.time?.length ? weather : null;
           try {return briefing(data, {today, now: now(), agro: agro?.days?.length ? agro : null, weather: hourly, zvAuto});} catch {return [];}
         })(),
+        // Idée 10 : NDVI en retard sur les parcelles de même culture (cache satellite publié par satellite-ui.js).
+        ndviPeers: source(() => publishedNdviPeers()),
+        billing: billingFor(data, today),
+        // Idée 6 : course contre la météo (prévision agronomique et bilan hydrique en cache, lecture seule).
+        weatherRace: source(() => weatherRaces(data, {today, agro: agro?.days?.length ? agro : null, soil: (() => {
+          try {const c = JSON.parse(globalThis.localStorage?.getItem(SOIL_WATER_CACHE_KEY) || 'null'); return c?.days?.length ? c : null;} catch {return null;}
+        })()})),
         treasuryForecast: treasuryForecastFor(data)});
     } catch {rows = [];}
-    if (!rows.length) return '';
+    shownDecisions.clear();
+    for (const d of rows) shownDecisions.set(d.id, d);
+    const hiddenHtml = stats.hidden ? `<p class="decision-hidden"><span>${escapeHtml(hiddenLabel(stats.hidden))}</span><button type="button" class="text-button" data-story="decision-unhide">Réafficher</button></p>` : '';
+    if (!rows.length) return hiddenHtml ? `<section class="decision-feed" aria-label="À décider">${hiddenHtml}</section>` : '';
+    const feedbackHtml = d => {
+      const id = escapeHtml(d.id), title = escapeHtml(typo(d.title));
+      const button = (verdict, label, aria) => `<button type="button" class="decision-fb" data-story="decision-fb" data-verdict="${verdict}" data-decision="${id}" aria-label="${aria} : ${title}">${label}</button>`;
+      return `<div class="decision-feedback" role="group" aria-label="Votre avis sur cette alerte">${button('done', 'Fait', 'Déjà fait')}${button('later', 'Plus tard', 'Revoir plus tard')}${button('no', 'Pas pertinent', 'Pas pertinent')}</div>`;
+    };
     const card = d => {
       const stakes = stakesLabel(d.stakes), a = d.action || {};
-      const extra = (a.payload?.entity ? ` data-entity="${escapeHtml(a.payload.entity)}"` : '') + (a.type === 'create-task-prefill' && a.payload ? ` data-payload="${escapeHtml(JSON.stringify(a.payload))}"` : '');
-      return `<li class="decision-card is-${escapeHtml(d.level)}"><div class="decision-main"><strong>${escapeHtml(typo(d.title))}</strong>${stakes ? `<small class="decision-stakes">${escapeHtml(stakes)}</small>` : ''}<details class="decision-why"><summary>Pourquoi&nbsp;?</summary><ul>${d.why.map(w => `<li>${escapeHtml(typo(w))}</li>`).join('')}</ul></details></div><button type="button" class="button secondary decision-action" data-action="${escapeHtml(a.type)}" data-id="${escapeHtml(a.id ?? '')}"${extra}>${escapeHtml(a.label || 'Voir')}</button></li>`;
+      const extra = (a.payload?.entity ? ` data-entity="${escapeHtml(a.payload.entity)}"` : '') + (['create-task-prefill', 'plan-habit-work'].includes(a.type) && a.payload ? ` data-payload="${escapeHtml(JSON.stringify(a.payload))}"` : '');
+      return `<li class="decision-card is-${escapeHtml(d.level)}"><div class="decision-main"><strong>${escapeHtml(typo(d.title))}</strong>${stakes ? `<small class="decision-stakes">${escapeHtml(stakes)}</small>` : ''}<details class="decision-why"><summary>Pourquoi&nbsp;? · Votre avis</summary><ul>${d.why.map(w => `<li>${escapeHtml(typo(w))}</li>`).join('')}</ul>${feedbackHtml(d)}</details></div><button type="button" class="button secondary decision-action" data-action="${escapeHtml(a.type)}" data-id="${escapeHtml(a.id ?? '')}"${extra}>${escapeHtml(a.label || 'Voir')}</button></li>`;
     };
-    return `<section class="decision-feed" aria-labelledby="decision-feed-title"><h2 id="decision-feed-title">${escapeHtml(decisionCountLabel(rows.length))}</h2><ul class="decision-list">${rows.map(card).join('')}</ul></section>`;
+    return `<section class="decision-feed" aria-labelledby="decision-feed-title"><h2 id="decision-feed-title" tabindex="-1">${escapeHtml(decisionCountLabel(rows.length))}</h2><ul class="decision-list">${rows.map(card).join('')}</ul>${hiddenHtml}</section>`;
+  }
+
+  // Retour sur une carte : enregistré dans les préférences de l’appareil (non synchronisé), annulable depuis le toast.
+  const FEEDBACK_TOAST = {
+    done: () => 'Noté : carte masquée 7 jours.',
+    later: d => laterDays(d) === 1 ? 'Carte reportée à demain.' : 'Carte reportée de 3 jours.',
+    no: () => 'Noté : carte masquée 14 jours. Si vous écartez encore ce type d’alerte, il passera après les autres.'
+  };
+  const currentFeedback = () => store.state.preferences?.decisionFeedback ?? null;
+  const todayIso = () => localIso(new Date(now()));
+  // La carte quitte le DOM au rendu suivant : le focus revient au titre du fil (ou à « Réafficher »), pas en haut de page.
+  const refocusFeed = () => requestAnimationFrame(() => (document.querySelector('#decision-feed-title') || document.querySelector('[data-story="decision-unhide"]'))?.focus({preventScroll: true}));
+  async function decisionFeedback(id, verdict) {
+    const d = shownDecisions.get(id);
+    if (!d || !FEEDBACK_TOAST[verdict]) return;
+    shownDecisions.delete(id); // double appui : le second clic ne trouve plus la carte
+    const today = todayIso();
+    if (alreadyRecorded(currentFeedback(), id, verdict, {today})) return;
+    try {
+      await store.setPreferences({decisionFeedback: recordFeedback(currentFeedback(), d, verdict, {today})});
+      refocusFeed();
+      toast(FEEDBACK_TOAST[verdict](d), 'success', {label: 'Annuler', run: () => store.setPreferences({decisionFeedback: undoFeedback(currentFeedback(), d, verdict, {today})})});
+    } catch (e) {shownDecisions.set(id, d); toast(`Enregistrement impossible : ${e.message}`, 'error');}
+  }
+  async function decisionUnhide() {
+    const before = currentFeedback();
+    try {
+      await store.setPreferences({decisionFeedback: unhideAll(before, {today: todayIso()})});
+      refocusFeed();
+      toast('Alertes masquées réaffichées.', 'success', {label: 'Annuler', run: () => store.setPreferences({decisionFeedback: restoreHidden(currentFeedback(), before, {today: todayIso()})})});
+    } catch (e) {toast(`Enregistrement impossible : ${e.message}`, 'error');}
   }
 
   function renderBrief(root, {data, weather, cockpit, agro = null}) {
@@ -169,6 +258,8 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
     else if (action === 'name') openNameForm();
     else if (action === 'name-later') {writeFlag(NAME_PROMPT_KEY, '1'); document.querySelector('#story-name-prompt')?.remove();}
     else if (action === 'locate') locate();
+    else if (action === 'decision-fb') decisionFeedback(control.dataset.decision, control.dataset.verdict);
+    else if (action === 'decision-unhide') decisionUnhide();
   });
   // Quitter l’écran coupe la lecture.
   globalThis.addEventListener?.('pagehide', () => {if (canSpeak()) globalThis.speechSynthesis.cancel();});

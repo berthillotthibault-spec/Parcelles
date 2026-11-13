@@ -141,7 +141,7 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('demoFarm', 'open-demo'),
   ...actions('fieldCoverage', 'field-track-map', 'field-track-gpx'),
   ...actions('importExport', 'export-work-csv', 'export-geojson', 'export-parcels-csv'),
-  ...actions('billingHub', 'open-invoices', 'new-invoice')
+  ...actions('billingHub', 'open-invoices', 'new-invoice', 'billing-remind', 'billing-prepare-invoice')
 ]));
 
 // Boutons traités par l'écouteur propre d'un module différé mais affichés par un module chargé au

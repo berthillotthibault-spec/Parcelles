@@ -102,6 +102,8 @@ function grassDays({pressure,pressureMax,surface,ugb,growth,intake}){
   if(!(ugb>0)||!(surface>0))return{days:null,coveredByGrowth:false};
   const base=Math.max(0,(pressureMax-pressure)*surface/ugb);
   if(growth===null)return{days:half(base),coveredByGrowth:false};
+  // Seuil déjà atteint : sortie due, même si la repousse estimée couvrirait la consommation.
+  if(base<=0)return{days:0,coveredByGrowth:false};
   const regrowth=growth*surface/(ugb*intake);// jours d'herbe rendus par jour de pâturage
   if(regrowth>=1)return{days:null,coveredByGrowth:true};
   return{days:half(base/(1-regrowth)),coveredByGrowth:false};
@@ -110,9 +112,10 @@ function grassDays({pressure,pressureMax,surface,ugb,growth,intake}){
 /**
  * Conseil de rotation pour chaque lot au pré.
  * @param {any} state
- * @param {{today?:string, growthKgMsHaDay?:number|null, intakeKgMsUgbDay?:number, pressureMax?:number, restTargetDays?:number|null}} [options]
+ * growthNote / growthEstimated : pousse estimée (grass-growth.js) et non mesurée : explication ajoutée, confiance « moyenne » au plus.
+ * @param {{today?:string, growthKgMsHaDay?:number|null, growthNote?:string, growthEstimated?:boolean, intakeKgMsUgbDay?:number, pressureMax?:number, restTargetDays?:number|null}} [options]
  */
-export function grazingRotationAdvice(state,{today=localIso(),growthKgMsHaDay=null,intakeKgMsUgbDay=15,pressureMax=Number(state?.preferences?.grazingPressureMax)||100,restTargetDays=null}={}){
+export function grazingRotationAdvice(state,{today=localIso(),growthKgMsHaDay=null,growthNote='',growthEstimated=false,intakeKgMsUgbDay=15,pressureMax=Number(state?.preferences?.grazingPressureMax)||100,restTargetDays=null}={}){
   const day=grazingDate(today)||localIso();
   const sessions=(state?.grazingSessions||[]).filter(s=>isRecord(s)&&!s.deletedAt);
   const current=filterGrazingSessions(sessions,{status:'current',date:day});
@@ -135,7 +138,7 @@ export function grazingRotationAdvice(state,{today=localIso(),growthKgMsHaDay=nu
     const pressure=own.pressure===null?null:Math.round((ugb*days+otherRows.reduce((sum,o)=>sum+o.p.ugb*o.p.days,0))/surfaceOf(parcel)*100)/100;
     const totalUgb=ugb+otherRows.reduce((sum,o)=>sum+o.p.ugb,0),allKnown=u.known&&otherRows.every(o=>o.u.known);
     const surface=surfaceOf(parcel),why=[];
-    const base={lotId:session.id,sessionId:session.id,parcelId:session.parcelId,parcelName,ugb,days,pressure,pressureMax:max,daysLeft:/** @type {number|null} */(null),level:/** @type {'urgent'|'warning'|'info'|null} */(null),confidence:/** @type {'haute'|'moyenne'|'basse'} */(allKnown?(growth===null?'moyenne':'haute'):'basse'),next:/** @type {any[]} */([]),why,_session:session,_surface:surface,_center:centroid(parcel?.geometry)};
+    const base={lotId:session.id,sessionId:session.id,parcelId:session.parcelId,parcelName,ugb,days,pressure,pressureMax:max,daysLeft:/** @type {number|null} */(null),level:/** @type {'urgent'|'warning'|'info'|null} */(null),confidence:/** @type {'haute'|'moyenne'|'basse'} */(allKnown?(growth===null||growthEstimated?'moyenne':'haute'):'basse'),next:/** @type {any[]} */([]),why,_session:session,_surface:surface,_center:centroid(parcel?.geometry)};
     if(!u.known&&u.heads)why.push('Catégorie d’animaux non renseignée : 1 UGB par animal, conseil indicatif.');
     else if(!allKnown)why.push('Catégorie d’un autre lot du pré non renseignée : 1 UGB par animal, conseil indicatif.');
     if(!surface||pressure===null){why.unshift(`Surface inconnue pour ${parcelName} : pression non calculée.`);return base;}
@@ -153,6 +156,7 @@ export function grazingRotationAdvice(state,{today=localIso(),growthKgMsHaDay=nu
       :left.days===0?'Sortie conseillée dès aujourd’hui'
       :`Sortie conseillée d’ici ${fr(left.days)} jour${left.days>1?'s':''}`;
     why.unshift(`Lot ${lotName(session)} (${fr(ugb)} UGB) sur ${parcelName} (${fr(surface)} ha) depuis ${days} j${others.length?`, avec ${others.length} autre${others.length>1?'s':''} lot${others.length>1?'s':''} (${fr(totalUgb)} UGB au total)`:''} : ${fr(pressure,0)} UGB.j/ha, seuil ${fr(max,0)}. ${exit}`);
+    if(growth!==null&&text(growthNote))why.push(text(growthNote));
     return base;
   });
 

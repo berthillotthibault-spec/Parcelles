@@ -1,6 +1,49 @@
 {
   "versions": [
     {
+      "version": "10.36.0",
+      "date": "2026-11-13",
+      "title": "Une appli qui anticipe",
+      "items": [
+        "Course contre la météo : hectares restants, jours de travail et jours secs avant la pluie, avec les parcelles à faire en premier.",
+        "Maladies selon le stade de la culture et le dernier fongicide : « couvert jusqu’au … », puis alerte si le risque continue.",
+        "NDVI comparé à culture égale, durées estimées d’après vos passages GPS, automatisations proposées d’après vos habitudes.",
+        "Facturation : « Relancer » et « Préparer la facture » arrivent dans « À décider », selon les habitudes de vos clients."
+      ]
+    },
+    {
+      "version": "10.35.0",
+      "date": "2026-11-13",
+      "title": "Un troupeau mieux suivi",
+      "items": [
+        "Troupeau « À surveiller » : vache vide depuis plus de 400 jours, génisse de plus de 36 mois jamais vêlée, intervalle vêlage-vêlage long.",
+        "Croissance : un jeune qui perd du poids ou pousse bien moins que les autres est signalé après deux pesées.",
+        "Soins répétés (3 en 12 mois) signalés ; intervalle vêlage-vêlage moyen du troupeau dans le registre."
+      ]
+    },
+    {
+      "version": "10.34.0",
+      "date": "2026-11-12",
+      "title": "Marges à culture égale, semaine replanifiée",
+      "items": [
+        "Historique des campagnes : chaque parcelle est comparée aux autres parcelles de même culture, et non plus à toute la ferme.",
+        "Écarts à culture égale : « −400 €/ha, dont engrais −200 €/ha » pour voir où se fait la différence.",
+        "L’écart se décompose en produit (rendement et prix), engrais, phyto, semences, mécanisation et forfait.",
+        "Planning de la semaine : les travaux en retard sont replacés eux aussi, et une parcelle détrempée n’est pas proposée aujourd’hui ni demain."
+      ]
+    },
+    {
+      "version": "10.33.0",
+      "date": "2026-11-12",
+      "title": "Une appli qui vous écoute et connaît vos saisons",
+      "items": [
+        "Sur chaque carte : « Fait », « Plus tard » ou « Pas pertinent ». Un type d’alerte souvent écarté passe après les autres, jamais une urgence.",
+        "Saisie : surface plus grande que la parcelle, dose dix fois l’habituelle ou produit déjà passé la semaine même sont signalés avant d’enregistrer.",
+        "Travaux de saison : d’après vos campagnes passées, l’appli rappelle un semis ou une première fauche pas encore prévu et prépare le travail groupé en un geste.",
+        "Pâturage : pousse de l’herbe estimée et comptée ; alerte quand l’herbe ne suffit plus aux lots, ou quand le stock de fourrage ne tient pas l’hiver."
+      ]
+    },
+    {
       "version": "10.32.0",
       "date": "2026-11-12",
       "title": "Une appli qui apprend",

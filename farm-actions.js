@@ -39,6 +39,9 @@ export const farmActions = {
   'open-invoices'({id, control}) { ctx.billingHubUI?.open(control.dataset.tab||id||''); },
   'open-messages'() { ctx.messagingUI?.openMessagesCenter(); },
   'new-invoice'({id}) { ctx.billingHubUI?.newInvoice(id||''); },
+  // Idée 13 (fil « À décider ») : relance préremplie (rien n'est envoyé sans confirmation) et brouillon de facture prérempli.
+  'billing-remind'({id}) { ctx.billingHubUI?.remind(id||''); },
+  'billing-prepare-invoice'({id}) { ctx.billingHubUI?.newInvoice(id||''); },
   'open-client-detail'({id}) { ctx.openClientDetail(id); },
   'new-client'() { ctx.closeModal(); ctx.openClientForm(); },
   'edit-client'({id}) { ctx.closeModal(); ctx.openClientForm(ctx.store.get('clients',id)); },

@@ -19,6 +19,8 @@ export const MARGIN_RULES=Object.freeze([
 ]);
 const numOrNull=v=>{if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(String(v).replace(',','.'));return Number.isFinite(n)?n:null;};
 const DONE=['Terminé','Terminée','Fait','Réalisé'];
+// Travaux annulés, au masculin comme au féminin : jamais comptés dans la marge.
+export const CANCELLED=['Annulé','Annulée'];
 export const workCampaignOf=w=>w?.campaignId||campaignFor(w?.date||w?.plannedDate);
 export function cultureForCampaign(state,parcel,campaign){
   return active(state,'rotations').find(r=>r.parcelId===parcel?.id&&r.campaignId===campaign)?.culture||parcel?.culture||'Non renseignée';
@@ -28,7 +30,7 @@ const status=(known,total)=>total===0||known===total?'connu':known===0?'inconnu'
 
 export function parcelMargin(state,parcel,{campaign=campaignFor(),works=null}={}){
   const area=numOrNull(parcel?.surfaceHa)||0,econ=econFor(parcel,campaign),culture=cultureForCampaign(state,parcel,campaign);
-  const list=(works||active(state,'interventions')).filter(w=>!w.deletedAt&&w.parcelId===parcel?.id&&workCampaignOf(w)===campaign&&w.status!=='Annulé');
+  const list=(works||active(state,'interventions')).filter(w=>!w.deletedAt&&w.parcelId===parcel?.id&&workCampaignOf(w)===campaign&&!CANCELLED.includes(w.status));
   const cost=w=>{const c=numOrNull(w.cost);return c!==null&&c>0?c:null;};
   const done=list.filter(w=>DONE.includes(w.status||'Terminé')),planned=list.filter(w=>!done.includes(w));
   const realized=done.reduce((s,w)=>s+(cost(w)||0),0),engaged=planned.reduce((s,w)=>s+(cost(w)||0),0);

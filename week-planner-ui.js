@@ -1,13 +1,17 @@
 // Sous-vue « Semaine » de Travaux (n° 107) : 7 colonnes avec bande météo et charge,
 // « Proposer » place les travaux non datés, glisser-déposer (souris ou doigt) ou boutons
 // ← → pour corriger, « Appliquer » écrit toutes les dates en une seule écriture annulable.
-import {weekStart, shiftWeek, buildWeek, proposeWeek, checkPlacement, moveDate, planChanges, isUndated, dayLoadAfter, weekRangeLabel, DAY_CAPACITY} from './week-planner.js';
+import {weekStart, shiftWeek, buildWeek, proposeWeek, checkPlacement, moveDate, planChanges, isUndated, isOverdue, isCurrentWeek, isoDay, dayLoadAfter, weekRangeLabel, dayHoursOf, WORKDAY_HOURS_CHOICES, DAY_CAPACITY} from './week-planner.js';
+import {SOIL_WATER_CACHE_KEY} from './soil-water.js';
 import {escapeHtml as e, formatNumber} from './utils.js';
 
 const works = n => `${n} ${n > 1 ? 'travaux' : 'travail'}`;
 const LEVEL_LABEL = {favorable: 'favorable', watch: 'à surveiller', unfavorable: 'défavorable', none: 'pas de prévision', past: 'passé', unknown: 'données incomplètes'};
 
-export function createWeekPlannerUI({doc = globalThis.document, store, getState = () => store?.state || {}, getWeather = () => null, toast = () => {}, refresh = () => {}, now = () => Date.now()} = {}) {
+// Bilan hydrique de l'appareil (écran Portance) : sert à écarter les parcelles détrempées aujourd'hui et demain.
+const readSoil = () => {try {const c = JSON.parse(globalThis.localStorage?.getItem(SOIL_WATER_CACHE_KEY) || 'null'); return c?.days?.length ? c : null;} catch {return null;}};
+
+export function createWeekPlannerUI({doc = globalThis.document, store, getState = () => store?.state || {}, getWeather = () => null, getSoil = readSoil, toast = () => {}, refresh = () => {}, now = () => Date.now()} = {}) {
   let start = weekStart(new Date(now()));
   let plan = null;
   let drag = null;
@@ -22,8 +26,8 @@ export function createWeekPlannerUI({doc = globalThis.document, store, getState 
   }
 
   function loadBar(hours) {
-    const ratio = Math.min(1, hours / DAY_CAPACITY), over = hours > DAY_CAPACITY;
-    return `<div class="week-load${over ? ' is-over' : ''}" aria-label="Charge ${formatNumber(hours)} heures sur ${DAY_CAPACITY}"><span style="--load:${ratio}"></span><small>${formatNumber(hours)} h</small></div>`;
+    const capacity = dayHoursOf(getState()), ratio = Math.min(1, hours / capacity), over = hours > capacity;
+    return `<div class="week-load${over ? ' is-over' : ''}" aria-label="Charge ${formatNumber(hours)} heures sur ${capacity}"><span style="--load:${ratio}"></span><small>${formatNumber(hours)} h</small></div>`;
   }
 
   function card(item, date) {
@@ -65,6 +69,10 @@ export function createWeekPlannerUI({doc = globalThis.document, store, getState 
     if (plan && plan.start !== start) plan = null;
     const week = plan ? plan.week : buildWeek(state, start, {weather, now: t});
     const undated = (state.interventions || []).filter(w => !w.deletedAt && isUndated(w));
+    // Travaux en retard : replacés par « Proposer » dans la semaine en cours seulement.
+    const today = isoDay(new Date(t));
+    const overdue = !isCurrentWeek(week, today) ? [] : (state.interventions || []).filter(w => !w.deletedAt && isOverdue(w, today));
+    const moved = new Set(plan ? plan.placed.map(p => p.work.id) : []);
     const changes = plan ? planChanges(plan).length : 0;
     const cols = week.map(day => {
       const proposed = plan ? plan.placed.filter(p => p.date === day.date) : [];
@@ -73,18 +81,32 @@ export function createWeekPlannerUI({doc = globalThis.document, store, getState 
       return `<section class="week-col${day.isToday ? ' is-today' : ''}${day.past ? ' is-past' : ''}" data-week-day="${day.date}" aria-label="${e(d.toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'}))}">
 <header class="week-col-head"><span>${e(day.name)}</span><b>${d.getDate()}</b></header>
 ${band(day.weather, day.date)}${loadBar(hours)}
-<div class="week-col-body">${day.chantiers.map(c => `<p class="week-chantier">Chantier · ${e(c.type || 'sans nom')}${c.equipmentId && machines().get(c.equipmentId) ? ` · ${e(machines().get(c.equipmentId).nom)}` : ''}</p>`).join('')}${day.works.map(fixed).join('')}${proposed.map(p => card(p, day.date)).join('')}</div>
+<div class="week-col-body">${day.chantiers.map(c => `<p class="week-chantier">Chantier · ${e(c.type || 'sans nom')}${c.equipmentId && machines().get(c.equipmentId) ? ` · ${e(machines().get(c.equipmentId).nom)}` : ''}</p>`).join('')}${day.works.filter(w => !moved.has(w.id)).map(fixed).join('')}${proposed.map(p => card(p, day.date)).join('')}</div>
 </section>`;
     }).join('');
-    const pending = plan ? plan.unplaced : undated.map(work => ({work, reasons: []}));
+    const pending = plan ? plan.unplaced : [...overdue.map(work => ({work, reasons: [`en retard, prévu le ${new Date(`${String(work.plannedDate).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}`]})), ...undated.map(work => ({work, reasons: []}))];
     const aside = pending.length ? `<section class="week-unplaced"><h3>${plan ? 'Non placés' : 'À placer'} <span>${pending.length}</span></h3>${pending.map(u => { const p = parcels().get(u.work.parcelId); return `<p><strong>${e(u.work.type || 'Travail')}</strong> · ${e(p?.nom || 'Parcelle')}${u.reasons.length ? `<small>${e(u.reasons.slice(0, 3).join(' ; '))}</small>` : ''}</p>`; }).join('')}</section>` : '';
-    const actions = `<div class="week-toolbar"><button type="button" class="small-button" data-week-nav="-1" aria-label="Semaine précédente">‹</button><strong class="week-range">${e(weekRangeLabel(start))}</strong><button type="button" class="small-button" data-week-nav="1" aria-label="Semaine suivante">›</button></div><div class="week-buttons"><button type="button" class="button secondary" data-week-propose ${undated.length ? '' : 'disabled'}>Proposer</button>${plan ? `<button type="button" class="button secondary" data-week-reset>Effacer</button>` : ''}<button type="button" class="button primary" data-week-apply ${changes ? '' : 'disabled'}>Appliquer${changes ? ` (${changes})` : ''}</button></div>`;
-    const lead = `${undated.length ? `${works(undated.length)} sans date à placer.` : 'Aucun travail sans date.'} ${plan ? 'Glissez une carte ou utilisez ← → pour la déplacer.' : '« Proposer » tient compte de la météo, des parcelles voisines, des engins et des chantiers.'}`;
+    const actions = `<div class="week-toolbar"><button type="button" class="small-button" data-week-nav="-1" aria-label="Semaine précédente">‹</button><strong class="week-range">${e(weekRangeLabel(start))}</strong><button type="button" class="small-button" data-week-nav="1" aria-label="Semaine suivante">›</button>${hoursSelect()}</div><div class="week-buttons"><button type="button" class="button secondary" data-week-propose ${undated.length || overdue.length ? '' : 'disabled'}>Proposer</button>${plan ? `<button type="button" class="button secondary" data-week-reset>Effacer</button>` : ''}<button type="button" class="button primary" data-week-apply ${changes ? '' : 'disabled'}>Appliquer${changes ? ` (${changes})` : ''}</button></div>`;
+    const todo = [undated.length ? `${works(undated.length)} sans date` : '', overdue.length ? `${works(overdue.length)} en retard` : ''].filter(Boolean).join(' et ');
+    const lead = `${todo ? `${todo} à placer.` : 'Aucun travail sans date ni en retard.'} ${plan ? 'Glissez une carte ou utilisez ← → pour la déplacer.' : '« Proposer » tient compte de la météo, de la portance des sols, des parcelles voisines, des engins et des chantiers.'}`;
     return {description: e(lead), actions, body: `<div class="week-grid" role="group" aria-label="Semaine du ${e(weekRangeLabel(start))}">${cols}</div>${aside}<p class="form-note week-disclaimer">${e(plan?.disclaimer || 'Bande météo : cases vertes favorables, ambre à surveiller, rouges défavorables (6 h–20 h).')}</p>`};
   }
 
+  // Durée d’une journée de travail : charge des jours, propositions et course contre la météo de l’accueil.
+  function hoursSelect() {
+    const cur = dayHoursOf(getState()), list = WORKDAY_HOURS_CHOICES.includes(cur) ? WORKDAY_HOURS_CHOICES : [...WORKDAY_HOURS_CHOICES, cur].sort((a, b) => a - b);
+    return `<label class="week-hours">Journée <select data-week-hours aria-label="Heures de travail par jour">${list.map(h => `<option value="${h}"${h === cur ? ' selected' : ''}>${h} h</option>`).join('')}</select></label>`;
+  }
+  async function setHours(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n === dayHoursOf(getState())) return;
+    await store.setPreferences({workdayHours: n});
+    if (plan) propose(); else refresh();
+  }
+
   function propose() {
-    const res = proposeWeek(getState(), start, {weather: getWeather(), now: now()});
+    const state = getState(), stations = (state.weatherStations || []).filter(s => s && !s.deletedAt);
+    const res = proposeWeek(state, start, {weather: getWeather(), now: now(), soil: getSoil(), stations, capacity: dayHoursOf(state)});
     plan = {...res, start};
     refresh();
     toast(res.placed.length ? `${works(res.placed.length)} proposé${res.placed.length > 1 ? 's' : ''}. Vérifiez puis appliquez.` : 'Aucun jour ne convient cette semaine.', res.placed.length ? 'success' : 'info');
@@ -162,6 +184,10 @@ ${band(day.weather, day.date)}${loadBar(hours)}
 
   if (doc?.addEventListener) {
     doc.addEventListener('click', onClick);
+    doc.addEventListener('change', event => {
+      const sel = event.target.closest?.('[data-week-hours]');
+      if (sel && sel.closest('#work-panel-sub')) setHours(sel.value).catch(error => { toast(error.message || 'Réglage impossible.', 'error'); refresh(); });
+    });
     doc.addEventListener('pointerdown', onDown);
     doc.addEventListener('pointermove', onMove, {passive: false});
     doc.addEventListener('pointerup', onUp);

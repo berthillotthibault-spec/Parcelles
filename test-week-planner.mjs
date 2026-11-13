@@ -113,3 +113,79 @@ test('charge : les travaux non datés ne pèsent pas sur le jour de création', 
   s.interventions.push({id: 'u', parcelId: 'a', type: 'Broyage', status: 'À faire', date: '2026-10-05', plannedDate: '', duration: 5});
   assert.equal(buildWeek(s, '2026-10-05', {now: NOW})[0].hours, 0);
 });
+
+// Bilan hydrique : 14 jours, pluie des 3 derniers jours (mm/jour), chargé à NOW sauf indication.
+const soilCache = (rainLast3, loadedAt = NOW) => ({loadedAt, days: Array.from({length: 14}, (_, i) => {
+  const d = new Date(2026, 8, 22 + i);
+  return {date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, rain: i >= 11 ? rainLast3 : 0, et0: 1};
+})});
+
+test('rattrapage : un travail en retard est replacé en premier, avec sa raison', async () => {
+  const {isOverdue} = await import('./week-planner.js');
+  const s = base();
+  s.interventions = [
+    {id: 'u', parcelId: 'c', type: 'Labour', status: 'À faire', plannedDate: '', createdAt: 1},
+    {id: 'late', parcelId: 'a', type: 'Labour', status: 'À faire', date: '2026-09-28', plannedDate: '2026-09-28', createdAt: 2},
+    {id: 'gone', parcelId: 'a', type: 'Labour', status: 'Annulée', plannedDate: '2026-09-28'},
+  ];
+  assert.equal(isOverdue(s.interventions[1], '2026-10-05'), true);
+  assert.equal(isOverdue(s.interventions[2], '2026-10-05'), false);
+  assert.equal(isOverdue({status: 'En cours', plannedDate: '2026-09-28'}, '2026-10-05'), false, 'travail commencé : pas déplacé');
+  const plan = proposeWeek(s, '2026-10-05', {now: NOW});
+  assert.deepEqual(plan.placed.map(p => p.work.id), ['late', 'u']);
+  assert.match(plan.placed[0].reasons[0], /^en retard, prévu le 28 sept/);
+  assert.equal(plan.placed[0].overdue, true);
+  const change = planChanges(plan).find(w => w.id === 'late');
+  assert.ok(change.plannedDate >= '2026-10-05', 'nouvelle échéance dans la semaine');
+  assert.equal(change.date, '2026-09-28', 'seule l’échéance change, comme « Reporter »');
+  assert.deepEqual(proposeWeek(s, '2026-10-05', {now: NOW, catchUp: false}).placed.map(p => p.work.id), ['u']);
+  assert.deepEqual(proposeWeek(s, '2026-09-21', {now: NOW}).placed.map(p => p.work.id), [], 'semaine passée : rien à rattraper');
+});
+
+test('portance : sol détrempé refusé aujourd’hui et demain, limite pénalisée, bilan ancien ignoré', () => {
+  const s = base();
+  s.interventions = [{id: 'w', parcelId: 'a', type: 'Labour', status: 'À faire', plannedDate: '', createdAt: 1}];
+  const wet = proposeWeek(s, '2026-10-05', {now: NOW, soil: soilCache(10)});
+  assert.equal(wet.placed[0].date, '2026-10-07', 'ni lundi ni mardi');
+  const dry = proposeWeek(s, '2026-10-05', {now: NOW, soil: soilCache(0)});
+  assert.equal(dry.placed[0].date, '2026-10-05');
+  const old = proposeWeek(s, '2026-10-05', {now: NOW, soil: soilCache(10, NOW - 2 * 864e5)});
+  assert.equal(old.placed[0].date, '2026-10-05', 'bilan de plus de 24 h : pas de conclusion');
+  const limit = proposeWeek(s, '2026-10-05', {now: NOW, soil: soilCache(3.5)});
+  assert.ok(limit.placed[0].reasons.includes('portance limite') || limit.placed[0].date >= '2026-10-07', JSON.stringify(limit.placed[0]));
+  s.interventions.push({id: 'x', parcelId: 'b', type: 'Fauche', status: 'À faire', plannedDate: '', createdAt: 2});
+  const refused = proposeWeek({...s, interventions: [s.interventions[0]]}, '2026-10-05', {now: new Date(2026, 9, 11, 7).getTime(), soil: {...soilCache(10), loadedAt: new Date(2026, 9, 11, 7).getTime()}});
+  assert.equal(refused.placed.length, 0);
+  assert.match(refused.unplaced[0].reasons.join(' '), /sol trop humide sur Les Noues/);
+});
+
+test('relecture : retard replacé dans la semaine en cours seulement, heures retirées de l’ancien jour', () => {
+  const thursday = new Date(2026, 9, 8, 10).getTime();
+  const s = base();
+  s.interventions = [{id: 'o', parcelId: 'c', type: 'Labour', status: 'À faire', plannedDate: '2026-10-05', duration: 4, createdAt: 1}];
+  const plan = proposeWeek(s, '2026-10-05', {now: thursday});
+  assert.equal(plan.placed[0].work.id, 'o');
+  const monday = plan.week.find(d => d.date === '2026-10-05');
+  assert.equal(monday.hours, 0, 'plus de charge sur lundi');
+  assert.equal(monday.works.length, 0);
+  assert.deepEqual(proposeWeek(s, '2026-10-26', {now: thursday}).placed, [], 'semaine future : pas de rattrapage');
+});
+
+test('relecture : déplacement à la main vers un sol détrempé, avertissement', () => {
+  const s = base();
+  s.interventions = [{id: 'w', parcelId: 'a', type: 'Labour', status: 'À faire', plannedDate: '', createdAt: 1}];
+  const plan = proposeWeek(s, '2026-10-05', {now: NOW, soil: soilCache(10)});
+  assert.ok(checkPlacement(s, plan, 'w', '2026-10-05', {now: NOW}).includes('sol trop humide'));
+  assert.ok(!checkPlacement(s, plan, 'w', '2026-10-08', {now: NOW}).includes('sol trop humide'));
+});
+
+test('heures de travail par jour : réglage des préférences, sinon 10 h', async () => {
+  const {dayHoursOf, DAY_CAPACITY} = await import('./week-planner.js');
+  assert.equal(dayHoursOf({}), DAY_CAPACITY);
+  assert.equal(dayHoursOf({preferences: {workdayHours: 8}}), 8);
+  assert.equal(dayHoursOf({preferences: {workdayHours: 40}}), DAY_CAPACITY, 'valeur hors bornes ignorée');
+  const src = (await import('node:fs')).readFileSync(new URL('./week-planner-ui.js', import.meta.url), 'utf8');
+  assert.match(src, /store\.setPreferences\(\{workdayHours: n\}\)/);
+  assert.match(src, /capacity: dayHoursOf\(state\)/);
+  assert.match(src, /toast\(error\.message \|\| 'Réglage impossible\.', 'error'\); refresh\(\);/, 'refus (onglet en lecture seule) : le sélecteur revient à la valeur enregistrée');
+});

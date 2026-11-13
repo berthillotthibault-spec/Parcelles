@@ -9,6 +9,7 @@ import {weatherWindows} from './weather-decision.js';
 import {weatherRuleFor} from './home-story.js';
 import {isPending} from './home-priorities.js';
 import {geometryCentroid, haversineMeters} from './utils.js';
+import {assessParcel} from './soil-water.js';
 
 const DAY_MS = 864e5;
 const active = (state, key) => (state?.[key] || []).filter(x => x && !x.deletedAt);
@@ -18,6 +19,12 @@ const parseDay = day => new Date(`${day}T00:00:00`);
 export const DAY_NAMES = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
 export const GROUP_METERS = 3000;
 export const DAY_CAPACITY = 10;
+// Heures de travail par jour réglées par l’utilisateur (préférences, 4 à 16 h), sinon DAY_CAPACITY.
+export const WORKDAY_HOURS_CHOICES = [6, 7, 8, 9, 10, 11, 12, 13, 14];
+export function dayHoursOf(state) {
+  const v = Number(state?.preferences?.workdayHours);
+  return Number.isFinite(v) && v >= 4 && v <= 16 ? v : DAY_CAPACITY;
+}
 export const WORK_HOURS = [6, 20];
 export const WEEK_DISCLAIMER = 'Proposition indicative : météo et disponibilités à vérifier avant d’intervenir.';
 
@@ -29,6 +36,19 @@ export function weekDays(start) { return Array.from({length: 7}, (_, i) => { con
 
 // Un travail « non daté » : en attente, sans date prévue.
 export const isUndated = w => isPending(w) && w.status !== 'Annulé' && !String(w.plannedDate || '').trim();
+// Un travail « en retard » : en attente, échéance passée (rattrapage proposé avec les non datés). Un travail « En cours »
+// est commencé : son échéance n'est pas déplacée.
+export const isOverdue = (w, today) => isPending(w) && !['Annulé', 'Annulée', 'En cours'].includes(w.status) && /^\d{4}-\d{2}-\d{2}/.test(String(w.plannedDate || '')) && String(w.plannedDate).slice(0, 10) < today;
+// Bilan hydrique trop ancien : la portance ne vaut que pour quelques heures de pluie près.
+export const SOIL_MAX_AGE_MS = 24 * 3600e3;
+// Rattrapage seulement dans la semaine qui contient aujourd'hui : un retard n'est pas repoussé à une semaine lointaine.
+export const isCurrentWeek = (week, today) => Boolean(week?.length) && week[0].date <= today && today <= week.at(-1).date;
+// Portance d'une parcelle si le bilan hydrique est récent (moins de 24 h), sinon null.
+export function groundOf(parcel, soil, stations = [], now = Date.now()) {
+  if (!parcel || !soil?.days?.length || !Number.isFinite(Number(soil.loadedAt)) || now - Number(soil.loadedAt) > SOIL_MAX_AGE_MS) return null;
+  try {return assessParcel(parcel, soil, stations)?.portance || null;} catch {return null;}
+}
+const shortDay = iso => new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'});
 
 const fmtKm = m => (m < 1000 ? `${Math.round(m / 50) * 50} m` : `${(m / 1000).toLocaleString('fr-FR', {maximumFractionDigits: 1})} km`);
 const hourLabel = ms => `${new Date(ms).getHours()} h`;
@@ -93,12 +113,25 @@ export function buildWeek(state, start, {weather = null, now = Date.now()} = {})
 const centerOf = p => (p?.geometry ? geometryCentroid(p.geometry) : null);
 
 // Proposition : renvoie [{work, date, reasons:[…], warnings:[…]}] et les travaux non placés.
-export function proposeWeek(state, start, {weather = null, now = Date.now(), capacity = DAY_CAPACITY} = {}) {
+// catchUp : les travaux en retard sont replacés eux aussi (d'abord, du plus ancien au plus récent).
+// soil : cache du bilan hydrique (soil-water.js) ; une parcelle « à éviter » est refusée aujourd'hui et demain,
+// « limite » est pénalisée ces deux jours. Au-delà, le sol peut se ressuyer : pas de conclusion.
+export function proposeWeek(state, start, {weather = null, now = Date.now(), capacity = DAY_CAPACITY, catchUp = true, soil = null, stations = []} = {}) {
   const week = buildWeek(state, start, {weather, now});
+  const today = isoDay(new Date(now));
   const parcels = new Map(active(state, 'parcelles').map(p => [p.id, p]));
   const machines = new Map(active(state, 'materiels').map(m => [m.id, m]));
-  const candidates = active(state, 'interventions').filter(isUndated)
-    .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || String(a.id).localeCompare(String(b.id)));
+  const byCreation = (a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || String(a.id).localeCompare(String(b.id));
+  const overdue = catchUp && isCurrentWeek(week, today) ? active(state, 'interventions').filter(w => isOverdue(w, today))
+    .sort((a, b) => String(a.plannedDate).localeCompare(String(b.plannedDate)) || byCreation(a, b)) : [];
+  const candidates = [...overdue, ...active(state, 'interventions').filter(isUndated).sort(byCreation)];
+  const portance = new Map();
+  const portanceOf = parcel => {
+    if (!parcel) return null;
+    if (!portance.has(parcel.id)) portance.set(parcel.id, groundOf(parcel, soil, stations, now));
+    return portance.get(parcel.id);
+  };
+  const soon = new Set([today, isoDay(new Date(parseDay(today).getTime() + DAY_MS))]);
   // État de travail par jour : charge, engins, travaux présents (existants + proposés).
   const slots = week.map(d => ({...d, load: d.hours, booked: new Map(d.booked), present: d.works.map(w => ({work: w, proposed: false}))}));
   const ruleWeather = new Map();
@@ -106,13 +139,17 @@ export function proposeWeek(state, start, {weather = null, now = Date.now(), cap
   const placed = [], unplaced = [];
   for (const work of candidates) {
     const parcel = parcels.get(work.parcelId), center = centerOf(parcel), rule = weatherRuleFor(work.type);
-    const hours = workDuration(work, state).hours;
+    const estimate = workDuration(work, state), hours = estimate.hours;
     const machine = work.equipmentId ? machines.get(work.equipmentId) : null;
     let best = null; const refused = [];
     for (const [i, day] of slots.entries()) {
       if (day.past) continue;
       const reasons = [];
       let score = i * 2;
+      // Portance de la parcelle aujourd'hui et demain (bilan hydrique récent).
+      const ground = soon.has(day.date) ? portanceOf(parcel) : null;
+      if (ground?.level === 'avoid') { refused.push(`${day.name} : sol trop humide sur ${parcel?.nom || 'la parcelle'} (${ground.reasons.join(', ')})`); continue; }
+      if (ground?.level === 'limit') { reasons.push('portance limite'); score += 12; }
       // Engin : libre, ou même sortie (même travail sur une parcelle voisine).
       if (work.equipmentId && day.booked.has(work.equipmentId)) {
         const b = day.booked.get(work.equipmentId);
@@ -143,19 +180,27 @@ export function proposeWeek(state, start, {weather = null, now = Date.now(), cap
       else score += day.load * 1.5;
       if (!best || score < best.score) best = {i, score, reasons};
     }
-    if (!best) { unplaced.push({work, reasons: refused.length ? refused : ['aucun jour restant cette semaine']}); continue; }
+    if (!best) { unplaced.push({work, overdue: isOverdue(work, today), reasons: refused.length ? refused : ['aucun jour restant cette semaine']}); continue; }
     const day = slots[best.i];
     if (!best.reasons.length) best.reasons.push(day.load ? 'journée la moins chargée' : 'journée libre');
+    // Durée apprise des passages GPS : la source est affichée avec le nombre de passages.
+    if (estimate.source === 'gps') best.reasons.push(`durée ${estimate.gps.label}`);
+    if (isOverdue(work, today)) best.reasons.unshift(`en retard, prévu le ${shortDay(String(work.plannedDate).slice(0, 10))}`);
     day.load += hours || 0;
     day.present.push({work, proposed: true});
     if (work.equipmentId && !day.booked.has(work.equipmentId)) day.booked.set(work.equipmentId, {kind: 'work', type: work.type, label: `${work.type} · ${parcel?.nom || 'parcelle'}`, parcelId: work.parcelId});
-    placed.push({work, date: day.date, hours, reasons: best.reasons});
+    placed.push({work, date: day.date, hours, reasons: best.reasons, overdue: isOverdue(work, today)});
   }
-  return {week, placed, unplaced, disclaimer: WEEK_DISCLAIMER};
+  // Un retard replacé quitte son ancien jour de la semaine : ses heures n'y comptent plus.
+  for (const p of placed) if (p.overdue) {
+    const old = week.find(d => d.date === String(p.work.plannedDate).slice(0, 10));
+    if (old) {old.hours = Math.max(0, old.hours - (p.hours || 0)); old.works = old.works.filter(w => w.id !== p.work.id);}
+  }
+  return {week, placed, unplaced, soil, stations, disclaimer: WEEK_DISCLAIMER};
 }
 
 // Vérifie une carte déplacée à la main : avertissements non bloquants.
-export function checkPlacement(state, plan, workId, date, {weather = null, now = Date.now()} = {}) {
+export function checkPlacement(state, plan, workId, date, {weather = null, now = Date.now(), soil = plan?.soil || null, stations = plan?.stations || []} = {}) {
   const item = plan.placed.find(p => p.work.id === workId);
   if (!item) return [];
   const warnings = [], machine = active(state, 'materiels').find(m => m.id === item.work.equipmentId);
@@ -169,6 +214,12 @@ export function checkPlacement(state, plan, workId, date, {weather = null, now =
   }
   const rule = weatherRuleFor(item.work.type);
   if (rule) { const dw = dayWeather(weather, date, {rule, now}); if (dw.known && !dw.favorable && !dw.watch) warnings.push(`pas de créneau ${rule.toLowerCase()}`); }
+  const today = isoDay(new Date(now)), tomorrow = isoDay(new Date(parseDay(today).getTime() + DAY_MS));
+  if (date === today || date === tomorrow) {
+    const ground = groundOf(active(state, 'parcelles').find(p => p.id === item.work.parcelId), soil, stations, now);
+    if (ground?.level === 'avoid') warnings.push('sol trop humide');
+    else if (ground?.level === 'limit') warnings.push('portance limite');
+  }
   return warnings;
 }
 

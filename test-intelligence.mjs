@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {answerLocalIntelligence, buildActivityBrief, parseVoiceJournal} from './intelligence.js';
-import {isoDate} from './utils.js';
+import {isoDate, localIso} from './utils.js';
 
 const day = offset => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + offset); return isoDate(d); };
 const state = () => ({
@@ -41,7 +41,7 @@ test('« une fauche » donne le type « fauche » et non « e fauche »', () => 
 test('« planifie une fauche sur <parcelle> demain » prépare un travail, l’organisation reste un plan', () => {
   const r = ask('planifie une fauche sur Le Pré Bas demain');
   assert.equal(r.intent, 'create_work');
-  assert.deepEqual(r.actions[0].payload, {parcelId: 'p3', type: 'fauche', date: isoDate(Date.now() + 86400000), status: 'À faire'});
+  assert.deepEqual(r.actions[0].payload, {parcelId: 'p3', type: 'fauche', date: localIso(new Date(new Date().setDate(new Date().getDate() + 1))), status: 'À faire'});
   assert.equal(ask('organise les travaux de demain').intent, 'supervised_plan');
 });
 

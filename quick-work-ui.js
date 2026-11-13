@@ -19,6 +19,7 @@ import {orderedWorkTypes, typeBadge, doseConfig, parseDose, formatDose, parcelCh
   freshDetails, productChoices, entryWorks, quickEffects, coversToDestroy, nitrogenHint, harvestDarWarnings, billingProblem, dropForbidden,
   isSoilBase, SOIL_TYPES, isMowCut, isForageFollowup, isGrainHarvest, HARVEST_UNITS, nextCut, hoursBetween, dateNotice} from './quick-work.js';
 import {createQuickGrazingUI} from './quick-grazing-ui.js';
+import {worksEntryWarnings, warningsSignature} from './entry-guard.js';
 
 // Clé calculée à chaque usage : elle dépend de l’exploitation ouverte.
 const draftKeyNow = () => draftKey('quick-work', 'nouveau');
@@ -443,6 +444,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
       ${machinesHtml()}
       ${moreHtml()}
       <div id="qw-full-box">${fullHtml()}</div>
+      ${s.warning ? html`<div class="notice warning entry-guard" role="alert" tabindex="-1"><strong>À vérifier avant d’enregistrer</strong><ul>${s.warning.map(m => html`<li>${m}</li>`)}</ul><p>Corrigez si besoin, ou appuyez de nouveau pour enregistrer tel quel.</p></div>` : ''}
       ${s.error ? html`<p class="form-error" role="alert">${s.error}</p>` : ''}</div>`;
   }
 
@@ -541,6 +543,10 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
         return null;
       }
     }
+    // Garde-fou (entry-guard.js) : surface, dose inhabituelle, produit répété. Signalé, jamais bloquant : un second appui confirme.
+    const warnings = worksEntryWarnings(state(), [...result.creates, ...result.updates].filter(w => !['Annulé', 'Annulée'].includes(w.status))), signature = warningsSignature(warnings);
+    if (warnings.length && s.guardAck !== signature) { s.guardAck = signature; s.warning = warnings.map(w => w.message); s.error = ''; render({focus: '.entry-guard'}); return null; }
+    s.warning = null;
     // Rotation, culture ou lots que le rôle n'écrit pas : retirés, le message suit l'enregistrement.
     const roleNote = dropForbidden(result, op => !store.writeGuard || store.writeGuard(op));
     // Sortie de stock et compteur : décidés ici, appliqués après l'écriture des travaux (applyWorkEffects).

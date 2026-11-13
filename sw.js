@@ -1,4 +1,4 @@
-const BUILD='2026.11.12-v10.32.0';
+const BUILD='2026.11.13-v10.36.0';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
@@ -29,7 +29,7 @@ const CORE=[
  ,'./forage.js','./forage-ui.js','./seeds.js','./seeds-ui.js','./soil-analysis.js','./soil-analysis-ui.js','./hedges.js','./hedges-ui.js' // v8b
  ,'./telepac.js','./telepac-ui.js','./parcel-check.js','./parcel-check-ui.js','./regulatory.js','./regulatory-ui.js','./regulated-ops.js','./regulated-ops-ui.js','./green-indicators.js','./green-indicators-ui.js' // v8a, v11 n° 71
  ,'./billing-docs-ui.js','./billing-docs-view.js','./company-lookup.js','./billing-docs-editor.js','./billing-docs-actions.js','./billing-docs.css' // v13 : documents de facturation (chantier A)
- ,'./auto-update.js','./reference-status-ui.js','./rpg-culture-labels.js','./phyto-catalog-auto.js','./weather-freshness.js','./zv-detect.js','./reference-age.js','./fuel-price-ref.js','./doc-text.js','./conseils.js','./input-needs.js','./decision-feed.js','./cost-drift.js','./grazing-rotation.js','./smart-defaults.js' // mises à jour automatiques et conseils (A0-A9, I1-I7)
+ ,'./auto-update.js','./reference-status-ui.js','./rpg-culture-labels.js','./phyto-catalog-auto.js','./weather-freshness.js','./zv-detect.js','./reference-age.js','./fuel-price-ref.js','./doc-text.js','./conseils.js','./input-needs.js','./decision-feed.js','./decision-feedback.js','./grass-growth.js','./entry-guard.js','./margin-gap.js','./herd-watch.js','./cost-drift.js','./grazing-rotation.js','./smart-defaults.js','./gesture-rules.js','./weather-race.js','./gps-rates.js','./disease-window.js','./ndvi-peers.js','./billing-actions.js' // mises à jour automatiques et conseils (A0-A9, I1-I7)
  ,'./billing-hub.js','./billing-hub-ui.js','./billing-hub-catalog-ui.js','./billing-hub-settings-ui.js','./billing-hub.css','./lazy-styles.js' // v13 : centre Facturation, feuilles des écrans différés
 ];
 

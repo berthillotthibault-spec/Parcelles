@@ -5,6 +5,7 @@ import {ctx} from './app-context.js';
 import {openPersonalization} from './personalization-ui.js';
 import {toggledTheme} from './theme.js';
 import {recordAdviceDismissal, undoAdviceDismissal} from './learning.js';
+import {calendarDue} from './habits.js';
 
 const networkDetailsBody = () => `<div class="notice ${navigator.onLine?'info':'warning'}">${navigator.onLine?'Les fonctions réseau sont disponibles.'
   :'Les données locales restent accessibles et modifiables.'}</div>`;
@@ -12,6 +13,11 @@ const networkDetailsBody = () => `<div class="notice ${navigator.onLine?'info':'
 // Ouverture d'une notification selon le type d'entité visé.
 function openNotificationEntity(entity, id) {
   if(entity==='tasks')ctx.openTaskForm(ctx.store.get('tasks',id));
+  // Travail de saison (habits.js) : travail groupé prérempli, recalculé à l'ouverture ; rien n'est enregistré seul.
+  else if(entity==='habitCalendar'){
+    const h=calendarDue(ctx.state()).find(x=>x.id===id),today=ctx.todayIso();
+    ctx.openBatchWorkForm(h?.parcelIds||[],h?{type:h.type,date:h.from<today?today:h.from,status:'À faire'}:{});
+  }
   else if(entity==='interventions')ctx.openWorkForm(ctx.store.get('interventions',id));
   else if(entity==='materiels')ctx.openEquipmentDetail(id);
   else if(entity==='regulated')ctx.lazy.run('regulatedOps',()=>ctx.regulatedOps().open());

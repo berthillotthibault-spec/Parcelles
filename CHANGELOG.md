@@ -1,5 +1,65 @@
 # Changelog
 
+## 10.36.0 · course contre la météo, maladies selon le stade, NDVI comparé, durées GPS, automatisations proposées, facturation en un geste — 2026-11-13
+
+- Course contre la météo : quand une récolte, un ensilage, une fauche, un semis ou un travail du sol sur plusieurs parcelles ne tient pas avant la pluie annoncée ou à cause d'un sol trop humide, l'accueil affiche les hectares restants, les jours de travail, les jours praticables et les parcelles par lesquelles commencer (`weather-race.js`).
+- Alertes maladies calées sur le stade de la culture (septoriose dès 1-2 nœuds, fusariose à la floraison, sclérotinia en floraison) et sur la protection d'un fongicide récent : « couvert jusqu'au … » au lieu d'une alerte, puis alerte si le risque dure après (`disease-window.js`).
+- Satellite : chaque parcelle est comparée à la médiane NDVI des parcelles de même culture mesurées à ± 5 jours ; une parcelle nettement en retard est signalée dans l'écran Satellite et dans « À décider » (`ndvi-peers.js`).
+- Les durées estimées (planning de la semaine, charge de travail, planning du jour) utilisent le débit réel mesuré par vos passages GPS dès 3 passages du même travail, avec la source affichée (`gps-rates.js`).
+- Automatisations : Parcelles repère vos enchaînements répétés (après un travail A sur une parcelle, vous créez B dans les 14 jours, au moins 3 fois sur 2 campagnes) et propose la règle correspondante, à créer après confirmation ou à écarter par « Non merci » (`gesture-rules.js`).
+- Facturation : l'accueil propose de relancer une facture en retard (en tenant compte des habitudes de paiement du client) et de préparer la facture des travaux réalisés non facturés depuis plus de 30 jours, toujours avec confirmation (`billing-actions.js`).
+- Correction : une tâche d'automatisation fermée avec le statut « Terminée » n'est plus recréée en double.
+- Planning de la semaine : réglage « Journée » (6 à 14 h de travail par jour), utilisé pour la charge des jours, les propositions et la course contre la météo.
+- Les statuts « Annulée » et « Terminée » (imports, autres outils, synchronisation) sont ramenés à « Annulé » et « Terminé » : un travail annulé importé ne compte plus dans les marges, l'IFT ou les retards.
+- Durées : un matériel qui a son propre historique (3 références ou plus) garde son débit plutôt que le débit GPS de tous les matériels.
+- Facturation : les cartes « Relancer » paraissent aussi quand les factures n'ont pas de fiche client.
+- Test de l'assistant (« demain ») rendu indépendant du fuseau horaire.
+
+## 10.35.0 · troupeau à surveiller, planning corrigé — 2026-11-13
+
+### Troupeau
+- **« À surveiller »** (`herd-watch.js`), dans l'onglet Troupeau (5 premiers) et dans le registre complet (tous, avec l'intervalle vêlage-vêlage moyen) : vache sans vêlage depuis plus de 400 jours et sans insémination ni saillie depuis ; génisse de plus de 36 mois jamais vêlée ni mise à la reproduction ; intervalle vêlage-vêlage du dernier vêlage au-delà de 420 jours (vêlage de moins d'un an) ; jeune de moins de 24 mois qui perd du poids, ou dont le GMQ des deux dernières pesées est sous 75 % de la médiane des jeunes du même sexe ; 3 soins ou plus en 12 mois. Une vache inséminée ou saillie depuis moins de 290 jours est présumée pleine ; au-delà, sans vêlage, le motif le dit (« inséminée le … sans vêlage enregistré depuis »). Les vêlages comptent aussi les naissances des veaux rattachés à la mère ; « génisse » ne vise que les femelles nées sur l'exploitation (une vache achetée ou importée a un passé inconnu). Dans l'onglet, une ligne par animal (« + 1 autre point »). Repères indicatifs d'un troupeau allaitant.
+- **Croissance** (`herd.js` `dailyGain`) : deux pesées le même jour ne bloquent plus le calcul (la dernière saisie du jour est comparée à la pesée d'un jour antérieur).
+
+### Planning (relecture)
+- Le rattrapage des retards ne se fait que dans la semaine en cours (un retard n'est plus repoussé à une semaine lointaine) ; les heures d'un retard replacé quittent son ancien jour ; une carte déplacée à la main vers une parcelle détrempée, aujourd'hui ou demain, est signalée (« sol trop humide »).
+
+## 10.34.0 · marges comparées à culture égale, rattrapage de la semaine — 2026-11-12
+
+### Planning
+- **Rattrapage des retards** (`week-planner.js`, « Proposer » de la semaine) : les travaux en attente dont l'échéance est passée sont replacés avec les travaux sans date, d'abord et du plus ancien au plus récent, avec la raison « en retard, prévu le 9 nov. » ; « Appliquer » ne change que l'échéance (comme « Reporter »), en une écriture annulable ; rien n'est rattrapé sur une semaine déjà passée ; l'ancien jour n'affiche plus la carte déplacée ;
+- **Portance des sols** : avec un bilan hydrique de moins de 24 h (écran Portance), une parcelle « à éviter » n'est pas proposée aujourd'hui ni demain (raison donnée dans « Non placés »), une parcelle « limite » passe après les autres ces deux jours ; au-delà, le sol peut se ressuyer et rien n'est conclu.
+
+### Correction
+- **Marges** (`pilotage.js`) : un travail « Annulée » (au féminin) n'est plus compté dans les charges, comme « Annulé » ; toutes les marges (parcelles, cultures, historique, écarts) en bénéficient.
+
+### Économie
+- **Historique des campagnes, vue par parcelle** (`campaign-history.js`) : chaque année, la parcelle est comparée à la moyenne (pondérée par la surface) des autres parcelles de la même culture cette campagne-là, et non plus à la moyenne de toute l'exploitation (une prairie paraissait toujours « sous la moyenne » face au blé) ; sans autre parcelle de sa culture, l'année n'est pas comparable ; la vue par culture garde la moyenne de l'exploitation ;
+- **Écarts à culture égale** (`margin-gap.js`), section de l'historique pour la dernière campagne : « Les Brosses : −400 €/ha par rapport aux 2 autres parcelles de Blé tendre, dont produit −200 €/ha (rendement 6 contre 7 t/ha), engrais −200 €/ha » ; postes produit, engrais, phyto, semences, mécanisation et autres travaux, forfait, calculés sur les mêmes travaux et le même forfait que le moteur de marge ; écarts signalés à partir de 50 €/ha et 10 % ; comparaison, pas cause certaine (valeurs partielles marquées).
+
+## 10.33.0 · le fil « À décider » apprend de vos réponses, travaux de saison, garde-fou de saisie, pousse de l'herbe — 2026-11-12
+
+### Saisie
+- **Garde-fou fondé sur l'historique** (`entry-guard.js`), dans le formulaire complet et dans la saisie rapide du « + » : surface travaillée supérieure de plus de 5 % à la parcelle ; dose au moins 3 fois plus forte ou plus faible que la médiane des doses passées (même produit et même unité, sinon même culture et même type, 2 saisies au moins) ; même produit déjà appliqué ou prévu sur la parcelle à moins de 7 jours (échéance du travail prévu, report compris) ;
+- **Jamais bloquant** : les points à vérifier s'affichent en tête du formulaire (« Enregistrer quand même ») ; un second appui confirme les mêmes points, une correction relance la vérification ; les travaux d'une même saisie ne se comparent pas entre eux.
+
+### Habitudes
+- **Calendrier des travaux de saison** (`habits.js`, `learnCalendar` / `calendarDue`) : pour chaque couple culture et type de travail, date du premier passage par parcelle et par campagne sur les 3 campagnes passées (médiane par campagne, au moins 2 campagnes, dates groupées sur 45 jours au plus) ; comble l'angle mort des travaux sans travail habituel avant eux (semis, première fauche), les autres restant au rappel « travail habituel non fait » ;
+- **Rappel** « Semis de saison à prévoir · Blé tendre » de 7 jours avant la période habituelle à 10 jours après (« en retard » au-delà de la période), pour les parcelles de la culture (rotation de la campagne, sinon culture de la parcelle) sans ce travail prévu, en cours ou fait ; toutes les parcelles en une carte, avec leurs hectares ; même réglage que les autres rappels d'habitude ; une période à cheval sur le 1er août (moisson) est suivie d'une campagne à l'autre ; un travail prévu ou fait à moins de 60 jours de la période compte (date de réalisation s'il est fait, échéance s'il est prévu) ; une culture de parcelle restée celle de la campagne passée, sans rotation saisie, n'est pas prise pour la culture de la campagne ;
+- **« Planifier »** ouvre le travail groupé prérempli (parcelles cochées, type, date de début de période, statut « À faire »), depuis le fil comme depuis la cloche des notifications : rien n'est enregistré sans validation.
+
+### Pâturage
+- **Pousse de l'herbe estimée** (`grass-growth.js`) : repère mensuel d'une prairie de plaine (de 3 kg MS/ha/j en janvier à 70 en mai), corrigé par la température moyenne des 7 derniers jours (nul sous 4 °C, plein de 10 à 22 °C, freiné au-delà) et par la réserve en eau moyenne des prairies (bilan hydrique, plein au-dessus de 50 %, nul sous 10 %) ; calculé sur l'appareil à partir des caches météo, sans appel réseau ; un bilan hydrique de plus de 10 jours est ignoré ;
+- **Branchée dans le conseil de rotation** (écran Pâturage et fil « À décider ») : la repousse allonge les jours d'herbe restants et ceux des paddocks proposés ; « Pourquoi ? » donne l'estimation et ses hypothèses ; la confiance reste « moyenne » (estimation, pas mesure) ; sans température récente, calcul inchangé ; un lot au-delà du seuil de pression reste « à sortir » même si la repousse estimée couvre sa consommation.
+- **Herbe insuffisante** (`grassShortfall`) : pousse estimée × surface en herbe face aux besoins des lots au pré (UGB × 15 kg MS/j) ; sous 80 %, carte « L'herbe ne suffit plus aux lots au pré : affourager ou réduire le chargement » dans le fil « À décider » (sous 50 % : à surveiller), avec les chiffres et les hypothèses ; jamais de novembre à février (affourager est alors la règle), ni quand un pré occupé n'a pas de surface, ni sans le module Élevage ;
+- **Rupture du stock de fourrage** : le bilan fourrager (date de couverture et manque en t MS, déjà calculés dans l'écran Fourrage) devient une carte du fil quand le stock ne tient pas l'hivernage paramétré (urgente à 7 jours de la rupture, à surveiller à 30 jours) ; `forage.js` est chargé à la demande, seulement si des lots d'hivernage sont paramétrés et le module Élevage actif, et l'accueil est redessiné à son arrivée ;
+- **Bilan fourrager corrigé** : un inventaire saisi pendant l'hivernage précédent ne sert plus de base au stock de l'hiver suivant (la consommation de la fin de l'hiver passé n'y était pas déduite, le stock était surestimé).
+
+### Accueil
+- **Retour sur chaque carte** (`decision-feedback.js`), dans le volet « Pourquoi ? · Votre avis » pour garder les cartes compactes sur téléphone : « Fait » masque la carte 7 jours, « Pas pertinent » 14 jours, « Plus tard » 1 jour (alerte urgente ou échéance à 2 jours ou moins) ou 3 jours ; une carte masquée revient tout de suite si sa gravité augmente ;
+- **Rang appris par type d'alerte** : à partir du 2e « Pas pertinent » en 90 jours, le score du type baisse de 20 % par refus (plancher 40 %), jamais pour une alerte urgente ; chaque « Fait » le relève de 10 % (plafond 130 %) ; la raison est ajoutée dans « Pourquoi ? » ;
+- **Réversible** : « Annuler » dans le message de confirmation, « Réafficher » en bas du fil (l'apprentissage par type est conservé) ; retour rangé dans les préférences de l'appareil (`preferences.decisionFeedback`), non synchronisé, purgé au-delà de 90 jours et de 200 cartes.
+
 ## 10.32.0 · TVA de bout en bout, TVA nette, point du matin, assistant qui apprend — 2026-11-12
 
 ### TVA

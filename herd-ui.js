@@ -10,9 +10,12 @@ import {SEXES,ENTRY_REASONS,EXIT_REASONS,EVENT_KINDS,BREEDS,BDNI_NOTICE,BDNI_REM
   normalizeAnimal,normalizeAnimalEvent,calvingPlan,animalLot,lotLabel,lotAssignment,ageLabel,lotsListing,filterAnimals,animalTimeline,lastWeight,dailyGain,offspring,herdSummary,
   expectedCalvings,pendingBdni,animalLabel,formatNationalId,isPresent,grazingCandidates,candidatesToAnimals,readHerdCsv,herdRowsFromTable,guessColumns,herdImportPreview,herdImportEntities,bdniDeadline,addIsoDays} from './herd.js';
 
+import {herdWatch,herdIvv} from './herd-watch.js';
+
 const fr=d=>d?localDate(`${d}T12:00:00`):'—';
 const ddmm=d=>`${d.slice(8,10)}/${d.slice(5,7)}`;
 
+const WATCH_LABELS={open:'Vide',heifer:'Génisse',ivv:'IVV long',gain:'Croissance',care:'Soins'};
 export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{},confirmDelete,rollbackImport,today}){
   const $=s=>document.querySelector(s);
   const data=()=>store.state;
@@ -43,12 +46,21 @@ export function createHerdUI({store,modal,closeModal,toast,bindChipChoices=()=>{
       <p class="form-note">${e(BDNI_NOTICE)}</p></div>`;
   }
 
+  // « À surveiller » (herd-watch.js) : reproduction, croissance, soins répétés ; IVV moyen du troupeau.
+  function watchHtml(d){
+    let rows=[],ivv=null;try{rows=herdWatch(d,{today:today()});ivv=herdIvv(d,{today:today()});}catch{rows=[];}
+    if(!rows.length&&!ivv)return'';
+    const head=ivv?`<p class="form-note">Intervalle vêlage-vêlage moyen : ${ivv.days} jours (${ivv.cows} vache${ivv.cows>1?'s':''}).</p>`:'';
+    return`<h3>À surveiller</h3>${head}${rows.length?`<div class="stack-list">${rows.map(w=>`<button type="button" class="list-row is-button" data-herd-animal="${e(w.animalId)}"><div><strong>${e(w.label)}</strong><small>${e(w.text.slice(w.label.length+3))}</small></div><span class="badge ${w.level==='warning'?'danger':'info'}">${e(WATCH_LABELS[w.kind]||'')}</span></button>`).join('')}</div>`:''}`;
+  }
+
   function open(){
     const d=data(),sum=herdSummary(d,{today:today()}),coming=expectedCalvings(d,{today:today(),horizon:60,past:30}),candidates=grazingCandidates(d);
     const writable=can('animals','create',{origin:'manual'});
     modal('Troupeau','Identification, reproduction et naissances à notifier.',`
       <div class="preview-summary"><div class="preview-stat"><strong>${sum.present}</strong><small>présents (${sum.females}&nbsp;F · ${sum.males}&nbsp;M)</small></div><div class="preview-stat"><strong>${sum.calvings}</strong><small>vêlages à 60 jours</small></div><div class="preview-stat"><strong>${sum.bdni.length}</strong><small>naissance${sum.bdni.length>1?'s':''} à notifier</small></div></div>
       ${bdniHtml(sum.bdni)}
+      ${watchHtml(d)}
       ${coming.length?`<h3>Vêlages à venir</h3><div class="stack-list">${coming.slice(0,6).map(c=>`<button type="button" class="list-row is-button" data-herd-animal="${e(c.animal.id)}"><div><strong>${e(c.label)}</strong><small>Prévu le ${e(fr(c.date))} (${e(EVENT_KINDS[c.event.kind])} du ${e(fr(c.event.date))} + 283 j)</small></div><span class="badge ${c.days<0?'danger':'info'}">${c.days<0?`${-c.days} j de retard`:c.days===0?'aujourd’hui':`J−${c.days}`}</span></button>`).join('')}</div>`:''}
       ${candidates.length&&writable?`<div class="notice info"><strong>${candidates.length} numéro${candidates.length>1?'s':''} déjà saisi${candidates.length>1?'s':''} dans vos lots de pâturage</strong><p>Vous pouvez créer leurs fiches en une fois ; rien n’est créé sans votre accord.</p><button type="button" class="small-button" id="herd-takeover">Voir et reprendre</button></div>`:''}
       <div class="toolbar-panel compact-toolbar"><label class="search-field"><svg class="ui-icon" width="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><span class="sr-only">Rechercher</span><input id="herd-query" type="search" value="${e(filters.query)}" placeholder="Nom, numéro, n° de travail, race…" autocomplete="off"></label>

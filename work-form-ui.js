@@ -11,6 +11,7 @@ import {enhanceWorkForm, validateForm} from './form-chips-ui.js';
 import {draftKey, persistFormDraft} from './form-drafts.js';
 import {weatherSnapshotOf} from './spray-window.js';
 import {workCosts} from './costs.js';
+import {workEntryWarnings, warningsSignature} from './entry-guard.js';
 
 const STATUSES = ['À faire', 'À préparer', 'Prêt', 'En cours', 'Bloqué', 'Terminé', 'En retard', 'Annulé', 'Brouillon'];
 const DOSE_UNITS = ['kg/ha', 'L/ha', 't/ha', 'm³/ha', 'unité/ha', 'graines/ha', 'grains/m²', 'q/ha', 'mm', 'autre'];
@@ -145,6 +146,21 @@ function checkDecimalFields(form) {
 export function createWorkFormUI(ctx) {
   const {$, $$} = ctx;
 
+  // Garde-fou de saisie (entry-guard.js) : points à vérifier en tête du formulaire, sans bloquer ; le bouton
+  // devient « Enregistrer quand même » et un second appui confirme les mêmes points.
+  function showEntryGuard(form, warnings) {
+    form.querySelector('#work-guard')?.remove();
+    const box = document.createElement('div');
+    box.id = 'work-guard'; box.className = 'notice warning span-2 entry-guard';
+    box.setAttribute('role', 'alert'); box.tabIndex = -1;
+    const items = warnings.map(w => `<li>${escapeHtml(w.message)}</li>`).join('');
+    box.innerHTML = `<strong>À vérifier avant d’enregistrer</strong><ul>${items}</ul><p>Corrigez si besoin, ou enregistrez tel quel.</p>`;
+    form.prepend(box);
+    const button = $('#save-work');
+    if (button) button.textContent = 'Enregistrer quand même';
+    box.focus();
+  }
+
   // Un travail « Pâturage » ne met aucun animal au pré : avis avec lien, sans bloquer (un travail prévu reste possible).
   // Travail prévu en cours d'édition : la mise au pré le clôt (workId), comme finish-work.
   function bindGrazingNotice(form, parcelIds, item = null) {
@@ -252,6 +268,10 @@ export function createWorkFormUI(ctx) {
     if (!ctx.lazy.ready('seeds')) await ctx.lazy.need('seeds', {silent: true});
     const seedError = ctx.seedsUI?.applyToWork(entity) || ctx.hedgesUI?.guardWork(entity, form);
     if (seedError) { ctx.toast(seedError, 'error'); return; }
+    const warnings = workEntryWarnings(ctx.state(), entity), signature = warningsSignature(warnings);
+    if (warnings.length && form.dataset.guardAck !== signature) {
+      form.dataset.guardAck = signature; showEntryGuard(form, warnings); return;
+    }
     const metrics = () => ({areaHa: entity.surfaceWorked, dose: toNullableNumber(entity.dose), duration: entity.duration});
     if (v.status !== 'Terminé' && !entity.plannedMetrics) entity.plannedMetrics = metrics();
     if (v.status === 'Terminé') entity.actualMetrics = metrics();

@@ -29,6 +29,11 @@ export function emptyState(){
   };
 }
 
+// Statuts au féminin (imports, saisies d'autres outils) ramenés à la forme de l'appli : les modules comparent
+// à 'Annulé' et 'Terminé'. Appliqué à l'écriture, au chargement (migrateData) et à la réception distante.
+const STATUS_ALIASES={'Annulée':'Annulé','Terminée':'Terminé'};
+export const canonicalStatus=status=>STATUS_ALIASES[status]||status;
+const STATUS_TYPES=['interventions','tasks'];
 export function normalizeEntity(type,entity,existing=null,{preserveDeleted=false}={}){
   const timestamp=now();
   const base=existing||{};
@@ -49,6 +54,7 @@ export function normalizeEntity(type,entity,existing=null,{preserveDeleted=false
     normalized.status=normalized.status||'Terminé';
   }
   if(type==='tasks')normalized.status=normalized.status||'À faire';
+  if(STATUS_TYPES.includes(type))normalized.status=canonicalStatus(normalized.status);
   if(type==='parcelles'){
     normalized.ownershipType=normalized.ownershipType||'own';
     normalized.favorite=Boolean(normalized.favorite);
@@ -317,6 +323,8 @@ export function migrateData(input){
     preferences:{...base.preferences,...data.preferences},
     metadata:{...base.metadata,...data.metadata}
   };
+  // Statuts au féminin d'anciennes données : à chaque chargement, sans changer de version de format.
+  for(const type of STATUS_TYPES)if(Array.isArray(data[type]))data[type]=data[type].map(item=>isRecord(item)&&STATUS_ALIASES[item.status]?{...item,status:canonicalStatus(item.status)}:item);
   // v6b n° 76 — carnet sanitaire : collection absente des anciennes sauvegardes.
   if(!Array.isArray(data.vetTreatments))data.vetTreatments=[];
   ensureArrays(data);
@@ -829,6 +837,7 @@ export class Store{
   async applyRemote(type,entity,{expectedQueueId}={}){
     if(!ENTITY_TYPES.includes(type))throw new Error(`Type inconnu : ${type}`);
     const incoming=clone(entity);
+    if(STATUS_TYPES.includes(type)&&isRecord(incoming)&&STATUS_ALIASES[incoming.status])incoming.status=canonicalStatus(incoming.status);
     // Un id hors format est refusé même pour une suppression (il finirait dans les gabarits HTML).
     const errors=validate(type,incoming);if(errors.length&&(!incoming.deletedAt||!isSafeId(incoming.id)))throw new Error(errors.join(' — '));
     let before=null;
@@ -853,7 +862,9 @@ export class Store{
   async _applyRemoteMany(items=[]){
     const prepared=(items||[]).map(({type,entity,expectedQueueId})=>{
       if(!ENTITY_TYPES.includes(type))return{error:new Error(`Type inconnu : ${type}`)};
-      const incoming=clone(entity);const errors=validate(type,incoming);
+      const incoming=clone(entity);
+      if(STATUS_TYPES.includes(type)&&isRecord(incoming)&&STATUS_ALIASES[incoming.status])incoming.status=canonicalStatus(incoming.status);
+      const errors=validate(type,incoming);
       if(errors.length&&(!incoming.deletedAt||!isSafeId(incoming.id)))return{error:new Error(errors.join(' — '))};
       return{type,incoming,expectedQueueId};
     });

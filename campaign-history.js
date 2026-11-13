@@ -32,11 +32,18 @@ export function campaignHistory(state,{campaign=campaignFor(),years=5,by='cultur
     const list=by==='parcel'?m.rows.map(r=>({key:r.parcelId,label:r.parcel?.nom||'Parcelle',cell:parcelCell(r,metric)})):cultureGroups(m).map(([key,label,list])=>({key,label,cell:cultureCell(sumRows(list),metric)}));
     for(const x of list){const row=rows.get(x.key)||{key:x.key,label:x.label,cells:campaigns.map(()=>null)};row.cells[i]={...x.cell,value:x.cell.value===null||x.cell.value===undefined?null:r2(x.cell.value)};rows.set(x.key,row);}
   });
+  // Par parcelle : la référence est la moyenne (pondérée par la surface) des AUTRES parcelles de la même culture
+  // cette campagne-là ; une prairie n'est plus comparée au blé. Sans autre parcelle de sa culture : pas comparable.
+  const peers=by==='parcel'?models.map(m=>{
+    const cells=m.rows.map(r=>({id:r.parcelId,k:normalize(r.culture),c:parcelCell(r,metric)})).filter(x=>x.c.value!==null&&x.c.area>0&&x.k!=='non renseignee');
+    return new Map(cells.map(x=>{const o=cells.filter(y=>y.k===x.k&&y!==x),a=o.reduce((s,y)=>s+y.c.area,0);return[x.id,o.length&&a>0?o.reduce((s,y)=>s+y.c.value*y.c.area,0)/a:null];}));
+  }):null;
   const out=[...rows.values()].map(r=>{
     const values=r.cells.map(c=>c?.value??null),mean=olympicMean(values);
-    // Années comparables : valeur connue de la parcelle et moyenne de l'exploitation connue.
-    const comparable=values.map((v,i)=>v!==null&&farm[i]!==null&&farm[i]!==undefined?i:-1).filter(i=>i>=0);
-    const worse=comparable.filter(i=>metric==='costHa'?values[i]>farm[i]:values[i]<farm[i]).length;
+    const ref=values.map((_,i)=>peers?peers[i].get(r.key)??null:farm[i]??null);
+    // Années comparables : valeur connue de la ligne et référence connue (culture égale par parcelle, exploitation par culture).
+    const comparable=values.map((v,i)=>v!==null&&ref[i]!==null?i:-1).filter(i=>i>=0);
+    const worse=comparable.filter(i=>metric==='costHa'?values[i]>ref[i]:values[i]<ref[i]).length;
     return{...r,values,mean,known:values.filter(v=>v!==null).length,comparable:comparable.length,below:worse};
   }).sort((a,b)=>by==='parcel'?a.label.localeCompare(b.label,'fr'):(b.cells.at(-1)?.area||0)-(a.cells.at(-1)?.area||0)||a.label.localeCompare(b.label,'fr'));
   return{campaigns,by,metric,years,rows:out,farm:farm.map(v=>v===null||v===undefined?null:r2(v)),farmMean:olympicMean(farm)};
@@ -44,10 +51,11 @@ export function campaignHistory(state,{campaign=campaignFor(),years=5,by='cultur
 
 /** Classement : « Les Brosses : 3 années sur 4 sous la moyenne de l'exploitation ». */
 export function underperformers(history,{minYears=2}={}){
-  const word=history.metric==='costHa'?'au-dessus de la moyenne des charges':'sous la moyenne';
+  const scope=history.by==='parcel'?'des autres parcelles de même culture':'de l’exploitation';
+  const word=history.metric==='costHa'?`au-dessus de la moyenne des charges ${scope}`:`sous la moyenne ${scope}`;
   return history.rows.filter(r=>r.comparable>=minYears&&r.below/r.comparable>0.5)
     .sort((a,b)=>b.below/b.comparable-a.below/a.comparable||b.below-a.below||a.label.localeCompare(b.label,'fr'))
-    .map(r=>({key:r.key,label:r.label,below:r.below,comparable:r.comparable,text:`${r.label} : ${r.below} année${r.below>1?'s':''} sur ${r.comparable} ${word} de l’exploitation`}));
+    .map(r=>({key:r.key,label:r.label,below:r.below,comparable:r.comparable,text:`${r.label} : ${r.below} année${r.below>1?'s':''} sur ${r.comparable} ${word}`}));
 }
 
 /** Points d'une mini-courbe (valeurs nulles sautées), coordonnées dans une boîte w × h. */

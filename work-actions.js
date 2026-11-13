@@ -68,6 +68,13 @@ export const workActions = {
     ctx.openQuickWork({parcelIds: pid ? [pid] : []});
   },
   'batch-work'() { ctx.closeModal(); ctx.openBatchWorkForm(); },
+  // Fil « À décider » : travail de saison habituel, formulaire groupé prérempli (parcelles, type, date), rien n'est enregistré seul.
+  'plan-habit-work'({control}) {
+    let p = {};
+    try { p = JSON.parse(control.dataset.payload || '{}'); } catch { /* charge illisible : formulaire vide */ }
+    ctx.closeModal();
+    ctx.openBatchWorkForm(Array.isArray(p.parcelIds) ? p.parcelIds : [], {type: p.type || '', date: p.date || '', status: 'À faire'});
+  },
   'map-multiple-work'() { const ids = [...ctx.parcelMap.selectedIds]; if (ids.length) ctx.openQuickWork({parcelIds: ids, fromMap: true}); },
   'edit-work'({id}) { ctx.closeModal(); ctx.openWorkForm(work(id)); },
   'duplicate-work'({id}) {

@@ -8,6 +8,7 @@ import {herdLots, animalsInside, herdHeadline, herdUpcoming, moveDestinations} f
 import {moveGrazingLot, endGrazingSession, grazingReentryAlert} from './grazing-records.js';
 import {filterAnimals} from './herd.js';
 import {longOpenLots} from './grazing.js';
+import {herdWatch} from './herd-watch.js';
 
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 const dayBlock = iso => {
@@ -24,6 +25,12 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
     const data = state(), today = todayIso();
     const lots = herdLots(data, {today}), inside = animalsInside(data, {today}), upcoming = herdUpcoming(data, {today});
     const long = new Set(longOpenLots(data, {date: today}).map(l => l.id));
+    let watch = [];
+    try {watch = herdWatch(data, {today});} catch {watch = [];}
+    // Un animal par ligne (son point le plus grave, la liste est déjà triée), autres points comptés à part.
+    const byAnimal = new Map();
+    for (const w of watch) byAnimal.set(w.animalId, [...(byAnimal.get(w.animalId) || []), w]);
+    const animalsToWatch = [...byAnimal.values()];
     if (!root.dataset.stillBound) {
       root.dataset.stillBound = '1';
       root.addEventListener('click', event => {
@@ -62,6 +69,10 @@ export function createHerdHomeUI({store, state, modal, closeModal, toast, todayI
           ${dayBlock(e.date)}<span class="herd-event-text"><b>${e.title}</b>${e.sub ? html`<small>${e.sub}</small>` : ''}</span></button>`)}</div>`
         : html`<p class="herd-empty">Rien de prévu dans les 14 prochains jours.</p>`}
       </section>
+      ${animalsToWatch.length ? html`<section class="herd-section" aria-labelledby="herd-watch-title"><h2 id="herd-watch-title" class="herd-h">À surveiller</h2>
+        <div class="herd-events">${animalsToWatch.slice(0, 5).map(([w, ...more]) => html`<button type="button" class="herd-event herd-watch is-${w.level}" data-action="open-herd-animal" data-id="${w.animalId}"><span class="herd-event-text"><b>${w.label}</b><small>${w.text.slice(w.label.length + 3)}${more.length ? ` (+ ${plural(more.length, 'autre point', 'autres points')})` : ''}</small></span></button>`)}</div>
+        ${animalsToWatch.length > 5 ? html`<p class="herd-empty">Et ${plural(animalsToWatch.length - 5, 'autre animal', 'autres animaux')} dans le registre complet.</p>` : ''}
+        <p class="herd-empty">Repères indicatifs tirés de vos vêlages, inséminations, pesées et soins.</p></section>` : ''}
       <p class="herd-more"><button type="button" class="text-button" data-action="open-herd">Ouvrir le registre complet</button><button type="button" class="text-button" data-action="open-grazing">Tout le pâturage</button></p>`);
   }
 

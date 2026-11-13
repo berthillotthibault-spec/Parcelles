@@ -147,6 +147,12 @@ test('applyRemoteMany : expectedQueueId vérifié par élément, élément inval
   assert.equal(ok[0].applied,true);assert.equal(a.store.get('tasks','x1').title,'Distante');
 });
 
+test('applyRemoteMany : statut au féminin reçu par le pull ramené à la forme de l’appli',async()=>{
+  const a=await device(cloud(),'A');
+  await a.store.applyRemoteMany([{type:'tasks',entity:{id:'f1',title:'Distante',status:'Terminée'}}]);
+  assert.equal(a.store.get('tasks','f1').status,'Terminé');
+});
+
 test('notify : une seule copie partagée, gelée en surface, distincte de l’état interne',async()=>{
   const a=await device(cloud(),'A');
   const seen=[];a.store.subscribe(data=>seen.push(data));a.store.subscribe(data=>seen.push(data));

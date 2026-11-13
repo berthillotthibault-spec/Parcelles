@@ -1992,6 +1992,9 @@ html.theme-dark .work-subview .calendar-dot.task{background:var(--warning-soft);
 @media (min-width:1024px){.work-subview-week .week-grid{grid-template-columns:repeat(7,minmax(124px,1fr))}}
 .week-toolbar{display:flex;align-items:center;gap:8px}
 .week-toolbar .small-button{min-width:44px;min-height:44px}
+.week-toolbar{flex-wrap:wrap}
+.week-hours{display:flex;align-items:center;gap:6px;margin-inline-start:auto;font-size:14px;color:var(--text-secondary)}
+.week-hours select{min-height:48px;width:auto}
 .week-range{font-family:var(--font-serif);font-weight:400;font-size:20px;min-width:9ch;text-align:center}
 .week-buttons{display:flex;flex-wrap:wrap;gap:8px}
 .week-buttons .button{min-height:44px}
@@ -3760,4 +3763,25 @@ html body select:not([multiple]):not([size])::-ms-expand{display:none}
 .decision-why summary{min-height:48px;display:flex;align-items:center;cursor:pointer;color:var(--brand)}
 .decision-why ul{margin:0;padding-left:18px;color:var(--text-secondary)}
 .decision-action{min-height:48px;flex:none}
+/* Retour sur une carte « À décider » : Fait / Plus tard / Pas pertinent (cibles de 48 px). */
+.decision-feedback{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.decision-fb{min-height:48px;padding:0 12px;border:1px solid var(--border-subtle);border-radius:999px;background:transparent;color:var(--text-secondary);font:inherit;font-size:14px;cursor:pointer}
+.decision-fb:hover,.decision-fb:focus-visible{color:var(--brand);border-color:var(--brand)}
+.decision-hidden{display:flex;align-items:center;gap:12px;margin:8px 0 0;color:var(--text-secondary);font-size:14px}
+.decision-hidden .text-button{min-height:48px}
+/* Troupeau « à surveiller » (herd-watch.js) : liseré rouge pour les points les plus graves. */
+.herd-watch.is-warning{box-shadow:inset 4px 0 0 var(--danger)}
+/* Garde-fou de saisie d’un travail (entry-guard.js) : points à vérifier, non bloquants. */
+.entry-guard{display:grid;gap:4px}
+.entry-guard ul{margin:0;padding-left:18px}
+.entry-guard p{margin:0}
+/* Idée 10 : NDVI comparé à culture égale (écran Satellite de la parcelle) */
+.satellite-signal.ndvi-peer:not(.is-lagging){border-left-color:var(--line,#cfc8b8)}
+.satellite-signal.ndvi-peer p{margin:6px 0}
+/* Idée 9 : risques maladies calés sur le stade et la rémanence */
+.is-couvert .agro-risk-badge{background:var(--brand-soft)}
+/* Idée 4 : automatisations proposées d’après les gestes répétés (gesture-rules.js) */
+.gesture-proposals .gesture-row{align-items:center;gap:10px;flex-wrap:wrap}
+.gesture-proposals .gesture-actions{display:flex;gap:8px;flex-wrap:wrap}
+.gesture-proposals .gesture-actions .small-button{min-height:48px;min-width:48px}
 }

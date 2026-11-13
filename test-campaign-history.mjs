@@ -35,14 +35,16 @@ test('moyenne olympique : sans la meilleure ni la pire année', () => {
   assert.equal(olympicMean([null]).value, null);
 });
 
-test('parcelles régulièrement sous la moyenne de l’exploitation', () => {
+test('parcelles régulièrement sous la moyenne des autres parcelles de même culture', () => {
   const h = campaignHistory(farm(), {campaign: '2026/27', years: 5, by: 'parcel'});
   const brosses = h.rows.find(r => r.label === 'Les Brosses');
   assert.deepEqual(brosses.values, [1200, 1200, 1000, 1400, 1000]);
   assert.equal(brosses.cells[2].culture, 'Blé tendre');
   const weak = underperformers(h);
   assert.equal(weak.length, 1);
-  assert.equal(weak[0].text, 'Les Brosses : 4 années sur 5 sous la moyenne de l’exploitation');
+  // 2024/25 : Grand Champ est en colza, Les Brosses n'a aucune parcelle de blé à qui se comparer (année non comparable).
+  assert.equal(weak[0].text, 'Les Brosses : 3 années sur 4 sous la moyenne des autres parcelles de même culture');
+  assert.equal(brosses.comparable, 4);
   const costs = campaignHistory(farm(), {campaign: '2026/27', years: 3, metric: 'costHa'});
   assert.deepEqual(costs.rows.find(r => r.label === 'Blé tendre').values, [0, 0, 200]);
 });

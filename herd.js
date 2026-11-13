@@ -248,9 +248,11 @@ export function lastWeight(state,animalId){
 }
 /** GMQ (g/j) entre les deux dernières pesées, ou null. */
 export function dailyGain(state,animalId){
-  const w=live(state,'animalEvents').filter(e=>e.animalId===animalId&&e.kind==='weighing'&&e.weightKg).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  if(w.length<2)return null;const days=(Date.parse(w[0].date)-Date.parse(w[1].date))/864e5;
-  return days>0?Math.round((w[0].weightKg-w[1].weightKg)/days*1000):null;
+  // Plusieurs pesées le même jour (correction, double saisie) : la dernière saisie du jour compte, comparée à la pesée d'un jour antérieur.
+  const w=live(state,'animalEvents').filter(e=>e.animalId===animalId&&e.kind==='weighing'&&e.weightKg).sort((a,b)=>String(b.date).localeCompare(String(a.date))||(Number(b.createdAt)||0)-(Number(a.createdAt)||0));
+  const last=w[0],prev=last&&w.find(e=>String(e.date)<String(last.date));
+  if(!prev)return null;const days=(Date.parse(last.date)-Date.parse(prev.date))/864e5;
+  return days>0?Math.round((last.weightKg-prev.weightKg)/days*1000):null;
 }
 export const offspring=(state,animalId)=>live(state,'animals').filter(a=>a.motherId===animalId).sort((a,b)=>String(b.birthDate||'').localeCompare(String(a.birthDate||'')));
 
