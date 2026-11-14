@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.38.0",
+      "date": "2026-11-13",
+      "title": "Factures électroniques, planning et traitements plus attentifs à votre terrain",
+      "items": [
+        "Factures électroniques des fournisseurs (PDF Factur-X, XML) lues sur l’appareil : lignes vers le stock, montants et TVA rangés avec la facture.",
+        "Organise ma semaine écarte les jours interdits (zone vulnérable, délai avant récolte, délai de rentrée, animaux au pré) et dit pourquoi.",
+        "Traitements : ZNT selon la distance réelle au cours d’eau, règle abeilles en floraison et délai avant récolte comparé à la maturité estimée.",
+        "Itinéraire de la campagne suivante et rendement probable d’après vos habitudes ; modèles de travaux à gérer ; l’assistant reçoit un résumé de l’exploitation."
+      ]
+    },
+    {
       "version": "10.37.0",
       "date": "2026-11-13",
       "title": "Des seuils à votre main",

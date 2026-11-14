@@ -3,7 +3,7 @@
 // (stockItems/products, champ optionnel `phyto`), éventuellement complétée par le catalogue
 // E-Phy local (n° 59). Ils restent indicatifs : seule l'étiquette du produit fait foi et
 // l'absence d'alerte ne vaut jamais autorisation.
-import {campaignFor,csvFormulaSafe,escapeHtml,formatNumber,localDate,normalize,toNullableNumber} from './utils.js';
+import {campaignFor,csvFormulaSafe,escapeHtml,formatNumber,geometryCentroid,localDate,normalize,toNullableNumber} from './utils.js';
 import {active,completed} from './farm-memory.js';
 import {printCss,printDocument} from './dossier.js';
 import {operatorCertificateWarning} from './regulated-ops.js'; // v8a n° 72
@@ -152,7 +152,92 @@ const fmt=v=>formatNumber(v);
  * Contrôle d'un traitement avant validation.
  * @returns {{applies:boolean, blocking:{code,message}[], warnings:{code,message}[], sheet, limits, reentryUntil:number|null}}
  */
-export function checkTreatment(state,work,{catalog=null}={}){
+/**
+ * Coucher du soleil (ms, instant absolu) au jour ISO donné, en un point. Formule NOAA simplifiée (± 2 min en France).
+ * null en nuit ou jour polaire.
+ */
+export function sunsetAt(date,latitude,longitude){
+  const m=String(date||'').match(/^(\d{4})-(\d{2})-(\d{2})/);if(!m||!Number.isFinite(latitude)||!Number.isFinite(longitude))return null;
+  const y=+m[1],mo=+m[2]-1,d=+m[3],day0=Date.UTC(y,mo,d),n=Math.round((day0-Date.UTC(y,0,1))/DAY)+1;
+  const g=2*Math.PI/365*(n-1),rad=Math.PI/180;
+  const eq=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)-0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));
+  const decl=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)-0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)-0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);
+  const lat=latitude*rad,cosH=Math.cos(90.833*rad)/(Math.cos(lat)*Math.cos(decl))-Math.tan(lat)*Math.tan(decl);
+  if(cosH<-1||cosH>1)return null;
+  const minutes=720-4*(longitude-Math.acos(cosH)/rad)-eq;
+  return day0+Math.round(minutes*60000);
+}
+const hhmm=ms=>{const t=new Date(ms);return`${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;};
+// Cultures attractives pour les pollinisateurs (arrêté du 20 novembre 2021) : liste indicative, les céréales et le maïs en sont exclus.
+const BEE_ATTRACTIVE=/colza|tournesol|feverole|pois\b|luzerne|trefle|sarrasin|moutarde|phacelie|\blin\b|soja|navette|verger|pommier|poirier|cerisier|prunier|arbo/;
+// Floraison saisie : mot « floraison », BBCH 6x, colza F1-F2 (floraison) et G1-G3 (chute des pétales, encore butiné).
+const FLOWERING=/floraison|\bbbch ?6\d\b|\bf[12]\b|\bg[123]\b/;
+const nearToday=(date,today)=>{const gap=Math.abs(at(date)-at(today));return Number.isFinite(gap)&&gap<=7*DAY;};
+/** La culture est-elle en floraison au jour du traitement ? Stade saisi, sinon stade estimé (traitement à ± 7 jours de l'estimation). */
+function floweringAt(work,phenology,today){
+  if(FLOWERING.test(normalize(work.stage)))return 'saisi';
+  if(phenology?.status!=='ok')return null;
+  const date=String(work.date||work.plannedDate||'').slice(0,10);
+  if(!nearToday(date,today))return null;
+  const stage=phenology.stage,next=phenology.next;
+  if(stage&&FLOWERING.test(normalize(stage.name))){
+    // Dans les profils, « Floraison » court jusqu'à la maturité : au-delà de 40 % de l'écart, les pétales sont tombés.
+    const sum=Number(phenology.sum),from=Number(stage.gdd),to=Number(next?.gdd);
+    if([sum,from,to].every(Number.isFinite)&&sum>from+0.4*(to-from))return null;
+    return 'estimé';
+  }
+  // Floraison attendue d'ici le traitement.
+  if(next&&FLOWERING.test(normalize(next.name))&&phenology.nextDate&&String(phenology.nextDate).slice(0,10)<=date)return 'estimé';
+  return null;
+}
+
+/**
+ * Contrôles de contexte, tous non bloquants : ZNT d'après la distance réelle aux cours d'eau (évaluation réglementaire
+ * mémorisée), règle abeilles en floraison, DAR comparé à la maturité estimée quand aucune récolte n'est saisie.
+ * zntMin : ZNT minimale des réglages réglementaires (arrêté départemental), 5 m par défaut.
+ */
+function contextWarnings(state,work,{parcel,sheet,limits,water,phenology,today,zntMin}){
+  const out=[],date=String(work.date||work.plannedDate||'').slice(0,10),who=parcel?.nom?`${parcel.nom} : `:'';
+  const znt=limits.zntWater??sheet?.zntWater??(Number(zntMin)>0?Number(zntMin):5),distance=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v):null;
+  const bcae=distance(water?.bcaeM),hydro=distance(water?.hydroM);
+  // Distance arrondie vers le bas : juste sous la ZNT, elle ne doit pas s'afficher égale à la ZNT.
+  const zntMessage=(d,what,suffix='')=>d===0?`${who}${what} dans la parcelle : ZNT de ${fmt(znt)} m de part et d’autre, à ne pas traiter${suffix}.`
+    :`${who}${what} à ${d<1?'moins de 1':fmt(Math.floor(d))} m de la parcelle : ZNT de ${fmt(znt)} m, ne pas traiter la bande de ${fmt(Math.ceil(znt-d))} m en bordure${suffix}.`;
+  if(bcae!==null&&bcae<znt)out.push({code:'znt',message:zntMessage(bcae,'Cours d’eau BCAE')});
+  else if(hydro!==null&&hydro<znt)out.push({code:'znt',message:zntMessage(hydro,'Écoulement d’eau (BD TOPO)',' si c’est un point d’eau de l’arrêté départemental')});
+  // Abeilles : en floraison d'une culture attractive, produit portant la mention abeilles et créneau autour du coucher du soleil.
+  const culture=normalize(work.culture||parcel?.culture),flowering=BEE_ATTRACTIVE.test(culture)?floweringAt(work,phenology,today):null;
+  if(flowering){
+    const how=flowering==='saisi'?'en floraison':'en floraison estimée';
+    if(sheet&&!sheet.mentions?.includes('abeille'))out.push({code:'bees',message:`${who}culture attractive ${how} : seuls les produits portant la mention abeilles sont autorisés, et la fiche n’en indique pas. ${LABEL_REMINDER}`});
+    const c=parcel?.geometry?geometryCentroid(parcel.geometry):null,sunset=c?sunsetAt(date,c.latitude,c.longitude):null;
+    if(sunset!==null){
+      const from=sunset-2*HOUR,to=sunset+3*HOUR,start=clock(work.startTime)?at(date,work.startTime):NaN;
+      // Départ après minuit : encore dans le créneau de la veille (coucher du soleil + 3 h).
+      const before=sunsetAt(dayIso(at(date)-12*HOUR),c.latitude,c.longitude),lateSlot=before!==null&&start<=before+3*HOUR;
+      const slot=`de ${hhmm(from)} à ${hhmm(to)} (2 h avant à 3 h après le coucher du soleil, ${hhmm(sunset)})`;
+      if(!Number.isFinite(start))out.push({code:'bees-time',message:`${who}culture attractive ${how} : traitement autorisé ${slot}.`});
+      else if((start<from||start>to)&&!lateSlot)out.push({code:'bees-time',message:`${who}début à ${clock(work.startTime)} hors créneau abeilles : en floraison, traiter ${slot}.`});
+    }
+  }
+  // DAR : sans récolte saisie après le traitement, comparer à la maturité estimée (traitement proche de l'estimation, délai pas encore écoulé).
+  if(limits.dar!==null&&limits.dar!==undefined&&date&&phenology?.status==='ok'&&nearToday(date,today)){
+    const start=at(date),end=darEnd(start,limits.dar),until=dayIso(end),last=phenology.profile?.stages?.at(-1);
+    const harvested=harvestsFor(state,work.parcelId,{exceptId:work.id}).some(h=>at(h.date)>=start);
+    if(last&&!harvested&&end>at(today)){
+      if(phenology.stage?.name===last.name)out.push({code:'dar-maturity',message:`${who}culture à maturité estimée : pas de récolte avant le ${localDate(until)} (délai avant récolte de ${fmt(limits.dar)} jours).`});
+      else if(phenology.next?.name===last.name&&phenology.nextDate&&at(phenology.nextDate)<end)out.push({code:'dar-maturity',message:`${who}maturité estimée vers le ${localDate(phenology.nextDate)}, avant la fin du délai avant récolte (${localDate(until)}).`});
+    }
+  }
+  // Sans nom de parcelle, le message commence par une minuscule (« culture attractive… ») : majuscule initiale.
+  return out.map(w=>({...w,message:w.message.charAt(0).toUpperCase()+w.message.slice(1)}));
+}
+
+/**
+ * Contexte facultatif : water = évaluation réglementaire mémorisée de la parcelle ({bcaeM, hydroM}),
+ * phenology = estimatePhenology() de la parcelle au jour `today` (ISO), zntMin = ZNT minimale des réglages.
+ */
+export function checkTreatment(state,work,{catalog=null,water=null,phenology=null,today=dayIso(Date.now()),zntMin=null}={}){
   const out={applies:false,blocking:[],warnings:[],sheet:null,limits:null,reentryUntil:null};
   if(!work||!isTreatment(work)||isCancelled(work))return out;
   out.applies=true;
@@ -188,6 +273,7 @@ export function checkTreatment(state,work,{catalog=null}={}){
   if(sheet?.mentions?.includes('cmr'))out.warnings.push({code:'cmr',message:'Produit CMR : équipements de protection et délai de rentrée renforcés. '+LABEL_REMINDER});
   const missing=[];if(!text(work.target))missing.push('cible');if(!clock(work.startTime))missing.push('heure de début');if(!clock(work.endTime))missing.push('heure de fin');
   if(missing.length)out.warnings.push({code:'incomplete',message:`À compléter pour le registre : ${missing.join(', ')}.`});
+  out.warnings.push(...contextWarnings(state,work,{parcel,sheet,limits,water,phenology,today,zntMin}));
   out.reentryUntil=reentryUntil(work,sheet);
   return out;
 }

@@ -1,9 +1,10 @@
 // n° 106 — Photo d'étiquette ou de facture vers le stock : lecture EAN hors ligne, extraction en ligne
 // optionnelle (consentement explicite), tableau de correspondance et validation ligne par ligne.
 // n° W1 : lecture hors ligne du texte copié (Scanner du texte, Google Lens) par doc-text.js, sans réseau.
-import {eanValid, cleanEan, itemByEan, matchLines, entryMovement, rememberSupplierRef, convertLineToItem} from './stock-capture.js';
+import {eanValid, cleanEan, itemByEan, matchLines, entryMovement, rememberSupplierRef, convertLineToItem, validateExtraction} from './stock-capture.js';
 import {parseDocText, docExtractSummary, frMoney} from './doc-text.js';
 import {persistFormDraft, draftKey} from './form-drafts.js';
+import {readElectronicInvoice, invoiceToParsed} from './facturx.js';
 import {extractDocument} from './remote-ai.js';
 import {escapeHtml as e, uid} from './utils.js';
 
@@ -60,17 +61,23 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
   const endpoint = () => {const p = state().preferences || {}; return p.remoteAiEnabled && p.remoteAiEndpoint ? p.remoteAiEndpoint : '';};
   const hasDetector = () => typeof win?.BarcodeDetector === 'function';
   const canPaste = () => typeof win?.navigator?.clipboard?.readText === 'function';
-  let file = null, lines = [], parsed = null, draft = null;
+  let file = null, lines = [], parsed = null, draft = null, documentId = null;
 
   // file : photo déjà reçue (partage depuis une autre application, n° 121).
-  function open({file: received = null} = {}) {
-    file = received; lines = []; parsed = null;
+  // documentId : facture déjà rangée dans Documents (partage) ; la validation complète cette fiche au lieu d'en créer une.
+  function open({file: received = null, documentId: storedId = null} = {}) {
+    file = received; lines = []; parsed = null; documentId = storedId;
     const ep = endpoint();
     let host;
     try {host = ep ? new URL(ep).host : '';} catch {host = ep;}
     modal('Photo d’étiquette ou de facture', 'Rien n’est ajouté au stock avant votre validation, ligne par ligne.',
       `<form id="stock-capture-form" class="form-grid" novalidate>
         ${received ? `<p class="sc-hint span-2">Photo reçue : <strong>${e(received.name)}</strong></p>` : ''}<label class="span-2">${received ? 'Autre photo (facultatif)' : 'Photo (étiquette ou facture)'}<input type="file" name="photo" accept="image/*,application/pdf" capture="environment"></label>
+        <fieldset class="span-2 stock-capture-box"><legend>Hors ligne : facture électronique</legend>
+          <p class="sc-hint">PDF Factur-X ou fichier XML (CII, UBL) envoyé par le fournisseur : les lignes, les montants et la TVA sont lus sur l’appareil, sans envoi.</p>
+          <label>Fichier de la facture<input type="file" name="einvoice" accept=".pdf,.xml,application/pdf,application/xml,text/xml"></label>
+          <p class="sc-hint" id="sc-einvoice-note" hidden></p>
+          <button type="button" class="button secondary" id="sc-einvoice-store" hidden>Ranger seulement la facture</button></fieldset>
         <fieldset class="span-2 stock-capture-box"><legend>Hors ligne : code-barres</legend>
           ${hasDetector() ? '<button type="button" class="button secondary" id="sc-barcode">Lire le code-barres de la photo</button>' : '<p class="sc-hint">La lecture automatique du code-barres n’est pas disponible sur cet appareil (iPhone, iPad) : saisissez les chiffres sous le code-barres.</p>'}
           <label>Code EAN<input name="ean" inputmode="numeric" autocomplete="off" placeholder="13 chiffres"></label>
@@ -89,6 +96,29 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
     const form = doc.getElementById('stock-capture-form');
     const error = msg => {const el = form.querySelector('.form-error'); el.textContent = msg || ''; el.hidden = !msg;};
     form.elements.photo.addEventListener('change', () => {file = form.elements.photo.files?.[0] || received; error('');});
+    // Facture électronique (facturx.js) : lue dès qu'elle est choisie ; reçue par partage, lue à l'ouverture.
+    const einvoiceNote = msg => {const el = doc.getElementById('sc-einvoice-note'); if (el) {el.textContent = msg || ''; el.hidden = !msg;}};
+    async function readEInvoice(candidate) {
+      if (!candidate) return;
+      let invoice = null;
+      try {invoice = await readElectronicInvoice(candidate);} catch (err) {einvoiceNote(`Lecture impossible : ${err?.message || 'fichier illisible'}.`); return;}
+      if (!invoice) {einvoiceNote('Ce PDF ne contient pas de facture électronique (Factur-X). Utilisez le texte copié ou l’extraction en ligne.'); return;}
+      if (candidate !== file) documentId = null; // autre fichier que celui déjà rangé
+      file = candidate; error('');
+      parsed = invoiceToParsed(invoice, validateExtraction);
+      lines = parsed.lignes;
+      einvoiceNote(`${invoice.credit ? 'Avoir' : 'Facture'} électronique ${invoice.format} lu${invoice.credit ? '' : 'e'} : ${lines.length} ligne${lines.length > 1 ? 's' : ''} pour le stock${invoice.lignes.length ? '' : ' (profil sans détail des lignes : en-tête seulement)'}.${documentId ? ' Déjà rangée dans Documents.' : ''}`);
+      const storeBtn = doc.getElementById('sc-einvoice-store');
+      if (storeBtn) storeBtn.hidden = Boolean(documentId);
+      showLines();
+      doc.getElementById('sc-result')?.scrollIntoView?.({block: 'start', behavior: 'smooth'});
+    }
+    form.elements.einvoice?.addEventListener('change', () => readEInvoice(form.elements.einvoice.files?.[0] || null));
+    // Facture de prestation, avoir ou profil sans lignes : rangée dans Documents (avec son récapitulatif) sans entrée de stock.
+    doc.getElementById('sc-einvoice-store')?.addEventListener('click', async () => {
+      if (await storePhoto('Facture')) {doc.getElementById('sc-einvoice-store').hidden = true; einvoiceNote('Facture rangée dans Documents, avec ses montants et sa TVA.'); toast('Facture rangée dans Documents.', 'success');}
+    });
+    if (received && (/pdf|xml/.test(received.type || '') || /\.(pdf|xml)$/i.test(received.name || ''))) readEInvoice(received);
     draft = persistFormDraft(form, draftKey('stock-capture'), {exclude: ['consent', 'ean'], doc});
     // Brouillon repris : le texte est relu puis l'état des lignes (quantité, prix, article, validée) réappliqué.
     form.elements.linesJson.addEventListener('change', () => {
@@ -252,7 +282,13 @@ export function createStockCaptureUI({store, state, modal, closeModal, toast, wi
   // La photo rejoint les Documents une fois au moins une entrée validée.
   async function storePhoto(category, extra = {}) {
     if (!file) return false;
+    // Déjà rangée (partage, ou « Ranger seulement la facture ») : la fiche existante est complétée, pas dupliquée.
+    if (documentId) {
+      await store.upsert('documents', {id: documentId, tags: ['stock'], ...(parsed ? {docExtract: docExtractSummary(parsed)} : {}), ...extra}, {label: `Document complété : ${category}`});
+      return true;
+    }
     const id = uid('doc');
+    documentId = id;
     await store.storage.blobPut(id, file);
     await store.upsert('documents', {id, name: file.name || `${category}.jpg`, mimeType: file.type, size: file.size, category, documentDate: isoToday(), tags: ['stock'], note: 'Ajoutée depuis « Photo d’étiquette ou de facture ».', origin: 'stock-capture', ...(parsed ? {docExtract: docExtractSummary(parsed)} : {}), ...extra}, {label: `Document ajouté : ${category}`});
     return true;

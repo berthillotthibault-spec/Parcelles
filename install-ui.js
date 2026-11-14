@@ -8,7 +8,7 @@ const ADD_ICON = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="t
 
 export function createInstallUI({store, modal, closeModal, toast, isBusy = () => false}) {
   let timer = null, opening = false, workSaved = false;
-  const prefs = () => store.snapshot().preferences || {};
+  const prefs = () => store.view().preferences || {};
   const writable = () => !store.tabReadOnly && !store.schemaLock;
   // « Premier travail saisi » : un travail créé pendant cette session (pas les travaux déjà présents).
   const hasWork = () => workSaved;

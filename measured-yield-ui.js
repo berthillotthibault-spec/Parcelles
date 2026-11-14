@@ -11,7 +11,9 @@ const eur = v => v === null || v === undefined || !Number.isFinite(v) ? '—' : 
 const signed = (v, unit) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${formatYield(Math.abs(v), unit)}`;
 const MAX_PILOTAGE_MAPS = 12;
 
-export function createMeasuredYieldUI({store, state = () => store.snapshot(), map, modal, closeModal, toast, showMap, canWrite = () => true, onApplied = null}) {
+export {yieldForecast} from './yield-forecast.js'; // lu par app.js (rendement probable) une fois ce module chargé
+// forecastFor(parcel) : rendement probable de la campagne (yield-forecast.js), calculé par app.js qui connaît NDVI, eau et stade.
+export function createMeasuredYieldUI({store, state = () => store.snapshot(), map, modal, closeModal, toast, showMap, canWrite = () => true, onApplied = null, forecastFor = () => null}) {
   const repo = new YieldRepository(store), cache = new Map(), pending = new Map();
   let parcelCtx = null, pilotageCtx = null, ticket = 0;
   const data = () => state();
@@ -60,7 +62,9 @@ export function createMeasuredYieldUI({store, state = () => store.snapshot(), ma
     const hasMaps = liveMaps(parcel.id).length > 0;
     const body = campaigns.map((campaign, i) => campaignHtml(measuredYieldProposal(data(), parcel, {campaign, maps: ok}), {errors: i === 0 ? errors : []})).join('');
     const intra = hasMaps ? `<div class="satellite-actions"><button type="button" class="button secondary" data-my="profit-zones" data-id="${e(parcel.id)}">Rentabilité intra-parcellaire sur la carte</button></div>` : '';
-    return `<div class="panel-heading"><h2>Rendement mesuré</h2></div><p class="form-note">Rendement réel calculé à partir des lots de récolte (quantité / surface) ou de la carte de rendement (moyenne nettoyée). Rien n’est enregistré sans votre confirmation.</p>${body || (loading ? '' : `<div class="empty-state">Aucune mesure : enregistrez un lot de récolte (Plus › Lots de récolte) ou importez une carte dans l’onglet Rendement.</div>`)}${loading ? '<p class="form-note" role="status">Lecture des cartes de rendement…</p>' : ''}${!body && errors.length ? errors.map(x => `<p class="form-note">Carte « ${e(x.name)} » : ${e(x.error)}</p>`).join('') : ''}${intra}`;
+    let forecast = null; try {forecast = forecastFor(parcel);} catch {forecast = null;}
+    const probable = forecast?.status === 'estime' ? `<div class="yield-forecast"><p><strong>${e(forecast.text)}</strong></p>${forecast.factors.map(f => `<p class="form-note">${e(f.label)} : ${e(f.why)}</p>`).join('')}<p class="form-note">Ordre de grandeur indicatif, recalculé avec le satellite et la réserve en eau ; la récolte mesurée le remplace.</p></div>` : '';
+    return `${probable}<div class="panel-heading"><h2>Rendement mesuré</h2></div><p class="form-note">Rendement réel calculé à partir des lots de récolte (quantité / surface) ou de la carte de rendement (moyenne nettoyée). Rien n’est enregistré sans votre confirmation.</p>${body || (loading ? '' : `<div class="empty-state">Aucune mesure : enregistrez un lot de récolte (Plus › Lots de récolte) ou importez une carte dans l’onglet Rendement.</div>`)}${loading ? '<p class="form-note" role="status">Lecture des cartes de rendement…</p>' : ''}${!body && errors.length ? errors.map(x => `<p class="form-note">Carte « ${e(x.name)} » : ${e(x.error)}</p>`).join('') : ''}${intra}`;
   }
   function parcelHtml(parcel) {
     if (!parcel) return '';

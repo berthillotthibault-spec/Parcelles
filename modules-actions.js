@@ -3,6 +3,7 @@
 // changement de comportement). Enregistrées par app.js dans actions.js.
 import {ctx} from './app-context.js';
 import {automationRuleLabel, automationTemplates, newAutomationFromTemplate} from './automations.js';
+import {templateToWork} from './templates.js';
 import {BUILD_ID, campaignFor, escapeHtml} from './utils.js';
 
 // Liste des modules de « Plus » : tous les outils, ou seulement ceux de l'activité.
@@ -37,6 +38,11 @@ export const modulesActions = {
   'open-pac'() { ctx.closeModal(); ctx.pacUI?.open(); },
   'open-telepac-import'() { ctx.closeModal(); ctx.telepac().open(); },
   'open-parcel-check'() { ctx.closeModal(); ctx.parcelCheck().open(); },
+  'open-templates'() { ctx.templates().open(); },
+  'open-itinerary'() { ctx.itinerary().open(); },
+  'use-template'({id}) { const t = ctx.store.get('templates', id); if (!t) return; ctx.closeModal(); ctx.openWorkForm(templateToWork(t, ctx.todayIso())); },
+  'rename-template'({id}) { ctx.templates().rename(id); },
+  async 'delete-template'({id}) { await ctx.templates().remove(id); },
   'open-regulatory-rules'() { ctx.closeModal(); ctx.regulatory().openRules(); },
   'open-regulated-ops'() { ctx.closeModal(); ctx.regulatedOps().open(); },
   'open-green-indicators'() { ctx.closeModal(); ctx.greenIndicators().open(); },

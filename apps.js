@@ -13,7 +13,7 @@
 export const APPS = [
   {id: 'champs', title: 'Champs', icon: 'parcels', color: '#3f6b2a', desc: 'Accueil, carte, parcelles et travaux', home: 'today',
     tabs: [], tools: ['open-rotations', 'open-seeds', 'open-soil-analyses', 'open-hedges', 'open-observations', 'open-chantiers',
-      'open-calendar', 'open-day-route', 'open-weather', 'open-field-mode', 'open-team-work', 'open-messages', 'open-farm',
+      'open-calendar', 'open-templates', 'open-itinerary', 'open-day-route', 'open-weather', 'open-field-mode', 'open-team-work', 'open-messages', 'open-farm',
       'open-assistant', 'open-automations']},
   {id: 'troupeau', title: 'Troupeau', icon: 'herd', color: '#8a5a2b', desc: 'Lots, pâturage, santé et fourrage', home: 'herd',
     tabs: [{label: 'Troupeau', icon: 'herd', view: 'herd'}, {label: 'Pâturage', icon: 'fence', action: 'open-grazing'},

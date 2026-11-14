@@ -462,5 +462,8 @@ function readGasoil(lines, warnings) {
 // Métadonnée facultative rangée avec la photo (documents[].docExtract), sans changement de schéma.
 export function docExtractSummary(parsed) {
   const h = parsed?.header || {};
-  return {kind: parsed?.kind || 'inconnu', numero: h.numero || '', date: h.date || '', totalHT: h.totalHT ?? null, totalTTC: h.totalTTC ?? null, tva: Array.isArray(h.tva) ? h.tva.map(t => ({taux: t.taux, base: t.base ?? null, montant: t.montant ?? null})) : []};
+  // Échéance et fournisseur seulement s'il y a une échéance : la trésorerie (treasury.js) en tire la facture à payer.
+  return {kind: parsed?.kind || 'inconnu', numero: h.numero || '', date: h.date || '', totalHT: h.totalHT ?? null, totalTTC: h.totalTTC ?? null, tva: Array.isArray(h.tva) ? h.tva.map(t => ({taux: t.taux, base: t.base ?? null, montant: t.montant ?? null})) : [],
+    ...(/^\d{4}-\d{2}-\d{2}$/.test(h.echeance || '') ? {echeance: h.echeance, fournisseur: h.fournisseur || '', ...(h.aPayer !== null && h.aPayer !== undefined ? {aPayer: h.aPayer} : {})} : {}),
+    ...(h.devise && h.devise !== 'EUR' ? {devise: h.devise} : {})};
 }

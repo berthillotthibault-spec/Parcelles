@@ -32,7 +32,8 @@ export function buildAliases(state={}){
   const add=(kind,name)=>{const label=String(name||'').trim(),key=normalize(label);if(label.length<3||seen.has(key))return;seen.add(key);counts[kind]=(counts[kind]||0)+1;map.set(`${ALIAS_KINDS[kind]} #${counts[kind]}`,label);};
   if(state.exploitation?.nom)add('farm',state.exploitation.nom);
   for(const p of live('parcelles'))add('parcel',p.nom);
-  for(const c of live('clients'))add('client',c.name||c.nom||c.company);
+  // Clients supprimés compris : une facture ou une décision peut encore porter leur nom.
+  for(const c of (state.clients||[]).filter(Boolean).sort(byCreation))add('client',c.name||c.nom||c.company);
   const contacts=live('integrationImports').filter(x=>['contact','client'].includes(x.farmKind));
   for(const c of contacts)add(c.farmKind==='client'?'client':'person',c.name||c.nom);
   const people=[...live('members').map(m=>m.displayName||m.name),state.preferences?.defaultOperator,...live('interventions').map(w=>w.operator),...live('tasks').map(t=>t.assignee||t.assignedTo)];
@@ -112,6 +113,8 @@ export function buildAssistantContext(state,context={}){
     parcels,works,tasks,equipment,observations,stocks,chantiers,conversation,
     grazing,harvests,publicWorks,lowStocks,weather,
     farmSignals:/satellite|ndvi|anomal|visiter|aller voir|surveiller/.test(q)?(context.farmSignals||[]).slice(0,12):[],
+    // Résumé local toujours joint, quelle que soit la question (assistant-summary.js, borné à 2,5 Ko).
+    summary:context.summary&&typeof context.summary==='object'?context.summary:null,
     policy:{localFirst:true,writeActionsRequireConfirmation:true,noAgronomicRecommendationWithoutExplicitSource:true}
   };
 }

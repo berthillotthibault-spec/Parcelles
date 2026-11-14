@@ -5,7 +5,7 @@ import {emptyState} from './state.js';
 import {
   checkTreatment,isTreatment,phytoSheet,hasPhytoData,usageFor,limitsFor,previousApplications,reentryUntil,reentryLabel,
   activeReentries,grazingReentryConflict,registerRows,registerCsv,registerHtml,registerCampaigns,phytoComplianceCheck,
-  limitsSnapshot,withdrawalLabel,at,darEnd,darConflicts,DRE_DEFAULT_HOURS,PHYTO_DISCLAIMER
+  limitsSnapshot,withdrawalLabel,at,darEnd,darConflicts,sunsetAt,DRE_DEFAULT_HOURS,PHYTO_DISCLAIMER
 } from './phyto.js';
 import {complianceChecks} from './compliance.js';
 
@@ -159,5 +159,95 @@ test('darEnd : jours civils aux changements d’heure (fuseau Europe/Paris), dar
     const harvest=date=>farm({interventions:[{id:'h1',parcelId:'p1',type:'Moisson',plannedDate:date,date,status:'À faire'}]});
     assert.ok(!checkTreatment(harvest('2026-04-05'),spring).blocking.some(b=>b.code==='dar'));
     assert.ok(checkTreatment(harvest('2026-04-04'),spring).blocking.some(b=>b.code==='dar'));
+  }finally{if(tz===undefined)delete process.env.TZ;else process.env.TZ=tz;}
+});
+
+test('contexte : coucher du soleil (NOAA) à Paris', ()=>{
+  const s=sunsetAt('2026-04-10',48.8566,2.3522),utcMin=new Date(s).getUTCHours()*60+new Date(s).getUTCMinutes();
+  assert.ok(utcMin>=18*60+25&&utcMin<=18*60+45,`coucher ${new Date(s).toISOString()}`);
+  assert.equal(sunsetAt('2026-06-21',80,0),null); // jour polaire
+  assert.equal(sunsetAt('',48,2),null);
+});
+
+test('contexte : ZNT d’après la distance réelle aux cours d’eau', ()=>{
+  const near=checkTreatment(farm(),work(),{water:{bcaeM:3,hydroM:null}}).warnings.find(w=>w.code==='znt');
+  assert.match(near.message,/BCAE à 3 m .*ZNT de 5 m.*bande de 2 m/);
+  assert.ok(!checkTreatment(farm(),work(),{water:{bcaeM:12}}).warnings.some(w=>w.code==='znt'));
+  const inside=checkTreatment(farm(),work(),{water:{bcaeM:null,hydroM:0}}).warnings.find(w=>w.code==='znt');
+  assert.match(inside.message,/dans la parcelle.*arrêté départemental/);
+  // Sans fiche : 5 m minimum réglementaire.
+  assert.match(checkTreatment(farm(),work({product:'Inconnu',amm:''}),{water:{bcaeM:4}}).warnings.find(w=>w.code==='znt').message,/ZNT de 5 m/);
+  assert.ok(!checkTreatment(farm(),work()).warnings.some(w=>w.code==='znt'),'sans évaluation, aucune alerte');
+});
+
+test('contexte : abeilles en floraison d’une culture attractive', ()=>{
+  const tz=process.env.TZ;process.env.TZ='Europe/Paris';
+  try{
+    const sq={type:'Polygon',coordinates:[[[2.35,48.85],[2.36,48.85],[2.36,48.86],[2.35,48.86],[2.35,48.85]]]};
+    const s=farm();s.parcelles.push({id:'p3',nom:'Le Colza',culture:'Colza',surfaceHa:8,geometry:sq});
+    const colza=o=>work({parcelId:'p3',culture:'Colza',stage:'Floraison',...o});
+    const morning=checkTreatment(s,colza({startTime:'08:00'}));
+    assert.match(morning.warnings.find(w=>w.code==='bees-time').message,/hors créneau abeilles.*de 18:\d\d à 23:\d\d/);
+    assert.ok(!morning.warnings.some(w=>w.code==='bees'),'la fiche porte la mention abeilles');
+    assert.ok(!checkTreatment(s,colza({startTime:'20:00',endTime:'21:00'})).warnings.some(w=>w.code.startsWith('bees')));
+    s.stockItems[0].phyto.mentions=[];
+    assert.ok(checkTreatment(s,colza({startTime:'20:00'})).warnings.some(w=>w.code==='bees'));
+    // Blé en floraison : culture non attractive, aucune règle abeilles.
+    assert.ok(!checkTreatment(s,work({stage:'Floraison'})).warnings.some(w=>w.code.startsWith('bees')));
+    // Floraison estimée : seulement à ± 7 jours du jour de l'estimation.
+    const pheno={status:'ok',stage:{name:'Floraison'},profile:{stages:[{name:'Floraison'},{name:'Maturité'}]},next:{name:'Maturité'},nextDate:null};
+    assert.ok(checkTreatment(s,colza({stage:'',startTime:'08:00'}),{phenology:pheno,today:'2026-04-08'}).warnings.some(w=>w.code==='bees-time'));
+    assert.ok(!checkTreatment(s,colza({stage:'',startTime:'08:00'}),{phenology:pheno,today:'2026-03-01'}).warnings.some(w=>w.code.startsWith('bees')));
+  }finally{if(tz===undefined)delete process.env.TZ;else process.env.TZ=tz;}
+});
+
+test('contexte : délai avant récolte comparé à la maturité estimée', ()=>{
+  const stages=[{name:'Floraison'},{name:'Maturité physiologique'}];
+  const ripe={status:'ok',stage:{name:'Maturité physiologique'},profile:{stages},next:null,nextDate:null};
+  assert.match(checkTreatment(farm(),work(),{phenology:ripe,today:'2026-04-10'}).warnings.find(w=>w.code==='dar-maturity').message,/maturité estimée : pas de récolte avant le/);
+  const soon={status:'ok',stage:{name:'Floraison'},profile:{stages},next:{name:'Maturité physiologique'},nextDate:'2026-04-30'};
+  assert.ok(checkTreatment(farm(),work(),{phenology:soon,today:'2026-04-10'}).warnings.some(w=>w.code==='dar-maturity'));
+  assert.ok(!checkTreatment(farm(),work(),{phenology:{...soon,nextDate:'2026-07-30'},today:'2026-04-10'}).warnings.some(w=>w.code==='dar-maturity'));
+  // Une récolte saisie prime : le contrôle bloquant habituel s'applique, pas l'estimation.
+  const withHarvest=farm({interventions:[{id:'h1',parcelId:'p1',type:'Moisson',plannedDate:'2026-08-01',date:'2026-08-01',status:'À faire'}]});
+  assert.ok(!checkTreatment(withHarvest,work(),{phenology:ripe,today:'2026-04-10'}).warnings.some(w=>w.code==='dar-maturity'));
+});
+
+test('contexte (relecture) : récoltes anciennes, traitement ancien, ZNT réglée, arrondis', ()=>{
+  const ripe={status:'ok',stage:{name:'Maturité'},profile:{stages:[{name:'Floraison'},{name:'Maturité'}]},next:null,nextDate:null};
+  // Une récolte de la campagne précédente ne coupe pas le contrôle.
+  const old=farm({interventions:[{id:'h0',parcelId:'p1',type:'Moisson',date:'2025-07-15',status:'Terminé'}]});
+  assert.ok(checkTreatment(old,work(),{phenology:ripe,today:'2026-04-10'}).warnings.some(w=>w.code==='dar-maturity'));
+  // Traitement ancien rouvert : la maturité d'aujourd'hui ne le concerne pas.
+  assert.ok(!checkTreatment(farm(),work(),{phenology:ripe,today:'2026-07-20'}).warnings.some(w=>w.code==='dar-maturity'));
+  // ZNT minimale réglée (arrêté départemental) quand la fiche ne précise rien.
+  const none=work({product:'Inconnu',amm:''});
+  assert.match(checkTreatment(farm(),none,{water:{bcaeM:7},zntMin:10}).warnings.find(w=>w.code==='znt').message,/ZNT de 10 m.*bande de 3 m/);
+  assert.ok(!checkTreatment(farm(),none,{water:{bcaeM:7}}).warnings.some(w=>w.code==='znt'));
+  // Juste sous la ZNT : distance arrondie vers le bas, nom de la parcelle en tête.
+  assert.match(checkTreatment(farm(),work(),{water:{bcaeM:4.6}}).warnings.find(w=>w.code==='znt').message,/^Les Noues : Cours d’eau BCAE à 4 m .*bande de 1 m/);
+});
+
+test('contexte (relecture) : floraison F2, floraison attendue, fin de floraison, départ après minuit', ()=>{
+  const tz=process.env.TZ;process.env.TZ='Europe/Paris';
+  try{
+    const sq={type:'Polygon',coordinates:[[[2.35,48.85],[2.36,48.85],[2.36,48.86],[2.35,48.86],[2.35,48.85]]]};
+    const s=farm();s.parcelles.push({id:'p3',nom:'Le Colza',culture:'Colza',surfaceHa:8,geometry:sq});
+    const colza=o=>work({parcelId:'p3',culture:'Colza',stage:'',startTime:'08:00',...o});
+    const bees=r=>r.warnings.some(w=>w.code.startsWith('bees'));
+    assert.ok(bees(checkTreatment(s,colza({stage:'F2'}))));
+    assert.ok(bees(checkTreatment(s,colza({stage:'G1'}))));
+    const stages=[{name:'Rosette',gdd:700},{name:'Floraison',gdd:1250},{name:'Maturité',gdd:2300}];
+    // Floraison attendue le 9 avril, traitement le 12.
+    const rosette={status:'ok',stage:stages[0],next:stages[1],nextDate:'2026-04-09',sum:1200,profile:{stages}};
+    assert.ok(bees(checkTreatment(s,colza({date:'2026-04-12'}),{phenology:rosette,today:'2026-04-06'})));
+    assert.ok(!bees(checkTreatment(s,colza({date:'2026-04-08'}),{phenology:rosette,today:'2026-04-06'})));
+    // Fin de floraison : au-delà de 40 % de l'écart Floraison → Maturité.
+    const late={status:'ok',stage:stages[1],next:stages[2],sum:1900,profile:{stages}};
+    assert.ok(!bees(checkTreatment(s,colza(),{phenology:late,today:'2026-04-10'})));
+    assert.ok(bees(checkTreatment(s,colza(),{phenology:{...late,sum:1400},today:'2026-04-10'})));
+    // 00:30 le 22 juin : encore dans le créneau ouvert par le coucher du soleil du 21.
+    assert.ok(!checkTreatment(s,colza({stage:'Floraison',date:'2026-06-22',startTime:'00:30'})).warnings.some(w=>w.code==='bees-time'));
+    assert.ok(checkTreatment(s,colza({stage:'Floraison',date:'2026-06-22',startTime:'02:30'})).warnings.some(w=>w.code==='bees-time'));
   }finally{if(tz===undefined)delete process.env.TZ;else process.env.TZ=tz;}
 });

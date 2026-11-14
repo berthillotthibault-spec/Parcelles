@@ -4,6 +4,7 @@ import {AGRO_SOURCE} from './agro-weather.js';
 import {escapeHtml as e, formatNumber, localDate} from './utils.js';
 import {validateForm} from './form-chips-ui.js';
 import {skeletonHtml} from './skeletons.js';
+import {emergenceCheck, ndviSeriesFor, onNdviSeries} from './ndvi-phenology.js';
 
 const short = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '');
 const pad = n => String(n).padStart(2, '0');
@@ -45,9 +46,23 @@ export function createPhenologyUI({store, state, modal, closeModal, toast, bindC
     return wrap(`<p class="pheno-sentence">Depuis le semis (${short(r.sowingDate)}) : <strong>${formatNumber(r.sum)} °C·j</strong> base ${r.base}. Stade estimé : <strong>${e(r.stage?.name || 'avant levée')}</strong>.</p>
       ${bar(r)}${next}
       ${r.recalibrated ? `<p class="pheno-note">Recalé sur le stade observé « ${e(r.recalibrated.stage)} » le ${short(r.recalibrated.date)}.</p>` : ''}
+      ${satelliteHtml(parcel, r, write)}
       ${r.missing ? `<p class="pheno-note">${r.missing} jour${r.missing > 1 ? 's' : ''} sans température : la somme est sous-estimée.</p>` : ''}
       <p class="pheno-source"><small>Estimation indicative · ${e(r.profile.label)}${r.profile.custom ? ' (seuils personnalisés)' : ''} · ${e(PHENOLOGY_SOURCE)} · météo ${e(AGRO_SOURCE)}${agro?.get()?.loadedAt ? `, ${e(localDate(new Date(agro.get().loadedAt).toISOString()).replace(/ /g, ' '))}` : ''}.</small></p>
       ${write ? `<div class="pheno-actions"><button type="button" class="button secondary" data-action="pheno-observed" data-id="${e(parcel.id)}">Stade observé</button><button type="button" class="button secondary" data-action="pheno-settings" data-id="${e(parcel.id)}">Régler les seuils</button></div>` : ''}`);
+  }
+
+  // Levée contrôlée par satellite (ndvi-phenology.js) : confirmée, tardive ou non visible. Jamais de recalage d'office :
+  // en cas de doute, « Stade observé » (formulaire validé) après vérification sur place.
+  function satelliteHtml(parcel, r, write) {
+    let c = null;
+    try {c = emergenceCheck(parcel, r, {series: ndviSeriesFor(parcel.id), days: agro?.get()?.days || [], today: today()});} catch {c = null;}
+    if (!c) return '';
+    const images = c.seen ? ` (NDVI ${formatNumber(c.seen.low.ndvi)} le ${short(c.seen.low.date)}, ${formatNumber(c.seen.high.ndvi)} le ${short(c.seen.high.date)})` : '';
+    if (c.kind === 'confirmed') return `<p class="pheno-note">Satellite : végétation visible vers le ${short(c.greenDate)}${e(images)}, cohérent avec la levée calculée (${short(c.computedDate)}).</p>`;
+    const check = write ? ` <button type="button" class="text-button" data-action="pheno-observed" data-id="${e(parcel.id)}">Saisir le stade observé</button>` : '';
+    if (c.kind === 'late') return `<p class="pheno-note">Satellite : végétation visible seulement vers le ${short(c.greenDate)}${e(images)}, ${c.gapDays} jours après la levée calculée (${short(c.computedDate)}). Levée plus tardive ? Vérifiez sur place.${check}</p>`;
+    return `<p class="pheno-note">Satellite : sol encore nu sur les images du ${c.images.map(x => short(x.date)).join(' et du ')}, alors que la levée était attendue vers le ${short(c.computedDate)}. Levée ratée ou tardive ? Vérifiez sur place.${check}</p>`;
   }
 
   function refreshDom() {
@@ -126,5 +141,7 @@ export function createPhenologyUI({store, state, modal, closeModal, toast, bindC
     return (data.parcelles || []).filter(p => !p.deletedAt && !p.archived && filter(p)).map(p => ({parcel: p, r: estimate(p, data)})).filter(x => x.r.status !== 'unsupported');
   }
 
+  // Images satellite arrivées après l'affichage de la fiche : la carte se met à jour.
+  onNdviSeries(() => refreshDom());
   return {parcelHtml, refreshDom, openObserved, openSettings, estimate, summaries, defaults: PHENO_PROFILES};
 }

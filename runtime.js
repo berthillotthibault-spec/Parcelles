@@ -3,7 +3,7 @@ import {WRITER_LOCK} from './tab-coordinator.js';
 
 const REQUIRED_ASSETS = [
  /* n° 161 */'./apps.js','./apps-ui.js',
- /* n° 160 */'./nav-model.js','./profile-menu.js','./profile-menu-ui.js','./quick-work.js','./quick-work-ui.js','./quick-grazing.js','./quick-grazing-ui.js','./home-view.js','./herd-home.js','./herd-home-ui.js','./sheet-swipe.js',
+ /* n° 160 */'./selectors.js','./assistant-summary.js','./ndvi-peers.js','./soil-water.js','./templates.js','./templates-ui.js','./nav-model.js','./profile-menu.js','./profile-menu-ui.js','./quick-work.js','./quick-work-ui.js','./quick-grazing.js','./quick-grazing-ui.js','./home-view.js','./herd-home.js','./herd-home-ui.js','./sheet-swipe.js',
  /* n° 147 */'./app-context.js','./actions.js','./work-actions.js','./parcel-actions.js','./today-actions.js','./map-actions.js','./field-actions.js','./farm-actions.js','./modules-actions.js','./data-actions.js','./work-form-ui.js','./account-ui.js','./diagnostic-ui.js',
  /* n° 20 */'./public-works-day.js','./public-works-day-ui.js',
  /* v7c */'./habits.js','./habits-ui.js','./agro-weather.js','./phenology.js','./phenology-ui.js','./agro-assistant.js','./agro-risk.js','./agro-risk-ui.js','./sowing.js','./sowing-ui.js','./rotation-advice.js','./rotation-advice-ui.js','./stock-capture.js','./stock-capture-ui.js','./share-target.js','./share-target-ui.js',
@@ -28,6 +28,8 @@ const REQUIRED_ASSETS = [
   ,'./billing-docs-ui.js','./billing-docs-view.js','./company-lookup.js','./billing-docs-editor.js','./billing-docs-actions.js','./billing-docs.css' // v13 : documents de facturation (chantier A)
  ,'./auto-update.js','./reference-status-ui.js','./rpg-culture-labels.js','./phyto-catalog-auto.js','./zv-detect.js','./reference-age.js','./fuel-price-ref.js','./doc-text.js','./conseils.js','./input-needs.js','./decision-feed.js','./decision-feedback.js','./grass-growth.js','./entry-guard.js','./margin-gap.js','./herd-watch.js','./cost-drift.js','./grazing-rotation.js','./smart-defaults.js','./gesture-rules.js','./weather-race.js','./gps-rates.js','./disease-window.js','./ndvi-peers.js','./billing-actions.js' // mises à jour automatiques et conseils (A0-A9, I1-I7)
  ,'./billing-hub.js','./billing-hub-ui.js','./billing-hub-catalog-ui.js','./billing-hub-settings-ui.js','./billing-hub.css','./lazy-styles.js' // v13 : centre Facturation, feuilles des écrans différés
+  ,/* release */'./payment-habits.js','./vat-advisor.js','./price-anomaly.js','./zv-calendar.js','./learning.js','./agro-knowledge.js','./morning-brief.js','./billing-assistant.js','./vat-balance.js','./assistant-followup.js'
+  ,/* release */'./ndvi-phenology.js','./placement-rules.js','./facturx.js','./itinerary-ui.js','./campaign-itinerary.js','./yield-forecast.js'
 ];
 
 function sameOriginUrl(path){return new URL(path, location.href).href;}

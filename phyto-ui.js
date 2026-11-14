@@ -15,11 +15,11 @@ function parseUsages(text){
   return String(text||'').split(/\r?\n/).map(line=>line.split(';').map(x=>x.trim())).filter(c=>c[0]||c[1]).map(([culture='',target='',maxDose='',doseUnit='',maxApplications='',dar=''])=>({culture,target,maxDose:toNullableNumber(maxDose),doseUnit,maxApplications:toNullableNumber(maxApplications),dar:toNullableNumber(dar)}));
 }
 
-export function createPhytoUI({store,modal,closeModal,toast,openPrintableReport,getWeather=()=>null,catalogLookup=()=>null,catalogNotice=()=>'',weatherWindow=null}){
+export function createPhytoUI({store,modal,closeModal,toast,openPrintableReport,getWeather=()=>null,catalogLookup=()=>null,catalogNotice=()=>'',weatherWindow=null,treatmentContext=()=>({})}){
   weatherWindow||=work=>workWindow(getWeather(),work);
-  return createPhytoUIInner({store,modal,closeModal,toast,openPrintableReport,getWeather,catalogLookup,catalogNotice,weatherWindow});
+  return createPhytoUIInner({store,modal,closeModal,toast,openPrintableReport,getWeather,catalogLookup,catalogNotice,weatherWindow,treatmentContext});
 }
-function createPhytoUIInner({store,modal,closeModal,toast,openPrintableReport,getWeather,catalogLookup,catalogNotice,weatherWindow}){
+function createPhytoUIInner({store,modal,closeModal,toast,openPrintableReport,getWeather,catalogLookup,catalogNotice,weatherWindow,treatmentContext}){
   const $=selector=>document.querySelector(selector);
   const catalog=()=>catalogLookup;
 
@@ -108,7 +108,7 @@ function createPhytoUIInner({store,modal,closeModal,toast,openPrintableReport,ge
     const refresh=()=>{
       const work=workFromForm(form,item),treatment=isTreatment(work);
       if(treatment&&autoWeather&&el.weatherSnapshot&&!el.weatherSnapshot.checked&&getWeather())el.weatherSnapshot.checked=true;
-      const result=checkTreatment(store.state,work,{catalog:catalog()});
+      const result=checkTreatment(store.state,work,{catalog:catalog(),...treatmentContext(work)});
       panel.classList.toggle('hidden',!result.applies);
       panel.classList.toggle('is-blocking',result.blocking.length>0);
       panel.innerHTML=panelHtml(result,work);

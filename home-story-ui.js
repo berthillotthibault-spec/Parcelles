@@ -295,5 +295,6 @@ export function createHomeStoryUI({store, modal, closeModal, toast, refreshWeath
   // Quitter l’écran coupe la lecture.
   globalThis.addEventListener?.('pagehide', () => {if (canSpeak()) globalThis.speechSynthesis.cancel();});
 
-  return {header, renderBrief, weatherEmpty};
+  // Décisions du dernier rendu de l'accueil, reprises dans le résumé envoyé à l'assistant distant.
+  return {header, renderBrief, weatherEmpty, decisions: () => [...shownDecisions.values()]};
 }

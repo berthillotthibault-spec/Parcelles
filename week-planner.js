@@ -10,6 +10,7 @@ import {weatherRuleFor} from './home-story.js';
 import {isPending} from './home-priorities.js';
 import {geometryCentroid, haversineMeters} from './utils.js';
 import {assessParcel} from './soil-water.js';
+import {placementConstraints} from './placement-rules.js';
 
 const DAY_MS = 864e5;
 const active = (state, key) => (state?.[key] || []).filter(x => x && !x.deletedAt);
@@ -116,7 +117,8 @@ const centerOf = p => (p?.geometry ? geometryCentroid(p.geometry) : null);
 // catchUp : les travaux en retard sont replacés eux aussi (d'abord, du plus ancien au plus récent).
 // soil : cache du bilan hydrique (soil-water.js) ; une parcelle « à éviter » est refusée aujourd'hui et demain,
 // « limite » est pénalisée ces deux jours. Au-delà, le sol peut se ressuyer : pas de conclusion.
-export function proposeWeek(state, start, {weather = null, now = Date.now(), capacity = DAY_CAPACITY, catchUp = true, soil = null, stations = []} = {}) {
+// catalog, zvAuto : fiches phyto du catalogue et zone vulnérable détectée, pour les interdits (placement-rules.js).
+export function proposeWeek(state, start, {weather = null, now = Date.now(), capacity = DAY_CAPACITY, catchUp = true, soil = null, stations = [], catalog = null, zvAuto = null} = {}) {
   const week = buildWeek(state, start, {weather, now});
   const today = isoDay(new Date(now));
   const parcels = new Map(active(state, 'parcelles').map(p => [p.id, p]));
@@ -137,6 +139,8 @@ export function proposeWeek(state, start, {weather = null, now = Date.now(), cap
   const ruleWeather = new Map();
   const weatherFor = (rule, day) => { const k = `${rule}|${day.date}`; if (!ruleWeather.has(k)) ruleWeather.set(k, dayWeather(weather, day.date, {rule, now})); return ruleWeather.get(k); };
   const placed = [], unplaced = [];
+  // Travaux déjà placés par cette proposition : un traitement et une récolte proposés ensemble se voient (placement-rules.js).
+  const planned = new Map();
   for (const work of candidates) {
     const parcel = parcels.get(work.parcelId), center = centerOf(parcel), rule = weatherRuleFor(work.type);
     const estimate = workDuration(work, state), hours = estimate.hours;
@@ -146,6 +150,11 @@ export function proposeWeek(state, start, {weather = null, now = Date.now(), cap
       if (day.past) continue;
       const reasons = [];
       let score = i * 2;
+      // Interdits réglementaires : zone vulnérable, délai avant récolte, AMM retirée, délai de rentrée, animaux au pré.
+      const rules = placementConstraints(state, work, day.date, {catalog, zvAuto, planned});
+      const ban = rules.find(r => r.level === 'refuse');
+      if (ban) { refused.push(`${day.name} : ${ban.message}`); continue; }
+      for (const r of rules) { reasons.push(r.message); score += 10; }
       // Portance de la parcelle aujourd'hui et demain (bilan hydrique récent).
       const ground = soon.has(day.date) ? portanceOf(parcel) : null;
       if (ground?.level === 'avoid') { refused.push(`${day.name} : sol trop humide sur ${parcel?.nom || 'la parcelle'} (${ground.reasons.join(', ')})`); continue; }
@@ -190,17 +199,18 @@ export function proposeWeek(state, start, {weather = null, now = Date.now(), cap
     day.present.push({work, proposed: true});
     if (work.equipmentId && !day.booked.has(work.equipmentId)) day.booked.set(work.equipmentId, {kind: 'work', type: work.type, label: `${work.type} · ${parcel?.nom || 'parcelle'}`, parcelId: work.parcelId});
     placed.push({work, date: day.date, hours, reasons: best.reasons, overdue: isOverdue(work, today)});
+    planned.set(work.id, {work, date: day.date});
   }
   // Un retard replacé quitte son ancien jour de la semaine : ses heures n'y comptent plus.
   for (const p of placed) if (p.overdue) {
     const old = week.find(d => d.date === String(p.work.plannedDate).slice(0, 10));
     if (old) {old.hours = Math.max(0, old.hours - (p.hours || 0)); old.works = old.works.filter(w => w.id !== p.work.id);}
   }
-  return {week, placed, unplaced, soil, stations, disclaimer: WEEK_DISCLAIMER};
+  return {week, placed, unplaced, soil, stations, catalog, zvAuto, disclaimer: WEEK_DISCLAIMER};
 }
 
 // Vérifie une carte déplacée à la main : avertissements non bloquants.
-export function checkPlacement(state, plan, workId, date, {weather = null, now = Date.now(), soil = plan?.soil || null, stations = plan?.stations || []} = {}) {
+export function checkPlacement(state, plan, workId, date, {weather = null, now = Date.now(), soil = plan?.soil || null, stations = plan?.stations || [], catalog = plan?.catalog || null, zvAuto = plan?.zvAuto || null} = {}) {
   const item = plan.placed.find(p => p.work.id === workId);
   if (!item) return [];
   const warnings = [], machine = active(state, 'materiels').find(m => m.id === item.work.equipmentId);
@@ -220,6 +230,8 @@ export function checkPlacement(state, plan, workId, date, {weather = null, now =
     if (ground?.level === 'avoid') warnings.push('sol trop humide');
     else if (ground?.level === 'limit') warnings.push('portance limite');
   }
+  const planned = new Map(plan.placed.filter(p => p !== item && p.date).map(p => [p.work.id, {work: p.work, date: p.date}]));
+  for (const r of placementConstraints(state, item.work, date, {catalog, zvAuto, planned})) warnings.push(r.message);
   return warnings;
 }
 

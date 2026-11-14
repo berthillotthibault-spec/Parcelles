@@ -78,6 +78,24 @@ export function createShareTargetUI({store, modal, closeModal, toast, bindChipCh
     // n° 19 : photo terrain partagée (galerie, WhatsApp) : position EXIF → parcelle via photo-geo.
     if (kind === 'photo' && photoGeo) {closeModal(); return photoGeo.open(files);}
     if (kind === 'facture' && files.length === 1 && /^image\//.test(files[0].type) && stockCapture) {closeModal(); return stockCapture.open({file: files[0]});}
+    // Facture électronique (Factur-X, XML CII/UBL) : lue vers le stock. Un PDF ordinaire reste rangé dans Documents.
+    // Rangée tout de suite dans Documents (avec son récapitulatif, repris par le solde de TVA) : rien n'est perdu si
+    // l'écran du stock est fermé sans validation.
+    if (kind === 'facture' && files.length === 1 && stockCapture && /\.(pdf|xml)$/i.test(files[0].name || '')) {
+      let parsed = null;
+      try {
+        const [{readElectronicInvoice, invoiceToParsed}, {validateExtraction}] = await Promise.all([import('./facturx.js'), import('./stock-capture.js')]);
+        const invoice = await readElectronicInvoice(files[0]);
+        parsed = invoice ? invoiceToParsed(invoice, validateExtraction) : null;
+      } catch {parsed = null;}
+      if (parsed) {
+        const {docExtractSummary} = await import('./doc-text.js');
+        const file = files[0], id = uid('doc');
+        await store.storage.blobPut(id, file);
+        await store.upsert('documents', {id, name: file.name, mimeType: file.type || '', size: file.size, category: DOCUMENT_CATEGORY.facture, documentDate: isoToday(), tags: [], note: 'Facture électronique reçue depuis une autre application.', origin: 'share-target', docExtract: docExtractSummary(parsed)}, {label: 'Facture électronique rangée'});
+        closeModal(); return stockCapture.open({file, documentId: id});
+      }
+    }
     const category = DOCUMENT_CATEGORY[kind] || 'Autre';
     for (const file of files) {
       const id = uid('doc');

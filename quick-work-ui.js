@@ -20,6 +20,7 @@ import {orderedWorkTypes, typeBadge, doseConfig, parseDose, formatDose, parcelCh
   isSoilBase, SOIL_TYPES, isMowCut, isForageFollowup, isGrainHarvest, HARVEST_UNITS, nextCut, hoursBetween, dateNotice} from './quick-work.js';
 import {createQuickGrazingUI} from './quick-grazing-ui.js';
 import {worksEntryWarnings, warningsSignature} from './entry-guard.js';
+import {templatesForType, templateSummary} from './templates.js';
 
 // Clé calculée à chaque usage : elle dépend de l’exploitation ouverte.
 const draftKeyNow = () => draftKey('quick-work', 'nouveau');
@@ -29,7 +30,7 @@ const DATES = [['today', 'Aujourd’hui'], ['yesterday', 'Hier'], ['custom', 'Au
 const live = list => (Array.isArray(list) ? list : []).filter(item => item && !item.deletedAt);
 
 export function createQuickWorkUI({store, state, modal, closeModal, toast, savedToast, todayIso, openWorkForm, openBatchWorkForm,
-  catalog = () => null, cultureColor = () => 'var(--brand)', gps = () => null, switchView, startMultipleSelection, openGrazingForm = () => {}, openGrazingList = () => {},
+  catalog = () => null, treatmentContext = () => ({}), cultureColor = () => 'var(--brand)', gps = () => null, switchView, startMultipleSelection, openGrazingForm = () => {}, openGrazingList = () => {},
   openObservationForm = () => {}, afterFinish = () => {}, routeVisible = () => true, takeOver = null, win = window, doc = document,
   weather = () => null, openHarvestLots = () => {}, openForageRecord = () => {}, stockInLot = null}) {
   let s = null;
@@ -189,7 +190,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     try { result = buildDraftWorks(); } catch { return ''; }
     const blocking = new Map(), warnings = new Map();
     for (const work of [...result.creates, ...result.updates]) {
-      const r = checkTreatment(state(), work, {catalog: catalog()});
+      const r = checkTreatment(state(), work, {catalog: catalog(), ...treatmentContext(work)});
       if (!r.applies) continue;
       r.blocking.forEach(b => blocking.set(b.message, b));
       r.warnings.forEach(w => warnings.set(w.message, w));
@@ -414,6 +415,14 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     return html`<p class="qw-client">Pour : <b>${clients.join(', ')}</b> (client de la parcelle)</p>${check('billable', 'À facturer')}`;
   }
 
+  // Modèles du même type (« Enregistrer comme modèle » dans le formulaire) : un appui remplit produit, dose et matériel.
+  function templatesHtml() {
+    const list = templatesForType(state(), s.type);
+    if (!list.length) return '';
+    return html`<div class="qw-field"><span id="qw-templates">Depuis un modèle</span><div class="qw-dates" role="group" aria-labelledby="qw-templates">
+      ${list.map(t => html`<button type="button" class="qw-pill" data-qw="template" data-id="${t.id}" title="${templateSummary(t)}">${t.name || t.type}</button>`)}</div></div>`;
+  }
+
   function step3Html() {
     const c = cfg(), data = state();
     const products = productChoices(data, {type: s.type, kind: s.kind, culture: det().culture});
@@ -424,6 +433,7 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
         <div id="qw-date-note">${dateNoteHtml()}</div>
         ${timeHtml()}</div>
       ${soilHtml()}${cultureHtml()}
+      ${templatesHtml()}
       <label class="qw-field"><span>${c.label}</span><input id="qw-product" value="${s.product}" placeholder="${c.placeholder}" autocomplete="off"${c.none ? '' : raw(' list="qw-products"')}>
         ${c.none ? '' : html`<datalist id="qw-products">${products.map(p => html`<option value="${p}"></option>`)}</datalist>`}</label>
       <div id="qw-sheet">${sheetHtml()}</div>
@@ -803,6 +813,16 @@ export function createQuickWorkUI({store, state, modal, closeModal, toast, saved
     } else if (what === 'kind') {
       s.kind = s.kind === el.dataset.kind ? '' : el.dataset.kind;
       render({focus: `.qw-pill[data-kind="${el.dataset.kind}"]`});
+    } else if (what === 'template') {
+      const t = (state().templates || []).find(x => x.id === el.dataset.id && !x.deletedAt);
+      if (t) {
+        const dose = parseDose(t.dose);
+        if (t.product) s.product = t.product;
+        if (dose !== null) { s.dose = dose; s.doseTouched = true; }
+        if (t.doseUnit) { s.doseUnit = t.doseUnit; s.unitTouched = true; }
+        if (t.equipmentId) s.equipmentId = t.equipmentId;
+        persist(); render({focus: '#qw-product'});
+      }
     } else if (what === 'habit') {
       const hint = doseSuggestion(state(), {type: s.type, kind: s.kind, product: s.product});
       if (hint) {

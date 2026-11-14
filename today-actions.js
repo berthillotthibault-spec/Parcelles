@@ -6,6 +6,7 @@ import {openPersonalization} from './personalization-ui.js';
 import {toggledTheme} from './theme.js';
 import {recordAdviceDismissal, undoAdviceDismissal} from './learning.js';
 import {calendarDue} from './habits.js';
+import {templateToWork} from './templates.js';
 
 const networkDetailsBody = () => `<div class="notice ${navigator.onLine?'info':'warning'}">${navigator.onLine?'Les fonctions réseau sont disponibles.'
   :'Les données locales restent accessibles et modifiables.'}</div>`;
@@ -36,8 +37,7 @@ function openNotificationEntity(entity, id) {
 async function openSearchResult(type, id) {
   if(type==='template'){
     const t=ctx.store.get('templates',id);
-    if(t)ctx.openWorkForm({type:t.type,culture:t.culture,product:t.product,dose:t.dose,doseUnit:t.doseUnit,equipmentId:t.equipmentId,
-      operator:t.operator,status:'À faire',date:ctx.todayIso()});
+    if(t)ctx.openWorkForm(templateToWork(t,ctx.todayIso()));
   }
   else if(type==='parcel')ctx.openParcel(id);
   else if(type==='work')ctx.openWorkForm(ctx.store.get('interventions',id));

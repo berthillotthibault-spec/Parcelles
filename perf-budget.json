@@ -1,18 +1,18 @@
 {
   "conditions": "iPhone 14, CPU x4, Fast 3G, médiane de 3 chargements à froid",
-  "measuredAt": "2026-10-27",
+  "measuredAt": "2026-11-14",
   "measured": {
-    "appReadyMs": 32038,
-    "initialJsBytes": 2341390,
+    "appReadyMs": 26732,
+    "initialJsBytes": 1038513,
     "longTasks": 0,
-    "appJsBytes": 397238,
-    "unusedJsBytes": 1798599,
-    "unusedJsPercent": 71.8
+    "appJsBytes": 416929,
+    "unusedJsBytes": 2167037,
+    "unusedJsPercent": 67.8
   },
   "budget": {
-    "appReadyMs": 28965,
-    "initialJsBytes": 2467769,
+    "appReadyMs": 28069,
+    "initialJsBytes": 1090439,
     "longTasks": 1,
-    "appJsBytes": 402264
+    "appJsBytes": 437776
   }
 }

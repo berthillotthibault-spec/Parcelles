@@ -17,6 +17,9 @@ test('« C’est quoi ? » : proposition selon le fichier', () => {
   assert.equal(guessKinds([f('trace.gpx')])[0], 'trace');
   assert.equal(guessKinds([f('ilots.shp'), f('ilots.dbf.zip')])[0], 'contour');
   assert.equal(guessKinds([f('Facture-Agri-0425.pdf')])[0], 'facture');
+  assert.equal(guessKinds([f('factur-x_FA-0412.xml')])[0], 'facture', 'XML de facture électronique');
+  assert.equal(guessKinds([f('TASKDATA.XML')])[0], 'trace', 'ISOXML');
+  assert.ok(guessKinds([f('TASKDATA.XML')]).includes('facture'), 'facture proposée en second choix');
   assert.equal(guessKinds([f('ordonnance_veto.jpg')])[0], 'ordonnance');
   assert.equal(guessKinds([f('Analyse terre labo.pdf')])[0], 'analyse');
   assert.deepEqual(guessKinds([f('scan.jpg')]), ['photo', 'facture', 'ordonnance', 'analyse', 'document']);

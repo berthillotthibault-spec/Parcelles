@@ -1,4 +1,4 @@
-const BUILD='2026.11.13-v10.37.0';
+const BUILD='2026.11.13-v10.38.0';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;
@@ -11,7 +11,7 @@ const TILES=`${PREFIX}tiles-v1`;
 try{importScripts('./sw-reminders.js');}catch(error){console.warn('[Parcelles] rappels en arrière-plan indisponibles.',error);}
 const CORE=[
  /* n° 161 */'./apps.js','./apps-ui.js',
- /* n° 160 */'./nav-model.js','./profile-menu.js','./profile-menu-ui.js','./quick-work.js','./quick-work-ui.js','./quick-grazing.js','./quick-grazing-ui.js','./home-view.js','./herd-home.js','./herd-home-ui.js','./sheet-swipe.js',
+ /* n° 160 */'./selectors.js','./placement-rules.js','./assistant-summary.js','./facturx.js','./yield-forecast.js','./campaign-itinerary.js','./itinerary-ui.js','./ndvi-phenology.js','./templates.js','./templates-ui.js','./nav-model.js','./profile-menu.js','./profile-menu-ui.js','./quick-work.js','./quick-work-ui.js','./quick-grazing.js','./quick-grazing-ui.js','./home-view.js','./herd-home.js','./herd-home-ui.js','./sheet-swipe.js',
  /* n° 147 */'./app-context.js','./actions.js','./work-actions.js','./parcel-actions.js','./today-actions.js','./map-actions.js','./field-actions.js','./farm-actions.js','./modules-actions.js','./data-actions.js','./work-form-ui.js','./account-ui.js','./diagnostic-ui.js',
  /* v7c */'./habits.js','./habits-ui.js','./agro-weather.js','./phenology.js','./phenology-ui.js','./agro-assistant.js','./agro-risk.js','./agro-risk-ui.js','./sowing.js','./sowing-ui.js','./rotation-advice.js','./rotation-advice-ui.js','./stock-capture.js','./stock-capture-ui.js','./share-target.js','./share-target-ui.js',
  /* v6c */'./activity-modules.js','./activity-modules-ui.js','./getting-started.js','./getting-started-ui.js','./whats-new.js','./whats-new-ui.js','./whatsnew.json','./friendly-errors.js','./friendly-errors-ui.js','./help.js','./help-ui.js','./theme.js','./theme-ui.js','./count-up.js','./count-up-ui.js',

@@ -3,7 +3,7 @@ import {escapeHtml as esc} from './utils.js';
 import {icon as uiIcon} from './ui.js';
 import {skeletonHtml} from './skeletons.js';
 import {idleTask} from './performance.js';
-import {ndviPeerComparison,publishNdviPeers} from './ndvi-peers.js';
+import {ndviPeerComparison,publishNdviPeers} from './ndvi-peers.js';import {publishNdviSeries} from './ndvi-phenology.js';
 import {NDVI_REFRESH_KEY,NDVI_REFRESH_PERIOD,NDVI_CONCURRENCY,ndviSummary,refreshDue,refreshOrder,runQueue,rasterFrames,timelineDates,formatImageDate} from './ndvi-map.js';
 const date=value=>new Date(value).toLocaleDateString('fr-FR');
 const number=value=>value===null||value===undefined?'Non disponible':value.toFixed(2);
@@ -12,11 +12,13 @@ export function createSatelliteUI({store,sync,map,openParcel,showMap,observe,mod
   const service=new SatelliteService({storage:store.storage,scope:()=>[store.workspaceContext().key,sync.user?.uid||'local'],endpoint:()=>globalThis.PARCELLES_SATELLITE_ENDPOINT||'',token:()=>sync.user?.getIdToken?.()});
   let peers=[],sequence=0,controller=null,current=null,overlaySequence=0,bulk=null,stamps={},ready=false,autoRunning=false;const rasters=new Map(),autoTried={};
   // v9 n° 43 : carte « État des cultures » — résumés NDVI de toutes les parcelles depuis le cache.
-  const activeParcels=()=>store.snapshot().parcelles.filter(p=>!p.deletedAt&&p.geometry);
+  const activeParcels=()=>(store.view?.()??store.snapshot()).parcelles.filter(p=>!p.deletedAt&&p.geometry);
   const scopeKey=()=>JSON.stringify(service.scope());
   function publishNdvi(render=true){const data=new Map();for(const p of activeParcels()){const summary=ndviSummary(service.entriesFor(p));if(summary)data.set(p.id,summary);}map.setNdviData?.(data,{render});
     // Idée 10 : comparaison à culture égale (même cache), publiée pour le fil « À décider ».
     try{peers=ndviPeerComparison(activeParcels(),p=>data.get(p.id)?.series||[]);}catch{peers=[];}publishNdviPeers(peers);
+    // Séries NDVI pour la phénologie : levée vue par satellite (ndvi-phenology.js).
+    publishNdviSeries(new Map([...data].map(([id,summary])=>[id,summary.series||[]])));
   }
   function peerHtml(p){const r=peers.find(x=>x.parcelId===p.id);if(!r)return'';
     const head=r.lagging?'Plus faible que les parcelles de même culture':'Dans la moyenne des parcelles de même culture';
@@ -77,7 +79,7 @@ export function createSatelliteUI({store,sync,map,openParcel,showMap,observe,mod
   function cancelAll(){if(!bulk)return;bulk.cancelling=true;bulk.controller.abort();paintBulk();}
   const parcel=id=>store.snapshot().parcelles.find(p=>p.id===id&&!p.deletedAt);
   const signals=e=>[...anomalies(e.series),...(e.zones||[])].filter(x=>!(e.ignored||[]).includes(x.id));
-  function today(){let root=document.querySelector('#satellite-today');if(!root){root=document.createElement('section');root.id='satellite-today';root.className='panel';document.querySelector('#day-review')?.before(root);}const rows=store.snapshot().parcelles.filter(p=>!p.deletedAt).flatMap(p=>{const entry=service.peek(p);return entry?signals(entry).slice(0,1).map(signal=>({p,entry,signal})):[];}).sort((a,b)=>b.entry.savedAt-a.entry.savedAt).slice(0,3);root.hidden=!rows.length;root.innerHTML=rows.length?`<h2>Satellite · À vérifier</h2><p class="form-note">Signaux issus des parcelles déjà consultées, sans diagnostic.</p>${rows.map(({p,entry,signal})=>`<button class="list-row" data-sat="open" data-parcel="${esc(p.id)}"><span><strong>${esc(p.nom)} · ${esc(signal.title)}</strong><small>Image du ${date(entry.series.filter(r=>r.usable).at(-1).date)} · cache du ${date(entry.savedAt)}${navigator.onLine?'':' · hors connexion'}</small></span></button>`).join('')}`:'';}
+  function today(){let root=document.querySelector('#satellite-today');if(!root){root=document.createElement('section');root.id='satellite-today';root.className='panel';document.querySelector('#day-review')?.before(root);}const rows=(store.view?.()??store.snapshot()).parcelles.filter(p=>!p.deletedAt).flatMap(p=>{const entry=service.peek(p);return entry?signals(entry).slice(0,1).map(signal=>({p,entry,signal})):[];}).sort((a,b)=>b.entry.savedAt-a.entry.savedAt).slice(0,3);root.hidden=!rows.length;root.innerHTML=rows.length?`<h2>Satellite · À vérifier</h2><p class="form-note">Signaux issus des parcelles déjà consultées, sans diagnostic.</p>${rows.map(({p,entry,signal})=>`<button class="list-row" data-sat="open" data-parcel="${esc(p.id)}"><span><strong>${esc(p.nom)} · ${esc(signal.title)}</strong><small>Image du ${date(entry.series.filter(r=>r.usable).at(-1).date)} · cache du ${date(entry.savedAt)}${navigator.onLine?'':' · hors connexion'}</small></span></button>`).join('')}`:'';}
   function valid(ticket,root){return ticket===sequence&&root.isConnected&&current?.scope===JSON.stringify(service.scope());}
   function cancel(){sequence++;overlaySequence++;controller?.abort();current=null;}
   function mount(p){cancel();const root=document.querySelector('#satellite-panel');if(!root)return;const ticket=sequence;current={p,period:'30',root,scope:JSON.stringify(service.scope()),entry:null};render();service.init().then(()=>{if(valid(ticket,root)){current.entry=service.peek(p,'30');render();today();}}).catch(()=>{if(valid(ticket,root))render('Le cache satellite est indisponible.');});}

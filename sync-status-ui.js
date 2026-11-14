@@ -12,7 +12,7 @@ const MAX_ROWS = 60;
 export function createSyncStatusUI({store, sync, modal, closeModal, toast, openSync, withProgress}) {
   let run = null, timer = null;
   const $ = selector => document.querySelector(selector);
-  const data = () => store.snapshot();
+  const data = () => store.view(); // lecture seule : instantané partagé
   const cloudConnected = () => Boolean(sync?.status?.connected);
   const cloudActive = () => {const p = data().preferences || {};return cloudConnected() || Boolean(p.syncEnabled && p.workspaceId);};
 

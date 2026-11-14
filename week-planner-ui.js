@@ -11,7 +11,7 @@ const LEVEL_LABEL = {favorable: 'favorable', watch: 'à surveiller', unfavorable
 // Bilan hydrique de l'appareil (écran Portance) : sert à écarter les parcelles détrempées aujourd'hui et demain.
 const readSoil = () => {try {const c = JSON.parse(globalThis.localStorage?.getItem(SOIL_WATER_CACHE_KEY) || 'null'); return c?.days?.length ? c : null;} catch {return null;}};
 
-export function createWeekPlannerUI({doc = globalThis.document, store, getState = () => store?.state || {}, getWeather = () => null, getSoil = readSoil, toast = () => {}, refresh = () => {}, now = () => Date.now()} = {}) {
+export function createWeekPlannerUI({doc = globalThis.document, store, getState = () => store?.state || {}, getWeather = () => null, getSoil = readSoil, toast = () => {}, refresh = () => {}, now = () => Date.now(), catalog = () => null, zvAuto = () => null} = {}) {
   let start = weekStart(new Date(now()));
   let plan = null;
   let drag = null;
@@ -106,7 +106,7 @@ ${band(day.weather, day.date)}${loadBar(hours)}
 
   function propose() {
     const state = getState(), stations = (state.weatherStations || []).filter(s => s && !s.deletedAt);
-    const res = proposeWeek(state, start, {weather: getWeather(), now: now(), soil: getSoil(), stations, capacity: dayHoursOf(state)});
+    const res = proposeWeek(state, start, {weather: getWeather(), now: now(), soil: getSoil(), stations, capacity: dayHoursOf(state), catalog: catalog(), zvAuto: zvAuto()});
     plan = {...res, start};
     refresh();
     toast(res.placed.length ? `${works(res.placed.length)} proposé${res.placed.length > 1 ? 's' : ''}. Vérifiez puis appliquez.` : 'Aucun jour ne convient cette semaine.', res.placed.length ? 'success' : 'info');

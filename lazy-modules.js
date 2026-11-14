@@ -32,6 +32,9 @@ export const LAZY_MODULES = Object.freeze({
   habits: () => import('./habits-ui.js'),
   telepac: () => import('./telepac-ui.js'),
   parcelCheck: () => import('./parcel-check-ui.js'),
+  templates: () => import('./templates-ui.js'),
+  itinerary: () => import('./itinerary-ui.js'), // itinéraire de la campagne suivante, d'après les habitudes
+  voiceNotes: () => import('./voice-notes-ui.js'), // micro flottant monté après le premier affichage (chargement silencieux)
   regulatedOps: () => import('./regulated-ops-ui.js'),
   greenIndicators: () => import('./green-indicators-ui.js'), // n° 71 : chiffres verts et auto-diagnostic HVE
   rpgOnboarding: () => import('./rpg-onboarding-ui.js'),
@@ -119,6 +122,8 @@ export const LAZY_ACTIONS = Object.freeze(Object.fromEntries([
   ...actions('rotationAdvice', 'rotation-delays'),
   ...actions('telepac', 'open-telepac-import'),
   ...actions('parcelCheck', 'open-parcel-check'),
+  ...actions('templates', 'open-templates', 'rename-template', 'delete-template'),
+  ...actions('itinerary', 'open-itinerary'),
   ...actions('regulatedOps', 'open-regulated-ops'),
   ...actions('greenIndicators', 'open-green-indicators'),
   ...actions('rpgOnboarding', 'rpg-onboarding'),

@@ -9,6 +9,8 @@ const MAX_ENTRIES=300,STALE_MS=7*864e5,TIMEOUT_MS=15000;
 let activeUI=null;
 export function regulatoryWaterLines(parcel){if(!activeUI)throw new Error('Couches réglementaires indisponibles.');return activeUI.waterLines(parcel);}
 export function regulatoryRulesNow(){return activeUI?activeUI.rules():regulatoryRules();}
+// Dernière évaluation mémorisée de la parcelle ({bcaeM, hydroM}…), sans réseau : contrôle phyto (ZNT réelle).
+export function cachedEvaluation(parcel,storage=globalThis.localStorage){try{const entry=(JSON.parse(storage?.getItem(CACHE_KEY)||'{}')||{})[parcel?.id];return entry&&entry.signature===geometrySignature(parcel.geometry)?entry:null;}catch{return null;}}
 
 export function createRegulatoryUI({state, store, parcelMap, toast, modal, closeModal, fetchImpl = (...args) => globalThis.fetch(...args), storage = globalThis.localStorage, doc = globalThis.document, online = () => globalThis.navigator?.onLine !== false, now = () => Date.now(), bcaeYear = null} = {}) {
   const pending = new Map();

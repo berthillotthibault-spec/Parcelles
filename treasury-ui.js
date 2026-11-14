@@ -9,7 +9,7 @@ import {treasuryForecast,treasuryChart,treasurySettings,validateItem,validateOpe
 const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const eur=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${v<0?'−':''}${n0.format(Math.abs(v))} €`;
 const SOURCES={contrat:'Contrat',vente:'Vente',facture:'Facture',pac:'Aides PAC',travail:'Travail prévu',entretien:'Entretien',echeancier:'Échéancier',
-  fermage:'Foncier (fermage)',structure:'Marge nette (structure)',appro:'Stock (achat d’appro)',gnr:'Carburant (GNR)',sinistre:'Sinistre'};
+  fermage:'Foncier (fermage)',structure:'Marge nette (structure)',appro:'Stock (achat d’appro)',gnr:'Carburant (GNR)',sinistre:'Sinistre',fournisseur:'Facture fournisseur (échéance)'};
 const SHIFTS=[-3,-2,-1,1,2,3,4,6];
 const frDay=d=>d?`${d.slice(8,10)}/${d.slice(5,7)}/${d.slice(0,4)}`:'';
 
@@ -44,6 +44,7 @@ export function createTreasuryUI({store,modal,toast,bindChipChoices=()=>{},role=
     if(m.pac)notes.push('aides PAC non saisies (Marges par culture) : ajoutez-les à l’échéancier si besoin');
     if(m.rents)notes.push(`${m.rents} bail(aux) sans fermage calculable (Foncier)`);
     if(m.appro)notes.push(`${m.appro} entrée(s) de stock à venir sans prix`);
+    if(m.currency)notes.push(`${m.currency} facture(s) fournisseur en devise étrangère non comptée(s)`);
     if(m.fuel)notes.push(`${m.fuel} plein(s) de GNR sans montant`);
     const dup=(f.duplicates||[]).length?`<p class="notice info" role="note">Non repris pour éviter un double compte : ${f.duplicates.map(d=>`${e(d.label)} (${d.note?e(d.note):`déjà « ${e(d.item)} » dans l’échéancier`})`).join(' · ')}.</p>`:'';
     return (notes.length?`<p class="notice warning" role="note">Sources manquantes : ${notes.map(e).join(' · ')}.</p>`:'')+dup;

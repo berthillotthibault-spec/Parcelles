@@ -75,7 +75,7 @@ function cropOf(state,parcel,work,today){
 }
 // Période d'interdiction en cours pour un apport de fertilisant (null si hors zone, interdiction non certaine ou hors période).
 // Même calendrier que R12 et le point du matin (zv-calendar.js) : une seule source pour les dates.
-function banFor(state,work,parcel,day,zvAuto=null){
+export function banFor(state,work,parcel,day,zvAuto=null){
   if(!parcel||!parcelInZone(state,parcel,zvAuto))return null;
   const res=zvSpreadStatus({date:day,culture:cropOf(state,parcel,work,day),product:work.product||'',workType:work.type||'',state});
   if(res.status!=='interdit'||!res.hit)return null;

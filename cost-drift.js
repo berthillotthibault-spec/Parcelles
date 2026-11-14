@@ -100,7 +100,7 @@ function aidsPerHa(state,culture,campaign,cache){
 }
 
 /** Rendement attendu (t/ha) : saisi pour la campagne, sinon moyenne olympique des campagnes antérieures de même culture. */
-function expectedYield(state,parcel,culture,campaign){
+export function expectedYield(state,parcel,culture,campaign){
   // Unité absente = t/ha, comme economicSituation, pilotage et crop-margins.
   const unitOf=e=>e?.yieldUnit==='q/ha'?'q/ha':'t/ha',toT=(v,u)=>u==='t/ha'?v:v/10;
   const econ=parcel.economicsByCampaign?.[campaign]||(campaign===campaignFor()?parcel.economics:null)||{};

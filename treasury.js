@@ -127,7 +127,21 @@ export function treasuryFlows(state,{start=monthKey(),today=`${start}-01`,horizo
   // Achats d'appro et pleins de GNR repris plus bas : la part intrants ou carburant de l'estimation
   // d'un travail prévu en est retirée, sinon le même achat serait compté deux fois.
   const fuel=fuelEntries(state).filter(r=>r.entry==='tank'||r.fromTank===false),stockItems=new Map(active(state,'stockItems').map(i=>[i.id,i]));
-  const approRows=active(state,'stockMovements').filter(m=>m.type==='Entrée'&&String(m.date||'').slice(0,10)>=today&&stockItems.has(m.stockItemId)&&!(normalize(stockItems.get(m.stockItemId).category)==='carburant'&&fuel.length));
+  // Factures fournisseurs à échéance : documents rangés et achats lus depuis une facture (purchaseVat de la première
+  // entrée), une seule fois par facture (même purchaseKey, ou même fournisseur + numéro + date, comme le solde de TVA).
+  const supplierDues=[],seenDue=new Set(),coveredPurchases=new Set();
+  const addDue=(purchaseKey,x,id)=>{
+    if(x?.kind!=='facture'||!DATE_RE.test(String(x.echeance||'')))return;
+    if(purchaseKey)coveredPurchases.add(purchaseKey);
+    const byNumber=text(x.numero)?`${normalize(x.fournisseur||'')}|${normalize(x.numero)}|${x.date||''}`:'';
+    if((purchaseKey&&seenDue.has(purchaseKey))||(byNumber&&seenDue.has(byNumber)))return;
+    if(purchaseKey)seenDue.add(purchaseKey);if(byNumber)seenDue.add(byNumber);
+    supplierDues.push({x,id});
+  };
+  for(const d of active(state,'documents'))addDue(d.purchaseKey||'',d.docExtract,`fournisseur:${d.id}`);
+  for(const m of active(state,'stockMovements'))if(m.purchaseVat)addDue(m.purchaseKey||'',{...m.purchaseVat,fournisseur:m.purchaseVat.fournisseur||m.purchaseVat.supplier||''},`fournisseur:${m.purchaseKey||m.id}`);
+  // Entrée venue d'une facture dont l'échéance est connue : achat déjà reçu, payé à cette échéance (plus bas), pas un achat à venir.
+  const approRows=active(state,'stockMovements').filter(m=>m.type==='Entrée'&&!(m.purchaseKey&&coveredPurchases.has(m.purchaseKey))&&String(m.date||'').slice(0,10)>=today&&stockItems.has(m.stockItemId)&&!(normalize(stockItems.get(m.stockItemId).category)==='carburant'&&fuel.length));
   const priced=m=>num(m.quantity)!==null&&num(m.unitPrice)!==null&&inRange(monthOf(m.date));
   const fuelItem=scheduleOverlap(schedule,'gnr'),fuelRows=fuel.filter(r=>String(r.date||'').slice(0,10)>=today&&inRange(monthOf(r.date)));
   const strip=new Set();
@@ -175,6 +189,15 @@ export function treasuryFlows(state,{start=monthKey(),today=`${start}-01`,horizo
     const item=stockItems.get(m.stockItemId);
     const q=num(m.quantity),p=num(m.unitPrice);if(q===null||p===null){missing.appro+=1;continue;}
     push(monthOf(m.date),-q*p,`Achat ${text(item.name)||'appro'}${m.supplier?` · ${text(m.supplier)}`:''}`,'appro',false,`appro:${m.id}`);
+  }
+  // Factures fournisseurs rangées avec une échéance à venir (facture électronique ou texte lu) : TTC à payer ce mois-là.
+  // Un avoir (TTC négatif) vient en déduction. Après l'échéance, la facture est supposée réglée.
+  // Reste à payer (aPayer, facture électronique) plutôt que le TTC : acompte ou paiement comptant déjà déduits ; 0 = réglée.
+  for(const {x,id} of supplierDues){
+    if(x.echeance<today)continue;
+    if(x.devise&&x.devise!=='EUR'){missing.currency=(missing.currency||0)+1;continue;} // pas de conversion de change
+    const due=num(x.aPayer)??num(x.totalTTC);if(due===null||!due)continue;
+    push(monthOf(x.echeance),-due,`Facture fournisseur${text(x.fournisseur)?` · ${text(x.fournisseur)}`:''}${text(x.numero)?` n° ${text(x.numero)}`:''}`,'fournisseur',false,id);
   }
   // Pleins de GNR à venir (cuve, ou engin hors cuve), sauf s'ils sont déjà dans l'échéancier.
   if(stripped)duplicates.push({source:'travail',label:`Part ${[...strip].map(k=>k==='inputCost'?'intrants':'carburant').join(' et ')} des travaux prévus estimés`,item:'',note:'déjà comptée dans les achats d’appro ou les pleins de GNR'});

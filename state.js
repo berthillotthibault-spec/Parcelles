@@ -376,6 +376,8 @@ export const PRE_MIGRATION_BACKUP_LIMIT=2;
 // synchronisation) : cette empreinte voit toute modification utile, y compris une fiche modifiée sur place.
 export function collectionFingerprints(state){const map=new Map();for(const name of Object.keys(state||{}))map.set(name,JSON.stringify(state[name])??'undefined');return map;}
 // Plan d’écriture : changed=null (tout écrire) sans empreintes de référence, sinon la liste des collections modifiées.
+/** Gel profond (instantané partagé en débogage : toute écriture lève une erreur et désigne l'appelant fautif). */
+export function deepFreeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const key of Object.keys(value))deepFreeze(value[key]);}return value;}
 export function planCollections(state,previous=null){
   const keys=Object.keys(state),fingerprints=new Map(),reference=previous?.size?previous:null,changed=reference?[]:null;
   for(const name of keys){const json=JSON.stringify(state[name])??'undefined';fingerprints.set(name,json);if(changed&&reference.get(name)!==json)changed.push(name);}
@@ -586,9 +588,23 @@ export class Store{
   }
 
   snapshot(){return clone(this.state);}
+  // Instantané partagé pour l'affichage : une seule copie tant que l'état ne change pas (même objet, même révision,
+  // même date de mise à jour), et au plus le temps de la tâche en cours. Un rendu lisait jusqu'à 54 copies complètes.
+  // Ne jamais modifier l'objet rendu : il est partagé. globalThis.__PARCELLES_FREEZE_VIEWS le gèle (tests, débogage).
+  view(){
+    const meta=this.state?.metadata||{},cached=this._view;
+    if(cached&&cached.state===this.state&&cached.revision===meta.revision&&cached.updatedAt===meta.updatedAt)return cached.value;
+    const value=clone(this.state);
+    if(globalThis.__PARCELLES_FREEZE_VIEWS)deepFreeze(value);
+    this._view={state:this.state,revision:meta.revision,updatedAt:meta.updatedAt,value};
+    if(!this._viewTimer)this._viewTimer=setTimeout(()=>{this._view=null;this._viewTimer=null;},0);
+    return value;
+  }
+  // Modification sur place sans changement de révision (journal, file d'envoi, sauvegarde auto) : instantané à refaire.
+  invalidateView(){this._view=null;}
   subscribe(listener){this.listeners.add(listener);return()=>this.listeners.delete(listener);}
   // n° 137 : une seule copie par notification, partagée par tous les abonnés et gelée en surface (lecture seule).
-  notify(event){const data=this.listeners.size?Object.freeze(this.snapshot()):null;for(const listener of this.listeners){try{const result=listener(data,event);if(result?.catch)result.catch(error=>console.error('[Parcelles] Mise à jour de l’affichage impossible.',error));}catch(error){console.error('[Parcelles] Mise à jour de l’affichage impossible.',error);}}}
+  notify(event){const data=this.listeners.size?Object.freeze({...this.view()}):null;for(const listener of this.listeners){try{const result=listener(data,event);if(result?.catch)result.catch(error=>console.error('[Parcelles] Mise à jour de l’affichage impossible.',error));}catch(error){console.error('[Parcelles] Mise à jour de l’affichage impossible.',error);}}}
 
   // Écrit l’état seulement si personne d’autre ne l’a enregistré depuis la dernière lecture ou écriture de cet onglet.
   async _writeState(){
@@ -636,13 +652,13 @@ export class Store{
           await this.storage.backupPut({id:`auto_monthly_${this.workspaceId}_${month}`,workspaceId:this.workspaceId,period:'monthly',createdAt,state:snapshot});
           await this.storage.pruneBackups?.({daily:7,weekly:4,monthly:3,preimport:5});
           this.state.metadata.lastAutoBackupDay=day;
-          this.state.metadata.lastAutoBackupError=null;
+          this.state.metadata.lastAutoBackupError=null;this.invalidateView();
           await this._writeState();
         }catch(error){
           // The primary write above already succeeded. A secondary backup failure
           // must neither block startup nor roll back that saved change in memory.
           this.backupRetryAt=now()+5*60*1000;
-          this.state.metadata.lastAutoBackupError=String(error?.message||error);
+          this.state.metadata.lastAutoBackupError=String(error?.message||error);this.invalidateView();
           console.warn('[Parcelles] Sauvegarde automatique différée ; les données sont enregistrées.',error);
         }
       }
@@ -680,6 +696,7 @@ export class Store{
     let by='';try{by=String(this.historyActor?.()||'');}catch{}
     this.state.journal.unshift({id:uid('log'),type,message,details,createdAt:now(),...(by?{by}:{})});
     this.state.journal=this.state.journal.slice(0,500);
+    this.invalidateView();
   }
 
   queue(operation){
@@ -693,6 +710,7 @@ export class Store{
     if(Array.isArray(operation.fields)&&operation.fields.length&&(!existing||Array.isArray(existing.fields)))next.fields=[...new Set([...(existing?.fields||[]),...operation.fields])];
     if(existingIndex>=0)this.state.queue[existingIndex]=next;else this.state.queue.push(next);
     if(this.state.queue.length>1000)this.state.queue=this.state.queue.filter(item=>item.status!=='done');
+    this.invalidateView();
   }
 
   mutate(label,fn,options={}){return this.enqueueWrite(()=>this._mutate(label,fn,options));}

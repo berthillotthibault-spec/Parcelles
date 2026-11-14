@@ -25,7 +25,7 @@ export const RENAMES = {
 /** Groupes du menu, dans l'ordre : actions de MORE_CATEGORIES ou clés d'EXTRA_ITEMS. */
 export const PROFILE_GROUPS = [
   {id: 'farm', title: 'Exploitation', ids: ['open-equipment', 'open-stock', 'open-rotations', 'open-seeds', 'open-soil-analyses', 'open-hedges',
-    'open-grazing', 'open-herd', 'open-herd-health', 'open-forage', 'open-observations', 'planning', 'open-calendar', 'open-day-route',
+    'open-grazing', 'open-herd', 'open-herd-health', 'open-forage', 'open-observations', 'planning', 'open-calendar', 'open-templates', 'open-itinerary', 'open-day-route',
     'open-team-work', 'open-weather', 'open-field-mode', 'open-chantiers', 'open-public-works']},
   {id: 'management', title: 'Gestion', ids: ['open-clients', 'open-invoices', 'open-statistics', 'open-treasury', 'open-crop-margins',
     'open-net-margin', 'open-campaign-history', 'open-herd-economics', 'open-machine-costs', 'open-fuel', 'open-land', 'open-claims',

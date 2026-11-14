@@ -230,6 +230,7 @@ const SAFE_WITHOUT_MODULE = [
   /\(mode==='edit'\?contourEditUI\(\):walkMeasureUI\(\)\)\.askAbandon/, // outil actif, donc déjà chargé
   /hereUI\?(?:\.(?:pill|sheetHtml)\(|hereUI\.apply\()/, // n° 111 : sans position connue, ni pastille ni parcelle contextuelle
   /(?:\.qw'\)\)|if\()quickWorkUI\?\.(?:back|closing)\?\.\(\)/, // n° 160 : feuille du « + » affichée, donc module chargé
+  /voiceNotesUI\?\.renderHome\(\)/, // notes vocales pas encore chargées : rien à afficher, le module rafraîchit l'accueil à son arrivée
   /get ([\w$]+)\(\)\{return \1;\}/ // n° 147 : accesseur du contexte partagé ; ses utilisateurs attendent le module (test-actions.mjs)
 ];
 

@@ -45,7 +45,8 @@ export function guessKinds(files = []) {
   if (exts.has('gpx')) return ['trace', 'contour'];
   if (geo) return ['contour', 'trace'];
   if (exts.has('kml')) return ['contour', 'trace'];
-  if (exts.has('xml') && !docs) return ['trace', 'contour', 'document'];
+  // XML : trace ISOXML, ou facture électronique (CII, UBL) quand le nom l'annonce.
+  if (exts.has('xml') && !docs) return /factur|invoice|\bubl\b|\bcii\b/.test(names) ? ['facture', 'trace', 'document'] : ['trace', 'contour', 'facture', 'document'];
   // Que des JPEG sans indice dans le nom : très probablement une photo prise au champ.
   const photos = files.length > 0 && [...exts].every(x => x === 'jpg' || x === 'jpeg');
   const order = photos ? ['photo', 'facture', 'ordonnance', 'analyse', 'document'] : ['facture', 'ordonnance', 'analyse', 'document'];
