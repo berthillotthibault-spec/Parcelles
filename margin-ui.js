@@ -1,8 +1,7 @@
 // n° 85 — affichage commun du moteur de marge (Pilotage, rapport, fiche Économie).
 // Un montant inconnu s’affiche « — », jamais 0 €.
-import {escapeHtml as e,formatNumber,campaignFor} from './utils.js';
-import {MARGIN_RULES,previousCampaign} from './pilotage.js';
-import {icon} from './ui.js';
+import {escapeHtml as e,formatNumber} from './utils.js';
+import {MARGIN_RULES} from './pilotage.js';
 
 const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 export const euro=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${n0.format(v)} €`;
@@ -15,43 +14,11 @@ export function marginHeadline(model){
 }
 
 export function marginSummaryHtml(model){
-  const t=model.total,pct=Math.max(0,Math.min(100,t.reliability)),level=t.reliability>=80?'is-good':t.reliability>=50?'is-mid':'is-low';
-  const detail=model.reliability.detail||'';
-  // n° 10.40 — tuile entière cliquable (le bouton « Pourquoi ? » recouvre la tuile), libellé en sur-titre,
-  // valeur absente « À compléter » + raison courte au lieu de « — ».
-  const tile=(key,label,value,{hero=false,note='',missing='',negative=false}={})=>`<div class="preview-stat stat-tile${hero?' is-hero':''}${value===null?' is-missing':''}"><strong class="${negative?'negative':''}">${value===null?'À compléter':kpiValue(value)}</strong><small>${e(label)}${explainButton('margin',label,{key,campaign:model.campaign})}</small>${value===null?(missing?`<span class="stat-note">${e(missing)}</span>`:''):note?`<span class="stat-note">${e(note)}</span>`:''}</div>`;
-  const productMissing=t.withoutProduct?`${t.withoutProduct} parcelle${t.withoutProduct>1?'s':''} sans rendement ni prix`:'Rendement ou prix à saisir';
-  const product=t.productArea?t.product:null;
-  const tiles=[
-    tile('margin','Marge prévisionnelle',t.margin,{hero:true,negative:t.margin!==null&&t.margin<0,note:t.marginHa!==null?`${euro(t.marginHa)}/ha`:'',missing:`Produit inconnu : ${productMissing.charAt(0).toLowerCase()}${productMissing.slice(1)}`}),
-    tile('realized','Charges réalisées',t.realized+t.forfait,{note:t.forfait?'dont forfait':''}),
-    tile('engaged','Charges engagées',t.engaged,{note:'travaux prévus'}),
-    tile('product','Produit attendu',product,{missing:productMissing,note:t.withoutProduct?`${t.withoutProduct} parcelle${t.withoutProduct>1?'s':''} sans rendement`:''})
-  ].join('');
-  const title=t.margin===null?'Marge non calculable':`Marge fiable à ${t.reliability} %`;
-  const text=t.margin===null?`Fiable à ${t.reliability} %${detail?` · ${detail}`:''}.`:detail?`À compléter : ${detail}.`:'Toutes les données de la campagne sont renseignées.';
-  return `<div class="margin-model"><div class="margin-headline callout ${level}" role="status"><strong>${e(title)}</strong><span>${e(text)}</span>
-<div class="margin-gauge" role="img" aria-label="Fiabilité ${t.reliability} %"><span style="width:${pct}%"></span></div></div>
-<div class="preview-summary kpi-bento">${tiles}</div>${accessTilesHtml(model.campaign)}</div>`;
-}
-
-/** Valeur de tuile : chiffre et unité séparés (unité en petit). */
-export function kpiValue(v,unit='€'){
-  return `${e(n0.format(v))}<span class="stat-unit">\u202f${e(unit)}</span>`;
-}
-
-// n° 10.40 — accès du Pilotage déplacés du pied de fenêtre vers une rangée de tuiles dans le corps.
-const ACCESS=[
-  ['open-crop-margins','Marges par culture','€/ha et prix d’équilibre','chart'],
-  ['open-simulator','Et si…','Prix, rendement, charges','sparkles'],
-  ['print-pilotage-report','Rapport PDF','À imprimer ou partager','files'],
-  ['open-dossier','Dossier','Pièces de la campagne','archive'],
-  ['open-stock','Stocks','Valeurs et alertes','package']
-];
-export function accessTilesHtml(campaign){
-  const prev=previousCampaign(campaign),current=campaignFor();
-  const item=(action,title,sub,ic,extra='')=>`<button type="button" class="access-tile" data-action="${action}"${extra}><span class="access-icon">${icon(ic,{size:20})}</span><span class="access-text"><strong>${e(title)}</strong><small>${e(sub)}</small></span></button>`;
-  return `<nav class="kpi-access" aria-label="Aller plus loin">${ACCESS.map(([a,t,s,ic])=>item(a,t,s,ic,a==='open-stock'?'':` data-campaign="${e(campaign)}"`)).join('')}${prev?item('pilotage-campaign',`← ${prev}`,'Campagne précédente','history',` data-campaign="${e(prev)}"`):''}${campaign!==current?item('pilotage-campaign','Campagne actuelle',current,'calendar',` data-campaign="${e(current)}"`):''}</nav>`;
+  const why=(key,label)=>explainButton('margin',label,{key,campaign:model.campaign});
+  const t=model.total,level=t.reliability>=80?'is-good':t.reliability>=50?'is-mid':'is-low';
+  return `<div class="margin-model"><p class="margin-headline ${level}"><strong>${e(marginHeadline(model))}</strong></p>
+<div class="preview-summary"><div class="preview-stat"><strong>${e(euro(t.realized+t.forfait))}</strong><small>charges réalisées${t.forfait?' (dont forfait)':''}${why('realized','Charges réalisées')}</small></div><div class="preview-stat"><strong>${e(euro(t.engaged))}</strong><small>charges engagées (prévues)${why('engaged','Charges engagées')}</small></div><div class="preview-stat"><strong>${e(euro(t.productArea?t.product:null))}</strong><small>produit attendu${t.withoutProduct?` (${t.withoutProduct} parcelle${t.withoutProduct>1?'s':''} sans rendement)`:''}${why('product','Produit attendu')}</small></div><div class="preview-stat"><strong class="${t.margin!==null&&t.margin<0?'negative':''}">${e(euro(t.margin))}</strong><small>marge prévisionnelle${t.marginHa!==null?` · ${e(euro(t.marginHa))}/ha`:''}${why('margin','Marge prévisionnelle')}</small></div></div>
+<div class="margin-gauge" role="img" aria-label="Fiabilité ${t.reliability} %"><span style="width:${Math.max(0,Math.min(100,t.reliability))}%"></span></div></div>`;
 }
 
 // n° 110 — bouton (i) « Pourquoi ? » partagé par les écrans ; le clic est traité par explain-ui.js

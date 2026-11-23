@@ -1,7 +1,7 @@
 import {campaignFor, toNumber} from './utils.js';
 
 const active=(state,type)=>(state[type]||[]).filter(x=>!x.deletedAt);
-export const previousCampaign=id=>{const m=String(id||'').match(/^(\d{4})/);if(!m)return'';const y=Number(m[1])-1;return `${y}/${String(y+1).slice(-2)}`;};
+const previousCampaign=id=>{const m=String(id||'').match(/^(\d{4})/);if(!m)return'';const y=Number(m[1])-1;return `${y}/${String(y+1).slice(-2)}`;};
 
 // ---------- n° 85 · Un seul moteur de marge ----------
 // marginModel : réalisé (travaux terminés), engagé (travaux planifiés chiffrés) et prévisionnel

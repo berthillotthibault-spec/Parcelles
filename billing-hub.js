@@ -54,8 +54,8 @@ export function hubDashboard(state,{today=isoDay(),period='12m',clientId=''}={})
     {key:'collected',label:'Encaissé',value:moneyShort(collected),hint:invoicedHt>0?`${Math.round(collected/Math.max(1,sum('invoicedTtc'))*100)}${NB}% du TTC facturé`:'sur la période',link:['facture',{...base,status:'payee'}]},
     {key:'receivable',label:'En-cours',value:moneyShort(d.receivable.due),hint:'reste à encaisser',link:['facture',{...scope,status:'due'}]},
     {key:'late',label:'En retard',value:moneyShort(d.receivable.late),hint:d.reminders.length?plural(d.reminders.length,'relance due','relances dues'):'aucune relance due',tone:d.receivable.late>0?'bad':'',link:['facture',{...scope,status:'retard'}]},
-    {key:'dso',label:'DSO',value:d.dso===null?'—':`${d.dso}${NB}j`,hint:delay===null?'aucune facture payée sur la période':`délai moyen payé : ${delay}${NB}j`,missing:'aucune facture payée sur la période',link:['facture',{...scope,status:'due'}]},
-    {key:'quotes',label:'Devis transformés',value:quotesRate===null?'—':`${quotesRate}${NB}%`,missing:'aucun devis envoyé sur la période',hint:`${plural(d.quotes.won,'accepté','acceptés')} sur ${d.quotes.sent} envoyé${d.quotes.sent>1?'s':''}`,link:['devis',{...base}]}
+    {key:'dso',label:'DSO',value:d.dso===null?'—':`${d.dso}${NB}j`,hint:delay===null?'délai moyen : —':`délai moyen payé : ${delay}${NB}j`,link:['facture',{...scope,status:'due'}]},
+    {key:'quotes',label:'Devis transformés',value:quotesRate===null?'—':`${quotesRate}${NB}%`,hint:`${plural(d.quotes.won,'accepté','acceptés')} sur ${d.quotes.sent} envoyé${d.quotes.sent>1?'s':''}`,link:['devis',{...base}]}
   ];
   const aged=AGED_BUCKETS.map(([k,label])=>({key:k,label,amount:d.aged.totals[k]||0,share:d.aged.total?Math.round((d.aged.totals[k]||0)/d.aged.total*100):0,link:['facture',{...scope,status:k==='aEchoir'?'due':'retard',aged:k}]}));
   const top=d.clients.filter(c=>c.invoicedHt||c.due).slice(0,5).map(c=>({...c,link:['all',{...base,clientId:c.clientId||'',clientName:c.name}]}));

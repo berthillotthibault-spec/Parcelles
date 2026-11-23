@@ -1,14 +1,13 @@
 {
   "versions": [
     {
-      "version": "10.40.0",
+      "version": "10.40.1",
       "date": "2026-11-23",
-      "title": "Un nouveau visuel, plus clair et plus moderne",
+      "title": "Retour à l’apparence habituelle",
       "items": [
-        "Barres, fenêtres et menus en verre, tuiles de synthèse sur fond coloré, ombres douces à la place des bordures grises.",
-        "Les chiffres importants s’affichent en grand ; une valeur manquante indique ce qu’il faut compléter.",
-        "Formulaires plus légers : champs remplis, choix en boutons segmentés, moins de boutons empilés en bas des fenêtres.",
-        "Verre automatiquement opaque en contraste élevé, en « réduire la transparence » et en mode plein champ."
+        "L’application retrouve l’apparence de la version 10.39.0.",
+        "Les écrans, formulaires et chiffres s’affichent comme avant.",
+        "Vos données ne changent pas."
       ]
     },
     {

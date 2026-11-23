@@ -140,18 +140,14 @@ export function createDiagnosticUI(ctx) {
       row('Blobs', breakdown ? `${mo(breakdown.blobBytes)} Mo` : '—'),
       row('Sauvegardes', `${backups.filter(b => b.verified).length}/${backups.length} ${plural(backups.length, 'vérifiée', 'vérifiées')}`), '</dl>'].join('');
     const refHtml = referenceSectionHtml(ctx.autoUpdater, ctx.lastUpdateCheck);
-    // 10.40 : les outils passent dans le corps (tuiles d'accès) ; le pied ne garde que « Fermer ».
-    const tool = (id, title, sub, extra = '') => `<button type="button" class="access-tile${extra}" id="${id}">`
-      + `<span class="access-text"><strong>${title}</strong><small>${sub}</small></span></button>`;
-    const toolsHtml = ['<h3 class="bd-h3 diagnostic-tools-title">Outils</h3><div class="kpi-access diagnostic-tools">',
-      tool('copy-diagnostic', 'Copier', 'Diagnostic complet'),
-      errors.length ? tool('clear-errors', 'Effacer erreurs', 'Journal local') : '',
-      tool('clear-cache', 'Nettoyer cache', 'Caches de l’application'), tool('force-update', 'Mise à jour', 'Chercher une version'),
-      tool('emergency-export', 'Export secours', 'Fichier de vos données'),
-      tool('reset-runtime', 'Réinitialiser cache/PWA', 'Données conservées', ' is-danger'), '</div>'].join('');
-    const body = `${healthHtml}${failed}${toolsHtml}${definitions}${refHtml}${errorsHtml}<details><summary>Diagnostic complet</summary>`
+    const body = `${healthHtml}${failed}${definitions}${refHtml}${errorsHtml}<details><summary>Diagnostic complet</summary>`
       + `<pre class="diagnostic-pre">${escapeHtml(JSON.stringify(diag, null, 2))}</pre></details>`;
-    const footer = '<button class="button primary" data-action="close-modal">Fermer</button>';
+    const footer = ['<button class="button secondary" id="copy-diagnostic">Copier</button>',
+      errors.length ? '<button class="button secondary" id="clear-errors">Effacer erreurs</button>' : '',
+      '<button class="button secondary" id="clear-cache">Nettoyer cache</button><button class="button secondary" id="force-update">Mise à jour</button>',
+      '<button class="button secondary" id="emergency-export">Export secours</button>',
+      '<button class="button danger" id="reset-runtime">Réinitialiser cache/PWA</button>',
+      '<button class="button primary" data-action="close-modal">Fermer</button>'].join('');
     ctx.modal('Santé de l’application', 'État du build, du stockage et des composants essentiels.', body, footer, 'large');
     $('#copy-diagnostic').onclick = async () => {
       const copied = await ctx.copyText(JSON.stringify(diag, null, 2));

@@ -45,17 +45,17 @@ test('readable queue hides sent operations and lists errors first, oldest first'
 test('the pill keeps offline and read-only states first, then the five sync states', () => {
   const queue = [{id: 'a', status: 'pending'}, {id: 'b', status: 'pending'}, {id: 'c', status: 'pending'}];
   assert.equal(syncPillState({data: data({queue}), offline: true, cloud: true, now: NOW}).label, 'Hors connexion');
-  assert.equal(syncPillState({data: data(), schemaLock: true, now: NOW}).label, 'Lecture seule');
-  assert.equal(syncPillState({data: data(), tabReadOnly: true, now: NOW}).detail, 'Parcelles est ouvert dans une autre fenêtre.');
-  assert.equal(syncPillState({data: data(), viewer: true, cloud: true, now: NOW}).label, 'Lecture seule');
+  assert.equal(syncPillState({data: data(), schemaLock: true, now: NOW}).label, 'Lecture seule · version plus récente');
+  assert.equal(syncPillState({data: data(), tabReadOnly: true, now: NOW}).label, 'Lecture seule · autre fenêtre');
+  assert.equal(syncPillState({data: data(), viewer: true, cloud: true, now: NOW}).label, 'Lecture seule · Cloud');
   const conflicts = [{status: 'open'}, {status: 'open'}, {status: 'resolved'}];
-  assert.deepEqual(['conflict', '2 conflits'], Object.values((({tone, label}) => ({tone, label}))(syncPillState({data: data({syncConflicts: conflicts, queue: [{status: 'error'}]}), cloud: true, now: NOW}))));
-  assert.equal(syncPillState({data: data({queue: [{status: 'error'}]}), cloud: true, now: NOW}).label, 'Erreur');
+  assert.deepEqual(['conflict', '2 conflits à régler'], Object.values((({tone, label}) => ({tone, label}))(syncPillState({data: data({syncConflicts: conflicts, queue: [{status: 'error'}]}), cloud: true, now: NOW}))));
+  assert.equal(syncPillState({data: data({queue: [{status: 'error'}]}), cloud: true, now: NOW}).label, 'Erreur — toucher pour réessayer');
   assert.equal(syncPillState({data: data({metadata: {lastSyncError: 'x'}}), cloud: true, now: NOW}).tone, 'error');
   assert.equal(syncPillState({data: data({metadata: {lastSyncError: 'x'}}), cloud: false, now: NOW}).tone, 'local', 'a stale error without cloud is not shown');
   assert.equal(syncPillState({data: data({queue}), cloud: true, syncing: {done: 4, total: 12}, now: NOW}).label, 'Envoi… 4/12');
   assert.equal(syncPillState({data: data({queue}), cloud: true, now: NOW}).label, '3 en attente');
-  assert.equal(syncPillState({data: data({metadata: {lastSyncAt: NOW - 3 * 60e3}}), cloud: true, now: NOW}).detail, 'Synchronisé il y a 3 min.');
+  assert.equal(syncPillState({data: data({metadata: {lastSyncAt: NOW - 3 * 60e3}}), cloud: true, now: NOW}).label, 'Synchronisé · il y a 3 min');
   assert.equal(syncPillState({data: data(), cloud: false, now: NOW}).label, 'À jour');
 });
 
