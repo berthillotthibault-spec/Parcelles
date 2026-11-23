@@ -8,6 +8,9 @@ const n0=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}),n2=new Intl.Nu
 const eur=v=>v===null||v===undefined||!Number.isFinite(v)?'—':`${v<0?'−':''}${n0.format(Math.abs(v))} €`;
 const eur2=v=>v===null||v===undefined?'—':`${n2.format(v)} €`;
 const plural=(n,one,many)=>`${n} ${Math.abs(n)>1?many:one}`;
+// n° 10.40 — tuile de chiffre : libellé en sur-titre (CSS), chiffre géant, unité en petit, « À compléter » + raison si absent.
+const tile=(label,value,{digits=0,hero=false,negative=false,missing='',note=''}={})=>{const ok=value!==null&&value!==undefined&&Number.isFinite(value),f=digits?n2:n0;return`<div class="preview-stat stat-tile${hero?' is-hero':''}${ok?'':' is-missing'}"><strong class="${negative?'negative':''}">${ok?`${value<0?'−':''}${e(f.format(Math.abs(value)))}<span class="stat-unit">\u202f€</span>`:'À compléter'}</strong><small>${e(label)}</small>${ok?(note?`<span class="stat-note">${e(note)}</span>`:''):missing?`<span class="stat-note">${e(missing)}</span>`:''}</div>`;};
+const herdTiles=(h,{detail=false}={})=>`<div class="preview-summary kpi-bento">${tile('Marge brute',h.margin,{hero:true,negative:h.margin<0,note:h.partial?'Marge partielle':''})}${tile('Marge par UGB',h.marginPerUgb,{missing:'Aucun UGB présent sur la campagne',note:detail&&h.avgUgb?`${n2.format(h.avgUgb)} UGB moyens`:''})}${tile('Herbe / animal / jour',h.grassPerAnimalDay,{digits:2,missing:'Aucun jour de pâturage saisi'})}</div>`;
 const todayIso=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 
 export function createHerdEconomicsUI({store,modal,toast}){
@@ -17,7 +20,7 @@ export function createHerdEconomicsUI({store,modal,toast}){
 
   function pilotageCardHtml(campaign=campaignFor()){
     const h=model(campaign);if(h.empty)return'';
-    return`<section class="herd-econ-card"><h3>Atelier bovin</h3><div class="preview-summary"><div class="preview-stat"><strong class="${h.margin<0?'negative':''}">${e(eur(h.margin))}</strong><small>marge brute${h.partial?' (partielle)':''}</small></div><div class="preview-stat"><strong>${e(h.marginPerUgb===null?'—':eur(h.marginPerUgb))}</strong><small>par UGB</small></div><div class="preview-stat"><strong>${e(eur2(h.grassPerAnimalDay))}</strong><small>herbe / animal / jour</small></div></div><button type="button" class="button secondary" data-action="open-herd-economics" data-campaign="${e(campaign)}">Détail de l’atelier</button></section>`;
+    return`<section class="herd-econ-card"><h3>Atelier bovin</h3>${herdTiles(h)}<button type="button" class="button secondary" data-action="open-herd-economics" data-campaign="${e(campaign)}">Détail de l’atelier</button></section>`;
   }
 
   function open({campaign=campaignFor()}={}){
@@ -25,7 +28,7 @@ export function createHerdEconomicsUI({store,modal,toast}){
     const line=(label,value,note='')=>`<div class="list-row"><div><strong>${e(label)}</strong>${note?`<small>${e(note)}</small>`:''}</div><strong>${e(value)}</strong></div>`;
     const recs=[...h.sales.map(r=>({...r,kind:'Vente'})),...h.purchases.map(r=>({...r,kind:'Achat'}))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     modal('Atelier bovin',`Campagne ${campaign} · du ${localDate(h.bounds.from)} au ${localDate(h.bounds.to)}`,`
-<div class="preview-summary"><div class="preview-stat"><strong class="${h.margin<0?'negative':''}">${e(eur(h.margin))}</strong><small>marge brute</small></div><div class="preview-stat"><strong>${e(h.marginPerUgb===null?'—':eur(h.marginPerUgb))}</strong><small>marge par UGB${h.avgUgb?` (${n2.format(h.avgUgb)} UGB moyens)`:''}</small></div><div class="preview-stat"><strong>${e(eur2(h.grassPerAnimalDay))}</strong><small>coût de l’herbe par animal et par jour</small></div></div>
+${herdTiles(h,{detail:true})}
 ${h.partial?`<p class="notice warning">Marge partielle : ${[h.grassMissing?`${plural(h.grassMissing,'travail','travaux')} de prairie sans coût`:'',h.feed.unpriced?`${plural(h.feed.unpriced,'sortie','sorties')} d’aliment sans prix`:'',h.vetUnpriced?`${plural(h.vetUnpriced,'soin','soins')} sans coût`:''].filter(Boolean).join(', ')}.</p>`:''}
 <div class="stack-list">${line('Ventes d’animaux',eur(h.product),`${plural(h.soldHeads,'animal','animaux')}${h.soldKg?` · ${n0.format(h.soldKg)} kg · ${n2.format(h.pricePerKg)} €/kg`:''}`)}${line('Achats d’animaux',eur(-h.bought),`${plural(h.purchases.length,'achat','achats')}`)}${line('Aliments',eur(-h.feed.total),`${plural(h.feed.rows.length,'sortie','sorties')} de stock « Aliment » au PMP du jour`)}${line('Frais vétérinaires',eur(-h.vetCost),`${plural(h.vetCount,'enregistrement','enregistrements')} du carnet sanitaire`)}${line('Coût des prairies',eur(-h.grassCost),`${n2.format(h.forageArea)} ha · ${n0.format(h.ugbDays)} jours UGB · ${eur2(h.grassPerUgbDay)} par jour UGB`)}</div>
 <h3>Ventes et achats</h3><div class="stack-list">${recs.map(r=>`<div class="list-row"><div><strong>${e(r.kind)} · ${e(plural(r.count,'animal','animaux'))}${r.category?` · ${e(r.category)}`:''}</strong><small>${e(localDate(r.date))}${r.party?` · ${e(r.party)}`:''}${r.kg?` · ${e(n0.format(r.kg))} kg`:''}</small></div><strong>${e(eur(r.amount))}</strong></div>`).join('')||'<div class="empty-state">Aucune vente ni achat sur la campagne.</div>'}</div>

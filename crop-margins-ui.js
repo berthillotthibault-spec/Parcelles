@@ -33,7 +33,7 @@ export function createCropMarginsUI({store,modal,toast}){
     if(!selected||!m.rows.some(r=>r.key===selected))selected=m.rows[0]?.key||'';
     const herd=m.herd;
     modal('Marges par culture',`Campagne ${m.campaign} · montants en €/ha`,`
-<div class="cm-total"><div class="preview-summary">${[['Marge brute',ha(t.grossHa)],['Marge directe',ha(t.directHa)],['Avec aides PAC',ha(t.withAidsHa)]].map(([l,v])=>`<div class="preview-stat"><strong>${e(v)}</strong><small>${e(l)}</small></div>`).join('')}</div>
+<div class="cm-total"><div class="preview-summary">${[['Marge brute',ha(t.grossHa)],['Marge directe',ha(t.directHa)],['Avec aides PAC',ha(t.withAidsHa)]].map(([l,v])=>v==='—'?`<div class="preview-stat is-missing"><strong>À compléter</strong><small>${e(l)}</small><span class="stat-note">Rendement ou prix à renseigner</span></div>`:`<div class="preview-stat"><strong>${e(v)}</strong><small>${e(l)}</small></div>`).join('')}</div>
 ${m.missing?`<p class="notice warning cm-partial-note" role="status">${e(partialLabel(m.missing).replace(/^m/,'M'))} : les charges connues sont seules comptées.</p>`:''}</div>
 <div class="cm-tabs" role="group" aria-label="Culture">${m.rows.map(r=>`<button type="button" class="choice-chip ${r.key===selected?'is-on':''}" aria-pressed="${r.key===selected}" data-cm-pick="${e(r.key)}">${e(r.culture)}</button>`).join('')}</div>
 <div class="cm-list">${m.rows.map(cultureCard).join('')||'<div class="empty-state">Aucune parcelle en propre sur cette campagne.</div>'}</div>

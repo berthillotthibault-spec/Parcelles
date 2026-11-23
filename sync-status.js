@@ -54,7 +54,8 @@ export function readableQueue(data = {}, now = Date.now()) {
 }
 
 // Pastille : les états « Hors connexion » et « Lecture seule · … » restent prioritaires,
-// puis conflits, erreurs, envoi en cours, attente, et enfin « Synchronisé · il y a … ».
+// puis conflits, erreurs, envoi en cours, attente, et enfin « À jour ».
+// 10.40.0 : libellé court (un mot ou deux, la pastille n'est plus tronquée), le détail passe dans detail (title, aria-label, file).
 export function syncPillState({data = {}, offline = false, schemaLock = false, tabReadOnly = false, viewer = false, cloud = false, syncing = null, now = Date.now()} = {}) {
   const queue = Array.isArray(data.queue) ? data.queue : [];
   const pending = queue.filter(op => op?.status === 'pending').length;
@@ -63,17 +64,17 @@ export function syncPillState({data = {}, offline = false, schemaLock = false, t
   const lastSyncAt = Number(data.metadata?.lastSyncAt) || 0, lastError = cloud ? data.metadata?.lastSyncError || '' : '';
   const base = {pending, errors, conflicts, lastSyncAt};
   if (offline) return {...base, tone: 'offline', label: 'Hors connexion', detail: pending ? `${plural(pending, 'opération', 'opérations')} en attente du réseau` : 'Vos données locales restent modifiables.'};
-  if (schemaLock) return {...base, tone: 'readonly', label: 'Lecture seule · version plus récente', detail: 'Mettez l’application à jour pour modifier.'};
-  if (tabReadOnly) return {...base, tone: 'readonly', label: 'Lecture seule · autre fenêtre', detail: 'Parcelles est ouvert dans une autre fenêtre.'};
-  if (viewer) return {...base, tone: 'readonly', label: 'Lecture seule · Cloud', detail: 'Votre rôle permet la consultation.'};
-  if (conflicts) return {...base, tone: 'conflict', label: `${plural(conflicts, 'conflit', 'conflits')} à régler`, detail: 'Choisissez la bonne version.'};
-  if (errors || lastError) return {...base, tone: 'error', label: 'Erreur — toucher pour réessayer', detail: errors ? `${plural(errors, 'opération', 'opérations')} en échec` : 'La dernière synchronisation a échoué.'};
+  if (schemaLock) return {...base, tone: 'readonly', label: 'Lecture seule', detail: 'Données d’une version plus récente : mettez l’application à jour pour modifier.'};
+  if (tabReadOnly) return {...base, tone: 'readonly', label: 'Lecture seule', detail: 'Parcelles est ouvert dans une autre fenêtre.'};
+  if (viewer) return {...base, tone: 'readonly', label: 'Lecture seule', detail: 'Votre rôle sur le Cloud permet la consultation.'};
+  if (conflicts) return {...base, tone: 'conflict', label: plural(conflicts, 'conflit', 'conflits'), detail: 'À régler : choisissez la bonne version.'};
+  if (errors || lastError) return {...base, tone: 'error', label: 'Erreur', detail: `${errors ? `${plural(errors, 'opération', 'opérations')} en échec` : 'La dernière synchronisation a échoué'}. Toucher pour réessayer.`};
   if (syncing) {
     const total = Math.max(0, Number(syncing.total) || 0), done = Math.min(total, Math.max(0, Number(syncing.done) || 0));
     return {...base, tone: 'sending', label: total ? `Envoi… ${done}/${total}` : 'Synchronisation…', detail: 'Envoi en cours.'};
   }
   if (pending) return {...base, tone: 'pending', label: `${pending} en attente`, detail: cloud ? 'Envoi à la prochaine synchronisation.' : 'Envoi dès que le cloud sera connecté.'};
-  if (cloud) return {...base, tone: 'ok', label: lastSyncAt ? `Synchronisé · ${durationAgo(now - lastSyncAt)}` : 'Synchronisé', detail: lastSyncAt ? `Dernière synchronisation ${durationAgo(now - lastSyncAt)}.` : ''};
+  if (cloud) return {...base, tone: 'ok', label: 'À jour', detail: lastSyncAt ? `Synchronisé ${durationAgo(now - lastSyncAt)}.` : 'Synchronisé avec le Cloud.'};
   return {...base, tone: 'local', label: 'À jour', detail: 'Les données restent sur cet appareil.'};
 }
 

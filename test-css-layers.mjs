@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import {LAZY_SHEETS, loadSheet, sheetHref} from './lazy-styles.js';
 
 const read = f => fs.readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
-const LAYERS = ['reset', 'tokens', 'base', 'components', 'screens', 'features', 'theme', 'overrides'];
+const LAYERS = ['reset', 'tokens', 'base', 'components', 'screens', 'features', 'theme', 'refresh', 'overrides'];
 const VENDOR = new Set(['leaflet.min.css']);
 const html = read('index.html');
 const linked = [...html.matchAll(/<link rel="stylesheet" href="\.\/([^"?]+\.css)(?:\?v=([\d.]+))?"/g)].map(m => ({file: m[1], v: m[2] || ''}));

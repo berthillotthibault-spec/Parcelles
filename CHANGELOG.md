@@ -1,5 +1,15 @@
 # Changelog
 
+## 10.40.0 · nouveau visuel : verre, tuiles et grands chiffres — 2026-11-23
+
+- Nouveau langage visuel sur toute l’application, dans une feuille dédiée (design-v4.css, couche « refresh » entre design-v3 et les réglages d’accessibilité, qui gardent la priorité).
+- Verre (liquid glass) sur ce qui flotte : en-tête, navigation (onglet actif en pastille de verre), en-têtes et pieds des fenêtres, boutons flottants, menus, toasts, suggestions de saisie ; tuile principale de l’accueil et tuiles de synthèse sur fond dégradé. Verre opaque si l’appareil ne sait pas flouter, en « réduire la transparence », en contraste élevé et en mode plein champ ; presque opaque en cabine de nuit.
+- Surfaces sans bordure, ombres douces et reflet léger (soft 3D) ; les sections des fenêtres deviennent des groupes à plat, sans cadres dans des cadres ni pointillés.
+- Formulaires : champs remplis de 52 à 56 px, valeur en taille normale (fini les dates en gras géant), anneau de focus net, champ fautif teinté ; titres de section unifiés en sur-titre ; choix de 4 options ou moins en contrôle segmenté, au-delà en pastilles sans contour ; pied de fenêtre sur une seule rangée quand c’est possible.
+- Chiffres : grands chiffres en serif (comme la météo), libellé au-dessus, unité à part ; une valeur manquante affiche « À compléter » et sa raison au lieu de « — ». Pilotage et Économie du troupeau en grille de tuiles : un seul encart d’état, la tuile entière ouvre l’explication, accès (Marges, Et si…, Rapport, Dossier, Stocks, campagnes) en tuiles dans le corps au lieu d’une pile de boutons.
+- Accueil et listes : cartes de décision avec l’action sous le texte et « Pourquoi ? · Votre avis » sur une ligne ; en-tête de fiche parcelle en tuiles (surface, culture, prochain travail) ; lignes de liste plus lisibles.
+- Corrections : « hétérogèneImage du » dans Satellite · À vérifier ; pastille de synchronisation courte (« À jour », détail au toucher) ; suggestions client de la facture en popover sans recouvrir le champ suivant.
+
 ## 10.39.0 · démarrage signature, mouvement cohérent, finitions — 2026-11-23
 
 - Démarrage plus rapide : le premier écran part des données locales ; la synchronisation cloud dispose de 600 ms, puis l’écran se met à jour dès qu’elle répond (avant, une connexion lente bloquait l’ouverture plusieurs secondes).

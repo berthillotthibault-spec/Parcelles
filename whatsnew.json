@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.40.0",
+      "date": "2026-11-23",
+      "title": "Un nouveau visuel, plus clair et plus moderne",
+      "items": [
+        "Barres, fenêtres et menus en verre, tuiles de synthèse sur fond coloré, ombres douces à la place des bordures grises.",
+        "Les chiffres importants s’affichent en grand ; une valeur manquante indique ce qu’il faut compléter.",
+        "Formulaires plus légers : champs remplis, choix en boutons segmentés, moins de boutons empilés en bas des fenêtres.",
+        "Verre automatiquement opaque en contraste élevé, en « réduire la transparence » et en mode plein champ."
+      ]
+    },
+    {
       "version": "10.39.0",
       "date": "2026-11-23",
       "title": "Une ouverture plus rapide et des gestes plus doux",

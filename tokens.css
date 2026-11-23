@@ -2,8 +2,9 @@
    Une couche plus loin dans la liste l'emporte sur les précédentes quelle que soit la spécificité ;
    les styles hors couche (attribut style, <style> injecté) l'emportent sur toutes.
    reset : Leaflet et remise à zéro · tokens : variables · base : coquille · components · screens (dont responsive et accessibilité)
-   · features : modules · theme : design-v3.css · overrides : réservée aux exceptions. */
-@layer reset, tokens, base, components, screens, features, theme, overrides;
+   · features : modules · theme : design-v3.css · refresh : design-v4.css (refonte 10.40, verre et bento, au-dessus de design-v3)
+   · overrides : réservée aux exceptions (accessibility.css : mode gants, contraste ; garde la priorité sur refresh). */
+@layer reset, tokens, base, components, screens, features, theme, refresh, overrides;
 /* Polices auto-hebergees (licence OFL 1.1, voir instrument-fonts-LICENSE.txt) : disponibles hors connexion via le CORE de sw.js. */
 @font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 700;font-display:swap;src:url('./instrument-sans-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
 @font-face{font-family:'Instrument Sans';font-style:normal;font-weight:400 700;font-display:swap;src:url('./instrument-sans-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF}
@@ -38,7 +39,31 @@
   --motion-fast:120ms;--motion-base:200ms;--motion-slow:320ms;--ease-in:cubic-bezier(.4,0,1,1);--ease-sheet:cubic-bezier(.32,.72,0,1);--press-scale:.97;
   --fs-caption:12px;--fs-meta:13.5px;--fs-label:14px;--fs-body:15px;--fs-row:16px;--fs-title:18px;--fs-h1:clamp(28px,6vw,34px);
   /* n° 160 : carte météo de l’accueil, bandeau des retards, hachures de remplacement des vignettes */
-  --hero:#1c3a28;--hero-2:#2a573b;--hero-ink:#f6f4ef;--warning-line:#e9cc8c;--map-hatch-1:#c9d3bf;--map-hatch-2:#c0cbb5
+  --hero:#1c3a28;--hero-2:#2a573b;--hero-ink:#f6f4ef;--warning-line:#e9cc8c;--map-hatch-1:#c9d3bf;--map-hatch-2:#c0cbb5;
+  /* 10.40 (refonte) : verre marqué, ombres douces en 2 couches, rayons, chiffres géants. Voile du verre >= 72 % (plein soleil). */
+  --glass-bg:color-mix(in srgb,var(--surface) 74%,transparent);--glass-bg-strong:color-mix(in srgb,var(--surface) 86%,transparent);
+  --glass-tint:color-mix(in srgb,color-mix(in srgb,var(--brand) 7%,var(--surface)) 76%,transparent);
+  --hero-glass-bg:color-mix(in srgb,color-mix(in srgb,var(--brand-soft) 55%,var(--surface)) 78%,transparent);
+  --glass-blur:saturate(160%) blur(20px);
+  --glass-edge:inset 0 1px 0 rgb(255 255 255 / .55),inset 0 0 0 1px rgb(255 255 255 / .18);
+  --glass-shadow:0 8px 32px rgb(20 28 24 / .12);
+  --soft-1:0 1px 2px rgb(20 28 24 / .05),0 4px 14px rgb(20 28 24 / .06);
+  --soft-2:0 2px 4px rgb(20 28 24 / .06),0 12px 32px rgb(20 28 24 / .09);
+  --soft-3:0 4px 8px rgb(20 28 24 / .08),0 24px 56px rgb(20 28 24 / .14);
+  --soft-highlight:inset 0 1px 0 rgb(255 255 255 / .7);
+  --surface-sunken:color-mix(in srgb,var(--text-primary) 4%,var(--surface));
+  /* Fonds tonaux (boutons secondaires, croix), champs remplis, anneau de focus, tuile KPI « À compléter » : dérivés, suivent le thème. */
+  --tonal-bg:color-mix(in srgb,var(--text-primary) 8%,transparent);--tonal-bg-hover:color-mix(in srgb,var(--text-primary) 12%,transparent);
+  --field-bg:color-mix(in srgb,var(--text-primary) 3.5%,var(--surface-sunken));--field-ring:color-mix(in srgb,var(--brand) 45%,transparent);
+  /* Délimitation des champs remplis (WCAG 1.4.11) : filet bas de 2 px au moins 3:1 (--field-border), liseré fin autour. */
+  --field-edge:inset 0 -2px 0 var(--field-border),inset 0 0 0 1px color-mix(in srgb,var(--text-primary) 14%,transparent);
+  --kpi-missing-bg:color-mix(in srgb,var(--warning-soft) 55%,var(--glass-tint));
+  /* Fond des scènes bento : teintes de l'écran à 18-24 % pour que le verre des tuiles ait de quoi réfracter (jamais de texte posé dessus). */
+  --bento-bg:radial-gradient(120% 75% at 0% 0%,color-mix(in srgb,var(--brand) 24%,transparent),transparent 64%),
+    radial-gradient(90% 65% at 100% 12%,color-mix(in srgb,var(--warning) 20%,transparent),transparent 66%),
+    radial-gradient(110% 70% at 55% 100%,color-mix(in srgb,var(--sync-info) 18%,transparent),transparent 70%),var(--bg);
+  --radius-tile:24px;--radius-field:16px;--radius-sheet:32px;
+  --fs-display:clamp(40px,11vw,64px);--fs-kpi:clamp(32px,8vw,44px);--fs-eyebrow:12.5px
 }
 /* Palette fixe (n° 153) : couleurs naguère codées en dur dans plusieurs feuilles, mêmes valeurs en clair et en sombre.
    Pour une couleur qui doit changer en mode sombre, utiliser un jeton sémantique (--surface, --brand…). */
@@ -70,7 +95,20 @@
   --chip-border:#323c35;--tile:#1d2520;--tile-hover:#252e28;--ink:#e8ede9;--on-ink:#10261a;--accent-ink:#286a4a;
   --accent-ink-text:#fff;--on-brand:#10261a;--warning-soft:#33280f;--danger-soft:#3a1d18;--muted-text:#a2ada5;
   --field-border:#6b786f;--sync-info:#8bb8e8;--sync-info-soft:#16283b;--sync-violet:#c6a6ec;--sync-violet-soft:#2a1d3b;
-  --hero:#173022;--hero-2:#21422f;--hero-ink:#eef3ee;--warning-line:#5e4719;--map-hatch-1:#28332a;--map-hatch-2:#232d25
+  --hero:#173022;--hero-2:#21422f;--hero-ink:#eef3ee;--warning-line:#5e4719;--map-hatch-1:#28332a;--map-hatch-2:#232d25;
+  /* 10.40 : verre vert-noir, reflets réduits, ombres plus profondes. */
+  --glass-bg:color-mix(in srgb,var(--surface) 76%,transparent);--glass-bg-strong:color-mix(in srgb,var(--surface) 88%,transparent);
+  --glass-tint:color-mix(in srgb,color-mix(in srgb,var(--brand) 10%,var(--surface)) 78%,transparent);
+  --hero-glass-bg:color-mix(in srgb,color-mix(in srgb,var(--brand-soft) 70%,var(--surface)) 80%,transparent);
+  --glass-edge:inset 0 1px 0 rgb(255 255 255 / .08),inset 0 0 0 1px rgb(255 255 255 / .06);
+  --glass-shadow:0 10px 36px rgb(0 0 0 / .36);
+  --soft-1:0 1px 2px rgb(0 0 0 / .24),0 4px 14px rgb(0 0 0 / .22);
+  --soft-2:0 2px 4px rgb(0 0 0 / .26),0 12px 32px rgb(0 0 0 / .3);
+  --soft-3:0 4px 8px rgb(0 0 0 / .3),0 24px 56px rgb(0 0 0 / .42);
+  --soft-highlight:inset 0 1px 0 rgb(255 255 255 / .05);
+  --surface-sunken:color-mix(in srgb,var(--text-primary) 5%,var(--surface));
+  --bento-bg:radial-gradient(120% 75% at 0% 0%,color-mix(in srgb,var(--brand) 22%,transparent),transparent 64%),
+    radial-gradient(90% 65% at 100% 12%,color-mix(in srgb,var(--sync-info) 16%,transparent),transparent 66%),var(--bg)
 }
 /* Contraste élevé (Personnaliser) : bordure renforcée. */
 :root.high-contrast{--border:#8b958e}
@@ -90,6 +128,31 @@ html[data-assistant-dock="hidden"]{--assistant-clearance:0px}
   --text-secondary:#8a958d;--text-tertiary:#6b756e;--brand:#4f9471;--brand-hover:#5ea380;--brand-soft:#11281d;--success:#56996f;
   --warning:#a8823f;--danger:#a8615b;--border-subtle:#1c241f;--border-strong:#2a342e;--chip-border:#252e28;--ink:#c4ccc6;
   --warning-soft:#211a0b;--danger-soft:#251311;--muted-text:#8a958d;
-  --hero:#0f1f16;--hero-2:#16301f;--hero-ink:#c4ccc6;--warning-line:#3d2f12;--map-hatch-1:#161d18;--map-hatch-2:#131915
+  --hero:#0f1f16;--hero-2:#16301f;--hero-ink:#c4ccc6;--warning-line:#3d2f12;--map-hatch-1:#161d18;--map-hatch-2:#131915;
+  /* 10.40 : verre plus opaque (88 %), aucun reflet clair (éblouissement), dégradé quasi neutre. */
+  --glass-bg:color-mix(in srgb,var(--surface) 88%,transparent);--glass-bg-strong:color-mix(in srgb,var(--surface) 95%,transparent);
+  --glass-tint:color-mix(in srgb,color-mix(in srgb,var(--brand) 6%,var(--surface)) 88%,transparent);
+  --hero-glass-bg:color-mix(in srgb,color-mix(in srgb,var(--brand-soft) 60%,var(--surface)) 90%,transparent);
+  --glass-edge:inset 0 0 0 1px var(--border-subtle);--soft-highlight:inset 0 0 0 transparent;
+  --bento-bg:radial-gradient(120% 70% at 0% 0%,color-mix(in srgb,var(--brand-soft) 45%,transparent),transparent 65%),var(--bg)
 }
+/* 10.40 : replis du verre (jetons seulement ; design-v4.css lit ces jetons). Placés en fin de couche pour l'emporter
+   sur les variantes sombre et nuit à spécificité égale. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root,:root.theme-dark,:root.theme-night{--glass-bg:var(--surface);--glass-bg-strong:var(--surface);--glass-blur:none;
+    --glass-tint:color-mix(in srgb,var(--brand) 6%,var(--surface));--hero-glass-bg:color-mix(in srgb,var(--brand-soft) 55%,var(--surface))}
+}
+@media (prefers-reduced-transparency:reduce){
+  :root,:root.theme-dark,:root.theme-night{--glass-bg:var(--surface);--glass-bg-strong:var(--surface);--glass-blur:none;
+    --glass-tint:color-mix(in srgb,var(--brand) 6%,var(--surface));--hero-glass-bg:color-mix(in srgb,var(--brand-soft) 55%,var(--surface));
+    --glass-edge:inset 0 0 0 1px var(--border-subtle);--glass-shadow:0 1px 3px rgb(0 0 0 / .12);--bento-bg:var(--bg)}
+}
+@media (prefers-contrast:more){
+  :root,:root.theme-dark,:root.theme-night{--glass-bg:var(--surface);--glass-bg-strong:var(--surface);--glass-blur:none;
+    --glass-tint:var(--surface);--hero-glass-bg:var(--surface);--glass-edge:inset 0 0 0 1px var(--border-strong);
+    --glass-shadow:0 1px 3px rgb(0 0 0 / .12);--soft-highlight:inset 0 0 0 transparent;--bento-bg:var(--bg)}
+}
+:root:is(.plein-champ,.high-contrast),:root.theme-dark:is(.plein-champ,.high-contrast),:root.theme-night:is(.plein-champ,.high-contrast){
+  --glass-bg:var(--surface);--glass-bg-strong:var(--surface);--glass-blur:none;--glass-tint:var(--surface);--hero-glass-bg:var(--surface);
+  --glass-edge:inset 0 0 0 1px var(--border-strong);--glass-shadow:0 1px 3px rgb(0 0 0 / .12);--soft-highlight:inset 0 0 0 transparent;--bento-bg:var(--bg)}
 }
