@@ -1,0 +1,18 @@
+node_modules/
+audit/
+dist-github-root/
+.DS_Store
+# Exports réels de parcellaire : jamais dans le dépôt, qui est le site publié.
+# (Les tests utilisent fixtures/parcelles-fictives.*, voir tools/make-fixture.mjs.)
+/*.shp
+/*.shx
+/*.dbf
+/*.prj
+/*.cpg
+/*.zip
+/Export_*
+# Sorties des tests visuels (n° 146) : seules les références de __screenshots__ sont versionnées.
+tests-visual/.resultats/
+tests-visual/.rapport/
+# Journaux de l’émulateur Firebase (tools/test-rules.mjs)
+*-debug.log

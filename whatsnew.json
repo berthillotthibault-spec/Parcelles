@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.39.0",
+      "date": "2026-11-23",
+      "title": "Une ouverture plus rapide et des gestes plus doux",
+      "items": [
+        "Parcelles s’ouvre sur vos données locales sans attendre la connexion ; une parcelle se dessine au lancement, sans jamais vous faire attendre.",
+        "Plus d’éclair blanc à l’ouverture en thème sombre ou en cabine de nuit.",
+        "Les fenêtres montent du bas et se referment en glissant ; changer d’onglet ou de filtre ne fait plus clignoter l’écran.",
+        "Boutons plus faciles à toucher (48 px), petits textes plus lisibles, boutons indisponibles clairement grisés."
+      ]
+    },
+    {
       "version": "10.38.0",
       "date": "2026-11-13",
       "title": "Factures électroniques, planning et traitements plus attentifs à votre terrain",

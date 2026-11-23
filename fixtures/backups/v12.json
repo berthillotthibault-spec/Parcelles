@@ -1,0 +1,38 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 12,
+  "buildId": "fixture-v12",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 12 : file de synchronisation sans compteur de tentatives.",
+  "data": {
+    "version": 12,
+    "parcelles": [
+      {
+        "createdAt": 1735725600000,
+        "updatedAt": 1735725600500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "p_h",
+        "nom": "Les Vignes",
+        "surfaceHa": 2
+      }
+    ],
+    "queue": [
+      {
+        "id": "op_h",
+        "entity": "parcelles",
+        "entityId": "p_h",
+        "action": "update",
+        "status": "pending",
+        "createdAt": 1735725600000
+      }
+    ],
+    "preferences": {
+      "syncEnabled": true,
+      "syncRetryMax": 40
+    }
+  }
+}

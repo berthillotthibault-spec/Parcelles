@@ -1,0 +1,55 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 3,
+  "buildId": "fixture-v3",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 3 : avant les champs de parcelle (ownershipType, agronomic) et de coûts.",
+  "data": {
+    "version": 3,
+    "parcelles": [
+      {
+        "createdAt": 1735725600000,
+        "updatedAt": 1735725600500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "p_c",
+        "nom": "La Fontaine",
+        "surfaceHa": 5.2,
+        "culture": "Colza",
+        "ilot": "3"
+      }
+    ],
+    "interventions": [
+      {
+        "createdAt": 1735725601000,
+        "updatedAt": 1735725601500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "w_c",
+        "parcelId": "p_c",
+        "type": "Désherbage",
+        "date": "2025-03-02",
+        "product": "Herbicide fictif",
+        "dose": 1.5,
+        "doseUnit": "L/ha"
+      }
+    ],
+    "clients": [
+      {
+        "createdAt": 1735725602000,
+        "updatedAt": 1735725602500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "c_c",
+        "name": "ETA Fictive"
+      }
+    ]
+  }
+}

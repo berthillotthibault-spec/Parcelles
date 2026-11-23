@@ -1,6 +1,6 @@
 // Retour visuel et haptique quand un travail ou une tâche est coché. Aucune donnée n’est écrite :
 // seul un repère « déjà célébré aujourd’hui » est gardé dans le navigateur.
-import {animateElement, haptic} from './motion.js';
+import {animateElement, flip, haptic, EASE, DUR} from './motion.js';
 import {CELEBRATION_KEY, completeLabel, dayCompletion, leafLayout, pendingIsFresh, shouldBloom} from './celebration.js';
 
 const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -40,22 +40,19 @@ function drawCheck(button) {
   if (reducedMotion?.matches || !path?.getTotalLength) return;
   const length = Math.ceil(path.getTotalLength());
   path.style.strokeDasharray = String(length);
-  animateElement(path, [{strokeDashoffset: length}, {strokeDashoffset: 0}], {duration: 220, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'backwards'});
+  animateElement(path, [{strokeDashoffset: length}, {strokeDashoffset: 0}], {duration: 220, easing: EASE, fill: 'backwards'});
   animateElement(button, [{transform: 'scale(.8)', backgroundColor: 'transparent'}, {transform: 'scale(1)'}], {duration: 220});
 }
 
 function slideRow(row, rect) {
-  if (!row || !rect || reducedMotion?.matches) return;
-  const next = row.getBoundingClientRect();
-  const dy = rect.top - next.top;
-  if (Math.abs(dy) < 2) return;
-  animateElement(row, [{transform: `translateY(${dy}px)`}, {transform: 'translateY(0)'}], {duration: 320, easing: 'cubic-bezier(.2,.7,.2,1)'});
+  flip(row, rect, {duration: DUR.slow});
 }
 
+// 10.39 : la barre s’allonge par transform (scaleX) et non par width : aucun recalcul de mise en page.
 function fillBar(root, fromPct, toPct) {
   const fill = root.querySelector('.review-bar i');
-  if (!fill || fromPct === null || fromPct === toPct) return;
-  animateElement(fill, [{width: `${fromPct}%`}, {width: `${toPct}%`}], {duration: 420, easing: 'cubic-bezier(.2,.7,.2,1)'});
+  if (!fill || fromPct === null || fromPct === toPct || !(toPct > 0)) return;
+  animateElement(fill, [{transform: `scaleX(${Math.max(0, fromPct) / toPct})`}, {transform: 'scaleX(1)'}], {duration: 420, easing: EASE});
 }
 
 function bloom(root) {
@@ -73,7 +70,7 @@ function bloom(root) {
       {transform: `translate(0px,0px) rotate(${leaf.rotate}deg) scale(.3)`, opacity: 0},
       {opacity: 1, offset: .25},
       {transform: `translate(${leaf.x}px,${leaf.y}px) rotate(${leaf.rotate}deg) scale(1)`, opacity: 0}
-    ], {duration: 900, delay: leaf.delay, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'both'});
+    ], {duration: 900, delay: leaf.delay, easing: EASE, fill: 'both'});
   })).finally(() => layer.remove());
 }
 

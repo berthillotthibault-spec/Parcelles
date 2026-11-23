@@ -1,0 +1,208 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 18,
+  "buildId": "fixture-v18",
+  "createdAt": 1760000010000,
+  "application": "Parcelles",
+  "note": "Forme 18 (actuelle) : troupeau fictif (animaux, insémination, vêlage, pesée, tâche BDNI).",
+  "data": {
+    "version": 18,
+    "parcelles": [
+      {
+        "createdAt": 1760000000000,
+        "updatedAt": 1760000000500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "p_h",
+        "nom": "Pré du Ruisseau",
+        "surfaceHa": 4.2,
+        "culture": "Prairie permanente"
+      }
+    ],
+    "grazingSessions": [
+      {
+        "createdAt": 1760000001000,
+        "updatedAt": 1760000001500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "g_h",
+        "parcelId": "p_h",
+        "animalType": "Bovins",
+        "startDate": "2026-09-01",
+        "endDate": null,
+        "note": "Lot vaches",
+        "additionalAnimalsCount": 0,
+        "animals": [
+          {
+            "number": "FR0000000001",
+            "animalId": "an_1",
+            "name": "Fictive",
+            "gestation": true
+          }
+        ]
+      }
+    ],
+    "animals": [
+      {
+        "createdAt": 1760000002000,
+        "updatedAt": 1760000002500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "an_1",
+        "nationalId": "FR0000000001",
+        "name": "Fictive",
+        "sex": "F",
+        "breed": "Charolaise",
+        "birthDate": "2020-02-01",
+        "motherId": null,
+        "motherNationalId": "",
+        "entryDate": "2020-02-01",
+        "entryReason": "Naissance",
+        "exitDate": null,
+        "exitReason": "",
+        "sessionId": "g_h",
+        "origin": "manual",
+        "note": ""
+      },
+      {
+        "createdAt": 1760000003000,
+        "updatedAt": 1760000003500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "an_2",
+        "nationalId": "FR0000000002",
+        "name": "Veau fictif",
+        "sex": "M",
+        "breed": "Charolaise",
+        "birthDate": "2026-10-10",
+        "motherId": "an_1",
+        "motherNationalId": "FR0000000001",
+        "entryDate": "2026-10-10",
+        "entryReason": "Naissance",
+        "exitDate": null,
+        "exitReason": "",
+        "sessionId": "g_h",
+        "origin": "birth",
+        "note": ""
+      }
+    ],
+    "animalEvents": [
+      {
+        "createdAt": 1760000004000,
+        "updatedAt": 1760000004500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "ev_1",
+        "animalId": "an_1",
+        "kind": "insemination",
+        "date": "2026-01-10",
+        "sire": "Taureau fictif",
+        "expectedCalvingDate": "2026-10-20",
+        "note": ""
+      },
+      {
+        "createdAt": 1760000005000,
+        "updatedAt": 1760000005500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "ev_2",
+        "animalId": "an_1",
+        "kind": "calving",
+        "date": "2026-10-10",
+        "calfId": "an_2",
+        "birthWeightKg": 44,
+        "bdniDeadline": "2026-10-17",
+        "bdniTaskId": "t_h",
+        "bdniNotifiedAt": null,
+        "note": ""
+      },
+      {
+        "createdAt": 1760000006000,
+        "updatedAt": 1760000006500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "ev_3",
+        "animalId": "an_1",
+        "kind": "weighing",
+        "date": "2026-10-12",
+        "weightKg": 640,
+        "note": ""
+      }
+    ],
+    "tasks": [
+      {
+        "createdAt": 1760000005000,
+        "updatedAt": 1760000005500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "t_h",
+        "title": "Notifier la naissance de n° 0002 à l’EDE/BDNI avant le 17/10",
+        "dueDate": "2026-10-17",
+        "remindOn": "2026-10-15",
+        "status": "À faire",
+        "priority": "Haute",
+        "parcelId": "p_h",
+        "kind": "bdni",
+        "animalId": "an_2",
+        "animalEventId": "ev_2",
+        "note": "Parcelles ne notifie pas la BDNI."
+      }
+    ],
+    "vetTreatments": [],
+    "preferences": {
+      "homeCards": [
+        "weather",
+        "today",
+        "tasks",
+        "alerts",
+        "recent",
+        "campaign",
+        "calvings"
+      ],
+      "theme": "system",
+      "parcelCommentsSeen": {
+        "p_h": 1791000000000
+      }
+    },
+    "metadata": {
+      "revision": 12
+    },
+    "parcelComments": [
+      {
+        "id": "comment_fictif_1",
+        "parcelId": "p_h",
+        "text": "Préco : fongicide T2 la semaine prochaine si le temps le permet.",
+        "kind": "preco",
+        "workId": null,
+        "taskId": null,
+        "authorUid": "uid-conseiller-fictif",
+        "authorName": "Conseillère fictive",
+        "authorEmail": "conseil@example.org",
+        "authorRole": "advisor",
+        "editedAt": null,
+        "createdAt": 1792000000000,
+        "updatedAt": 1792000000000,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 14,
+  "buildId": "fixture-v14",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 14 : traces GPS sans format, stations sans relevés.",
+  "data": {
+    "version": 14,
+    "gpsTracks": [
+      {
+        "createdAt": 1735725600000,
+        "updatedAt": 1735725600500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "g_i",
+        "name": "Trace fictive",
+        "points": [
+          [
+            5.1,
+            46.3
+          ],
+          [
+            5.11,
+            46.31
+          ]
+        ]
+      }
+    ],
+    "weatherStations": [
+      {
+        "createdAt": 1735725601000,
+        "updatedAt": 1735725601500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "ws_i",
+        "name": "Station fictive"
+      }
+    ]
+  }
+}

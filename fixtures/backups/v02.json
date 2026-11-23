@@ -1,0 +1,82 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 2,
+  "buildId": "fixture-v2",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 2 : entités sans createdAt/updatedAt/version.",
+  "data": {
+    "version": 2,
+    "parcelles": [
+      {
+        "id": "p_b",
+        "nom": "Les Grandes Terres",
+        "surfaceHa": 12.4,
+        "culture": "Maïs grain",
+        "commune": "Villefictive",
+        "geometry": {
+          "type": "MultiPolygon",
+          "coordinates": [
+            [
+              [
+                [
+                  5.1,
+                  46.3
+                ],
+                [
+                  5.11,
+                  46.3
+                ],
+                [
+                  5.11,
+                  46.31
+                ],
+                [
+                  5.1,
+                  46.3
+                ]
+              ]
+            ],
+            [
+              [
+                [
+                  5.2,
+                  46.3
+                ],
+                [
+                  5.21,
+                  46.3
+                ],
+                [
+                  5.21,
+                  46.31
+                ],
+                [
+                  5.2,
+                  46.3
+                ]
+              ]
+            ]
+          ]
+        }
+      }
+    ],
+    "interventions": [
+      {
+        "id": "w_b",
+        "parcelId": "p_b",
+        "type": "Semis maïs",
+        "date": "15/04/2025",
+        "product": "Semence fictive",
+        "dose": 2.1,
+        "doseUnit": "dose/ha"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "t_b",
+        "title": "Vérifier clôture"
+      }
+    ]
+  }
+}

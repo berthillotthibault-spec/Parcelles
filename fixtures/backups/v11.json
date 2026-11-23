@@ -1,0 +1,28 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 11,
+  "buildId": "fixture-v11",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 11 : règles d’automatisation à action unique.",
+  "data": {
+    "version": 11,
+    "automationRules": [
+      {
+        "createdAt": 1735725600000,
+        "updatedAt": 1735725600500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "r_g",
+        "name": "Alerte stock",
+        "action": "notify",
+        "threshold": 3
+      }
+    ],
+    "preferences": {
+      "nativeHaptics": false
+    }
+  }
+}

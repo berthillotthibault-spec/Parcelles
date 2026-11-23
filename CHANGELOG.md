@@ -1,5 +1,18 @@
 # Changelog
 
+## 10.39.0 · démarrage signature, mouvement cohérent, finitions — 2026-11-23
+
+- Démarrage plus rapide : le premier écran part des données locales ; la synchronisation cloud dispose de 600 ms, puis l’écran se met à jour dès qu’elle répond (avant, une connexion lente bloquait l’ouverture plusieurs secondes).
+- Plus de flash clair : le thème (sombre, cabine de nuit) est posé avant le premier affichage ; couleurs du lancement Android alignées sur le fond crème ; nom d’application « Parcelles ».
+- Nouvelle signature au lancement : une parcelle se dessine, puis le nom apparaît en serif. Elle se joue pendant le chargement et accélère dès que l’application est prête (jamais plus de 160 ms d’attente) ; l’accueil monte pendant que la marque s’efface, sans double apparition. Aucun mouvement en « réduire les animations ».
+- Le message « Ouverture automatique… » ne s’affiche plus ; un message n’apparaît qu’après 3 s de chargement. L’étape « synchronisation » n’est montrée que si elle est activée.
+- Feuilles : sur téléphone, elles montent du bas ; la fermeture est animée (croix, fond, Échap, glissé depuis la position du doigt) et une feuille relâchée trop tôt revient en douceur.
+- Onglets de Travaux et filtres de Parcelles : seule la liste se renouvelle, l’écran ne clignote plus. Arrivée sur la Carte : les contrôles apparaissent en fondu (la carte elle-même ne bouge pas).
+- Micro-retours : coche « fait » de l’accueil, voile « Enregistré » en fondu, toasts qui s’effacent et se replacent en glissant, compteurs qui partent de l’ancienne valeur.
+- Socle : durées et courbes de mouvement partagées (tokens.css, motion.js), un seul effet d’appui, barres et interrupteurs animés sans recalcul de mise en page.
+- Finitions : boutons désactivés et occupés distincts, zones tactiles de 48 px (interrupteurs des couches et du suivi terrain, « Utiliser ici » compris), petits textes plus contrastés, graisses ramenées à 700, squelette de chargement pour les travaux d’une ferme cloud en première synchronisation, bandeau hors ligne sur les jetons de couleur.
+- Typographie : échelle de tailles en jetons (--fs-caption à --fs-title), appliquée à l’accueil, aux Parcelles, au Planning et aux feuilles n° 160 (écarts d’un demi-pixel supprimés). Saisie rapide sans parcelle : le message et ses actions passent à la ligne au lieu d’écraser le texte en colonne.
+
 ## 10.38.0 · contrôle phyto selon le terrain, budget de performance — 2026-11-13
 
 - Contrôle d'un traitement : la ZNT est comparée à la distance réelle au cours d'eau (dernière évaluation réglementaire de la parcelle, 5 m minimum si la fiche ne précise rien) et indique la bande à ne pas traiter.

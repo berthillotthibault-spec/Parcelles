@@ -1,4 +1,4 @@
-const BUILD='2026.11.13-v10.38.0';
+const BUILD='2026.11.23-v10.39.0';
 // Separate installations on the same host must not evict each other's files.
 const SCOPE=new URL(self.registration.scope).pathname;
 const PREFIX=`parcelles-${encodeURIComponent(SCOPE)}-`;

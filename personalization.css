@@ -59,9 +59,6 @@
 .startup-choice select{min-height:44px;border:1px solid var(--border-subtle);border-radius:10px;background:var(--surface);padding:8px;max-width:100%}
 .home-custom-empty{padding:26px;border:1px dashed var(--border-strong);border-radius:18px;color:var(--text-secondary);text-align:center;line-height:1.6}
 .boot-note{display:block;margin-top:20px;font-size:12px;color:var(--text-secondary)}
-.boot-mark{animation:boot-settle 1.5s var(--motion-ease) both}
-.boot-mark path{animation-duration:1.35s}
-@keyframes boot-settle{from{transform:translateY(10px) scale(.88);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
 @media(max-width:600px){.today-welcome{flex-wrap:wrap}.today-primary-action{width:100%;justify-content:space-between}.context-tools{margin-bottom:8px}.quick-action-strip .quick-action{flex-basis:100px}}
 @media(min-width:1024px){.today-grid [data-home-card="weather"]{grid-column:auto}.map-filter-chip{left:20px;top:80px}}
 @media(max-width:600px){.view:not(.map-view) .context-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.view:not(.map-view) .context-tools button{font-size:12px}.work-priority-notice{flex-wrap:wrap;gap:4px}#work-tabs button{font-size:12px}}

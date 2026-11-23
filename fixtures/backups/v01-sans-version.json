@@ -1,0 +1,54 @@
+{
+  "note": "Forme 1 : pas de version, champs name/surface, travaux dans manualInterventions.",
+  "parcelles": [
+    {
+      "id": "p_a",
+      "name": "Champ du Moulin",
+      "surface": "7,5",
+      "culture": "Blé tendre",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              5.1,
+              46.3
+            ],
+            [
+              5.103999999999999,
+              46.3
+            ],
+            [
+              5.103999999999999,
+              46.303999999999995
+            ],
+            [
+              5.1,
+              46.303999999999995
+            ],
+            [
+              5.1,
+              46.3
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "Nom": "Pré sans identifiant",
+      "surface": 2
+    }
+  ],
+  "manualInterventions": [
+    {
+      "id": "w_a",
+      "parcelleId": "p_a",
+      "operation": "Labour",
+      "date": "2024-10-12",
+      "note": "Fictif"
+    }
+  ],
+  "preferences": {
+    "mapLayer": "satellite"
+  }
+}

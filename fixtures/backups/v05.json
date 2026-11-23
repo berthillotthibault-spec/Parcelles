@@ -1,0 +1,57 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 5,
+  "buildId": "fixture-v5",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 5 : stocks sans catégorie, économie de parcelle non rangée par campagne.",
+  "data": {
+    "version": 5,
+    "parcelles": [
+      {
+        "createdAt": 1735725600000,
+        "updatedAt": 1735725600500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "p_d",
+        "nom": "Le Bois Joli",
+        "surfaceHa": 3.3,
+        "culture": "Prairie temporaire",
+        "ownershipType": "own",
+        "economics": {
+          "rendement": 7.2,
+          "prix": 180
+        }
+      }
+    ],
+    "stockItems": [
+      {
+        "createdAt": 1735725601000,
+        "updatedAt": 1735725601500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "s_d",
+        "name": "Engrais fictif",
+        "unit": "kg",
+        "quantity": 800
+      }
+    ],
+    "materiels": [
+      {
+        "createdAt": 1735725602000,
+        "updatedAt": 1735725602500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "m_d",
+        "nom": "Tracteur fictif",
+        "location": "Hangar"
+      }
+    ]
+  }
+}

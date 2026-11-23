@@ -1,0 +1,40 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 8,
+  "buildId": "fixture-v8",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 8 : documents et photos sans catégorie, étiquettes en texte.",
+  "data": {
+    "version": 8,
+    "documents": [
+      {
+        "createdAt": 1735725600000,
+        "updatedAt": 1735725600500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "d_f",
+        "name": "facture-fictive.pdf",
+        "tags": "achat; engrais",
+        "capturedAt": 1735725600000
+      }
+    ],
+    "photos": [
+      {
+        "createdAt": 1735725601000,
+        "updatedAt": 1735725601500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "ph_f",
+        "name": "constat.jpg",
+        "tags": [
+          "gel"
+        ]
+      }
+    ]
+  }
+}

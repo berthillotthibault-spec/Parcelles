@@ -1,0 +1,62 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 15,
+  "buildId": "fixture-v15",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 15 : tâches de plateforme sans statut.",
+  "data": {
+    "version": 15,
+    "platformJobs": [
+      {
+        "createdAt": 1735725600000,
+        "updatedAt": 1735725600500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "j_j",
+        "type": "export"
+      }
+    ],
+    "grazingSessions": [
+      {
+        "createdAt": 1735725601000,
+        "updatedAt": 1735725601500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "gr_j",
+        "parcelId": "p_j",
+        "animalType": "Vaches",
+        "animalsCount": 12,
+        "startDate": "2025-05-01",
+        "animals": [
+          {
+            "id": "a1",
+            "name": "Fictive 1"
+          },
+          {
+            "id": "a2",
+            "name": "Fictive 2"
+          }
+        ]
+      }
+    ],
+    "parcelles": [
+      {
+        "createdAt": 1735725602000,
+        "updatedAt": 1735725602500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "p_j",
+        "nom": "Le Pré Haut",
+        "surfaceHa": 4.4,
+        "ownershipType": "rented"
+      }
+    ]
+  }
+}

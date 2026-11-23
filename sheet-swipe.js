@@ -3,6 +3,8 @@
 // du fond et d'Échap. Seulement quand modal() s'affiche en feuille du bas (écran étroit) ; le contenu qui défile
 // n'est pas concerné. Logique de décision pure (sheetDragOutcome), branchement DOM dans attachSheetSwipe.
 
+import {sheetSettle} from './motion.js';
+
 export const SWIPE_CLOSE_PX = 90;
 export const SWIPE_ZONE_PX = 56;
 
@@ -18,7 +20,7 @@ export function sheetDragOutcome({dy, ms}) {
 
 /**
  * @param {HTMLElement|null} root #modal-root
- * @param {() => void} close closeModal
+ * @param {(options?: {fromY?: number}) => void} close closeModal
  * @param {{win?: Window}} [options]
  */
 export function attachSheetSwipe(root, close, {win = window} = {}) {
@@ -46,10 +48,13 @@ export function attachSheetSwipe(root, close, {win = window} = {}) {
     if (!drag || event.pointerId !== drag.id) return;
     const {sheet, y, t} = drag;
     drag = null;
-    const outcome = sheetDragOutcome({dy: Math.max(0, event.clientY - y), ms: event.timeStamp - t});
+    const dy = Math.max(0, event.clientY - y);
+    const outcome = sheetDragOutcome({dy, ms: event.timeStamp - t});
     sheet.style.transition = '';
     sheet.style.transform = '';
-    if (outcome === 'close' && event.type === 'pointerup') close();
+    // 10.39 : la fermeture part de la position du doigt ; sinon la feuille revient en douceur.
+    if (outcome === 'close' && event.type === 'pointerup') close({fromY: dy});
+    else sheetSettle(sheet, dy);
   };
   root.addEventListener('pointerup', end);
   root.addEventListener('pointercancel', end);

@@ -1,4 +1,17 @@
 {
-  "firestore": {"rules": "firestore.rules", "indexes": "firestore.indexes.json"},
-  "storage": {"rules": "storage.rules"}
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "emulators": {
+    "dataconnect": {
+      "dataDir": "dataconnect/.dataconnect/pgliteData"
+    }
+  },
+  "dataconnect": {
+    "source": "dataconnect"
+  }
 }

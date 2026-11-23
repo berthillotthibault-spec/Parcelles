@@ -1,0 +1,5 @@
+# Commits de pure mise en forme à ignorer par git blame
+# git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# n° 155 : fins de ligne normalisées en LF
+1aaa70ec6ac18e6a770437753ecf6aeedcb17b7c

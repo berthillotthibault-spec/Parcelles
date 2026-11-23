@@ -2,13 +2,20 @@
 /* Short, quiet motion; all long-running animation belongs to active work. */
 .app-boot{position:fixed;inset:0;z-index:45;display:grid;place-items:center;background:var(--bg);padding:24px}
 .app-boot[hidden],.activity-progress[hidden]{display:none}
-.boot-identity{width:min(290px,100%);text-align:center;animation:motion-rise .45s var(--motion-ease) both}
-.boot-mark{display:grid;place-items:center;width:88px;height:88px;margin:0 auto 24px;border:1px solid var(--border-subtle);border-radius:28px;background:var(--brand-soft);color:var(--brand);box-shadow:0 12px 36px color-mix(in srgb,var(--brand) 10%,transparent)}
+.boot-identity{width:min(290px,100%);text-align:center}
+/* 10.39 : signature du démarrage. Une parcelle se dessine, puis le nom apparaît en serif (comme le titre de l’accueil).
+   Jouée pendant le chargement, jamais attendue : .boot-hurry ramène la suite à 160 ms quand l’application est prête. */
+.boot-mark{display:grid;place-items:center;width:88px;height:88px;margin:0 auto 22px;border:1px solid var(--border-subtle);border-radius:28px;background:var(--brand-soft);color:var(--brand);box-shadow:0 12px 36px color-mix(in srgb,var(--brand) 10%,transparent);animation:boot-mark .36s var(--motion-ease) 80ms both}
 .boot-mark svg{width:46px;height:46px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.boot-mark path{stroke-dasharray:90;stroke-dashoffset:0;animation:motion-draw .85s var(--motion-ease) both}
-.boot-mark path+path{animation-delay:120ms}
-.boot-identity h1{font-size:32px;letter-spacing:-.04em;margin:0 0 8px}
+.boot-mark path{stroke-dasharray:100;stroke-dashoffset:0;animation:boot-draw .52s cubic-bezier(.45,0,.2,1) 140ms both}
+.boot-mark path+path{animation-duration:.3s;animation-delay:.52s}
+.boot-identity h1{font-family:var(--font-serif);font-weight:400;font-size:44px;line-height:1;letter-spacing:-.03em;margin:0 0 12px;animation:boot-word .38s var(--motion-ease) .34s both}
 .boot-identity p{color:var(--text-secondary);font-size:14px;min-height:2.5em;margin:0 0 20px;line-height:1.5}
+.boot-identity :is(p,.motion-track,.boot-note){animation:motion-fade .2s ease-out .4s both}
+.app-boot.boot-hurry :is(.boot-mark,.boot-mark path,.boot-identity h1,.boot-identity p,.motion-track){animation-duration:.16s;animation-delay:0s}
+@keyframes boot-mark{from{opacity:0;scale:.92}to{opacity:1;scale:1}}
+@keyframes boot-draw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+@keyframes boot-word{from{opacity:0;clip-path:inset(0 100% 0 0);letter-spacing:-.01em}to{opacity:1;clip-path:inset(0 0 0 0);letter-spacing:-.03em}}
 .motion-track{height:4px;overflow:hidden;border-radius:999px;background:var(--surface-tertiary)}
 .motion-track>span{display:block;width:100%;height:100%;background:var(--brand);transform:scaleX(0);transform-origin:left;transition:transform .26s var(--motion-ease);border-radius:inherit}
 .activity-progress{position:fixed;z-index:65;top:calc(var(--safe-top) + 10px);left:50%;transform:translateX(-50%);width:min(360px,calc(100% - 24px));padding:12px 16px;background:var(--surface);color:var(--text-primary);border:1px solid var(--border-subtle);border-radius:14px;box-shadow:var(--shadow-float);pointer-events:none;animation:motion-fade .18s ease-out both}
@@ -24,24 +31,36 @@
 .modal-root.has-modal .modal{animation:motion-dialog .25s var(--motion-ease) both}
 .modal-root.has-modal .modal-backdrop{animation:motion-fade .2s ease-out both}
 .toast{animation:motion-rise .24s var(--motion-ease) both}
-.quality-progress>span,.culture-bar-fill{transform-origin:left;animation:motion-fill .5s var(--motion-ease) both;transition:width .35s var(--motion-ease)}
+.quality-progress>span,.culture-bar-fill{transform-origin:left;animation:motion-fill .5s var(--motion-ease) both}
 .skeleton-line{position:relative;overflow:hidden;background:var(--surface-tertiary)}
 .skeleton-line::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--surface) 75%,transparent),transparent);animation:motion-shimmer 1.4s ease-in-out infinite}
 @media(hover:hover) and (pointer:fine){.menu-row:hover,.parcel-row:hover,.work-row:hover{background:var(--brand-soft)}.button:not(:disabled):hover,.tool-shortcut:hover{translate:0 -1px}}
-.button,.icon-button,.tool-shortcut,.nav-item,.filter-chip,.segmented button{transition:background-color .16s ease,color .16s ease,box-shadow .16s ease,translate .16s ease,scale .16s ease}
-.button:not(:disabled):active,.icon-button:not(:disabled):active,.tool-shortcut:active,.nav-item:active,.filter-chip:active{scale:.97;translate:0 0}
-.nav-item.is-active .ui-icon{animation:motion-nav .25s var(--motion-ease)}
+.button,.icon-button,.tool-shortcut,.nav-item,.filter-chip,.segmented button{transition:background-color .16s ease,color .16s ease,box-shadow .16s ease,translate .16s ease,scale var(--motion-fast) var(--motion-ease)}
+.button:not(:disabled):active,.icon-button:not(:disabled):active,.tool-shortcut:active,.nav-item:active,.filter-chip:active{scale:var(--press-scale);translate:0 0}
+.nav-item.is-active .ui-icon{animation:motion-nav .18s var(--motion-ease)}
+.primary-nav .nav-item .ui-icon{transition:background-color .2s var(--motion-ease)}
+/* 10.39 : sur téléphone, la feuille monte du bord d'où on la ferme d'un glissé ; sur ordinateur, boîte de dialogue. */
+@media(max-width:720px){.modal-root.has-modal .modal{animation:motion-sheet .3s var(--ease-sheet) both}}
+.modal-ghost{pointer-events:none;z-index:var(--z-modal)}
+.modal-ghost .modal,.modal-ghost .modal-backdrop{animation:none!important}
+/* 10.39 : micro-retours. Coche de l'accueil, voile « enregistré » en fondu. */
+.home-check{transition:background-color .18s ease-out,border-color .18s ease-out}
+.home-row.is-done .home-check{animation:home-check-pop .22s var(--motion-ease)}
+.saved-check{transition:opacity .16s var(--motion-ease),visibility 0s linear .16s}
+.saved-check.is-visible{transition:opacity .12s var(--motion-ease),visibility 0s}
+@keyframes motion-sheet{from{translate:0 100%}to{translate:0 0}}
+@keyframes home-check-pop{from{scale:.8}to{scale:1}}
 @keyframes motion-fade{from{opacity:0}to{opacity:1}}
 @keyframes motion-rise{from{opacity:0;translate:0 9px}to{opacity:1;translate:0 0}}
 @keyframes motion-dialog{from{opacity:0;translate:0 12px;scale:.98}to{opacity:1;translate:0 0;scale:1}}
-@keyframes motion-nav{from{scale:.85}to{scale:1}}
+@keyframes motion-nav{from{scale:.9}to{scale:1}}
 @keyframes motion-fill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes motion-draw{from{stroke-dashoffset:90}to{stroke-dashoffset:0}}
 @keyframes motion-spin{to{transform:rotate(360deg)}}
 @keyframes motion-progress{0%{transform:translateX(-110%)}100%{transform:translateX(345%)}}
 @keyframes motion-shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 @media(prefers-reduced-motion:reduce){
-  .app-boot *,.activity-progress *,.motion-spinner,.modal,.modal-backdrop,.toast,.quality-progress>span,.culture-bar-fill,.nav-item .ui-icon,.skeleton-line::after,.button::before{animation:none!important;transition:none!important}
+  .app-boot *,.activity-progress *,.motion-spinner,.modal,.modal-backdrop,.home-check,.saved-check,.toast,.quality-progress>span,.culture-bar-fill,.nav-item .ui-icon,.skeleton-line::after,.button::before{animation:none!important;transition:none!important}
   .motion-track.is-indeterminate>span{width:100%;transform:none;opacity:.55}
   .button,.icon-button,.tool-shortcut,.nav-item,.filter-chip{translate:none!important;scale:none!important}
   .skeleton-line::after{display:none}

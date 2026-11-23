@@ -1,0 +1,145 @@
+{
+ "format": "parcelles-backup-json",
+ "formatVersion": 16,
+ "buildId": "fixture-v16",
+ "createdAt": 1735725600000,
+ "application": "Parcelles",
+ "note": "Forme 16 (actuelle) : listes en texte à durcir, conflit et suppression conservés.",
+ "data": {
+  "version": 17,
+  "parcelles": [
+   {
+    "createdAt": 1735725600000,
+    "updatedAt": 1735725600500,
+    "version": 1,
+    "source": "local",
+    "sourceId": null,
+    "deletedAt": null,
+    "id": "p_k",
+    "nom": "La Plaine",
+    "surfaceHa": 9.9,
+    "culture": "Orge",
+    "geometry": {
+     "type": "Polygon",
+     "coordinates": [
+      [
+       [
+        5.3,
+        46.2
+       ],
+       [
+        5.303999999999999,
+        46.2
+       ],
+       [
+        5.303999999999999,
+        46.204
+       ],
+       [
+        5.3,
+        46.204
+       ],
+       [
+        5.3,
+        46.2
+       ]
+      ]
+     ]
+    }
+   },
+   {
+    "createdAt": 1735725601000,
+    "updatedAt": 1735725601500,
+    "version": 1,
+    "source": "local",
+    "sourceId": null,
+    "deletedAt": 1735725605000,
+    "id": "p_k2",
+    "nom": "Supprimée",
+    "surfaceHa": 1
+   }
+  ],
+  "routeSessions": [
+   {
+    "createdAt": 1735725602000,
+    "updatedAt": 1735725602500,
+    "version": 1,
+    "source": "local",
+    "sourceId": null,
+    "deletedAt": null,
+    "id": "rs_k",
+    "parcelIds": "p_k;p_k2",
+    "completedParcelIds": null
+   }
+  ],
+  "chantiers": [
+   {
+    "createdAt": 1735725603000,
+    "updatedAt": 1735725603500,
+    "version": 1,
+    "source": "local",
+    "sourceId": null,
+    "deletedAt": null,
+    "id": "ch_k",
+    "parcelIds": [
+     "p_k"
+    ]
+   }
+  ],
+  "syncConflicts": [
+   {
+    "createdAt": 1735725604000,
+    "updatedAt": 1735725604500,
+    "version": 1,
+    "source": "local",
+    "sourceId": null,
+    "deletedAt": null,
+    "id": "sc_k",
+    "entity": "parcelles",
+    "entityId": "p_k",
+    "status": "open",
+    "local": {
+     "id": "p_k",
+     "nom": "A"
+    },
+    "remote": {
+     "id": "p_k",
+     "nom": "B"
+    }
+   }
+  ],
+  "products": [
+   {
+    "createdAt": 1735725605000,
+    "updatedAt": 1735725605500,
+    "version": 1,
+    "source": "local",
+    "sourceId": null,
+    "deletedAt": null,
+    "id": "pr_k",
+    "name": "Produit fictif",
+    "unit": "L"
+   }
+  ],
+  "vetTreatments": [
+   {
+    "id": "vet-fictif-1",
+    "createdAt": 1790000000000,
+    "updatedAt": 1790000000000,
+    "version": 1,
+    "source": "local",
+    "sourceId": null,
+    "date": "2026-10-01",
+    "grazingSessionId": "",
+    "animalCount": 3,
+    "medicine": "Médicament fictif",
+    "prescriptionNumber": "ORD-FICTIVE-1",
+    "dose": "10 mL",
+    "route": "Injectable",
+    "vet": "Cabinet fictif",
+    "withdrawalMeatDays": 28,
+    "withdrawalMilkDays": 0
+   }
+  ]
+ }
+}

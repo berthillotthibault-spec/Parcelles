@@ -16,11 +16,22 @@ jobs:
           node-version: lts/*
           cache: npm
       - run: npm ci
+      - name: Lint ESLint (avertissements plafonnés)
+        run: npm run lint
+      - name: Vérification de types (modules purs)
+        run: npm run typecheck
       - name: Syntaxe et tests Node
         run: npm test
+      - name: Tests avec l'horloge avancée (bombes à retardement)
+        run: npm run test:horloge
+      - name: Navigateur Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Nom de parcelle piégé affiché en texte (n° 152)
+        run: npx playwright test -c tests-visual/playwright.config.mjs securite-xss --project=bureau-clair
+      - name: Accessibilité automatisée (axe-core, n° 154)
+        run: npm run a11y
       - name: Audit Playwright de la maquette
         run: |
-          npx playwright install --with-deps chromium
           npx http-server -p 8080 -c-1 -s . &
           npx wait-on -t 30000 http://localhost:8080/index.html || sleep 5
           npm run audit
@@ -29,3 +40,102 @@ jobs:
         with:
           name: audit
           path: audit/
+  # Régression visuelle (n° 146), séparée des tests : le rendu des polices diffère entre macOS et Linux,
+  # d'où des références par plateforme (tests-visual/__screenshots__/*-linux.png).
+  # Tant qu'aucune référence -linux n'est versionnée, l'échec n'est pas bloquant et les captures
+  # produites sont publiées dans l'artefact « references-visuelles-linux » (voir ARCHITECTURE.md).
+  visuel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - name: Références Linux présentes ?
+        id: refs
+        run: |
+          if ls tests-visual/__screenshots__/*-linux.png >/dev/null 2>&1; then echo "linux=true" >> "$GITHUB_OUTPUT"; else echo "linux=false" >> "$GITHUB_OUTPUT"; fi
+      - run: npx playwright install --with-deps chromium
+      - name: Tests visuels
+        continue-on-error: ${{ steps.refs.outputs.linux != 'true' }}
+        run: npm run visual
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rapport-visuel
+          path: |
+            tests-visual/.rapport/
+            tests-visual/.resultats/
+          include-hidden-files: true
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.refs.outputs.linux != 'true'
+        with:
+          name: references-visuelles-linux
+          path: tests-visual/__screenshots__/*-linux.png
+          if-no-files-found: ignore
+  # Règles Firestore et Storage (n° 143) sur l'émulateur Firebase : la vraie frontière de sécurité.
+  # Les outils restent hors de package.json (aucune dépendance ajoutée au projet) : installés dans un
+  # dossier temporaire désigné par RULES_TOOLS_DIR, comme en local (voir l'en-tête de tools/test-rules.mjs).
+  regles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Outils de l'émulateur (firebase-tools, rules-unit-testing)
+        env:
+          RULES_TOOLS_DIR: ${{ runner.temp }}/outils-regles
+        run: |
+          mkdir -p "$RULES_TOOLS_DIR"
+          cd "$RULES_TOOLS_DIR"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund firebase-tools@15.33.0 @firebase/rules-unit-testing@6.0.0 firebase@13.0.0
+      - name: Tests des règles (Firestore et Storage)
+        env:
+          RULES_TOOLS_DIR: ${{ runner.temp }}/outils-regles
+        run: |
+          "$RULES_TOOLS_DIR/node_modules/.bin/firebase" emulators:exec --only firestore,storage --project demo-parcelles \
+            "node --test tools/test-rules.mjs"
+  # Hors connexion (n° 149) : service worker réel, précache complet, rechargement hors ligne et mise à jour.
+  # Job isolé (ces tests sont parfois instables en CI) : jusqu'à 2 nouvelles tentatives avant l'échec.
+  hors-ligne:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Contrôle hors connexion (3 essais au plus)
+        run: |
+          for essai in 1 2 3; do
+            if npm run offline-check; then exit 0; fi
+            echo "::warning::offline-check : échec de l'essai $essai"
+          done
+          exit 1
+  # Budget de performance (n° 150) : tableau ajouté au résumé de l'Action ($GITHUB_STEP_SUMMARY),
+  # couverture JS inutilisée rapportée. Non bloquant tant que les budgets de perf-budget.json, mesurés
+  # sur un poste local, ne sont pas recalés sur la machine de CI (temps de chargement différents).
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Budget de performance
+        continue-on-error: true
+        run: npm run perf

@@ -1,10 +1,11 @@
 // Audit de conformité à la maquette v3 (design_handoff_parcelles_mobile/Parcelles v3.dc.html).
 // Usage : npm i -D playwright@1 && npx playwright install chromium
 //         node tools/audit-maquette.mjs http://localhost:8080/index.html [audit/apres] [--seed]
-// --seed crée 4 parcelles, des travaux, des tâches et un lot au pré dans un profil de navigateur vierge
+// --seed crée 4 parcelles, des travaux, des tâches et un lot au pré (tools/seed-demo.mjs) dans un profil de navigateur vierge
 // (jamais sur les données de l'utilisateur : Playwright démarre avec un stockage vide).
 import {chromium, devices} from 'playwright';
 import fs from 'node:fs';
+import {seedDemoFarm} from './seed-demo.mjs';
 
 const URL = process.argv[2] || 'http://localhost:8080/index.html';
 const OUT = process.argv[3] && !process.argv[3].startsWith('--') ? process.argv[3] : 'audit/apres';
@@ -20,20 +21,7 @@ page.on('console', m => m.type() === 'error' && !/Failed to load resource/.test(
 
 await page.goto(URL, {waitUntil: 'load'});
 if (SEED) {
-  await page.evaluate(async () => {
-    const {Store} = await import('./state.js'); const {StorageService} = await import('./storage.js');
-    const s = new Store(new StorageService()); await s.init(); if (s.state.parcelles.length) return;
-    const sq = (x, y, d = 0.004) => ({type: 'Polygon', coordinates: [[[x, y], [x + d, y], [x + d, y + d * 0.7], [x, y + d * 0.7], [x, y]]]});
-    const D = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10), today = D(0);
-    for (const [id, nom, culture, surfaceHa, x, y, favorite] of [['p1', 'Les Noues', 'Blé tendre', 11.3, 5.13, 46.34, true], ['p2', 'Grand Champ', 'Maïs grain', 8.2, 5.136, 46.34, false], ['p3', 'Le Pré Bas', 'Prairie permanente', 4.6, 5.142, 46.34, false], ['p4', 'La Côte', 'Colza', 6.1, 5.13, 46.345, false]])
-      await s.upsert('parcelles', {id, nom, culture, surfaceHa, commune: 'Montrevel', favorite, geometry: sq(x, y)});
-    await s.upsert('interventions', {parcelId: 'p2', type: 'Récolte maïs', date: today, plannedDate: today, status: 'À faire', startTime: '08:30'});
-    await s.upsert('interventions', {parcelId: 'p1', type: 'Semis blé', date: today, plannedDate: today, status: 'À faire', startTime: '14:00'});
-    await s.upsert('interventions', {parcelId: 'p4', type: 'Désherbage', date: D(-3), plannedDate: D(-3), status: 'À faire'});
-    await s.upsert('tasks', {title: 'Réparer clôture', parcelId: 'p3', dueDate: today, status: 'À faire'});
-    await s.upsert('grazingSessions', {parcelId: 'p3', animalType: 'Vaches', animalsCount: 24, startDate: D(-18)});
-    await s.upsert('materiels', {nom: 'Tracteur', location: 'Hangar'});
-  });
+  await page.evaluate(seedDemoFarm);
   await page.reload({waitUntil: 'load'});
 }
 await page.waitForFunction(() => document.documentElement.dataset.appReady === '1', null, {timeout: 15000});
@@ -44,7 +32,7 @@ const check = async (screen, label, fn) => {
   try { results.push([(await page.evaluate(fn)) ? 'OK ' : 'KO ', screen, label]); }
   catch (e) { results.push(['ERR', screen, `${label} → ${e.message.split('\n')[0]}`]); }
 };
-const go = async view => { await page.click(`.primary-nav [data-view="${view}"]`); await page.waitForTimeout(700); };
+const go = async view => { await page.evaluate(v => document.querySelector(`button[data-view="${v}"]`)?.click(), view); await page.waitForTimeout(700); };
 const shot = name => page.screenshot({path: `${OUT}/${name}.png`, fullPage: true});
 const has = s => new Function(`return document.body.innerText.includes(${JSON.stringify(s)})`);
 
@@ -54,7 +42,7 @@ await check('Commun', 'design-v3.css chargé en dernier', () => /design-v3\.css/
 await check('Commun', 'police Instrument Sans', () => /Instrument Sans/.test(getComputedStyle(document.body).fontFamily));
 await check('Commun', 'fond #f7f5f0', () => getComputedStyle(document.body).backgroundColor === 'rgb(247, 245, 240)');
 await check('Commun', 'build meta = sw BUILD', async () => { const m = document.querySelector('meta[name=parcelles-build]')?.content; return !!m && (await (await fetch('./sw.js', {cache: 'no-store'})).text()).includes(m); });
-await check('Commun', '5 onglets', () => document.querySelectorAll('.primary-nav .nav-item').length === 5);
+await check('Commun', '4 onglets et le « + » central (n° 160)', () => document.querySelectorAll('.primary-nav .nav-item:not([hidden])').length === 4 && !!document.querySelector('.primary-nav .nav-plus'));
 await check('Commun', 'bouton assistant IA', () => !!document.querySelector('#assistant-launcher'));
 await check('Commun', 'pastille synchro', () => !!document.querySelector('#network-button'));
 
@@ -70,7 +58,7 @@ await check('Aujourd’hui', 'raccourcis Carte/Pâturage/Stocks/Météo', () => 
 await check('Aujourd’hui', 'raccourcis en pastilles 40 px', () => Math.round(document.querySelector('#today-quick-actions .quick-action').getBoundingClientRect().height) === 40);
 await check('Aujourd’hui', 'raccourcis juste sous le résumé', () => document.querySelector('#today-summary').nextElementSibling?.id === 'today-quick-actions');
 await check('Aujourd’hui', 'carte météo', () => !!document.querySelector('.weather-card'));
-await check('Aujourd’hui', 'case ronde 28 px à gauche', () => { const c = document.querySelector('#today-work-list .row-check'); if (!c) return document.querySelector('#today-work-list .empty-state') !== null; const m = c.closest('.work-row').querySelector('.row-main'); return Math.round(c.getBoundingClientRect().width) === 28 && c.getBoundingClientRect().left < m.getBoundingClientRect().left; });
+await check('Aujourd’hui', 'case ronde 32 px à gauche (n° 160)', () => { const c = document.querySelector('#today-work-list .home-check'); if (!c) return !!document.querySelector('#today-work-list .empty-state'); return Math.round(c.getBoundingClientRect().width) === 32; });
 await check('Aujourd’hui', 'pastilles d’échéance', () => document.querySelectorAll('#today-work-list .when-pill').length > 0 || !document.querySelector('#today-work-list .work-row'));
 
 // Carte + Couches + Outils
@@ -101,7 +89,7 @@ if (await page.$('[data-action="open-parcel"]')) {
 await go('work'); await shot('06-travaux');
 await check('Travaux', 'sous-ligne', has('Planifier, réaliser, retrouver.'));
 await check('Travaux', 'ronds à cocher', () => document.querySelectorAll('#view-work .row-check').length > 0 || /Aucun travail/.test(document.body.innerText));
-await check('Travaux', 'sous-vues', () => ['Calendrier', 'Tâches', 'Chantiers', 'Matériel'].every(x => document.querySelector('#view-work .context-tools').innerText.includes(x)));
+await check('Travaux', 'sous-vues', () => ['Calendrier', 'Tâches', 'Chantiers', 'Matériel'].every(x => [...document.querySelectorAll('#view-work .work-subviews, #view-work .context-tools')].map(e => e.innerText).join(' ').includes(x)));
 
 // Plus
 await go('more'); await shot('07-plus');

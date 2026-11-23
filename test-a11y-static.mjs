@@ -42,7 +42,7 @@ test('modal() produit une vraie fenêtre : <dialog> natif ouvert avec showModal(
   assert.match(body, /\[\$\('#toast-root'\),\$\('#live-region'\)\]/, 'toasts et région vivante prêtés à la fenêtre ouverte');
   assert.match(body, /class="modal-close" data-action="close-modal" aria-label="Fermer"/);
   assert.match(body, /lastFocused=document\.activeElement/, 'le déclencheur est mémorisé pour y rendre le focus');
-  assert.match(app, /function closeModal\(\)\{[^\n]*lastFocused\.focus/, 'le focus revient au déclencheur à la fermeture');
+  assert.match(app, /function closeModal\(options\)\{[^\n]*lastFocused\.focus/, 'le focus revient au déclencheur à la fermeture');
 });
 
 test('le mode terrain est une fenêtre modale nommée, fermée par Échap, avec retour du focus', () => {
@@ -54,7 +54,7 @@ test('le mode terrain est une fenêtre modale nommée, fermée par Échap, avec 
   assert.match(app, /if\(event\.key==='Escape'\)\{[^\n]*if\(fieldModeOpen\)\{?closeFieldMode\(\)/, 'Échap ferme le mode terrain');
   assert.match(app, /fieldReturnFocus\.focus/);
   assert.match(app, /const trapRoot=modalOpen\?null:fieldModeOpen\?\$\('#field-mode'\):dayRouteUIInstance\?\.isOpen\(\)\?\$\('#day-route'\):null;/, 'piège du focus du mode terrain (la fenêtre <dialog> contient le focus d’elle-même)');
-  assert.match(app, /function closeModal\(\)\{[^\n]*lendModalGuests\(root,false\);root\.innerHTML='';[^\n]*if\(root\.open\)root\.close\(\)/, 'fermeture : toasts rendus à la page, <dialog> refermé');
+  assert.match(app, /function closeModal\(options\)\{[^\n]*lendModalGuests\(root,false\);root\.innerHTML='';[^\n]*if\(root\.open\)root\.close\(\)/, 'fermeture : toasts rendus à la page, <dialog> refermé');
 });
 
 test('annonces VoiceOver : une seule région vivante pour les messages, fenêtres non « live »', () => {
@@ -98,7 +98,7 @@ test('design-v3.css : bloc « Accessibilité téléphone » (cibles, champs 16 p
   assert.ok(block.length > 1000, 'bloc présent en fin de fichier');
   // Variables (n° 153) : dans tokens.css, couche tokens.
   const tokens = read('tokens.css');
-  assert.match(tokens, /--a11y-hit:44px;--field-border:/);
+  assert.match(tokens, /--a11y-hit:48px;--field-border:/);
   assert.match(block, /\.modal-close\{width:var\(--a11y-hit\);height:var\(--a11y-hit\)/);
   assert.match(block, /select,textarea\)\{font-size:16px\}/, 'champs en 16 px : pas de zoom automatique sur iPhone');
   assert.match(tokens, /@media \(prefers-contrast:more\)/);

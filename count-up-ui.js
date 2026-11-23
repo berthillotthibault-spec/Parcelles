@@ -14,11 +14,12 @@ export function createCountUpUI({win = globalThis.window} = {}) {
       // Première ouverture ou nouvelle valeur : on compte ; un simple rafraîchissement ne rejoue rien.
       if (!shouldCountUp(previous, target, {reduced: reduced()}) || !win?.requestAnimationFrame) continue;
       const start = win.performance?.now?.() ?? Date.now();
-      strong.textContent = '0'; strong.dataset.counting = '1';
+      const from = Number.isInteger(Number(previous)) ? Number(previous) : 0;
+      strong.textContent = String(from); strong.dataset.counting = '1';
       const step = time => {
         if (!strong.isConnected) return;
         const elapsed = time - start;
-        strong.textContent = String(countValue(target, elapsed, COUNT_UP_MS));
+        strong.textContent = String(countValue(target, elapsed, COUNT_UP_MS, from));
         if (elapsed < COUNT_UP_MS) win.requestAnimationFrame(step); else { strong.textContent = target; delete strong.dataset.counting; }
       };
       win.requestAnimationFrame(step);

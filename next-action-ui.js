@@ -1,7 +1,7 @@
 // n° 28 - Carte « Prochaine action » enrichie : compte à rebours (mis à jour chaque minute),
 // pastille météo du créneau, vignette du contour de la parcelle, action suivante et retournement
 // de la carte après « Marquer comme fait ». Lecture seule : aucune donnée n'est écrite.
-import {animateElement} from './motion.js';
+import {animateElement, EASE} from './motion.js';
 import {cachedSilhouette} from './parcel-silhouette.js';
 import {countdownLabel, msToNextMinute, pickFollowing, followingLabel, weatherChip} from './next-action.js';
 
@@ -64,7 +64,7 @@ export function createNextActionUI({doc = globalThis.document, win = globalThis,
       {transform: 'perspective(900px) rotateX(-88deg)', opacity: .35},
       {transform: 'perspective(900px) rotateX(8deg)', opacity: 1, offset: .7},
       {transform: 'perspective(900px) rotateX(0deg)', opacity: 1}
-    ], {duration: 520, easing: 'cubic-bezier(.2,.7,.2,1)'});
+    ], {duration: 520, easing: EASE});
   }
 
   // Enrichit la carte rendue par app.js. `next` est l'entrée d'agenda affichée (ou null).

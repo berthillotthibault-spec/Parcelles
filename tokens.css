@@ -31,9 +31,12 @@
   --tile:#efece5;--tile-hover:#e6e2d9;--ink:#1d2420;--on-ink:#fff;--accent-ink:#8fd1a8;--accent-ink-text:#10261a;--on-brand:#fff;
   --warning-soft:#f8eedb;--danger-soft:#f7e3dd;--muted-text:#4c544f;--shadow-brand:0 6px 18px rgba(40,106,74,.4);
   --font-sans:'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  --font-serif:'Instrument Serif',Georgia,'Times New Roman',serif;--a11y-hit:44px;--field-border:#858b86;--sync-info:#2d5f93;
+  --font-serif:'Instrument Serif',Georgia,'Times New Roman',serif;--a11y-hit:48px;--field-border:#858b86;--sync-info:#2d5f93;
   --sync-info-soft:#e4edf7;--sync-violet:#6b3fa0;--sync-violet-soft:#efe7f8;--assistant-clearance:64px;
   --motion-ease:cubic-bezier(.2,.7,.2,1);
+  /* 10.39 : durées et courbes partagées ; --motion-ease reste la sortie (ease-out) */
+  --motion-fast:120ms;--motion-base:200ms;--motion-slow:320ms;--ease-in:cubic-bezier(.4,0,1,1);--ease-sheet:cubic-bezier(.32,.72,0,1);--press-scale:.97;
+  --fs-caption:12px;--fs-meta:13.5px;--fs-label:14px;--fs-body:15px;--fs-row:16px;--fs-title:18px;--fs-h1:clamp(28px,6vw,34px);
   /* n° 160 : carte météo de l’accueil, bandeau des retards, hachures de remplacement des vignettes */
   --hero:#1c3a28;--hero-2:#2a573b;--hero-ink:#f6f4ef;--warning-line:#e9cc8c;--map-hatch-1:#c9d3bf;--map-hatch-2:#c0cbb5
 }

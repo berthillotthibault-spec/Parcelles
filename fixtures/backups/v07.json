@@ -1,0 +1,49 @@
+{
+  "format": "parcelles-backup-json",
+  "formatVersion": 7,
+  "buildId": "fixture-v7",
+  "createdAt": 1735725600000,
+  "application": "Parcelles",
+  "note": "Forme 7 : observations sans statut.",
+  "data": {
+    "version": 7,
+    "parcelles": [
+      {
+        "createdAt": 1735725600000,
+        "updatedAt": 1735725600500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "p_e",
+        "nom": "Le Clos",
+        "surfaceHa": 1.8
+      }
+    ],
+    "observations": [
+      {
+        "createdAt": 1735725601000,
+        "updatedAt": 1735725601500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "o_e",
+        "parcelId": "p_e",
+        "title": "Pucerons",
+        "resolvedAt": 1735812000000
+      },
+      {
+        "createdAt": 1735725602000,
+        "updatedAt": 1735725602500,
+        "version": 1,
+        "source": "local",
+        "sourceId": null,
+        "deletedAt": null,
+        "id": "o_e2",
+        "parcelId": "p_e",
+        "title": "Limaces"
+      }
+    ]
+  }
+}
