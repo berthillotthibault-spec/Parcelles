@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.40.3 · palette « Terroir épuré + » (refonte, étape 1) — 2026-11-24
+
+- Apparence seule, d’après la proposition retenue de la refonte Figma : seules les variables de `tokens.css` changent, aucun écran ni aucune action n’est modifié.
+- Thème clair : encre un peu plus verte (#1e2a23), texte secondaire plus contrasté (#5a645e), filets plus chauds (#e6e1d6), ambre, brique et ardoise plus nets pour les alertes, retards et informations (contrastes AA conservés).
+- Cartes aux coins moins arrondis (22 → 16 px), plus sobres.
+- Nouveaux jetons pour les étapes suivantes : `--info-soft` (clair et sombre) et `--hit-primary` (56 px, actions principales). Thème sombre, Plein champ et contraste renforcé inchangés.
+
 ## 10.40.2 · en-tête et assistant allégés — 2026-11-24
 
 - Apparence seule, d’après la maquette « Parcelles — refonte » : aucun bouton retiré, aucune action déplacée, la saisie rapide (« + ») et le formulaire de travail sont inchangés.

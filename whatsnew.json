@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.40.3",
+      "date": "2026-11-24",
+      "title": "Couleurs plus nettes",
+      "items": [
+        "Textes secondaires plus lisibles et filets plus doux.",
+        "Alertes, retards et informations ressortent mieux.",
+        "Cartes aux coins moins arrondis, plus sobres.",
+        "Rien ne change de place : mêmes écrans, mêmes actions."
+      ]
+    },
+    {
       "version": "10.40.2",
       "date": "2026-11-24",
       "title": "En-tête et assistant plus discrets",
