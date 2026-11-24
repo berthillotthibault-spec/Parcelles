@@ -1,5 +1,14 @@
 # Changelog
 
+## 10.40.2 · en-tête et assistant allégés — 2026-11-24
+
+- Apparence seule, d’après la maquette « Parcelles — refonte » : aucun bouton retiré, aucune action déplacée, la saisie rapide (« + ») et le formulaire de travail sont inchangés.
+- En-tête : le badge « 100 % local » perd sa bordure verte et la pastille de profil passe du vert foncé au vert pâle ; l’état de synchronisation reste le seul repère coloré.
+- Téléphone : le micro et l’assistant IA deviennent deux ronds de 48 px (au lieu d’une pilule de 136 px) et masquent moins le contenu ; le nom accessible « Assistant IA » est inchangé.
+- Liste des parcelles (téléphone) : chaque parcelle qui a un contour affiche sa forme réelle, teintée par la culture, à la place de la barre de couleur (gardée pour une parcelle sans contour).
+- Accueil (téléphone) : en-tête plus court (titre de 44 à 34 px, marges resserrées, pastille de profil allégée), les travaux du jour remontent d’environ 80 px.
+- Titres des autres écrans (Parcelles, Planning, Troupeau, fiche parcelle) ramenés à 34 px sur téléphone, comme l’accueil.
+
 ## 10.40.1 · retour au visuel de la 10.39.0 — 2026-11-23
 
 - Le nouveau visuel de la 10.40.0 (verre, tuiles, grands chiffres) est retiré : l’application retrouve exactement l’apparence et les écrans de la 10.39.0. Aucune donnée n’est touchée (format inchangé).

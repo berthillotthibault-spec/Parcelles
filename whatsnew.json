@@ -1,6 +1,17 @@
 {
   "versions": [
     {
+      "version": "10.40.2",
+      "date": "2026-11-24",
+      "title": "En-tête et assistant plus discrets",
+      "items": [
+        "En-tête plus discret ; le micro et l’assistant IA deviennent deux petits ronds qui masquent moins l’écran.",
+        "Dans la liste, chaque parcelle montre sa forme réelle.",
+        "L’accueil est plus court : les travaux du jour apparaissent plus haut.",
+        "Toutes les fonctions et la saisie rapide restent au même endroit."
+      ]
+    },
+    {
       "version": "10.40.1",
       "date": "2026-11-23",
       "title": "Retour à l’apparence habituelle",

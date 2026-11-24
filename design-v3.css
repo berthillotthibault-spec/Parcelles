@@ -3786,4 +3786,34 @@ html body select:not([multiple]):not([size])::-ms-expand{display:none}
 .gesture-proposals .gesture-actions .small-button{min-height:48px;min-width:48px}
 .gesture-proposals .gesture-window{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
 .gesture-proposals .gesture-window select{min-height:48px;width:auto}
+/* 10.40.2 : allègement visuel (maquette « Parcelles — refonte »). Apparence seule : aucun bouton retiré, aucune action déplacée. */
+/* En-tête : badge « 100 % local » et pastille de profil plus discrets, l'état de synchronisation reste le seul repère coloré. */
+.app-header .local-badge{border:0;background:var(--surface-tertiary);color:var(--text-secondary);font-weight:600}
+.app-header .profile-chip{background:var(--brand-soft);color:var(--brand-hover)}
+.app-header .profile-chip:hover{background:var(--brand-soft);filter:brightness(.96)}
+/* Assistant (micro + IA) : deux ronds compacts au lieu d'une pilule, pour masquer moins de contenu. Le nom accessible ne change pas. */
+@media(max-width:1023px){
+  .assistant-dock{height:48px;gap:8px}
+  .assistant-dock .vn-fab{width:48px;height:48px;box-shadow:0 6px 16px rgba(20,28,24,.22)}
+  .assistant-launcher{width:48px;height:48px;padding:0;justify-content:center;border-radius:50%;box-shadow:0 6px 16px rgba(20,28,24,.22)}
+  .assistant-launcher span{display:none}
+}
+/* Liste des parcelles : vignette de la forme réelle, teintée par la culture ; la barre de couleur reste pour une parcelle sans contour. */
+@media(max-width:1023px){
+  #view-parcels .parcel-row .crop-dot.has-shape{display:grid;width:52px;height:52px;padding:4px;box-sizing:border-box;border-radius:12px}
+  #view-parcels .parcel-row:has(.crop-dot.has-shape) .parcel-bar{display:none}
+}
+/* Accueil sur téléphone : en-tête plus court pour faire remonter les travaux du jour. */
+@media(max-width:1023px){
+  .today-welcome h1{font-size:34px;margin:2px 0 4px}
+  .today-welcome #today-label{margin:0;font-size:var(--fs-caption)}
+  .today-welcome p#today-subtitle{font-size:15px;line-height:1.35}
+  .today-welcome .story-name-prompt{margin:6px 0 0;font-size:var(--fs-label)}
+  .today-welcome .today-profile-chip{width:44px;height:44px;min-width:44px;font-size:14px;background:var(--brand-soft);color:var(--brand-hover)}
+}
+/* Mêmes titres sur les autres écrans (Parcelles, Planning, Troupeau, fiche) : 34 px au lieu de 40 à 44 px. */
+@media(max-width:1023px){
+  .view-heading h1,.page-title,#work-title,.herd-page .view-heading h1,.detail-hero h1,.category-hero h1{font-size:34px;line-height:1.05}
+  .view-heading{margin-bottom:12px}
+}
 }
